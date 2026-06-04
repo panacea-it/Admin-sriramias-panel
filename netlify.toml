@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_FRONTEND_ONLY = "true"
+  VITE_REWARDS_USE_MOCK = "true"
+  VITE_ENABLE_DEMO_LOGIN = "true"
+
+# SPA fallback — also mirrored in public/_redirects for static hosts
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
