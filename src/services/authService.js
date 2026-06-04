@@ -1,8 +1,9 @@
-import apiClient from './apiClient'
-
-const LOGIN_SUPER_ADMIN_PATH = '/api/auth/login-super-admin'
+import apiClient, { API_ENDPOINTS, BASE_URL, buildApiUrl } from '../config/api'
 
 function toAuthError(error) {
+  console.log('Login Error:', error.response?.data)
+  console.log('Status:', error.response?.status)
+
   if (error?.response?.status === 401) {
     const data = error.response.data
     return {
@@ -27,7 +28,7 @@ function toAuthError(error) {
   if (error?.code === 'ERR_NETWORK' || !error?.response) {
     return {
       message:
-        'Network error — check your connection or restart the dev server (npm run dev).',
+        'Network error — check your connection, API base URL (VITE_API_BASE_URL), or restart the dev server.',
     }
   }
 
@@ -46,8 +47,15 @@ function toAuthError(error) {
 }
 
 export const loginSuperAdmin = async (payload) => {
+  const url = buildApiUrl(API_ENDPOINTS.LOGIN_SUPER_ADMIN)
+
+  console.log('BASE_URL:', BASE_URL)
+  console.log('Login Payload:', payload)
+  console.log('Login URL:', url)
+
   try {
-    const response = await apiClient.post(LOGIN_SUPER_ADMIN_PATH, payload)
+    const response = await apiClient.post(API_ENDPOINTS.LOGIN_SUPER_ADMIN, payload)
+    console.log('Login Response:', response.data)
     return response.data
   } catch (error) {
     throw toAuthError(error)

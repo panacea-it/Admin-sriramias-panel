@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { getDefaultRouteForRole } from '../../config/rbacAccess'
@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
+  const submitLock = useRef(false)
 
   useEffect(() => {
     const demo = getDemoUserByRole(LOGIN_ROLE_OPTIONS[0].id)
@@ -53,6 +54,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (authLoading || submitLock.current) return
 
     const fieldErrors = validateLoginFields(form)
     const validationMessage = firstLoginValidationMessage(fieldErrors)
@@ -61,6 +63,7 @@ export default function LoginPage() {
       return
     }
 
+    submitLock.current = true
     try {
       await login({
         ...form,
@@ -70,7 +73,14 @@ export default function LoginPage() {
       toast.success('Login successful')
       navigate(redirectTo, { replace: true })
     } catch (err) {
-      toast.error(err.message || 'Invalid credentials')
+      const message =
+        err?.message ||
+        err?.cause?.message ||
+        err?.cause?.response?.data?.message ||
+        'Login failed'
+      toast.error(message)
+    } finally {
+      submitLock.current = false
     }
   }
 
@@ -213,9 +223,17 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={authLoading}
-              className="mt-6 flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-sm font-bold text-white shadow-[0_5px_13px_rgba(36,99,146,0.35)] transition hover:opacity-95 disabled:opacity-60 sm:text-base"
+              aria-busy={authLoading}
+              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-sm font-bold text-white shadow-[0_5px_13px_rgba(36,99,146,0.35)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
             >
-              {authLoading ? 'Signing in...' : 'Sign in'}
+              {authLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
             </button>
 
             <p className="mt-5 text-center text-xs font-medium text-[#9ca0a8]">

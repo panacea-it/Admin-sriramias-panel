@@ -56,8 +56,11 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => {
     setAuthLoading(true)
     try {
-      const { user: u, accessToken } = await loginApi(credentials)
-      persistAuth(accessToken, u, { remember: Boolean(credentials.remember) })
+      const { user: u, accessToken, refreshToken } = await loginApi(credentials)
+      persistAuth(accessToken, u, {
+        remember: Boolean(credentials.remember),
+        refreshToken,
+      })
       setUser(u)
       setSelectedCenter(u.center || u.centers?.[0] || 'All Centers')
       return u

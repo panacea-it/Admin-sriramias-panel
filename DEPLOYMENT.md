@@ -1,141 +1,53 @@
-# Vercel deployment
+# Netlify deployment
 
-This repo supports two deployment modes. **Use Option A unless you explicitly need the Express API on Vercel.**
+This frontend is a **Vite + React SPA**. The API runs separately (e.g. Render). Netlify serves only the static `dist/` build.
 
-## Option A — Frontend only (recommended)
+## Netlify project settings
 
-Static Vite SPA with demo auth and `localStorage` data. **No MongoDB, no `/api` on Vercel.**
+| Setting            | Value              |
+| ------------------ | ------------------ |
+| Build command      | `npm run build`    |
+| Publish directory  | `dist`             |
+| Node version       | 20 (see `netlify.toml`) |
 
-### Vercel project settings
+`netlify.toml` already defines SPA redirects and default build env vars.
 
+## Environment variables (Netlify UI)
 
-| Setting            | Value                              |
-| ------------------ | ---------------------------------- |
-| Framework Presethi | **Vite** (not “Services”)          |
-| Root Directory     | `.`                                |
-| Build Command      | `npm run build` (or leave default) |
-| Output Directory   | `dist`                             |
-| Install Command    | `npm install`                      |
+Set under **Site settings → Environment variables** (Production):
 
+| Variable                 | Example                                      | Purpose                          |
+| ------------------------ | -------------------------------------------- | -------------------------------- |
+| `VITE_API_BASE_URL`      | `https://new-sriramias.onrender.com`         | Backend host (no `/api` suffix)  |
+| `VITE_FRONTEND_ONLY`     | `false`                                      | Required for live Super Admin login |
+| `VITE_ENABLE_DEMO_LOGIN` | `false`                                      | Optional demo fallback           |
 
-Do **not** add `experimentalServices` in the dashboard or in `vercel.json` for this mode.
-
-### What runs
-
-
-| URL                                     | Serves                     |
-| --------------------------------------- | -------------------------- |
-| `https://your-app.vercel.app/`          | React app (`dist/`)        |
-| `https://your-app.vercel.app/any/route` | `index.html` (SPA rewrite) |
-
-
-### Environment variables
-
-Usually **none**. Production build uses `.env.production` (`VITE_FRONTEND_ONLY=true`).
-
-Optional overrides in the Vercel dashboard:
-
-
-| Variable                 | Value  |
-| ------------------------ | ------ |
-| `VITE_ENABLE_DEMO_LOGIN` | `true` |
-| `VITE_FRONTEND_ONLY`     | `true` |
-
-
-Do **not** set `VITE_API_BASE_URL` for demo deploys.
-
-### Deploy
-
-**GitHub:** [vercel.com/new](https://vercel.com/new) → import repo → Framework **Vite** → Deploy.
-
-**CLI:**
-
-```bash
-npm i -g vercel
-vercel login
-cd path/to/admin-panel
-vercel link
-vercel --prod
-```
-
-### Demo login
-
-See `src/data/demoAuthUsers.js` (e.g. `superadmin@sriramias.com` / `Super@123` with role **Super Admin**).
-
----
-
-## Option B — Vercel Services (`experimentalServices`)
-
-Only if your Vercel team has **Services** enabled and you want frontend + Express backend on one domain.
-
-### Common mistakes (why deploy fails)
-
-1. **Wrong field name** — use `entrypoint`, not `root`:
-  ```json
-   "backend": {
-     "entrypoint": "backend",
-     "routePrefix": "/_/backend",
-     "framework": "express"
-   }
-  ```
-2. **Framework Preset mismatch** — dashboard must be **Services**, and `vercel.json` must define `experimentalServices` (see `vercel.services.json.example`).
-3. **Mixing configs** — do not keep top-level `"framework": "vite"` + SPA `rewrites` **and** `experimentalServices` in the same file. For Services, replace `vercel.json` with the example file (rename/copy).
-4. **Missing `entrypoint` on frontend**:
-  ```json
-   "frontend": {
-     "entrypoint": ".",
-     "routePrefix": "/",
-     "framework": "vite"
-   }
-  ```
-5. **MongoDB** — backend service needs `MONGO_URI` (and related vars) in Vercel → Settings → Environment Variables.
-6. **Frontend still in frontend-only mode** — set `VITE_FRONTEND_ONLY=false` and point the app at the backend URL (e.g. `VITE_API_BASE_URL` or service URL env vars from Vercel).
-
-### Setup steps
-
-1. Copy `vercel.services.json.example` → `vercel.json` (back up the current file first).
-2. Vercel → Project → Settings → General → Framework Preset: **Services**.
-3. Add env vars: `MONGO_URI`, `CLIENT_ORIGIN` / `FRONTEND_URL` = your Vercel URL.
-4. Redeploy.
-
-API paths will be under `https://your-app.vercel.app/_/backend/api/...` unless you adjust routes and `VITE_API_BASE_URL`.
-
----
-
-## Troubleshooting
-
-
-| Symptom                                    | Fix                                                                                                                                                                                |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Build fails on `/api` or `backend/app.js`  | You are deploying the API by accident. Use **Option A**, keep root `vercel.json`, and do **not** restore `/api/index.js` unless you follow `backend/vercel-serverless.example.js`. |
-| “Services” / `experimentalServices` errors | Switch Framework Preset to **Vite** and use the default `vercel.json`, **or** fully switch to Option B with `vercel.services.json.example`.                                        |
-| `centers?.find` / app errors after deploy  | App bug — unrelated to Vercel; pull latest frontend fixes.                                                                                                                         |
-| Blank page on refresh                      | SPA rewrite missing — ensure `vercel.json` `rewrites` send routes to `/index.html`.                                                                                                |
-| Login works locally, not on Vercel         | Use demo credentials + correct **role**; ensure `VITE_FRONTEND_ONLY` is not set to `false` without a working API.                                                                  |
-
+Redeploy after changing env vars (Vite bakes them at build time).
 
 ## Local development
 
-**Matches Vercel (frontend only):**
-
 ```bash
-# .env.local
-VITE_FRONTEND_ONLY=true
-VITE_ENABLE_DEMO_LOGIN=true
+npm install
 npm run dev
 ```
 
-**With local API:**
+Use `.env` (see `.env.example`):
 
-```bash
-npm run dev          # terminal 1
-npm run dev:api      # terminal 2 — uses backend/.env
-```
+- `VITE_API_BASE_URL` — proxied via Vite to `/api/*` in dev
+- `VITE_FRONTEND_ONLY=false` — call live API for Super Admin
+- `VITE_ENABLE_DEMO_LOGIN=false` — no demo fallback on API errors
 
-## Verify production (Option A)
+## Super Admin login
 
-1. Login page loads.
-2. Demo login succeeds.
-3. Finance / Academics / CRM work without “Database unavailable”.
-4. Deep link refresh works (e.g. `/academics/categories/class-rooms`).
+`POST {VITE_API_BASE_URL}/api/auth/login-super-admin` with JSON body `{ "email", "password" }`.
 
+Use credentials issued by your backend — demo UI prefills are for offline roles only.
+
+## Troubleshooting
+
+| Issue | Fix |
+| ----- | --- |
+| Login works locally, not on Netlify | Set `VITE_FRONTEND_ONLY=false` and `VITE_API_BASE_URL` in Netlify, then redeploy |
+| Blank page on refresh | Ensure `netlify.toml` SPA redirect is present |
+| CORS errors | Add your Netlify URL to backend `CLIENT_ORIGIN` / allowed origins |
+| Wrong API host | Confirm `VITE_API_BASE_URL` has no trailing slash |

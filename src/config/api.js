@@ -1,26 +1,32 @@
 import axios from 'axios'
 import { clearAuthStorage, getAuthToken } from '../utils/authStorage'
 
-export const BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '') ||
-  import.meta.env.REACT_APP_BASE_URL?.replace(/\/api\/?$/, '') ||
-  'https://new-sriramias.onrender.com'
-
-function isDemoToken(token) {
-  return typeof token === 'string' && token.startsWith('demo-token-')
+function readEnvBaseUrl() {
+  const raw =
+    import.meta.env.VITE_API_BASE_URL?.trim() ||
+    import.meta.env.VITE_BASE_URL?.trim() ||
+    import.meta.env.REACT_APP_BASE_URL?.trim() ||
+    ''
+  if (!raw) return ''
+  return raw.replace(/\/api\/?$/, '').replace(/\/$/, '')
 }
 
-function resolveBaseURL() {
+/** API host without trailing slash or `/api` suffix */
+export const BASE_URL = readEnvBaseUrl() || 'https://new-sriramias.onrender.com'
+
+export const API_ENDPOINTS = {
+  LOGIN_SUPER_ADMIN: '/api/auth/login-super-admin',
+}
+
+function resolveAxiosBaseURL() {
   if (import.meta.env.DEV) {
     return ''
   }
-
-  const raw = String(BASE_URL).replace(/\/$/, '')
-  return raw.endsWith('/api') ? raw.slice(0, -4) : raw
+  return BASE_URL
 }
 
 const api = axios.create({
-  baseURL: resolveBaseURL(),
+  baseURL: resolveAxiosBaseURL(),
   timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
@@ -47,9 +53,7 @@ api.interceptors.response.use(
     const url = String(error.config?.url || '')
     const token = getAuthToken()
 
-    // In "demo" mode we intentionally use a local-only token; some backend routes may 401.
-    // Don't force-logout in that scenario—let the page handle the error state.
-    if (status === 401 && !url.includes('/auth/login') && !isDemoToken(token)) {
+    if (status === 401 && !url.includes('/auth/login') && !String(token).startsWith('demo-token-')) {
       clearAuthStorage()
       if (window.location.pathname !== '/login') {
         window.location.assign('/login')
@@ -58,5 +62,13 @@ api.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+export function buildApiUrl(path) {
+  const endpoint = path.startsWith('/') ? path : `/${path}`
+  if (import.meta.env.DEV) {
+    return endpoint
+  }
+  return `${BASE_URL}${endpoint}`
+}
 
 export default api

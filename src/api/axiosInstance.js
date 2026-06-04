@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { BASE_URL, buildApiUrl } from '../config/api'
 import { isDemoAuthEnabled, isFrontendOnly } from '../config/appMode'
 import { emitAuthLogout } from '../utils/authEvents'
 import { clearAuthStorage, getAuthToken } from '../utils/authStorage'
@@ -12,10 +13,9 @@ export function resolveApiBaseUrl() {
     return '/api'
   }
 
-  const configured = import.meta.env.VITE_API_BASE_URL?.trim()
+  const configured = BASE_URL
   if (configured) {
-    const raw = configured.replace(/\/$/, '')
-    return raw.endsWith('/api') ? raw : `${raw}/api`
+    return configured.endsWith('/api') ? configured : `${configured}/api`
   }
 
   return '/api'
@@ -64,4 +64,5 @@ api.interceptors.response.use(
   },
 )
 
+export { buildApiUrl }
 export default api

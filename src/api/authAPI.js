@@ -43,7 +43,7 @@ function mockAuthenticate(email, password) {
     }
   }
 
-  throw new Error('Invalid email or password')
+  throw new Error('No matching demo account for this email and password')
 }
 
 function assertExpectedRole(mapped, expectedRole) {
@@ -62,6 +62,11 @@ function shouldFallbackToDemo(error) {
   return false
 }
 
+function resolveThrownMessage(error) {
+  if (typeof error === 'object' && error?.message) return error.message
+  return getLoginErrorMessage(error)
+}
+
 async function loginSuperAdminViaApi(credentials, expectedRole) {
   const data = await loginSuperAdmin(credentials)
 
@@ -75,7 +80,7 @@ async function loginSuperAdminViaApi(credentials, expectedRole) {
 }
 
 /**
- * Admin login — Super Admin uses live API; other roles use demo/employee accounts when enabled.
+ * Admin login — Super Admin uses live API when not in frontend-only mode.
  */
 export async function login({ email, password, expectedRole }) {
   const credentials = {
@@ -100,15 +105,11 @@ export async function login({ email, password, expectedRole }) {
       if (shouldFallbackToDemo(error)) {
         try {
           return tryMock()
-        } catch {
-          /* use API error below */
+        } catch (demoError) {
+          throw new Error(resolveThrownMessage(error), { cause: error })
         }
       }
-      const message =
-        typeof error === 'object' && error?.message
-          ? error.message
-          : getLoginErrorMessage(error)
-      throw new Error(message, { cause: error })
+      throw new Error(resolveThrownMessage(error), { cause: error })
     }
   }
 
@@ -116,25 +117,7 @@ export async function login({ email, password, expectedRole }) {
     return tryMock()
   }
 
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const { data } = await api.post('/auth/login-super-admin', credentials, {
-      timeout: 60000,
-    })
-
-    if (data?.success === false) {
-      throw new Error(data.message || 'Login failed')
-    }
-
-    const mapped = mapLoginResponse(data)
-    assertExpectedRole(mapped, expectedRole)
-    return mapped
-  } catch (error) {
-    if (shouldFallbackToDemo(error)) {
-      return tryMock()
-    }
-    throw new Error(getLoginErrorMessage(error), { cause: error })
-  }
+  return loginSuperAdminViaApi(credentials, expectedRole)
 }
 
 export function logout() {

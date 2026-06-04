@@ -4,13 +4,13 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  VITE_FRONTEND_ONLY = "true"
-  VITE_REWARDS_USE_MOCK = "true"
-  VITE_ENABLE_DEMO_LOGIN = "true"
+  # Override in Netlify UI → Site settings → Environment variables if needed:
+  VITE_FRONTEND_ONLY = "false"
+  VITE_ENABLE_DEMO_LOGIN = "false"
+  VITE_API_BASE_URL = "https://new-sriramias.onrender.com"
 
-# SPA fallback — also mirrored in public/_redirects for static hosts
+# SPA fallback for client-side routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-

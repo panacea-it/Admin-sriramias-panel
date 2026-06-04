@@ -49,7 +49,15 @@ export function mapLoginResponse(apiResponse) {
     payload?.token ??
     payload?.access_token ??
     root?.accessToken ??
-    root?.token
+    root?.token ??
+    apiResponse?.token ??
+    apiResponse?.data?.token
+
+  const refreshToken =
+    payload?.refreshToken ??
+    payload?.refresh_token ??
+    root?.refreshToken ??
+    root?.refresh_token
 
   if (!user || !accessToken) {
     throw new Error(apiResponse?.message || root?.message || 'Invalid login response from server')
@@ -76,6 +84,7 @@ export function mapLoginResponse(apiResponse) {
       centers: user.centers || (user.center ? [user.center] : ['All Centers']),
     },
     accessToken,
+    ...(refreshToken ? { refreshToken } : {}),
   }
 }
 
