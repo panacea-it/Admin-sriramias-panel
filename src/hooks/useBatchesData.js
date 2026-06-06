@@ -9,15 +9,15 @@ export function useBatchesData() {
   const [apiBatches, setApiBatches] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const loadBatches = useCallback(async () => {
-    setLoading(true)
+  const loadBatches = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const rows = await fetchCourses()
       setApiBatches(rows.map((row, i) => enrichBatchRow(row, i)))
     } catch {
       setApiBatches(mapInitialBatchesToRows().map((row, i) => enrichBatchRow(row, i)))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 

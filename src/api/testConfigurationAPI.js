@@ -266,7 +266,8 @@ function loadSectionStore() {
     return seed
   }
   const normalized = normalizeSectionList(parsed)
-  saveStore(key, normalized)
+  // Read path only — persisting here fired TEST_CONFIG_UPDATED on every API
+  // fallback and caused useTestConfigurationMaster to reload in a tight loop (429 storms).
   return normalized
 }
 

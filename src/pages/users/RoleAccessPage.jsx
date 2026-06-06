@@ -10,6 +10,8 @@ import AdminRoleFormModal from '../../components/admin-management/roles/AdminRol
 import AdminRoleViewModal from '../../components/admin-management/roles/AdminRoleViewModal'
 import ConfirmRoleDeleteModal from '../../components/admin-management/roles/ConfirmRoleDeleteModal'
 import { useRoleManagement } from '../../hooks/useRoleManagement'
+import { useApiRolesCatalogSync, syncApiRolesCatalog } from '../../hooks/useApiRolesCatalogSync'
+import { useAdminRolesSafe } from '../../contexts/AdminRolesContext'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../utils/apiError'
@@ -70,9 +72,13 @@ function RoleAccessTableActions({ onView, onEdit, onDelete, canDelete }) {
 }
 
 export default function RoleAccessPage() {
+  useApiRolesCatalogSync()
+  const adminRoles = useAdminRolesSafe()
+
   const {
     roles,
     loading,
+    loadError,
     search,
     setSearch,
     statusFilter,
@@ -124,6 +130,11 @@ export default function RoleAccessPage() {
     setEditing(null)
   }, [])
 
+  const refreshRolesAndCatalog = useCallback(async () => {
+    await refreshRoles()
+    await syncApiRolesCatalog(adminRoles?.mergeApiRoles)
+  }, [refreshRoles, adminRoles?.mergeApiRoles])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
     setDeleteLoading(true)
@@ -132,7 +143,7 @@ export default function RoleAccessPage() {
       removeRoleLocally(deleteTarget.id)
       toast.success('Role deleted')
       setDeleteTarget(null)
-      await refreshRoles()
+      await refreshRolesAndCatalog()
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
@@ -141,7 +152,7 @@ export default function RoleAccessPage() {
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeRoleLocally, refreshRoles])
+  }, [deleteTarget, removeRoleLocally, refreshRolesAndCatalog])
 
   const handleResetFilters = useCallback(() => {
     resetFilters()
@@ -150,11 +161,25 @@ export default function RoleAccessPage() {
 
   const emptyMessage = useMemo(() => {
     if (loading) return null
+    if (loadError) return 'Unable to load roles.'
     if (search.trim() || statusFilter !== 'all') {
       return 'No roles match your filters.'
     }
     return 'No roles found. Create your first role access to get started.'
-  }, [loading, search, statusFilter])
+  }, [loading, loadError, search, statusFilter])
+
+  const emptyState = loadError ? (
+    <div className="flex flex-col items-center gap-3 px-6 py-10">
+      <p className="text-sm font-semibold text-slate-600">{loadError}</p>
+      <button
+        type="button"
+        onClick={() => refreshRolesAndCatalog()}
+        className="rounded-lg border border-[#55ace7]/25 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+      >
+        Retry
+      </button>
+    </div>
+  ) : undefined
 
   const columns = useMemo(
     () => [
@@ -251,6 +276,7 @@ export default function RoleAccessPage() {
           columns={columns}
           data={roles}
           emptyMessage={emptyMessage}
+          emptyState={emptyState}
           itemLabel="roles"
           loading={loading}
           skeletonRowCount={pageSize}
@@ -264,7 +290,7 @@ export default function RoleAccessPage() {
         open={formOpen}
         initialRole={editing}
         onClose={handleCloseForm}
-        onSuccess={refreshRoles}
+        onSuccess={refreshRolesAndCatalog}
       />
       <AdminRoleViewModal
         open={!!viewingId}

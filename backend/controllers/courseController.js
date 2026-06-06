@@ -57,6 +57,10 @@ function pickBatchFields(body = {}) {
     batchEndTo: body.batchEndTo || '',
     bannerUrl: body.bannerUrl || body.bannerPreview || '',
     bannerFileName: body.bannerFileName?.trim() || '',
+    brochureUrl: body.brochureUrl || body.formData?.brochureUrl || '',
+    brochureFileName: body.brochureFileName?.trim() || body.formData?.brochureFileName?.trim() || '',
+    brochureFileSize:
+      body.brochureFileSize ?? body.formData?.brochureFileSize ?? null,
     mentorEmail: body.mentorEmail?.trim() || body.formData?.mentorEmail?.trim() || '',
     mentorEmployeeId:
       body.mentorEmployeeId?.trim() || body.formData?.mentorEmployeeId?.trim() || '',

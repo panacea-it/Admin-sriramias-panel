@@ -1,6 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
 import {
-  Wallet,
   FileSearch,
   Tv,
   SlidersHorizontal,
@@ -21,7 +20,6 @@ import {
   AnalyticsPage,
   BooksPage,
   WebsitePage,
-  BannersPage,
   BlogsPage,
   ContentLibraryPage,
   ContentLibraryLayout,
@@ -35,7 +33,6 @@ import {
   FinanceLayout,
   SalesAnalyticsLayout,
   BookstoreLayout,
-  TestsPage,
   CurrentAffairsPage,
   CategoriesLayout,
   SubjectCategoryPage,
@@ -87,7 +84,6 @@ export const MODULE_ROUTE_ELEMENTS = [
   { path: 'academics/live-classes/*', element: <LiveClassesLayout /> },
   { path: 'content-library', element: <Navigate to="/academics/content-library/dashboard" replace /> },
   { path: 'academics/content-library/*', element: <ContentLibraryLayout /> },
-  { path: 'tests', element: <TestsPage /> },
   { path: 'current-affairs', element: <CurrentAffairsPage /> },
   { path: 'academics/categories', element: <Navigate to="/academics/categories/programs" replace /> },
   { path: 'academics/categories/main', element: <Navigate to="/academics/categories/exam-category" replace /> },
@@ -96,7 +92,6 @@ export const MODULE_ROUTE_ELEMENTS = [
   { path: 'categories', element: <Navigate to="/academics/categories/programs" replace /> },
   { path: 'users/manage', element: <ManageUsersPage /> },
   { path: 'users/manage/students/:userId', element: <StudentDetailPage /> },
-  { path: 'users/wallet', element: module(Wallet, 'Wallet', 'Add Transaction', 'Search wallet') },
   { path: 'coupons', element: <CouponsPage /> },
   {
     path: 'users/admin',
@@ -134,7 +129,6 @@ export const MODULE_ROUTE_ELEMENTS = [
   { path: 'enquiries', element: <EnquiriesPage /> },
   { path: 'crm/help-desk', element: <HelpDeskPage /> },
   { path: 'crm/push-notifications', element: <PushNotificationsPage /> },
-  { path: 'marketing/banners', element: <BannersPage /> },
   { path: 'marketing/website', element: <WebsitePage /> },
   {
     path: 'marketing/seo-landing',

@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { BookMarked, GitMerge, PlusCircle } from 'lucide-react'
+import { BookMarked, PlusCircle } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import AddCourseModal from '../../components/courses/AddCourseModal'
 import BatchManagementTable from '../../components/batch-management/BatchManagementTable'
 import BatchBulkActionsBar from '../../components/batch-management/BatchBulkActionsBar'
 import ViewBatchModal from '../../components/courses/ViewBatchModal'
-import MergeBatchesModal from '../../components/batch-management/MergeBatchesModal'
-import MergeTwoBatchesModal from '../../components/batch-management/MergeTwoBatchesModal'
 import BulkChangeStatusModal from '../../components/batch-management/BulkChangeStatusModal'
 import BatchConfirmDialog from '../../components/batch-management/BatchConfirmDialog'
 import { useBatchManagementContext } from '../../contexts/BatchManagementContext'
@@ -24,6 +22,7 @@ import {
 import { batchStatusFilterOptions } from '../../utils/batchOperations'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
 import { createCourse, updateCourse, deleteCourse } from '../../api/coursesAPI'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
 function BannerButton({ children, onClick, icon: Icon = PlusCircle, variant = 'primary' }) {
@@ -42,6 +41,20 @@ function BannerButton({ children, onClick, icon: Icon = PlusCircle, variant = 'p
       {children}
     </button>
   )
+}
+
+function resolveBatchDeleteId(batch) {
+  return batch?.apiRow?.id ?? batch?.id
+}
+
+function resolveBatchesToDelete(deleteConfirm, selectedIds, tableBatches) {
+  if (!deleteConfirm) return []
+  if (deleteConfirm.bulk) {
+    return selectedIds
+      .map((id) => tableBatches.find((batch) => String(batch.id) === String(id)))
+      .filter(Boolean)
+  }
+  return [deleteConfirm]
 }
 
 function rowMatchesSearch(row, q) {
@@ -65,7 +78,7 @@ export default function BatchesPage() {
   const restored = location.state?.listState
 
   const { sourceRows, loading, loadBatches, apiBatches, existingCourseIds } = useBatchesData()
-  const { getStudentCount, resolveStudentKey, copyStudentsToBatch } = useBatchManagementContext()
+  const { getStudentCount } = useBatchManagementContext()
   const { logBatchActivity } = useBatchAudit()
 
   const [search, setSearch] = useState(restored?.search ?? '')
@@ -78,9 +91,6 @@ export default function BatchesPage() {
   const [viewItem, setViewItem] = useState(null)
   const [optimisticStatus, setOptimisticStatus] = useState({})
   const [statusUpdatingIds, setStatusUpdatingIds] = useState(() => new Set())
-  const [mergeOpen, setMergeOpen] = useState(false)
-  const [mergeTwoOpen, setMergeTwoOpen] = useState(false)
-  const [mergePreselected, setMergePreselected] = useState([])
   const [actionLoading, setActionLoading] = useState(false)
 
   const [archiveConfirm, setArchiveConfirm] = useState(null)
@@ -113,14 +123,6 @@ export default function BatchesPage() {
         mapBatchRowToTableFormat(row, [], getStudentCount(row)),
       ),
     [filteredRows, getStudentCount],
-  )
-
-  const allTableBatches = useMemo(
-    () =>
-      sourceRows.map((row) =>
-        mapBatchRowToTableFormat(row, [], getStudentCount(row)),
-      ),
-    [sourceRows, getStudentCount],
   )
 
   const listState = useMemo(
@@ -267,96 +269,68 @@ export default function BatchesPage() {
   }
 
   const handleDelete = async () => {
-    if (!deleteConfirm) return
-    const toDelete = deleteConfirm.bulk
-      ? tableBatches.filter((b) => selectedIds.includes(String(b.id)))
-      : [deleteConfirm]
+    if (!deleteConfirm || actionLoading) return
+
+    const toDelete = resolveBatchesToDelete(deleteConfirm, selectedIds, tableBatches)
+    if (toDelete.length === 0) {
+      toast.error('No batches selected for deletion')
+      return
+    }
+
     setActionLoading(true)
+    const succeeded = []
+    const failed = []
+
     try {
       for (const batch of toDelete) {
-        await deleteCourse(batch.id)
-        logBatchActivity(batch.id, {
-          type: BATCH_AUDIT_TYPES.DELETED,
-          message: 'Batch deleted',
-        })
-      }
-      toast.success(
-        toDelete.length > 1
-          ? `${toDelete.length} batches deleted`
-          : 'Batch deleted',
-      )
-      setSelectedIds([])
-      setDeleteConfirm(null)
-      await loadBatches()
-    } catch {
-      toast.error('Failed to delete batch')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleMergeSubmit = async ({ sourceIds, targetId, mergeFlags, conflictMode }) => {
-    const targetRow = apiBatches.find((b) => String(b.id) === String(targetId))
-    const targetTable = allTableBatches.find((b) => String(b.id) === String(targetId))
-    if (!targetRow || !targetTable) return
-
-    setActionLoading(true)
-    try {
-      const targetKey = resolveStudentKey(targetRow)
-      for (const sid of sourceIds) {
-        const sourceRow = apiBatches.find((b) => String(b.id) === String(sid))
-        if (!sourceRow) continue
-        if (mergeFlags.students) {
-          const sourceKey = resolveStudentKey(sourceRow)
-          copyStudentsToBatch(sourceKey, targetKey, { conflictMode })
+        const id = resolveBatchDeleteId(batch)
+        if (!id) {
+          failed.push({ batch, error: new Error('Missing batch id') })
+          continue
         }
-        const form = batchRowToForm(sourceRow)
-        await updateCourse(sourceRow.id, {
-          ...mapCourseToApiPayload({ ...form, status: 'Archived' }, sourceRow),
-          mergedInto: targetId,
-          mergedIntoName: targetTable.displayName,
-          formData: {
-            ...form,
-            mergedInto: targetId,
-            mergedIntoName: targetTable.displayName,
-          },
-        })
-        logBatchActivity(sourceRow.id, {
-          type: BATCH_AUDIT_TYPES.MERGED,
-          message: `Merged into ${targetTable.displayName}`,
-        })
+        try {
+          await deleteCourse(id)
+          logBatchActivity(id, {
+            type: BATCH_AUDIT_TYPES.DELETED,
+            message: 'Batch deleted',
+          })
+          succeeded.push(batch)
+        } catch (error) {
+          failed.push({ batch, error })
+        }
       }
-      logBatchActivity(targetId, {
-        type: BATCH_AUDIT_TYPES.MERGED,
-        message: `Received merge from ${sourceIds.length} batch(es)`,
-      })
-      toast.success('Batches merged successfully — they now operate as a single batch')
-      setMergeOpen(false)
-      setMergeTwoOpen(false)
-      setSelectedIds([])
-      await loadBatches()
-    } catch {
-      toast.error('Failed to merge batches')
+
+      if (succeeded.length > 0) {
+        const deletedIds = new Set(succeeded.map((batch) => String(batch.id)))
+        setSelectedIds((prev) => prev.filter((id) => !deletedIds.has(String(id))))
+
+        const remainingCount = filteredRows.filter(
+          (row) => !deletedIds.has(String(row.id)),
+        ).length
+        const maxPage = Math.max(1, Math.ceil(remainingCount / tablePageSize) || 1)
+        if (tablePage > maxPage) setTablePage(maxPage)
+
+        await loadBatches({ silent: true })
+      }
+
+      if (failed.length === 0) {
+        toast.success(
+          succeeded.length > 1
+            ? `${succeeded.length} batches deleted`
+            : 'Batch deleted',
+        )
+        setDeleteConfirm(null)
+      } else if (succeeded.length > 0) {
+        toast.error(
+          `${succeeded.length} batch(es) deleted, ${failed.length} failed. ${getApiErrorMessage(failed[0].error, 'Delete failed')}`,
+        )
+        setDeleteConfirm(null)
+      } else {
+        toast.error(getApiErrorMessage(failed[0].error, 'Failed to delete batch'))
+      }
     } finally {
       setActionLoading(false)
     }
-  }
-
-  const handleMergeTwoBatches = async ({ targetId, sourceId }) => {
-    await handleMergeSubmit({
-      sourceIds: [sourceId],
-      targetId,
-      mergeFlags: {
-        students: true,
-        attendance: true,
-        fees: true,
-        tests: true,
-        assignments: true,
-        notes: true,
-      },
-      conflictMode: 'skip',
-    })
-    setMergeTwoOpen(false)
   }
 
   const handleBulkStatus = async (bulkStatusValue) => {
@@ -422,13 +396,6 @@ export default function BatchesPage() {
           className="sticky top-0 z-20 from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
         >
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <BannerButton
-              variant="secondary"
-              icon={GitMerge}
-              onClick={() => setMergeTwoOpen(true)}
-            >
-              Merge Batches
-            </BannerButton>
             <BannerButton onClick={modal.openCreate}>Add Batch</BannerButton>
           </div>
         </PageBanner>
@@ -453,11 +420,11 @@ export default function BatchesPage() {
           onClearSelection={() => setSelectedIds([])}
           onChangeStatus={() => setBulkStatusOpen(true)}
           onArchive={() => setArchiveConfirm({ bulk: true, count: selectedIds.length })}
-          onDelete={() => setDeleteConfirm({ bulk: true, count: selectedIds.length })}
-          onMerge={() => {
-            setMergePreselected([...selectedIds])
-            setMergeOpen(true)
+          onDelete={() => {
+            if (actionLoading || selectedIds.length === 0) return
+            setDeleteConfirm({ bulk: true, count: selectedIds.length })
           }}
+          disabled={actionLoading}
         />
 
         {loading ? (
@@ -509,10 +476,9 @@ export default function BatchesPage() {
             onStatusChange={handleStatusChange}
             statusUpdatingIds={statusUpdatingIds}
             onDuplicate={handleDuplicateBatch}
-            onDelete={(b) => setDeleteConfirm(b)}
-            onMerge={(b) => {
-              setMergePreselected([String(b.id)])
-              setMergeOpen(true)
+            onDelete={(batch) => {
+              if (actionLoading) return
+              setDeleteConfirm(batch)
             }}
           />
         )}
@@ -531,23 +497,6 @@ export default function BatchesPage() {
         open={Boolean(viewItem)}
         onClose={() => setViewItem(null)}
         item={viewItem}
-      />
-
-      <MergeTwoBatchesModal
-        open={mergeTwoOpen}
-        onClose={() => setMergeTwoOpen(false)}
-        batches={allTableBatches}
-        onSubmit={handleMergeTwoBatches}
-        saving={actionLoading}
-      />
-
-      <MergeBatchesModal
-        open={mergeOpen}
-        onClose={() => setMergeOpen(false)}
-        allBatches={allTableBatches}
-        preselectedSourceIds={mergePreselected}
-        onSubmit={handleMergeSubmit}
-        saving={actionLoading}
       />
 
       <BatchConfirmDialog
@@ -594,7 +543,9 @@ export default function BatchesPage() {
         variant="danger"
         loading={actionLoading}
         loadingLabel="Deleting…"
-        onClose={() => setDeleteConfirm(null)}
+        onClose={() => {
+          if (!actionLoading) setDeleteConfirm(null)
+        }}
         onConfirm={handleDelete}
       />
 

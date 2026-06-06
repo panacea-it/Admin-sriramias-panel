@@ -29,6 +29,7 @@ export default function CurrentAffairsQuestionPaperSection({
   errors,
   onPatch,
   resetKey = 0,
+  currentAffairId = null,
 }) {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [rangeErrors, setRangeErrors] = useState({})
@@ -285,6 +286,7 @@ export default function CurrentAffairsQuestionPaperSection({
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         onImport={handleImport}
+        currentAffairId={currentAffairId}
       />
     </div>
   )

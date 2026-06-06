@@ -29,6 +29,8 @@ export default function PasswordField({
   error,
   helper,
   inputSize = 'default',
+  labelVariant = 'floating',
+  required = false,
 }) {
   const [visible, setVisible] = useState(false)
   const score = useMemo(() => strengthScore(value), [value])
@@ -41,6 +43,8 @@ export default function PasswordField({
           id={id}
           label={label}
           size={inputSize}
+          labelVariant={labelVariant}
+          required={required}
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={onChange}
@@ -55,7 +59,11 @@ export default function PasswordField({
           onClick={() => setVisible((v) => !v)}
           className={cn(
             'absolute z-10 text-slate-400 transition-colors hover:text-slate-600',
-            inputSize === 'comfortable' ? 'right-4 top-7' : 'right-3 top-5',
+            labelVariant === 'static'
+              ? 'right-3.5 top-12'
+              : inputSize === 'comfortable'
+                ? 'right-4 top-7'
+                : 'right-3 top-5',
           )}
           aria-label={visible ? 'Hide password' : 'Show password'}
         >

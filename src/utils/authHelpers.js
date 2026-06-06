@@ -96,8 +96,25 @@ export function normalizeStoredUser(user) {
   }
 }
 
+const LOGIN_STATUS_MESSAGES = {
+  401: 'Invalid email or password. Please check your credentials.',
+  403: 'Access denied. Your account may be restricted.',
+  429: 'Too many login attempts. Please wait and try again.',
+  500: 'Server error. Please try again later.',
+}
+
 export function getLoginErrorMessage(error) {
   if (typeof error === 'string') return error
+
+  const status = error?.status ?? error?.response?.status
+  if (status && LOGIN_STATUS_MESSAGES[status]) {
+    const data = error?.response?.data
+    if (status === 403 && typeof data === 'object' && (data?.message || data?.error)) {
+      return data.message || data.error
+    }
+    return LOGIN_STATUS_MESSAGES[status]
+  }
+
   if (error?.message && !error?.response) return error.message
 
   const data = error?.response?.data
@@ -112,4 +129,15 @@ export function getLoginErrorMessage(error) {
   }
   if (!error?.response) return 'Unable to reach the server. Check your connection.'
   return 'Login failed. Please check your email and password.'
+}
+
+/** Normalize thrown login errors from AuthContext, authAPI, and axios. */
+export function resolveLoginErrorMessage(error) {
+  if (!error) return 'Login failed'
+
+  const nested = error?.cause
+  const fromCause =
+    (typeof nested === 'object' && (nested?.message || getLoginErrorMessage(nested))) || null
+
+  return error?.message || fromCause || getLoginErrorMessage(error)
 }

@@ -1,7 +1,13 @@
-import { X } from 'lucide-react'
+import { Download, Eye, FileText, X } from 'lucide-react'
 import { contentTypeFromCategoryType } from '../../utils/facultySubjectHierarchy'
 import { getTestSeriesFlat } from '../../utils/batchTestSeriesForm'
 import { parseDateForDisplay } from '../../utils/academicsSubjectsStorage'
+import { resolveLanguageQuestionPapersFromBlock } from '../../utils/prelimsLanguageQuestionPapers'
+import {
+  downloadBrochurePdf,
+  formatBrochureFileSize,
+  viewBrochurePdf,
+} from '../../utils/batchBrochure'
 
 export default function ContentItemPreviewPanel({ category, row, onClose }) {
   if (!row) return null
@@ -84,6 +90,11 @@ export default function ContentItemPreviewPanel({ category, row, onClose }) {
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           {(() => {
             const flat = getTestSeriesFlat(payload)
+            const languagePapers = resolveLanguageQuestionPapersFromBlock(payload)
+            const languages = payload.languages?.length
+              ? payload.languages
+              : flat.languages || []
+
             return (
               <>
                 <div>
@@ -102,6 +113,71 @@ export default function ContentItemPreviewPanel({ category, row, onClose }) {
                   <dt className="text-xs font-semibold text-slate-500">Questions</dt>
                   <dd>{payload.questions?.length ?? 0}</dd>
                 </div>
+                {contentType === 'test' && languages.length > 0 ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold text-slate-500">Languages</dt>
+                    <dd>{languages.join(', ')}</dd>
+                  </div>
+                ) : null}
+                {contentType === 'test' && languagePapers.length > 0 ? (
+                  <div className="sm:col-span-2">
+                    <dt className="mb-2 text-xs font-semibold text-slate-500">Question Papers</dt>
+                    <dd>
+                      <ul className="space-y-2">
+                        {languagePapers.map((paper) => {
+                          const hasPdf = Boolean(paper.fileName || paper.pdfUrl)
+                          return (
+                            <li
+                              key={paper.language}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2"
+                            >
+                              <span className="inline-flex min-w-0 items-center gap-2 font-medium text-[#1a3a5c]">
+                                <FileText className="h-4 w-4 shrink-0 text-[#246392]" />
+                                <span className="truncate">
+                                  {hasPdf ? (
+                                    <>
+                                      <span className="text-emerald-700">✓</span> {paper.language}{' '}
+                                      PDF
+                                    </>
+                                  ) : (
+                                    `${paper.language} — not uploaded`
+                                  )}
+                                </span>
+                                {paper.fileSize != null ? (
+                                  <span className="text-xs font-normal text-slate-500">
+                                    ({formatBrochureFileSize(paper.fileSize)})
+                                  </span>
+                                ) : null}
+                              </span>
+                              {hasPdf && paper.pdfUrl ? (
+                                <span className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => viewBrochurePdf(paper.pdfUrl)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-[#55ace7]/20 bg-white px-2.5 py-1 text-xs font-semibold text-[#246392] hover:bg-[#eef6fc]"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    View PDF
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      downloadBrochurePdf(paper.pdfUrl, paper.fileName)
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                  </button>
+                                </span>
+                              ) : null}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="sm:col-span-2">
                   <dt className="text-xs font-semibold text-slate-500">Instructions</dt>
                   <dd className="whitespace-pre-wrap">{flat.instructions || '—'}</dd>

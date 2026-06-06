@@ -22,9 +22,9 @@ function requireField(errors, key, value, message) {
   }
 }
 
-function validatePdfField(errors, key, fileName, { required = true } = {}) {
+function validatePdfField(errors, key, fileName, { required = true, hasExistingPdf = false } = {}) {
   if (!fileName) {
-    if (required) errors[key] = 'PDF file is required'
+    if (required && !hasExistingPdf) errors[key] = 'PDF file is required'
     return
   }
   if (!isPdfFileName(fileName)) {
@@ -32,14 +32,16 @@ function validatePdfField(errors, key, fileName, { required = true } = {}) {
   }
 }
 
-function validateRowFields(form, rowKeys, errors) {
+function validateRowFields(form, rowKeys, errors, options = {}) {
+  const hasExistingPdf = Boolean(form.existingPdfUrl)
   for (const key of rowKeys) {
     if (key === 'category') {
       requireField(errors, 'category', form.category)
       continue
     }
     if (key === 'pdfUpload' || key === 'magazineUpload') {
-      validatePdfField(errors, key, form.fileName)
+      const required = !options.isEdit || !hasExistingPdf
+      validatePdfField(errors, key, form.fileName, { required, hasExistingPdf })
       continue
     }
     if (key === 'name') {
@@ -69,7 +71,7 @@ function validateRowFields(form, rowKeys, errors) {
   }
 }
 
-export function validateCurrentAffairsForm(form) {
+export function validateCurrentAffairsForm(form, { isEdit = false } = {}) {
   const errors = {}
   const category = form.category || ''
 
@@ -85,7 +87,7 @@ export function validateCurrentAffairsForm(form) {
   }
 
   for (const row of layout) {
-    validateRowFields(form, row, errors)
+    validateRowFields(form, row, errors, { isEdit })
   }
 
   if (isDailyPracticeCategory(category)) {

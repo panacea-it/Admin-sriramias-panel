@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { login as loginApi, logout as logoutApi } from '../api/authAPI'
@@ -37,6 +38,7 @@ export function AuthProvider({ children }) {
   const [bootstrapping, setBootstrapping] = useState(true)
   const [selectedCenter, setSelectedCenter] = useState('All Centers')
   const [authLoading, setAuthLoading] = useState(false)
+  const loginInFlightRef = useRef(null)
 
   useEffect(() => {
     const sessionUser = readStoredSession()
@@ -54,19 +56,29 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (credentials) => {
-    setAuthLoading(true)
-    try {
-      const { user: u, accessToken, refreshToken } = await loginApi(credentials)
-      persistAuth(accessToken, u, {
-        remember: Boolean(credentials.remember),
-        refreshToken,
-      })
-      setUser(u)
-      setSelectedCenter(u.center || u.centers?.[0] || 'All Centers')
-      return u
-    } finally {
-      setAuthLoading(false)
+    if (loginInFlightRef.current) {
+      return loginInFlightRef.current
     }
+
+    const request = (async () => {
+      setAuthLoading(true)
+      try {
+        const { user: u, accessToken, refreshToken } = await loginApi(credentials)
+        persistAuth(accessToken, u, {
+          remember: Boolean(credentials.remember),
+          refreshToken,
+        })
+        setUser(u)
+        setSelectedCenter(u.center || u.centers?.[0] || 'All Centers')
+        return u
+      } finally {
+        setAuthLoading(false)
+        loginInFlightRef.current = null
+      }
+    })()
+
+    loginInFlightRef.current = request
+    return request
   }, [])
 
   const logout = useCallback(() => {

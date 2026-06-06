@@ -1,6 +1,7 @@
 /** Test Series data for Faculty Subjects (and legacy batch payloads) */
 
 import { normalizePrelimsSectionQuestions } from './prelimsSectionQuestions'
+import { normalizeLanguageQuestionPapers } from './prelimsLanguageQuestionPapers'
 
 export const PRELIMS_SECTION_TIMER_EXPIRY_ACTIONS = [
   { value: 'moveNext', label: 'Auto move to next section' },
@@ -110,6 +111,7 @@ export function createEmptyTestSeriesDetails() {
     instructions: '',
     manualQuestions: '',
     pdfFileName: '',
+    languageQuestionPapers: [],
   }
 }
 
@@ -156,6 +158,10 @@ export function flattenTestSeriesBlock(raw = {}) {
     instructions: details.instructions ?? raw.instructions ?? '',
     manualQuestions: details.manualQuestions ?? raw.manualQuestions ?? '',
     pdfFileName: details.pdfFileName ?? raw.pdfFileName ?? '',
+    languageQuestionPapers:
+      details.languageQuestionPapers ??
+      raw.languageQuestionPapers ??
+      [],
     scheduleDate: schedule.date ?? raw.scheduleDate ?? '',
     scheduleTime: schedule.time ?? raw.scheduleTime ?? '',
     resultDate: resultSettings.resultDate ?? raw.resultDate ?? '',
@@ -281,6 +287,7 @@ export function normalizeTestSeriesBlock(raw = {}) {
       instructions: String(flat.instructions || '').trim(),
       manualQuestions: String(flat.manualQuestions || ''),
       pdfFileName: String(flat.pdfFileName || '').trim(),
+      languageQuestionPapers: normalizeLanguageQuestionPapers(flat.languageQuestionPapers),
     },
     schedule: {
       date: String(flat.scheduleDate || '').trim(),
@@ -325,6 +332,7 @@ export function getTestSeriesFlat(block = {}) {
   const n = normalizeTestSeriesBlock(block)
   return {
     ...n.details,
+    languageQuestionPapers: n.details.languageQuestionPapers,
     scheduleDate: n.schedule.date,
     scheduleTime: n.schedule.time,
     resultDate: n.resultSettings.resultDate,
@@ -365,6 +373,9 @@ export function patchTestSeriesBlock(prev = {}, patch = {}) {
       instructions: flat.instructions,
       manualQuestions: flat.manualQuestions,
       pdfFileName: flat.pdfFileName,
+      languageQuestionPapers: normalizeLanguageQuestionPapers(
+        flat.languageQuestionPapers ?? current.details.languageQuestionPapers,
+      ),
     },
     schedule: { date: flat.scheduleDate, time: flat.scheduleTime },
     resultSettings: {

@@ -16,9 +16,8 @@ import { cn } from '../../utils/cn'
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const selectClassName = cn(
-  'w-full min-h-[3rem] rounded-xl border border-slate-200/80 bg-white/90 px-4 py-3 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition',
+  'w-full min-h-[3rem] rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition',
   'focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15',
-  '',
 )
 
 const labelClass = cn(
@@ -26,10 +25,43 @@ const labelClass = cn(
 )
 
 const inputClass = cn(
-  'w-full rounded-xl border border-slate-200/80 bg-white/90 px-4 py-3 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition',
+  'w-full min-h-[3rem] rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition',
+  'placeholder:text-slate-400',
   'focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15',
-  '',
 )
+
+const sectionTitleClass = cn(
+  'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400',
+)
+
+function FormSection({ id, title, children }) {
+  return (
+    <section aria-labelledby={id} className="space-y-3">
+      <h3 id={id} className={sectionTitleClass}>
+        {title}
+      </h3>
+      <div className="rounded-xl border border-slate-100 bg-white px-4 py-5 shadow-[0_2px_12px_rgba(15,23,42,0.05)] sm:px-5 sm:py-5">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function FormField({ id, label, error, children, className }) {
+  return (
+    <div className={className}>
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <p className="mt-1.5 text-[12px] font-medium text-rose-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function parseAdmins(raw) {
   return String(raw || '')
@@ -209,30 +241,33 @@ export default function CenterFormDrawer({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4 md:p-6">
           <motion.button
             type="button"
-            aria-label="Close panel"
-            className="absolute inset-0 bg-slate-900/55 backdrop-blur-[2px]"
+            aria-label="Close dialog"
+            className="absolute inset-0 bg-slate-900/55 backdrop-blur-[3px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
           />
-          <motion.aside
+          <motion.div
             role="dialog"
             aria-modal="true"
             aria-labelledby="center-form-title"
-            initial={{ x: '100%', opacity: 0.6 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '100%', opacity: 0.6 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+            initial={{ opacity: 0, scale: 0.97, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 16 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 32 }}
             className={cn(
-              'relative z-[101] flex h-full w-full max-w-[min(100%,440px)] flex-col border-l border-slate-200/80 bg-white shadow-[0_0_48px_rgba(15,23,42,0.18)]',
+              'relative z-[101] flex w-full flex-col overflow-hidden border border-slate-200/80 bg-white shadow-2xl',
+              'h-[100dvh] max-h-[100dvh] rounded-none',
+              'sm:h-auto sm:max-h-[min(90vh,860px)] sm:w-[92vw] sm:max-w-[860px] sm:rounded-2xl',
             )}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-6 py-5 sm:px-8 sm:py-6">
               <div className="flex min-w-0 items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-500 text-white shadow-md">
                   <Building2 className="h-5 w-5" strokeWidth={2.3} />
@@ -240,11 +275,11 @@ export default function CenterFormDrawer({
                 <div className="min-w-0">
                   <h2
                     id="center-form-title"
-                    className="text-lg font-bold tracking-tight text-slate-900"
+                    className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl"
                   >
                     {title}
                   </h2>
-                  <p className="mt-1 text-[13px] leading-snug text-slate-500">
+                  <p className="mt-1 max-w-xl text-[13px] leading-snug text-slate-500 sm:text-[14px]">
                     Configure center profile, regional details, and assigned administrators.
                   </p>
                 </div>
@@ -252,7 +287,7 @@ export default function CenterFormDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -264,171 +299,148 @@ export default function CenterFormDrawer({
               onSubmit={handleSubmit}
               noValidate
             >
-              <div className="custom-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
-                <div>
-                  <label htmlFor="cf-name" className={labelClass}>
-                    Center Name
-                  </label>
-                  <input
-                    id="cf-name"
-                    className={cn(inputClass, errors.centerName && 'border-rose-400')}
-                    value={form.centerName}
-                    onChange={set('centerName')}
-                    placeholder="e.g. Hyderabad Center"
-                    autoComplete="organization"
-                  />
-                  {errors.centerName && (
-                    <p className="mt-1.5 text-[12px] font-medium text-rose-600">
-                      {errors.centerName}
-                    </p>
-                  )}
-                </div>
+              <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/60 px-6 py-6 sm:px-8 sm:py-7">
+                <div className="space-y-6">
+                  <FormSection id="center-section-info" title="Center Information">
+                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-4">
+                      <FormField id="cf-name" label="Center Name" error={errors.centerName}>
+                        <input
+                          id="cf-name"
+                          className={cn(inputClass, errors.centerName && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                          value={form.centerName}
+                          onChange={set('centerName')}
+                          placeholder="e.g. Hyderabad Center"
+                          autoComplete="organization"
+                        />
+                      </FormField>
 
-                <div>
-                  <label htmlFor="cf-code" className={labelClass}>
-                    Center Code
-                  </label>
-                  <input
-                    id="cf-code"
-                    className={cn(inputClass, errors.centerCode && 'border-rose-400')}
-                    value={form.centerCode}
-                    onChange={set('centerCode')}
-                    placeholder="e.g. HYD"
-                    autoCapitalize="characters"
-                  />
-                  {errors.centerCode && (
-                    <p className="mt-1.5 text-[12px] font-medium text-rose-600">
-                      {errors.centerCode}
-                    </p>
-                  )}
-                </div>
+                      <FormField id="cf-code" label="Center Code" error={errors.centerCode}>
+                        <input
+                          id="cf-code"
+                          className={cn(inputClass, errors.centerCode && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                          value={form.centerCode}
+                          onChange={set('centerCode')}
+                          placeholder="e.g. HYD"
+                          autoCapitalize="characters"
+                        />
+                      </FormField>
 
-                <div>
-                  <label htmlFor="cf-address" className={labelClass}>
-                    Address
-                  </label>
-                  <textarea
-                    id="cf-address"
-                    rows={2}
-                    className={cn(inputClass, 'min-h-[80px] resize-y', errors.address && 'border-rose-400')}
-                    value={form.address}
-                    onChange={set('address')}
-                    placeholder="Street, area, landmark"
-                  />
-                  {errors.address && (
-                    <p className="mt-1.5 text-[12px] font-medium text-rose-600">{errors.address}</p>
-                  )}
-                </div>
+                      <FormField id="cf-status" label="Status" className="sm:col-span-2">
+                        <select
+                          id="cf-status"
+                          value={form.status}
+                          onChange={set('status')}
+                          className={selectClassName}
+                        >
+                          <option value="active">Active</option>
+                          <option value="disabled">Disabled</option>
+                        </select>
+                        <p className="mt-2 text-[12px] font-medium text-slate-500">
+                          Disabled centers stay out of operational dropdowns until re-enabled.
+                        </p>
+                      </FormField>
+                    </div>
+                  </FormSection>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="cf-city" className={labelClass}>
-                      City
-                    </label>
-                    <input
-                      id="cf-city"
-                      className={cn(inputClass, errors.city && 'border-rose-400')}
-                      value={form.city}
-                      onChange={set('city')}
-                      placeholder="City"
-                    />
-                    {errors.city && (
-                      <p className="mt-1.5 text-[12px] font-medium text-rose-600">{errors.city}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="cf-state" className={labelClass}>
-                      State
-                    </label>
-                    <input
-                      id="cf-state"
-                      className={cn(inputClass, errors.state && 'border-rose-400')}
-                      value={form.state}
-                      onChange={set('state')}
-                      placeholder="State"
-                    />
-                    {errors.state && (
-                      <p className="mt-1.5 text-[12px] font-medium text-rose-600">{errors.state}</p>
-                    )}
-                  </div>
-                </div>
+                  <FormSection id="center-section-location" title="Location Details">
+                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-4">
+                      <FormField id="cf-address" label="Address" error={errors.address} className="sm:col-span-2">
+                        <textarea
+                          id="cf-address"
+                          rows={2}
+                          className={cn(
+                            inputClass,
+                            'min-h-[5rem] resize-y py-3',
+                            errors.address && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15',
+                          )}
+                          value={form.address}
+                          onChange={set('address')}
+                          placeholder="Street, area, landmark"
+                        />
+                      </FormField>
 
-                <div>
-                  <label htmlFor="cf-phone" className={labelClass}>
-                    Contact Number
-                  </label>
-                  <input
-                    id="cf-phone"
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    className={cn(inputClass, errors.contactNumber && 'border-rose-400')}
-                    value={form.contactNumber}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
-                      setForm((f) => ({ ...f, contactNumber: digits }))
-                      setErrors((err) => ({ ...err, contactNumber: undefined }))
-                    }}
-                    placeholder="10-digit mobile number"
-                  />
-                  {errors.contactNumber && (
-                    <p className="mt-1.5 text-[12px] font-medium text-rose-600">
-                      {errors.contactNumber}
-                    </p>
-                  )}
-                </div>
+                      <FormField id="cf-city" label="City" error={errors.city}>
+                        <input
+                          id="cf-city"
+                          className={cn(inputClass, errors.city && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                          value={form.city}
+                          onChange={set('city')}
+                          placeholder="City"
+                          autoComplete="address-level2"
+                        />
+                      </FormField>
 
-                <div>
-                  <label htmlFor="cf-email" className={labelClass}>
-                    Email
-                  </label>
-                  <input
-                    id="cf-email"
-                    type="email"
-                    className={cn(inputClass, errors.email && 'border-rose-400')}
-                    value={form.email}
-                    onChange={set('email')}
-                    placeholder="center@sriram.com"
-                  />
-                  {errors.email && (
-                    <p className="mt-1.5 text-[12px] font-medium text-rose-600">{errors.email}</p>
-                  )}
-                </div>
+                      <FormField id="cf-state" label="State" error={errors.state}>
+                        <input
+                          id="cf-state"
+                          className={cn(inputClass, errors.state && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                          value={form.state}
+                          onChange={set('state')}
+                          placeholder="State"
+                          autoComplete="address-level1"
+                        />
+                      </FormField>
+                    </div>
+                  </FormSection>
 
-                <div>
-                  <label htmlFor="cf-status" className={labelClass}>
-                    Status
-                  </label>
-                  <select id="cf-status" value={form.status} onChange={set('status')} className={selectClassName}>
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                  <p className="mt-2 text-[12px] font-medium text-slate-500">
-                    Disabled centers stay out of operational dropdowns until re-enabled.
-                  </p>
-                </div>
+                  <FormSection id="center-section-contact" title="Contact Information">
+                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-4">
+                      <FormField id="cf-phone" label="Contact Number" error={errors.contactNumber}>
+                        <input
+                          id="cf-phone"
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          className={cn(
+                            inputClass,
+                            errors.contactNumber && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15',
+                          )}
+                          value={form.contactNumber}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                            setForm((f) => ({ ...f, contactNumber: digits }))
+                            setErrors((err) => ({ ...err, contactNumber: undefined }))
+                          }}
+                          placeholder="10-digit mobile number"
+                          autoComplete="tel"
+                        />
+                      </FormField>
 
-                <div>
-                  <label htmlFor="cf-admins" className={labelClass}>
-                    Assigned admins
-                  </label>
-                  <textarea
-                    id="cf-admins"
-                    rows={3}
-                    className={cn(inputClass, 'min-h-[96px] resize-y')}
-                    value={form.assignedAdminsText}
-                    onChange={set('assignedAdminsText')}
-                    placeholder="Comma-separated names or IDs (e.g. Priya Sharma, RA102)"
-                  />
+                      <FormField id="cf-email" label="Email" error={errors.email}>
+                        <input
+                          id="cf-email"
+                          type="email"
+                          className={cn(inputClass, errors.email && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                          value={form.email}
+                          onChange={set('email')}
+                          placeholder="center@sriram.com"
+                          autoComplete="email"
+                        />
+                      </FormField>
+                    </div>
+                  </FormSection>
+
+                  <FormSection id="center-section-admin" title="Administrative Details">
+                    <FormField id="cf-admins" label="Assigned admins">
+                      <textarea
+                        id="cf-admins"
+                        rows={3}
+                        className={cn(inputClass, 'min-h-[6rem] resize-y py-3')}
+                        value={form.assignedAdminsText}
+                        onChange={set('assignedAdminsText')}
+                        placeholder="Comma-separated names or IDs (e.g. Priya Sharma, RA102)"
+                      />
+                    </FormField>
+                  </FormSection>
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 bg-white/95 px-6 py-5 sm:flex-row sm:justify-end">
+              <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200/90 bg-white px-6 py-5 sm:flex-row sm:justify-end sm:px-8 sm:py-5">
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="w-full rounded-xl border border-slate-200/80 bg-white px-5 py-3 text-[14px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
+                  className="w-full rounded-xl border border-slate-200/80 bg-white px-5 py-3 text-[14px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 disabled:opacity-60 sm:w-auto sm:min-w-[7.5rem]"
                 >
                   Cancel
                 </button>
@@ -436,7 +448,7 @@ export default function CenterFormDrawer({
                   type="submit"
                   disabled={loading}
                   className={cn(
-                    'w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-6 py-3 text-[14px] font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl disabled:translate-y-0 disabled:opacity-70 sm:w-auto',
+                    'w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-6 py-3 text-[14px] font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 disabled:translate-y-0 disabled:opacity-70 sm:w-auto sm:min-w-[10rem]',
                   )}
                 >
                   {loading ? (
@@ -452,7 +464,7 @@ export default function CenterFormDrawer({
                 </button>
               </div>
             </form>
-          </motion.aside>
+          </motion.div>
         </div>
       )}
     </AnimatePresence>,

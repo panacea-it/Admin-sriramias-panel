@@ -9,6 +9,7 @@ import { LOGIN_ROLE_OPTIONS } from '../../constants/roles'
 import { getDemoUserByRole } from '../../data/demoAuthUsers'
 import SriramLogo from '../../components/brand/SriramLogo'
 import { cn } from '../../utils/cn'
+import { resolveLoginErrorMessage } from '../../utils/authHelpers'
 import {
   firstLoginValidationMessage,
   validateLoginFields,
@@ -22,6 +23,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const submitLock = useRef(false)
 
   useEffect(() => {
@@ -54,16 +56,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (authLoading || submitLock.current) return
+    if (authLoading || isSubmitting || submitLock.current) return
+
+    submitLock.current = true
+    setIsSubmitting(true)
 
     const fieldErrors = validateLoginFields(form)
     const validationMessage = firstLoginValidationMessage(fieldErrors)
     if (validationMessage) {
+      submitLock.current = false
+      setIsSubmitting(false)
       toast.error(validationMessage)
       return
     }
 
-    submitLock.current = true
     try {
       await login({
         ...form,
@@ -73,16 +79,14 @@ export default function LoginPage() {
       toast.success('Login successful')
       navigate(redirectTo, { replace: true })
     } catch (err) {
-      const message =
-        err?.message ||
-        err?.cause?.message ||
-        err?.cause?.response?.data?.message ||
-        'Login failed'
-      toast.error(message)
+      toast.error(resolveLoginErrorMessage(err))
     } finally {
       submitLock.current = false
+      setIsSubmitting(false)
     }
   }
+
+  const signingIn = authLoading || isSubmitting
 
   return (
     <div className="figma-admin-section flex min-h-screen w-full bg-[#f7f7f7]">
@@ -222,11 +226,11 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={authLoading}
-              aria-busy={authLoading}
+              disabled={signingIn}
+              aria-busy={signingIn}
               className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-sm font-bold text-white shadow-[0_5px_13px_rgba(36,99,146,0.35)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
             >
-              {authLoading ? (
+              {signingIn ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   Signing in...

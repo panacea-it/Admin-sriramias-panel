@@ -9,13 +9,15 @@ import AddCurrentAffairsModal from '../../components/current-affairs/AddCurrentA
 import ModifyCurrentAffairsCategoryModal from '../../components/current-affairs/ModifyCurrentAffairsCategoryModal'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { BannerButton, ResourceNameCell, StatusBadge } from '../../components/academics/AcademicsUi'
-import {
-  CURRENT_AFFAIRS_CATEGORIES,
-  INITIAL_CURRENT_AFFAIRS,
-} from '../../data/currentAffairsData'
+import { CURRENT_AFFAIRS_CATEGORIES } from '../../data/currentAffairsData'
 import { useEditModal } from '../../hooks/useEditModal'
-import { currentAffairsFormToRow } from '../../utils/academicsFormMappers'
-import { upsertListItem } from '../../utils/academicsCrud'
+import { useCurrentAffairs } from '../../hooks/useCurrentAffairs'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { mapUiStatusToApi } from '../../utils/currentAffairsApiHelpers'
+import {
+  deleteCurrentAffair,
+  updateCurrentAffairStatus,
+} from '../../services/currentAffairsService'
 import { cn } from '../../utils/cn'
 
 function nextRowStatus(status) {
@@ -23,16 +25,28 @@ function nextRowStatus(status) {
 }
 
 export default function CurrentAffairsPage() {
-  const [items, setItems] = useState(INITIAL_CURRENT_AFFAIRS)
+  const {
+    items,
+    loading,
+    loadError,
+    search,
+    setSearch,
+    categoryFilter,
+    setCategoryFilter,
+    statusFilter,
+    setStatusFilter,
+    refreshItems,
+    removeItemsLocally,
+    patchItemLocally,
+  } = useCurrentAffairs()
+
   const [categories, setCategories] = useState(CURRENT_AFFAIRS_CATEGORIES)
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
   const modal = useEditModal()
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [statusLoadingId, setStatusLoadingId] = useState(null)
 
   const categoryOptions = useMemo(
     () => [
@@ -41,25 +55,6 @@ export default function CurrentAffairsPage() {
     ],
     [categories],
   )
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return items.filter((row) => {
-      const matchSearch =
-        !q ||
-        row.name.toLowerCase().includes(q) ||
-        row.category.toLowerCase().includes(q)
-      const matchCategory = categoryFilter === 'all' || row.category === categoryFilter
-      const matchStatus = statusFilter === 'all' || row.status === statusFilter
-      return matchSearch && matchCategory && matchStatus
-    })
-  }, [items, search, categoryFilter, statusFilter])
-
-  const handleSave = (form, { isEdit, id }) => {
-    const existing = isEdit ? items.find((i) => i.id === id) : null
-    const row = currentAffairsFormToRow(form, existing)
-    setItems((prev) => upsertListItem(prev, row, { isEdit, id }))
-  }
 
   const handleAddCategory = ({ name }) => {
     setCategories((prev) => [...prev, { id: Date.now(), name, status: 'Active' }])
@@ -76,52 +71,58 @@ export default function CurrentAffairsPage() {
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, name: trimmed, status: status || c.status } : c)),
     )
-    if (prevCat.name !== trimmed) {
-      setItems((prev) =>
-        prev.map((r) => (r.category === prevCat.name ? { ...r, category: trimmed } : r)),
-      )
-    }
     toast.success('Category updated')
   }
 
   const handleDeleteCategory = (id) => {
-    const cat = categories.find((c) => c.id === id)
     setCategories((prev) => prev.filter((c) => c.id !== id))
-    if (cat) {
-      setItems((prev) =>
-        prev.map((r) =>
-          r.category === cat.name ? { ...r, category: 'Uncategorized' } : r,
-        ),
+  }
+
+  const handleToggleItemStatus = async (row) => {
+    const nextStatus = nextRowStatus(row.status)
+    setStatusLoadingId(row.id)
+    try {
+      await updateCurrentAffairStatus(row.id, mapUiStatusToApi(nextStatus))
+      patchItemLocally(row.id, { status: nextStatus })
+      toast.success(
+        nextStatus === 'Active'
+          ? 'Current affairs entry activated'
+          : 'Current affairs entry deactivated',
       )
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[Current Affairs] Status toggle failed:', error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to update status'))
+    } finally {
+      setStatusLoadingId(null)
     }
   }
 
-  const handleToggleItemStatus = (row) => {
-    const nextStatus = nextRowStatus(row.status)
-    setItems((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: nextStatus } : r)),
-    )
-    toast.success(
-      nextStatus === 'Active' ? 'Current affairs entry activated' : 'Current affairs entry deactivated',
-    )
-  }
-
-  const performDelete = useCallback((ids) => {
-    const idSet = new Set(ids)
-    setItems((prev) => prev.filter((r) => !idSet.has(r.id)))
-    setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)))
-    toast.success(
-      ids.length > 1 ? `${ids.length} entries deleted` : 'Current affairs entry deleted',
-    )
-  }, [])
+  const performDelete = useCallback(
+    async (ids) => {
+      await Promise.all(ids.map((id) => deleteCurrentAffair(id)))
+      removeItemsLocally(ids)
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
+      toast.success(
+        ids.length > 1 ? `${ids.length} entries deleted` : 'Current affairs entry deleted',
+      )
+    },
+    [removeItemsLocally],
+  )
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      await new Promise((r) => setTimeout(r, 0))
-      performDelete(deleteTarget.ids)
+      await performDelete(deleteTarget.ids)
       setDeleteTarget(null)
+      await refreshItems()
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[Current Affairs] Delete failed:', error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to delete current affairs entry'))
     } finally {
       setDeleteLoading(false)
     }
@@ -157,7 +158,8 @@ export default function CurrentAffairsPage() {
         <button
           type="button"
           onClick={() => handleToggleItemStatus(row)}
-          className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/50"
+          disabled={statusLoadingId === row.id}
+          className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/50 disabled:opacity-60"
           aria-label={`Toggle status for ${row.name}, currently ${row.status}`}
         >
           <StatusBadge status={row.status} />
@@ -187,6 +189,25 @@ export default function CurrentAffairsPage() {
     deleteTarget?.ids?.length > 1
       ? `Delete ${deleteTarget.ids.length} selected current affairs entries? This cannot be undone.`
       : `Delete "${deleteTarget?.name || 'this entry'}"? This cannot be undone.`
+
+  const emptyMessage = loadError
+    ? 'Unable to load current affairs.'
+    : search.trim() || categoryFilter !== 'all' || statusFilter !== 'all'
+      ? 'No current affairs match your filters.'
+      : 'No current affairs found.'
+
+  const emptyState = loadError ? (
+    <div className="flex flex-col items-center gap-3 px-6 py-10">
+      <p className="text-sm font-semibold text-slate-600">{loadError}</p>
+      <button
+        type="button"
+        onClick={() => refreshItems()}
+        className="rounded-lg border border-[#55ace7]/25 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+      >
+        Try again
+      </button>
+    </div>
+  ) : undefined
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
@@ -242,8 +263,10 @@ export default function CurrentAffairsPage() {
 
         <PaginatedFigmaTable
           columns={columns}
-          data={filtered}
-          emptyMessage="No current affairs match your filters."
+          data={items}
+          loading={loading}
+          emptyMessage={emptyMessage}
+          emptyState={emptyState}
           itemLabel="entries"
           resetDeps={[search, categoryFilter, statusFilter]}
           rowClassName="hover:bg-slate-50/90"
@@ -259,7 +282,7 @@ export default function CurrentAffairsPage() {
         open={modal.isOpen}
         onClose={modal.close}
         item={modal.selectedItem}
-        onSubmit={handleSave}
+        onSuccess={refreshItems}
       />
 
       <ModifyCurrentAffairsCategoryModal

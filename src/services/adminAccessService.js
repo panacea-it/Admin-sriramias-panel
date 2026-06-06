@@ -33,19 +33,31 @@ export function mapApiAdminToRow(data) {
       ? data.center
       : data.centerId && typeof data.centerId === 'object'
         ? data.centerId
-        : null
+        : Array.isArray(data.centers) && data.centers.length > 0
+          ? data.centers[0]
+          : null
 
   const roleId = String(role?._id || role?.id || data.roleId || '')
-  const centerId = String(center?._id || center?.id || data.centerId || '')
+  const centerId = String(
+    center?._id || center?.id || center?.centerId || data.centerId || '',
+  )
+  const centerNames = Array.isArray(data.centers)
+    ? data.centers
+        .map((c) => String(c?.centerName || c?.name || '').trim())
+        .filter(Boolean)
+    : []
 
   return {
     id: String(id || ''),
     employeeName: String(data.fullName || data.name || '').trim() || '—',
     employeeId: String(data.employeeId || '').trim() || '—',
     roleId,
-    roleTitle: String(role?.roleTitle || data.roleTitle || '').trim() || '—',
+    roleTitle: String(role?.roleTitle || role?.label || data.roleTitle || '').trim() || '—',
     centerId,
-    centerName: String(center?.centerName || data.centerName || '').trim(),
+    centerName:
+      centerNames.length > 0
+        ? centerNames.join(', ')
+        : String(center?.centerName || data.centerName || '').trim(),
     status: accountStatus ? 'Active' : 'In Active',
     createdAt: data.createdAt || data.createdOn || null,
     officialEmail: String(data.officialEmail || data.email || '').trim(),
@@ -64,11 +76,13 @@ export function normalizeAdminUsersListResponse(data, { page = 1, limit = 10 } =
 
   const itemsRaw =
     payload?.adminAccess ||
+    payload?.adminAccessRecords ||
     payload?.adminUsers ||
     payload?.users ||
     payload?.items ||
     payload?.results ||
     data?.adminAccess ||
+    data?.adminAccessRecords ||
     data?.items ||
     (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
 

@@ -28,7 +28,6 @@ export default function BatchManagementTable({
   statusUpdatingIds,
   onDuplicate,
   onDelete,
-  onMerge,
 }) {
   const isControlled =
     controlledPage != null &&
@@ -115,7 +114,6 @@ export default function BatchManagementTable({
                   statusUpdating={statusUpdatingIds?.has(String(batch.id))}
                   onDuplicate={onDuplicate}
                   onDelete={onDelete}
-                  onMerge={onMerge}
                 />
               ))
             )}
@@ -150,7 +148,6 @@ function BatchTableRow({
   statusUpdating = false,
   onDuplicate,
   onDelete,
-  onMerge,
 }) {
   const navigate = useNavigate()
   const detailsPath = batchDetailsPath(batch)
@@ -224,7 +221,6 @@ function BatchTableRow({
           onEdit={() => onEditBatch?.(batch)}
           onDuplicate={() => onDuplicate?.(batch)}
           onDelete={() => onDelete?.(batch)}
-          onMerge={() => onMerge?.(batch)}
         />
       </td>
     </tr>

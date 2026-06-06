@@ -151,7 +151,11 @@ export async function deleteCourse(id) {
   try {
     const { default: api } = await import('./axiosInstance')
     await api.delete(`/courses/${id}`, { skipAuthRedirect: true })
-  } catch {
-    await deleteCourseLocal(id)
+  } catch (error) {
+    if (!error?.response) {
+      await deleteCourseLocal(id)
+      return
+    }
+    throw error
   }
 }

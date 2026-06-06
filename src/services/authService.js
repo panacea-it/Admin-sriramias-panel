@@ -1,23 +1,40 @@
-import apiClient, { API_ENDPOINTS, BASE_URL, buildApiUrl } from '../config/api'
+import apiClient, { API_ENDPOINTS } from '../config/api'
 
 function toAuthError(error) {
-  console.log('Login Error:', error.response?.data)
-  console.log('Status:', error.response?.status)
+  const status = error?.response?.status
+  const data = error?.response?.data
 
-  if (error?.response?.status === 401) {
-    const data = error.response.data
+  if (status === 429) {
     return {
       message:
         (typeof data === 'object' && (data.message || data.error)) ||
-        'Invalid credentials',
+        'Too many login attempts. Please wait and try again.',
+      status: 429,
+    }
+  }
+
+  if (status === 401) {
+    return {
+      message:
+        (typeof data === 'object' && (data.message || data.error)) ||
+        'Invalid email or password. Please check your credentials.',
       status: 401,
     }
   }
 
-  if (error?.response?.status >= 500) {
+  if (status === 403) {
+    return {
+      message:
+        (typeof data === 'object' && (data.message || data.error)) ||
+        'Access denied. Your account may be restricted.',
+      status: 403,
+    }
+  }
+
+  if (status >= 500) {
     return {
       message: 'Server error. Please try again later.',
-      status: error.response.status,
+      status,
     }
   }
 
@@ -32,7 +49,6 @@ function toAuthError(error) {
     }
   }
 
-  const data = error?.response?.data
   if (typeof data === 'string') {
     return { message: data }
   }
@@ -47,15 +63,8 @@ function toAuthError(error) {
 }
 
 export const loginSuperAdmin = async (payload) => {
-  const url = buildApiUrl(API_ENDPOINTS.LOGIN_SUPER_ADMIN)
-
-  console.log('BASE_URL:', BASE_URL)
-  console.log('Login Payload:', payload)
-  console.log('Login URL:', url)
-
   try {
     const response = await apiClient.post(API_ENDPOINTS.LOGIN_SUPER_ADMIN, payload)
-    console.log('Login Response:', response.data)
     return response.data
   } catch (error) {
     throw toAuthError(error)

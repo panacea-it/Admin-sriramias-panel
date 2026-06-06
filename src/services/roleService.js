@@ -149,3 +149,19 @@ export const getRolesDropdown = async () => {
     throwApiError(error)
   }
 }
+
+export async function fetchAllRoles({ pageSize = 100 } = {}) {
+  let page = 1
+  let totalPages = 1
+  const items = []
+
+  do {
+    const data = await getRoles({ page, limit: pageSize, status: 'ALL' })
+    const normalized = normalizeRolesListResponse(data, { page, limit: pageSize })
+    items.push(...normalized.items)
+    totalPages = normalized.totalPages || 1
+    page += 1
+  } while (page <= totalPages)
+
+  return items
+}

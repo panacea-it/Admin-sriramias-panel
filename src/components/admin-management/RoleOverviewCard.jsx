@@ -33,55 +33,52 @@ export default function RoleOverviewCard({ role }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -6, scale: 0.99 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br from-slate-50/95 via-white/90 to-violet-50/30 p-6 shadow-sm ring-1 ring-slate-100/90 sm:p-7 md:p-8"
+        className="overflow-hidden rounded-xl border border-slate-200/90 bg-white"
       >
-        <div className="flex flex-wrap items-start justify-between gap-4 sm:gap-6">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-600">
-              Role overview
-            </p>
-            <h3 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-              {role.label}
-            </h3>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-3.5 sm:px-5">
+          <div className="min-w-0 flex-1">
+            <h4 className="text-[15px] font-semibold leading-tight text-slate-900">{role.label}</h4>
+            {role.description && (
+              <p className="mt-1 text-[13px] leading-snug text-slate-500">{role.description}</p>
+            )}
           </div>
           <span
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset',
               badge.className,
             )}
           >
-            <Lock className="h-3.5 w-3.5" />
+            <Lock className="h-3 w-3" />
             {badge.label}
           </span>
         </div>
 
-        <p className="mt-5 max-w-none text-[15px] leading-[1.65] text-slate-600 sm:text-base sm:leading-relaxed">
-          {role.description}
-        </p>
-
-        <div className="mt-6 flex flex-wrap gap-2.5 sm:gap-3">
-          {modules.map((mod) => (
-            <button
-              key={mod}
-              type="button"
-              onClick={() => handleModuleClick(mod)}
-              className="inline-flex rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-[13px] font-medium leading-tight text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:border-violet-300 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/25"
-            >
-              {mod}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-7 flex flex-wrap items-center gap-4 border-t border-slate-200/90 pt-5">
-          <div className="flex items-center gap-2.5 text-[15px] text-slate-600">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
-            <span>
-              <strong className="font-bold text-slate-900">
-                {role.permissionCount ?? 0}
-              </strong>{' '}
-              permissions mapped
-            </span>
+        {modules.length > 0 && (
+          <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              Module access
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {modules.map((mod) => (
+                <button
+                  key={mod}
+                  type="button"
+                  onClick={() => handleModuleClick(mod)}
+                  className="flex min-h-[2.5rem] items-center rounded-lg border border-slate-200/90 bg-slate-50/50 px-3 py-2 text-left text-[13px] font-medium leading-snug text-slate-700 transition hover:border-violet-300 hover:bg-violet-50/40 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/25"
+                >
+                  {mod}
+                </button>
+              ))}
+            </div>
           </div>
+        )}
+
+        <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-slate-600 sm:px-5">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          <span>
+            <strong className="font-semibold text-slate-900">{role.permissionCount ?? 0}</strong>{' '}
+            permissions mapped to this role
+          </span>
         </div>
       </motion.div>
     </AnimatePresence>

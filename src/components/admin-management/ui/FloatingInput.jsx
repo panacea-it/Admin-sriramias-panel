@@ -27,6 +27,11 @@ const sizeStyles = {
   },
 }
 
+const staticInputClass = cn(
+  'h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition',
+  'placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15',
+)
+
 export default function FloatingInput({
   id,
   label,
@@ -38,6 +43,8 @@ export default function FloatingInput({
   hasSuffix = false,
   type = 'text',
   size = 'default',
+  labelVariant = 'floating',
+  required = false,
   onFocus,
   onBlur,
   ...props
@@ -45,6 +52,57 @@ export default function FloatingInput({
   const [focused, setFocused] = useState(false)
   const hasValue = String(props.value ?? '').length > 0
   const s = sizeStyles[size] || sizeStyles.default
+
+  if (labelVariant === 'static') {
+    return (
+      <div className={cn(className)}>
+        <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-slate-700">
+          {label}
+          {required && (
+            <span className="ml-0.5 text-rose-500" aria-hidden="true">
+              *
+            </span>
+          )}
+        </label>
+        <div className="relative">
+          {Icon && (
+            <Icon
+              className={cn(
+                'pointer-events-none absolute top-1/2 z-10 h-[17px] w-[17px] -translate-y-1/2 text-slate-400',
+                hasSuffix ? 'left-3.5' : 'left-3.5',
+              )}
+            />
+          )}
+          <input
+            id={id}
+            type={type}
+            aria-required={required || undefined}
+            {...props}
+            className={cn(
+              staticInputClass,
+              Icon && 'pl-10',
+              hasSuffix && 'pr-10',
+              error && 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/15',
+              inputClassName,
+            )}
+            placeholder={label}
+            onFocus={onFocus}
+            onBlur={onBlur}
+          />
+        </div>
+        {(helper || error) && (
+          <p
+            className={cn(
+              'mt-1.5 text-[12px] leading-snug',
+              error ? 'font-medium text-rose-600' : 'text-slate-500',
+            )}
+          >
+            {error || helper}
+          </p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={cn('relative', className)}>

@@ -12,6 +12,7 @@ import EditButton from '../../components/common/EditButton'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { StatusBadge } from '../../components/academics/AcademicsUi'
 import { useAdminManagement } from '../../hooks/useAdminManagement'
+import { useApiRolesCatalogSync } from '../../hooks/useApiRolesCatalogSync'
 import { useRolesDropdown } from '../../hooks/useRolesDropdown'
 import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
@@ -23,6 +24,8 @@ import {
 import { cn } from '../../utils/cn'
 
 export default function AdminManagementPage() {
+  useApiRolesCatalogSync()
+
   const {
     users,
     loading,
@@ -100,6 +103,7 @@ export default function AdminManagementPage() {
     try {
       await deleteAdminUser(deleteTarget.id)
       removeUserLocally(deleteTarget.id)
+      clearSelection()
       toast.success('User access deleted')
       setDeleteTarget(null)
       await refreshUsers()

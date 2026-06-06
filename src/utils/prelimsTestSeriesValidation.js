@@ -2,6 +2,7 @@ import {
   normalizeTestSeriesBlock,
   resolvePrelimsSectionDurationMinutes,
 } from './batchTestSeriesForm'
+import { validateLanguageQuestionPapers } from './prelimsLanguageQuestionPapers'
 import {
   countCompletedSectionQuestions,
   deriveSectionQuestionCount,
@@ -20,6 +21,13 @@ export function validatePrelimsTestSeriesExtras(
 
   if (!ts.languages?.length) {
     errors[`${p}languages`] = 'Select at least one language'
+  } else {
+    Object.assign(
+      errors,
+      validateLanguageQuestionPapers(ts.languages, ts.details?.languageQuestionPapers, {
+        errorPrefix: p,
+      }),
+    )
   }
 
   if (ts.attemptLimitEnabled) {

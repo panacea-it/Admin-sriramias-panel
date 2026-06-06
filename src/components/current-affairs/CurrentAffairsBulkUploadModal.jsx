@@ -8,40 +8,55 @@ import { CURRENT_AFFAIRS_BULK_ACCEPT } from '../../constants/currentAffairsForm'
 import { bulkRowToCurrentAffairsQuestion } from '../../utils/currentAffairsQuestions'
 import { validateCurrentAffairsBulkFile } from '../../utils/currentAffairsValidation'
 import { parseQuestionBulkFile } from '../../utils/batchQuestionBulkUpload'
+import { getApiErrorMessage } from '../../utils/apiError'
+import {
+  bulkUploadDailyPracticeQuestions,
+  downloadDailyPracticeBulkTemplate,
+  getDailyPracticeQuestions,
+} from '../../services/currentAffairsService'
 
-const SAMPLE_CSV = `Question No,Question,Option 1,Option 2,Option 3,Option 4,Correct Answer,Explanation
-1,Sample question text?,Option A,Option B,Option C,Option D,1,Optional explanation
-2,Second sample question?,Yes,No,Maybe,N/A,2,
-`
-
-function downloadSampleTemplate() {
-  const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'current-affairs-questions-template.csv'
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport }) {
+export default function CurrentAffairsBulkUploadModal({
+  open,
+  onClose,
+  onImport,
+  currentAffairId = null,
+}) {
   const inputRef = useRef(null)
   const [fileName, setFileName] = useState('')
+  const [uploadFile, setUploadFile] = useState(null)
   const [preview, setPreview] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [templateLoading, setTemplateLoading] = useState(false)
 
   const reset = () => {
     setFileName('')
+    setUploadFile(null)
     setPreview([])
     setError('')
     setLoading(false)
+    setTemplateLoading(false)
     if (inputRef.current) inputRef.current.value = ''
   }
 
   const handleClose = () => {
     reset()
     onClose()
+  }
+
+  const handleDownloadTemplate = async () => {
+    setTemplateLoading(true)
+    try {
+      await downloadDailyPracticeBulkTemplate()
+      toast.success('Template downloaded')
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error('[Daily Practice] Template download failed:', err)
+      }
+      toast.error(getApiErrorMessage(err, 'Failed to download template'))
+    } finally {
+      setTemplateLoading(false)
+    }
   }
 
   const handleFile = async (e) => {
@@ -53,14 +68,21 @@ export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport 
       setError(check.message)
       setPreview([])
       setFileName('')
+      setUploadFile(null)
       return
     }
 
     setError('')
     setFileName(file.name)
+    setUploadFile(file)
     setLoading(true)
 
     try {
+      if (currentAffairId) {
+        setPreview([])
+        return
+      }
+
       const result = await parseQuestionBulkFile(file)
       const mapped = (result.questions || [])
         .map((q, i) =>
@@ -95,7 +117,31 @@ export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport 
     }
   }
 
-  const handleImport = () => {
+  const handleImport = async () => {
+    if (currentAffairId) {
+      if (!uploadFile) {
+        toast.error('Select a file to upload')
+        return
+      }
+
+      setLoading(true)
+      try {
+        await bulkUploadDailyPracticeQuestions(currentAffairId, uploadFile, { replace: false })
+        const questions = await getDailyPracticeQuestions(currentAffairId)
+        onImport?.(questions)
+        toast.success(`Uploaded ${questions.length} question(s)`)
+        handleClose()
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error('[Daily Practice] Bulk upload failed:', err)
+        }
+        toast.error(getApiErrorMessage(err, 'Failed to upload questions'))
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     if (!preview.length) {
       toast.error('Upload and preview questions first')
       return
@@ -113,10 +159,15 @@ export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport 
         <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
           <button
             type="button"
-            onClick={downloadSampleTemplate}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff]"
+            onClick={handleDownloadTemplate}
+            disabled={templateLoading}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff] disabled:opacity-60"
           >
-            <Download className="h-4 w-4" />
+            {templateLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
             Download Sample Template
           </button>
 
@@ -135,16 +186,22 @@ export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport 
             />
           </label>
 
+          {currentAffairId ? (
+            <p className="text-xs font-medium text-[#246392]">
+              Questions will be uploaded to the server and merged with existing questions.
+            </p>
+          ) : null}
+
           {loading ? (
             <p className="flex items-center justify-center gap-2 text-sm text-[#246392]">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Validating file…
+              {currentAffairId ? 'Uploading…' : 'Validating file…'}
             </p>
           ) : null}
 
           {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 
-          {preview.length > 0 ? (
+          {!currentAffairId && preview.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-[#eef2fc] bg-white shadow-sm">
               <div className="border-b border-[#eef2fc] bg-[#fafcff] px-4 py-2.5 text-sm font-bold text-[#111]">
                 Preview ({preview.length} questions)
@@ -176,7 +233,7 @@ export default function CurrentAffairsBulkUploadModal({ open, onClose, onImport 
             </button>
             <button
               type="button"
-              disabled={!preview.length || loading}
+              disabled={loading || (!currentAffairId && !preview.length) || (currentAffairId && !uploadFile)}
               onClick={handleImport}
               className="rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-8 py-2.5 text-sm font-bold text-white shadow disabled:opacity-50"
             >

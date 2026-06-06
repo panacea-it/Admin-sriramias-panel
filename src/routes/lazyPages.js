@@ -26,7 +26,6 @@ export const FreeResourcesPage = lazyRoute(
   () => import('../pages/academics/FreeResourcesPage'),
   'Free Resources',
 )
-export const TestsPage = lazyRoute(() => import('../pages/academics/TestsPage'))
 export const CurrentAffairsPage = lazyRoute(() => import('../pages/academics/CurrentAffairsPage'))
 export const CategoriesLayout = lazyRoute(() => import('../layouts/CategoriesLayout'))
 export const CategoriesHubPage = lazyRoute(() => import('../pages/academics/categories/CategoriesHubPage'))
@@ -34,7 +33,6 @@ export const MainCategoryPage = lazyRoute(() => import('../pages/academics/categ
 export const SubjectCategoryPage = lazyRoute(() => import('../pages/academics/categories/SubjectCategoryPage'))
 export const BooksPage = lazyRoute(() => import('../pages/marketing/BooksPage'))
 export const WebsitePage = lazyRoute(() => import('../pages/marketing/WebsitePage'))
-export const BannersPage = lazyRoute(() => import('../pages/marketing/BannersPage'))
 export const BlogsPage = lazyRoute(() => import('../pages/marketing/BlogsPage'))
 export const CouponsPage = lazyRoute(() => import('../pages/users/CouponsPage'))
 export const EnquiriesPage = lazyRoute(() => import('../pages/crm/EnquiriesPage'))

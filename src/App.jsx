@@ -9,8 +9,8 @@ import AppRoutes from './routes/AppRoutes'
 
 export default function App() {
   return (
-    <AppErrorBoundary>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AppErrorBoundary>
         <AuthProvider>
           <AdminRolesProvider>
             <CentersProvider>
@@ -21,7 +21,7 @@ export default function App() {
             </CentersProvider>
           </AdminRolesProvider>
         </AuthProvider>
-      </BrowserRouter>
-    </AppErrorBoundary>
+      </AppErrorBoundary>
+    </BrowserRouter>
   )
 }

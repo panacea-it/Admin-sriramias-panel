@@ -4,6 +4,7 @@ import { LayoutGrid } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import CategoryBreadcrumb from '../../components/categories/CategoryBreadcrumb'
 import RoleAccessMatrix from '../../components/admin-management/RoleAccessMatrix'
+import { useApiRolesCatalogSync } from '../../hooks/useApiRolesCatalogSync'
 
 const BREADCRUMB = [
   { label: 'Admin Management' },
@@ -11,6 +12,8 @@ const BREADCRUMB = [
 ]
 
 export default function RoleAccessMatrixPage() {
+  useApiRolesCatalogSync()
+
   const [searchParams] = useSearchParams()
   const focusRoleId = searchParams.get('focus') || ''
 
@@ -26,7 +29,7 @@ export default function RoleAccessMatrixPage() {
     }
 
     toast.success('Permissions saved', {
-      description: 'Access control updated successfully across roles and modules.',
+      description: 'Role permissions are stored locally and applied across the admin panel.',
     })
   }
 

@@ -29,6 +29,8 @@ export default function CurrentAffairsFormFields({
   onFieldChange,
   onFileChange,
   onClearError,
+  mainsCategoryOptions,
+  mainsCategoryLoading = false,
 }) {
   const category = form.category || ''
   /** Always show at least the category dropdown before a type is chosen */
@@ -119,13 +121,21 @@ export default function CurrentAffairsFormFields({
     }
 
     if (key === 'mainsCategory') {
+      const options = mainsCategoryOptions?.length
+        ? mainsCategoryOptions
+        : MAINS_CATEGORY_OPTIONS.map((opt) => ({ value: opt, label: opt }))
+
       return (
         <CourseFormField key={key} label={label} required>
-          <CourseSelect value={form.mainsCategory} onChange={onFieldChange('mainsCategory')}>
-            <option value="">Select category</option>
-            {MAINS_CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+          <CourseSelect
+            value={form.mainsCategory}
+            onChange={onFieldChange('mainsCategory')}
+            disabled={mainsCategoryLoading}
+          >
+            <option value="">{mainsCategoryLoading ? 'Loading…' : 'Select category'}</option>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </CourseSelect>

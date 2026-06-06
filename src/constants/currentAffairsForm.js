@@ -28,7 +28,10 @@ export const FIELD_KEYS = {
 
 /** Grid rows per category — each row is an array of field keys */
 export const CURRENT_AFFAIRS_FIELD_LAYOUT = {
-  'Current Affairs': [['category', 'name', 'pdfUpload']],
+  'Current Affairs': [
+    ['category', 'name', 'year'],
+    ['month', 'pdfUpload'],
+  ],
   'Monthly Magazine': [
     ['category', 'name', 'year'],
     ['month', 'magazineUpload'],

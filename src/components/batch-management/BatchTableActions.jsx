@@ -1,7 +1,6 @@
 import {
   Copy,
   Eye,
-  GitMerge,
   Pencil,
   Trash2,
   Users,
@@ -15,7 +14,6 @@ export default function BatchTableActions({
   onEdit,
   onDuplicate,
   onDelete,
-  onMerge,
 }) {
   const items = [
     {
@@ -37,11 +35,6 @@ export default function BatchTableActions({
       label: 'Duplicate Batch',
       icon: Copy,
       onClick: () => onDuplicate?.(batch),
-    },
-    {
-      label: 'Merge Batch',
-      icon: GitMerge,
-      onClick: () => onMerge?.(batch),
     },
     {
       label: 'Delete Batch',

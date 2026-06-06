@@ -221,6 +221,8 @@ export function createEmptyCurrentAffairsForm(category = '') {
     mainsCategory: '',
     paperName: '',
     fileName: '',
+    file: null,
+    existingPdfUrl: null,
     sectionFrom: '',
     sectionTo: '',
     questions: [],

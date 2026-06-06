@@ -57,6 +57,8 @@ function assertExpectedRole(mapped, expectedRole) {
 function shouldFallbackToDemo(error) {
   if (!isDemoAuthEnabled) return false
   const status = error?.status ?? error?.response?.status
+  // Never retry or fall back on rate limits, forbidden, or server errors.
+  if (status === 429 || status === 403 || (status && status >= 500)) return false
   if (status === 401) return true
   if (error?.code === 'ERR_NETWORK' || !error?.response) return true
   return false

@@ -165,6 +165,40 @@ export function AdminRolesProvider({ children }) {
     clearStoredRbac()
   }, [])
 
+  const mergeApiRoles = useCallback((apiRoles) => {
+    if (!Array.isArray(apiRoles) || apiRoles.length === 0) return
+
+    setRoles((prev) => {
+      const byId = new Map(prev.map((r) => [r.id, r]))
+
+      for (const incoming of apiRoles) {
+        if (!incoming?.id) continue
+        const existing = byId.get(incoming.id)
+        byId.set(
+          incoming.id,
+          existing
+            ? {
+                ...existing,
+                label: incoming.label || existing.label,
+                description: incoming.description ?? existing.description,
+                enabled: incoming.enabled,
+                fullAccess: incoming.fullAccess,
+                systemProtected: incoming.systemProtected,
+                modules: Array.isArray(incoming.modules) ? incoming.modules : existing.modules,
+                permissionCount:
+                  typeof incoming.permissionCount === 'number'
+                    ? incoming.permissionCount
+                    : existing.permissionCount,
+                updatedAt: incoming.updatedAt || existing.updatedAt,
+              }
+            : incoming,
+        )
+      }
+
+      return sortSnapshot([...byId.values()])
+    })
+  }, [])
+
   const value = useMemo(
     () => ({
       roles,
@@ -177,6 +211,7 @@ export function AdminRolesProvider({ children }) {
       setRoleEnabled,
       setRoleModuleBaseline,
       resetRolesToSeed,
+      mergeApiRoles,
     }),
     [
       roles,
@@ -189,6 +224,7 @@ export function AdminRolesProvider({ children }) {
       setRoleEnabled,
       setRoleModuleBaseline,
       resetRolesToSeed,
+      mergeApiRoles,
     ],
   )
 

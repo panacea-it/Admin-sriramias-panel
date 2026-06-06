@@ -1,4 +1,4 @@
-import { BookMarked, X } from 'lucide-react'
+import { BookMarked, Download, Eye, FileText, X } from 'lucide-react'
 import Modal from '../ui/Modal'
 import SectionBar from './SectionBar'
 import CategoryStatusBadge from '../categories/CategoryStatusBadge'
@@ -7,6 +7,14 @@ import { normalizeLinkedSubjects } from '../../utils/batchHelpers'
 import { enrichLinkedSubjectsWithFaculty } from '../../utils/facultySubjectBatch'
 import { formatLinkedSubjectDisplay } from '../../utils/batchHelpers'
 import { resolveMentorDisplayName } from '../../utils/mentorEmployees'
+import {
+  downloadBrochurePdf,
+  formatBrochureFileSize,
+  resolveBrochureFileName,
+  resolveBrochureFileSize,
+  resolveBrochureUrl,
+  viewBrochurePdf,
+} from '../../utils/batchBrochure'
 import { loadAcademicsSubjects } from '../../utils/academicsSubjectsStorage'
 function DetailItem({ label, children }) {
   return (
@@ -58,6 +66,9 @@ export default function ViewBatchModal({ open, onClose, item }) {
 
   const form = item.formData || {}
   const bannerSrc = item.bannerPreview || form.bannerPreview || form.bannerUrl
+  const brochureUrl = resolveBrochureUrl(item)
+  const brochureFileName = resolveBrochureFileName(item)
+  const brochureFileSize = resolveBrochureFileSize(item)
   const catalogName = item.linkedCourseName || item.courseName || form.courseName
   const feeDetails = item.feeDetails || form.feeDetails
   const linkedSubjects = enrichLinkedSubjectsWithFaculty(
@@ -167,6 +178,46 @@ export default function ViewBatchModal({ open, onClose, item }) {
                   alt="Batch banner"
                   className="mt-2 max-h-48 rounded-lg border border-[#eef2fc] object-contain"
                 />
+              </div>
+            ) : null}
+            {brochureUrl ? (
+              <div className="mt-4 rounded-xl border border-[#55ace7]/15 bg-[#f8fbff] p-4">
+                <p className="text-xs font-medium text-[#686868]">Batch Brochure</p>
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-[#55ace7]/15">
+                      <FileText className="h-5 w-5 text-[#246392]" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#111]">
+                        {brochureFileName}
+                      </p>
+                      {brochureFileSize != null ? (
+                        <p className="text-xs text-[#686868]">
+                          {formatBrochureFileSize(brochureFileSize)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => viewBrochurePdf(brochureUrl)}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#55ace7]/20 bg-white px-3 text-xs font-semibold text-[#246392] transition hover:bg-[#eef6fc] sm:text-sm"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadBrochurePdf(brochureUrl, brochureFileName)}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#55ace7]/20 bg-white px-3 text-xs font-semibold text-[#246392] transition hover:bg-[#eef6fc] sm:text-sm"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download PDF
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : null}
           </div>

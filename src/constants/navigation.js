@@ -19,7 +19,6 @@ import {
   MessageCircle,
   Headphones,
   BellRing,
-  Image,
   Globe,
   FileSearch,
   FileText,
@@ -82,7 +81,6 @@ export const SIDEBAR_GROUPS = [
       ACADEMICS_LIVE_CLASSES_SUBMENU,
       ACADEMICS_CONTENT_LIBRARY_SUBMENU,
       { label: 'Free Resources', path: '/free-resources', icon: Gift },
-      { label: 'Tests', path: '/tests', icon: ClipboardList },
       { label: 'Current Affairs', path: '/current-affairs', icon: Newspaper },
       ACADEMICS_CATEGORIES_SUBMENU,
     ],
@@ -117,14 +115,7 @@ export const SIDEBAR_GROUPS = [
     icon: Layers,
     children: [
       { label: 'List Users', path: '/users/manage', icon: Users },
-      { label: 'Wallet', path: '/users/wallet', icon: Wallet },
       { label: 'Coupons', path: '/coupons', icon: TicketPercent },
-      {
-        label: 'Center Data',
-        path: '/users/centers',
-        icon: Building2,
-        requiredRoles: ['center_admin'],
-      },
     ],
   },
   {
@@ -143,7 +134,6 @@ export const SIDEBAR_GROUPS = [
     label: 'Marketing',
     icon: LibraryBig,
     children: [
-      { label: 'Banners', path: '/marketing/banners', icon: Image },
       { label: 'Website', path: '/marketing/website', icon: Globe },
       { label: 'SEO Landing page', path: '/marketing/seo-landing', icon: FileSearch },
       { label: 'Blogs', path: '/marketing/blogs', icon: FileText },

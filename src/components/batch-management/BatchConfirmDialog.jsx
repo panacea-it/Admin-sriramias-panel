@@ -28,7 +28,9 @@ export default function BatchConfirmDialog({
   return (
     <BatchFormModalShell
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!loading) onClose?.()
+      }}
       title={title}
       size={size}
       saving={loading}

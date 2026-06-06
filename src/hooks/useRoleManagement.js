@@ -21,14 +21,21 @@ export function useRoleManagement() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 500)
 
+  const [loadError, setLoadError] = useState(null)
+
   const fetchRoles = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const params = {
         page,
         limit: pageSize,
         status: mapRoleStatusFilterToApi(statusFilter),
-        search: debouncedSearch.trim(),
+      }
+
+      const search = debouncedSearch.trim()
+      if (search) {
+        params.search = search
       }
 
       const data = await getRoles(params)
@@ -41,7 +48,9 @@ export function useRoleManagement() {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(getApiErrorMessage(error, 'Failed to load roles'))
+      const message = getApiErrorMessage(error, 'Failed to load roles')
+      setLoadError(message)
+      toast.error(message)
       setRoles([])
       setTotalItems(0)
       setTotalPages(1)
@@ -87,6 +96,7 @@ export function useRoleManagement() {
   return {
     roles,
     loading,
+    loadError,
     search,
     setSearch,
     statusFilter,

@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '@/utils/toast'
 import { useCenters } from '../contexts/CentersContext'
 import { getCentersDropdown, normalizeCentersDropdown } from '../services/centerService'
+import { getApiErrorMessage } from '../utils/apiError'
 
 let sharedDropdownPromise = null
 let sharedDropdownOptions = null
 let sharedDropdownLoadedAt = 0
 const DROPDOWN_TTL_MS = 5 * 60_000
 
-async function loadCentersDropdownOnce() {
-  if (sharedDropdownOptions && Date.now() - sharedDropdownLoadedAt < DROPDOWN_TTL_MS) {
+export function clearCentersDropdownOptionsCache() {
+  sharedDropdownPromise = null
+  sharedDropdownOptions = null
+  sharedDropdownLoadedAt = 0
+}
+
+async function loadCentersDropdownOnce({ force = false } = {}) {
+  if (
+    !force &&
+    sharedDropdownOptions &&
+    Date.now() - sharedDropdownLoadedAt < DROPDOWN_TTL_MS
+  ) {
     return sharedDropdownOptions
   }
 
-  if (!sharedDropdownPromise) {
+  if (!sharedDropdownPromise || force) {
     sharedDropdownPromise = getCentersDropdown()
       .then((centersResponse) => {
-        if (import.meta.env.DEV) {
-          console.log('Centers Response:', centersResponse)
-        }
         const mapped = normalizeCentersDropdown(centersResponse)
         const safeMapped = Array.isArray(mapped) ? mapped : []
         if (safeMapped.length > 0) {
@@ -34,10 +43,10 @@ async function loadCentersDropdownOnce() {
   return sharedDropdownPromise
 }
 
-export function useCentersDropdownOptions() {
+export function useCentersDropdownOptions({ enabled = true } = {}) {
   const { activeCenters } = useCenters()
   const [options, setOptions] = useState(() => sharedDropdownOptions || [])
-  const [loading, setLoading] = useState(() => !sharedDropdownOptions)
+  const [loading, setLoading] = useState(() => enabled && !sharedDropdownOptions)
   const [error, setError] = useState(null)
   const mountedRef = useRef(true)
 
@@ -50,8 +59,44 @@ export function useCentersDropdownOptions() {
     [activeCenters],
   )
 
+  const fetchOptions = useCallback(async ({ force = false } = {}) => {
+    if (!enabled) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const mapped = await loadCentersDropdownOnce({ force })
+      if (!mountedRef.current) return
+      const safeMapped = Array.isArray(mapped) ? mapped : []
+      if (safeMapped.length > 0) {
+        setOptions(safeMapped)
+      } else if (fallbackOptions.length > 0) {
+        setOptions(fallbackOptions)
+      } else {
+        setOptions([])
+      }
+    } catch (err) {
+      if (!mountedRef.current) return
+      const message = getApiErrorMessage(err, 'Failed to load centers')
+      setError(message)
+      toast.error(message)
+      setOptions(fallbackOptions.length > 0 ? fallbackOptions : [])
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [enabled, fallbackOptions])
+
   useEffect(() => {
     mountedRef.current = true
+
+    if (!enabled) {
+      return () => {
+        mountedRef.current = false
+      }
+    }
 
     if (sharedDropdownOptions?.length) {
       setOptions(sharedDropdownOptions)
@@ -62,35 +107,12 @@ export function useCentersDropdownOptions() {
       }
     }
 
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-
-    loadCentersDropdownOnce()
-      .then((mapped) => {
-        if (cancelled || !mountedRef.current) return
-        const safeMapped = Array.isArray(mapped) ? mapped : []
-        if (safeMapped.length > 0) {
-          setOptions(safeMapped)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled && mountedRef.current) {
-          setOptions([])
-          setError(err?.message || 'Failed to load centers')
-        }
-      })
-      .finally(() => {
-        if (!cancelled && mountedRef.current) {
-          setLoading(false)
-        }
-      })
+    fetchOptions()
 
     return () => {
-      cancelled = true
       mountedRef.current = false
     }
-  }, [])
+  }, [enabled, fetchOptions])
 
   const resolvedOptions = options.length > 0 ? options : fallbackOptions
 
@@ -98,5 +120,6 @@ export function useCentersDropdownOptions() {
     options: Array.isArray(resolvedOptions) ? resolvedOptions : [],
     loading,
     error,
+    refresh: () => fetchOptions({ force: true }),
   }
 }

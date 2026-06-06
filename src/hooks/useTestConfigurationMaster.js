@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   TEST_CONFIG_UPDATED_EVENT,
   fetchExamPatterns,
@@ -22,8 +22,11 @@ export function useTestConfigurationMaster({ activeOnly = true } = {}) {
   const [languages, setLanguages] = useState([])
   const [sections, setSections] = useState([])
   const [instructions, setInstructions] = useState([])
+  const reloadInFlightRef = useRef(false)
 
   const reload = useCallback(async () => {
+    if (reloadInFlightRef.current) return
+    reloadInFlightRef.current = true
     setLoading(true)
     setError(null)
     const statusFilter = activeOnly ? { status: 'Active' } : {}
@@ -43,6 +46,7 @@ export function useTestConfigurationMaster({ activeOnly = true } = {}) {
       setInstructions([])
     } finally {
       setLoading(false)
+      reloadInFlightRef.current = false
     }
   }, [activeOnly])
 

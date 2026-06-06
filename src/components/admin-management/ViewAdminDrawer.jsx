@@ -10,8 +10,16 @@ import { getApiErrorMessage } from '../../utils/apiError'
 import {
   getAdminUserById,
   mapApiAdminToRow,
+  mapSessionTimeoutFromApi,
   unwrapAdminUserResponse,
 } from '../../services/adminAccessService'
+import { SESSION_TIMEOUTS } from '../../data/adminManagementConfig'
+
+function formatSessionTimeout(value) {
+  const uiValue = mapSessionTimeoutFromApi(value)
+  const match = (SESSION_TIMEOUTS || []).find((o) => o.value === uiValue)
+  return match?.label || '—'
+}
 
 function Row({ icon: Icon, label, value }) {
   return (
@@ -150,6 +158,21 @@ export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
                 {user.centerName ? (
                   <Row icon={Shield} label="Assigned center" value={user.centerName} />
                 ) : null}
+                <Row
+                  icon={Shield}
+                  label="Two-factor authentication"
+                  value={user.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                />
+                <Row
+                  icon={Shield}
+                  label="Login alert"
+                  value={user.loginAlertEnabled ? 'Enabled' : 'Disabled'}
+                />
+                <Row
+                  icon={Shield}
+                  label="Session timeout"
+                  value={formatSessionTimeout(user.sessionTimeout)}
+                />
                 <div className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
                   <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" strokeWidth={2.4} />
                   <div>

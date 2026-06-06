@@ -3,7 +3,9 @@ import { FileQuestion } from 'lucide-react'
 import BatchQuestionPaperSection from '../courses/exam/BatchQuestionPaperSection'
 import TestSeriesDetailsFields from '../courses/exam/TestSeriesDetailsFields'
 import PrelimsLanguageMultiSelect from './prelims/PrelimsLanguageMultiSelect'
+import PrelimsLanguageQuestionPapersSection from './prelims/PrelimsLanguageQuestionPapersSection'
 import PrelimsSectionManagement from './prelims/PrelimsSectionManagement'
+import { syncLanguageQuestionPapers } from '../../utils/prelimsLanguageQuestionPapers'
 import PrelimsAttemptSettings from './prelims/PrelimsAttemptSettings'
 import PrelimsRandomizationSettings from './prelims/PrelimsRandomizationSettings'
 import useTestConfigurationMaster from '../../hooks/useTestConfigurationMaster'
@@ -68,16 +70,44 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
           <label className="mb-1.5 block text-sm font-medium text-[#333]">
             Languages<span className="text-red-500"> *</span>
           </label>
-          <div className="max-w-md">
+          <div className="max-w-xl">
             <PrelimsLanguageMultiSelect
               value={testSeries.languages}
-              onChange={(languages) => updateTestSeries({ languages })}
+              onChange={(languages) => {
+                const papers = syncLanguageQuestionPapers(
+                  testSeries.details?.languageQuestionPapers || [],
+                  languages,
+                  languageOptions,
+                )
+                updateTestSeries({ languages, languageQuestionPapers: papers })
+              }}
               options={languageOptions}
               loading={masterLoading}
               error={errors.testSeries_languages}
+              placeholder="Select Languages"
             />
           </div>
         </div>
+
+        {testSeries.languages?.length > 0 ? (
+          <div className="rounded-2xl border border-[#e5eaf2] bg-white p-4 shadow-sm sm:p-6">
+            <div className="mb-4">
+              <h4 className="text-sm font-bold text-[#1a3a5c] sm:text-base">Question Papers</h4>
+              <p className="mt-0.5 text-xs text-[#686868]">
+                Upload a PDF question paper for each selected language
+              </p>
+            </div>
+            <PrelimsLanguageQuestionPapersSection
+              languages={testSeries.languages}
+              papers={testSeries.details?.languageQuestionPapers || []}
+              languageOptionOrder={languageOptions}
+              onPapersChange={(languageQuestionPapers) =>
+                updateTestSeries({ languageQuestionPapers })
+              }
+              errors={errors}
+            />
+          </div>
+        ) : null}
 
         <SectionTitle>Test Series Details</SectionTitle>
 

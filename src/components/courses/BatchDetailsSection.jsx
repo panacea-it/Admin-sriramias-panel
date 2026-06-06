@@ -4,6 +4,7 @@ import {
   CourseInput,
 } from './CourseFormField'
 import { batchFormGrid } from './batch-form/BatchFormCard'
+import BrochurePdfUpload from './BrochurePdfUpload'
 import BannerImageUpload from './BannerImageUpload'
 import CourseCatalogSelect from './CourseCatalogSelect'
 import BatchMentorSelect from './BatchMentorSelect'
@@ -15,6 +16,7 @@ export default function BatchDetailsSection({
   errors,
   setErrors,
   excludeCourseIds = [],
+  onBrochureUploadingChange,
 }) {
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
@@ -142,6 +144,31 @@ export default function BatchDetailsSection({
             clearError('bannerPreview')
           }}
         />
+      </CourseFormField>
+
+      <CourseFormField
+        label="Batch Brochure"
+        className="sm:col-span-2 lg:col-span-3"
+      >
+        <BrochurePdfUpload
+          brochureUrl={form.brochureUrl}
+          fileName={form.brochureFileName}
+          fileSize={form.brochureFileSize}
+          error={errors.brochureUrl}
+          onUploadingChange={onBrochureUploadingChange}
+          onChange={({ brochureUrl, fileName, fileSize }) => {
+            setForm((f) => ({
+              ...f,
+              brochureUrl,
+              brochureFileName: fileName,
+              brochureFileSize: fileSize,
+            }))
+            clearError('brochureUrl')
+          }}
+        />
+        <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+          Upload batch brochure in PDF format
+        </p>
       </CourseFormField>
     </div>
   )

@@ -39,9 +39,13 @@ export default function AddCourseModal({
   )
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  const [brochureUploading, setBrochureUploading] = useState(false)
 
   useEffect(() => {
-    if (open) setErrors({})
+    if (open) {
+      setErrors({})
+      setBrochureUploading(false)
+    }
   }, [open])
 
   const handleClose = () => onClose()
@@ -70,6 +74,10 @@ export default function AddCourseModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (brochureUploading) {
+      toast.error('Please wait for the brochure upload to finish')
+      return
+    }
     if (!validateBatch()) {
       toast.error('Please fix the highlighted fields')
       return
@@ -123,13 +131,14 @@ export default function AddCourseModal({
               step={1}
               icon={BookOpen}
               title="Batch Details"
-              description="Name, course, schedule dates, and banner image for this batch."
+              description="Name, course, schedule dates, banner image, and brochure for this batch."
             >
               <BatchDetailsSection
                 form={form}
                 setForm={setForm}
                 errors={errors}
                 setErrors={setErrors}
+                onBrochureUploadingChange={setBrochureUploading}
                 excludeCourseIds={
                   isEditMode || isDuplicateMode ? [] : existingCourseIds
                 }
@@ -158,7 +167,7 @@ export default function AddCourseModal({
 
         <BatchFormStickyFooter
           isEditMode={isEditMode}
-          saving={submitting}
+          saving={submitting || brochureUploading}
           onReset={() => {
             reset()
             setErrors({})

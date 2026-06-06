@@ -13,9 +13,6 @@ export function useRolesDropdown({ enabled = true } = {}) {
     setError(null)
     try {
       const rolesResponse = await getRolesDropdown()
-      if (import.meta.env.DEV) {
-        console.log('Roles Response:', rolesResponse)
-      }
       const normalized = normalizeRolesDropdown(rolesResponse)
       setOptions(Array.isArray(normalized) ? normalized : [])
     } catch (err) {
