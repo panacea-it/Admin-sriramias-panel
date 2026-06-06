@@ -22,6 +22,8 @@ import SendReceiptDialog from '../../components/finance/receipt-center/SendRecei
 
 import ReceiptPreviewModal from '../../components/finance/receipt-center/ReceiptPreviewModal'
 
+import EditReceiptDialog from '../../components/finance/receipt-center/EditReceiptDialog'
+
 import BulkResendDialog from '../../components/finance/receipt-center/BulkResendDialog'
 
 import {
@@ -35,6 +37,8 @@ import {
   fetchGstSettings,
 
   bulkResendReceipts,
+
+  updateCompletedReceipt,
 
 } from '../../api/financeAPI'
 
@@ -157,6 +161,10 @@ export default function ReceiptManagementPage() {
   const [bulkLoading, setBulkLoading] = useState(false)
 
   const [bulkResult, setBulkResult] = useState(null)
+
+  const [editRow, setEditRow] = useState(null)
+
+  const [editSaving, setEditSaving] = useState(false)
 
   const [sortKey, setSortKey] = useState('receiptGeneratedAt')
 
@@ -446,6 +454,38 @@ export default function ReceiptManagementPage() {
 
 
 
+  const handleEditSave = async (payload) => {
+
+    if (!editRow) return
+
+    setEditSaving(true)
+
+    try {
+
+      const updated = await updateCompletedReceipt(editRow.id, payload)
+
+      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+
+      if (previewPayment?.id === updated.id) setPreviewPayment(updated)
+
+      toast.success('Receipt updated successfully')
+
+      setEditRow(null)
+
+    } catch {
+
+      toast.error('Failed to update receipt')
+
+    } finally {
+
+      setEditSaving(false)
+
+    }
+
+  }
+
+
+
   return (
 
     <FinancePageShell
@@ -706,6 +746,10 @@ export default function ReceiptManagementPage() {
 
             onDownload={handleDownload}
 
+            onEditReceipt={setEditRow}
+
+            canEdit={canReceipts}
+
             sortKey={sortKey}
 
             sortDir={sortDir}
@@ -732,7 +776,11 @@ export default function ReceiptManagementPage() {
 
             onSendReceipt={setSendRow}
 
+            onEditReceipt={setEditRow}
+
             canSend={canReceipts}
+
+            canEdit={canReceipts}
 
           />
 
@@ -811,6 +859,22 @@ export default function ReceiptManagementPage() {
         loading={bulkLoading}
 
         result={bulkResult}
+
+      />
+
+
+
+      <EditReceiptDialog
+
+        open={!!editRow}
+
+        row={editRow}
+
+        onClose={() => setEditRow(null)}
+
+        onSave={handleEditSave}
+
+        saving={editSaving}
 
       />
 

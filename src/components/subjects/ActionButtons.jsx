@@ -1,4 +1,4 @@
-import { Eye, Pencil, Trash2, Plus } from 'lucide-react'
+import { Eye, Pencil, Trash2, Plus, List } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 function IconTextAction({ label, onClick, className, icon: Icon, title }) {
@@ -19,7 +19,7 @@ function IconTextAction({ label, onClick, className, icon: Icon, title }) {
   )
 }
 
-export function SubjectRowActions({ onAdd, onViewList, onEdit, onDelete }) {
+export function SubjectRowActions({ onAdd, onView, onViewList, onEdit, onDelete }) {
   return (
     <div
       className="flex min-w-[280px] flex-nowrap items-center justify-center gap-2 sm:gap-2.5"
@@ -37,11 +37,18 @@ export function SubjectRowActions({ onAdd, onViewList, onEdit, onDelete }) {
         <span className="whitespace-nowrap">Add</span>
       </button>
       <IconTextAction
-        label="View List"
-        title="View List"
-        onClick={onViewList}
+        label="View"
+        title="View subject details"
+        onClick={onView}
         className="text-[#246392]"
         icon={Eye}
+      />
+      <IconTextAction
+        label="View List"
+        title="View live class list"
+        onClick={onViewList}
+        className="text-[#246392]"
+        icon={List}
       />
       <IconTextAction
         label="Edit"

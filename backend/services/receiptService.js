@@ -150,3 +150,58 @@ export async function bulkResendReceipts(paymentIds = [], { channel, sentBy }) {
 export function previewInvoiceNumber(branchCode, sequence, fy) {
   return formatNumber(branchCode || 'SRI', 'INV', fy || financialYear(), sequence)
 }
+
+/** Update editable receipt fields on an existing payment — receipt number is preserved */
+export async function updateReceiptForPayment(paymentId, payload = {}, { adminName = 'Finance Admin' } = {}) {
+  const payment = await Payment.findOne({
+    $or: [{ paymentId }, { _id: paymentId }],
+  })
+  if (!payment) return null
+  if (!payment.receiptNumber) return null
+
+  const changes = []
+  if (payload.studentName && payload.studentName !== payment.studentName) {
+    payment.studentName = payload.studentName
+    changes.push('student name')
+  }
+  if (payload.courseName && payload.courseName !== payment.courseName) {
+    payment.courseName = payload.courseName
+    if (payload.courseId) payment.courseId = payload.courseId
+    changes.push('course')
+  }
+  if (payload.batchId) payment.batchId = payload.batchId
+  if (payload.paymentDate) payment.paymentDate = new Date(payload.paymentDate)
+  if (payload.paymentMode) payment.paymentMode = payload.paymentMode
+  if (payload.amountPaid != null) {
+    payment.amountPaid = Number(payload.amountPaid)
+    payment.totalFees = Number(payload.amountPaid)
+    changes.push('amount')
+  }
+  if (payload.transactionId != null) payment.transactionId = payload.transactionId
+  if (payload.remarks != null) payment.verificationNotes = payload.remarks
+  if (payload.receiptLifecycleStatus) payment.receiptLifecycleStatus = payload.receiptLifecycleStatus
+
+  const auditComment = [
+    payload.editReason?.trim(),
+    changes.length ? `Updated: ${changes.join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join(' — ')
+
+  payment.adminLogs = [
+    ...(payment.adminLogs || []),
+    {
+      adminName,
+      action: 'Receipt Edited',
+      comment: auditComment || 'Receipt details updated',
+      timestamp: new Date(),
+    },
+  ]
+  payment.timeline = [
+    ...(payment.timeline || []),
+    { event: 'Receipt Details Updated', timestamp: new Date() },
+  ]
+
+  await payment.save()
+  return payment.toObject()
+}

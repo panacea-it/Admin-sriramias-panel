@@ -137,6 +137,40 @@ export const STUDENT_PAYMENT_EXTRAS = {
       paymentDate: daysAgo(8),
     },
   ],
+  'priya.sharma@student.sriramias.in': [
+    {
+      id: 'PAY-PRY-01',
+      studentId: 'STU-PRY-01',
+      studentName: 'Priya Sharma',
+      courseName: 'MERN Stack',
+      courseType: 'Offline',
+      paymentStatus: 'Paid',
+      paymentType: 'Full',
+      paymentMode: 'Bank Transfer',
+      amountPaid: 55200,
+      pendingAmount: 0,
+      discount: 8000,
+      transactionId: 'TXN-PRY-001',
+      paymentDate: daysAgo(120),
+    },
+  ],
+  'vikram.singh@student.sriramias.in': [
+    {
+      id: 'PAY-VIK-01',
+      studentId: 'STU-VIK-01',
+      studentName: 'Vikram Singh',
+      courseName: 'Java Full Stack',
+      courseType: 'Offline',
+      paymentStatus: 'Paid',
+      paymentType: 'Scholarship',
+      paymentMode: 'Scholarship + Wallet',
+      amountPaid: 0,
+      pendingAmount: 0,
+      scholarshipAmount: 45000,
+      transactionId: 'SCH-VIK-001',
+      paymentDate: daysAgo(180),
+    },
+  ],
 }
 
 /** Synthetic batch enrollment when no match in INITIAL_BATCHES */

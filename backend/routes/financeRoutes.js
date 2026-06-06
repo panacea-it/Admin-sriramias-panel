@@ -50,6 +50,7 @@ import {
   updateEmiPlan,
   updateGstSettings,
   updatePaymentStatus,
+  updateCompletedReceiptHandler,
 } from '../controllers/financeController.js'
 import {
   getCommunicationAnalytics,
@@ -150,6 +151,7 @@ router.get('/receipts/completed', getCompletedReceiptsHandler)
 router.get('/receipts/preview-number', previewReceiptNumberHandler)
 router.post('/receipts/bulk-resend', bulkResendReceiptsHandler)
 router.post('/receipts/:paymentId/send', sendReceiptHandler)
+router.put('/receipts/:paymentId', updateCompletedReceiptHandler)
 router.post('/receipts/:paymentId/generate', generateReceipt)
 router.post('/receipts/:paymentId/resend', resendReceipt)
 

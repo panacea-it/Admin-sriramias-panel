@@ -47,6 +47,8 @@ const DEFAULT_STUDENT_PROFILE = {
   email: '',
   centerName: '',
   courseId: '',
+  batchId: '',
+  batchName: '',
   customFee: '',
   isWalkIn: false,
 }
@@ -74,7 +76,7 @@ function buildFinancialsFromProfile(profile) {
   }
 }
 
-export function useOfflinePaymentEmiForm({ open }) {
+export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   const [paymentType, setPaymentType] = useState('full')
   const [studentProfile, setStudentProfile] = useState(DEFAULT_STUDENT_PROFILE)
   const [financials, setFinancials] = useState(null)
@@ -120,7 +122,11 @@ export function useOfflinePaymentEmiForm({ open }) {
       paymentDate: new Date().toISOString().slice(0, 10),
     })
     setPaymentType('full')
-    setStudentProfile(DEFAULT_STUDENT_PROFILE)
+    setStudentProfile(
+      initialStudentProfile
+        ? { ...DEFAULT_STUDENT_PROFILE, ...initialStudentProfile }
+        : DEFAULT_STUDENT_PROFILE,
+    )
     setFinancials(null)
     setInstallments([])
     setEmiConfig({
@@ -194,6 +200,8 @@ export function useOfflinePaymentEmiForm({ open }) {
       centerName: student.centerName,
       isWalkIn: false,
       customFee: '',
+      batchId: '',
+      batchName: '',
     }))
     setValue('centerName', student.centerName)
   }, [setValue])
@@ -328,6 +336,8 @@ export function useOfflinePaymentEmiForm({ open }) {
         studentName: studentProfile.studentName,
         centerName: studentProfile.centerName,
         courseId: studentProfile.courseId,
+        batchId: studentProfile.batchId,
+        batchName: studentProfile.batchName || financials?.batchName || '',
         mobile: studentProfile.mobile,
         email: studentProfile.email,
         courseName: course?.name || financials?.courseName || '',
@@ -374,6 +384,7 @@ export function useOfflinePaymentEmiForm({ open }) {
       if (!data.paymentId?.trim()) errs.push('Payment ID is required.')
       if (!studentProfile.centerName) errs.push('Center is required.')
       if (!studentProfile.courseId) errs.push('Course is required.')
+      if (!studentProfile.batchId) errs.push('Batch is required.')
       if (!data.paymentDate) errs.push('Payment date is required.')
 
       if (emiEnabled) {

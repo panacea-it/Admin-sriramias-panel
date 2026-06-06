@@ -1,4 +1,4 @@
-import { Download, Eye, Send } from 'lucide-react'
+import { Download, Eye, Pencil, Send } from 'lucide-react'
 import ReceiptStatusBadge from './ReceiptStatusBadge'
 import CommunicationStatusChips from './CommunicationStatusChips'
 import { formatINR } from '../../../utils/financeFilters'
@@ -11,7 +11,9 @@ export default function ReceiptMobileCards({
   onToggleSelect,
   onPreview,
   onSendReceipt,
+  onEditReceipt,
   canSend = true,
+  canEdit = true,
 }) {
   if (!rows.length) return null
 
@@ -86,6 +88,17 @@ export default function ReceiptMobileCards({
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
+              {canEdit && onEditReceipt && (
+                <button
+                  type="button"
+                  title="Edit receipt"
+                  onClick={() => onEditReceipt(row)}
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#55ace7]/30 text-xs font-semibold text-[#246392] hover:bg-[#eef6fc]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+              )}
             </div>
           </article>
         )

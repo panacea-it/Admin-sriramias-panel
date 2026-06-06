@@ -1,13 +1,15 @@
 import { cn } from '../../utils/cn'
 
-function TimeBox({ value, onChange, error, 'aria-label': ariaLabel }) {
+function TimeBox({ value, onChange, onBlur, error, 'aria-label': ariaLabel }) {
   return (
     <input
       type="text"
       inputMode="numeric"
       maxLength={2}
-      value={value}
+      value={value ?? ''}
       onChange={onChange}
+      onBlur={onBlur}
+      onFocus={(e) => e.target.select()}
       aria-label={ariaLabel}
       className={cn(
         'h-10 w-12 rounded-lg bg-[#d1e9f6] text-center text-sm font-semibold text-[#222] outline-none focus:ring-2 focus:ring-[#55ace7]/40',
@@ -26,6 +28,9 @@ export default function TimeDurationFields({
   onHrsChange,
   onMinChange,
   onSecChange,
+  onHrsBlur,
+  onMinBlur,
+  onSecBlur,
   error,
 }) {
   return (
@@ -38,6 +43,7 @@ export default function TimeDurationFields({
         <TimeBox
           value={hrs}
           onChange={onHrsChange}
+          onBlur={onHrsBlur}
           error={error}
           aria-label={`${label} hours`}
         />
@@ -45,6 +51,7 @@ export default function TimeDurationFields({
         <TimeBox
           value={min}
           onChange={onMinChange}
+          onBlur={onMinBlur}
           error={error}
           aria-label={`${label} minutes`}
         />
@@ -52,6 +59,7 @@ export default function TimeDurationFields({
         <TimeBox
           value={sec}
           onChange={onSecChange}
+          onBlur={onSecBlur}
           error={error}
           aria-label={`${label} seconds`}
         />

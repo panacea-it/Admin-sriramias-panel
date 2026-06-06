@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Layers } from 'lucide-react'
 import SubjectHeader from '../../components/subjects/SubjectHeader'
 import SubjectFilters from '../../components/subjects/SubjectFilters'
@@ -8,9 +8,11 @@ import SubjectModal from '../../components/subjects/SubjectModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import RecurrenceScopeDialog from '../../components/live-classes/RecurrenceScopeDialog'
+import ExamCategoryTableSkeleton from '../../components/categories/ExamCategoryTableSkeleton'
 import { RECURRENCE_DELETE_SCOPES } from '../../constants/recurrence'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
+import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
 import { buildLiveClassesFromRecurrence } from '../../utils/academicsSubjectsRecurrence'
 import { syncSubjectLiveClassesToModule } from '../../utils/subjectModuleSync'
 import { formatSubjectViewTitle } from '../../utils/academicsSubjectsStorage'
@@ -22,13 +24,34 @@ export default function SubjectViewListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const {
-    subjects,
+    subject: apiSubject,
+    loading: detailLoading,
+    error: detailError,
+  } = useFacultySubjectDetail(id)
+  const {
     getSubjectById,
     upsertLiveClass,
     upsertLiveClassesBatch,
     deleteLiveClassWithScope,
   } = useAcademicsSubjects()
-  const subject = getSubjectById(id)
+  const localSubject = getSubjectById(id)
+  const subject = useMemo(() => {
+    if (!apiSubject && !localSubject) return null
+    return {
+      ...(apiSubject || {}),
+      ...(localSubject || {}),
+      id: String(id),
+      subjectName: apiSubject?.subjectName || localSubject?.subjectName || '',
+      subjectLabel: apiSubject?.subjectLabel || localSubject?.subjectLabel || '',
+      teacher: apiSubject?.teacher || localSubject?.teacher || '',
+      topics: apiSubject?.topics?.length ? apiSubject.topics : localSubject?.topics || [],
+      categories: apiSubject?.categories?.length
+        ? apiSubject.categories
+        : localSubject?.categories || [],
+      liveClasses: localSubject?.liveClasses || apiSubject?.liveClasses || [],
+      recordings: localSubject?.recordings || apiSubject?.recordings || [],
+    }
+  }, [apiSubject, localSubject, id])
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -57,8 +80,29 @@ export default function SubjectViewListPage() {
     })
   }, [liveClasses, search, statusFilter])
 
-  if (!subject) {
-    return <Navigate to="/academics/subjects" replace />
+  if (detailLoading) {
+    return (
+      <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
+        <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+          <ExamCategoryTableSkeleton />
+        </section>
+      </div>
+    )
+  }
+
+  if (detailError || !subject) {
+    return (
+      <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
+        <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+          <SubjectEmptyState
+            title="Unable to load subject"
+            description={detailError || 'Subject not found.'}
+            actionLabel="Back to Faculty Subjects"
+            onAction={() => navigate('/academics/subjects')}
+          />
+        </section>
+      </div>
+    )
   }
 
   const openCreate = () => {
@@ -222,7 +266,7 @@ export default function SubjectViewListPage() {
         context="liveClass"
         subject={subject}
         liveClass={activeLiveClass}
-        subjects={subjects}
+        subjects={subject ? [subject] : []}
         onSubmit={handleModalSubmit}
       />
 

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useInitOnModalOpen } from '../../hooks/modalFormSync'
+import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { useForm } from 'react-hook-form'
 import { BookOpen } from 'lucide-react'
 import { toast } from '@/utils/toast'
@@ -9,6 +9,7 @@ import SubjectContentFields from './SubjectContentFields'
 import { FormFooter } from './subjectFormUi'
 import { useAuth } from '../../contexts/AuthContext'
 import { useBatchesData } from '../../hooks/useBatchesData'
+import { useFacultySubjectFormOptions } from '../../hooks/useFacultySubjectFormOptions'
 import {
   createRecurrenceFromSubjectForm,
   flattenSubjectsLiveClassesForConflicts,
@@ -29,16 +30,29 @@ export default function SubjectModal({
   liveClass,
   subjects = [],
   onSubmit,
+  detailLoading = false,
 }) {
   const { user } = useAuth()
   const actorName = user?.name || user?.email || 'Admin'
-  const { sourceRows: batches, loading: batchesLoading } = useBatchesData()
-  const [saving, setSaving] = useState(false)
-  const [recordingUploadError, setRecordingUploadError] = useState(null)
-  const [testSeriesErrors, setTestSeriesErrors] = useState({})
   const isEdit = mode === 'edit'
   const liveClassOnly = context === 'liveClass'
   const subjectOnly = context === 'subject'
+  const { sourceRows: batches, loading: batchesLoading } = useBatchesData({ enabled: liveClassOnly })
+  const [saving, setSaving] = useState(false)
+  const [recordingUploadError, setRecordingUploadError] = useState(null)
+  const [testSeriesErrors, setTestSeriesErrors] = useState({})
+
+  const {
+    subjectOptions,
+    topicOptions,
+    teacherOptions,
+    categoryOptions,
+    loadingSubjects,
+    loadingCategories,
+    loadingFormOptions,
+    loadCreateFormOptions,
+    seedFormOptions,
+  } = useFacultySubjectFormOptions({ open, enabled: subjectOnly })
 
   const [recurring, setRecurring] = useState(false)
   const [recurrence, setRecurrence] = useState(null)
@@ -61,7 +75,10 @@ export default function SubjectModal({
   subjectRef.current = subject
   const liveClassRef = useRef(liveClass)
   liveClassRef.current = liveClass
-  const seedKey = `${mode}:${context}:${subject?.id ?? liveClass?.id ?? 'new'}`
+  const seedKey = `${mode}:${context}:${getModalEditKey(subject ?? liveClass)}:${
+    subject?._hydrated ? 'ready' : 'pending'
+  }`
+  const lastSubjectRef = useRef('')
 
   const syncRecurrenceState = (formValues) => {
     setRecurring(Boolean(formValues.recurring))
@@ -71,16 +88,34 @@ export default function SubjectModal({
   }
 
   useInitOnModalOpen(open, seedKey, () => {
-    const seeded = subjectToForm(subjectRef.current, liveClassRef.current)
+    const raw = subjectRef.current
+    const seeded = subjectToForm(raw, liveClassRef.current)
+    lastSubjectRef.current = seeded.subject ? String(seeded.subject) : ''
     reset(seeded)
     syncRecurrenceState(seeded)
     clearErrors()
     setTestSeriesErrors({})
     setRecordingUploadError(null)
+    if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
+      seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
+    }
+    if (seeded.subject) {
+      loadCreateFormOptions(seeded.subject)
+    }
   })
 
   const watchedDate = watch('date')
+  const watchedSubjectId = watch('subject')
   const isRecurringEdit = isEdit && Boolean(liveClass?.recurrenceSeriesId)
+
+  const handleSubjectChange = (subjectId) => {
+    const id = String(subjectId || '')
+    if (!id || id === lastSubjectRef.current) return
+    lastSubjectRef.current = id
+    setValue('teacher', '')
+    setValue('topics', [])
+    loadCreateFormOptions(id, { force: true })
+  }
 
   const handleRecurringToggle = (enabled) => {
     setRecurring(enabled)
@@ -127,10 +162,17 @@ export default function SubjectModal({
     }
     setTestSeriesErrors({})
 
+    if (subjectOnly && isEdit && detailLoading) {
+      toast.error('Subject details are still loading. Please wait.')
+      return
+    }
+
     setSaving(true)
     try {
       await onSubmit(payload)
       onClose()
+    } catch {
+      /* parent shows toast */
     } finally {
       setSaving(false)
     }
@@ -175,6 +217,15 @@ export default function SubjectModal({
                 register={register}
                 control={control}
                 errors={errors}
+                subjectOptions={subjectOptions}
+                topicOptions={topicOptions}
+                teacherOptions={teacherOptions}
+                categoryOptions={categoryOptions}
+                loadingSubjects={loadingSubjects || detailLoading}
+                loadingFormOptions={loadingFormOptions || detailLoading}
+                loadingCategories={loadingCategories}
+                onSubjectChange={handleSubjectChange}
+                disabledTopicsTeachers={!watchedSubjectId}
               />
             )}
 
@@ -216,11 +267,17 @@ export default function SubjectModal({
         </div>
 
         <FormFooter
-          saving={saving}
+          saving={saving || detailLoading}
           onReset={() => {
-            const seeded = subjectToForm(subject, liveClass)
+            const raw = subject
+            const seeded = subjectToForm(raw, liveClass)
+            lastSubjectRef.current = seeded.subject ? String(seeded.subject) : ''
             reset(seeded)
             syncRecurrenceState(seeded)
+            if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
+              seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
+            }
+            if (seeded.subject) loadCreateFormOptions(seeded.subject)
           }}
         />
       </form>

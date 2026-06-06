@@ -1,8 +1,10 @@
 import { INITIAL_BATCHES } from '../data/batchManagementData'
 import {
+  MOCK_EMI_PLANS,
   MOCK_PAYMENT_REPORTS,
   MOCK_STUDENT_PROFILES,
 } from '../data/financeMockData'
+import { enrichEnrollmentsWithPaymentInfo } from './enrollmentPaymentLink'
 import {
   STUDENT_ACTIVITY_EVENTS,
   STUDENT_ATTENDANCE_SESSIONS,
@@ -220,7 +222,12 @@ export function buildStudent360(manageUserId) {
     return { profile: null, isStudent: false }
   }
 
-  const enrollments = getStudentBatchEnrollments(profile)
+  const enrollments = enrichEnrollmentsWithPaymentInfo(getStudentBatchEnrollments(profile), {
+    payments: getStudentPayments(profile),
+    orders: getStudentOrders(profile),
+    emiPlans: MOCK_EMI_PLANS,
+    profile,
+  })
   const payments = getStudentPayments(profile)
   const financeProfile = getStudentFinanceProfile(profile)
   const tests = getStudentTestAttempts(profile)

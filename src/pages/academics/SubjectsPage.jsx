@@ -1,16 +1,32 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Layers } from 'lucide-react'
 import SubjectHeader from '../../components/subjects/SubjectHeader'
 import SubjectFilters from '../../components/subjects/SubjectFilters'
 import SubjectTable from '../../components/subjects/SubjectTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
+import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjectModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
-import { buildSubjectFromForm } from '../../components/subjects/subjectFormUtils'
-import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
-import { useBatchesData } from '../../hooks/useBatchesData'
-import { buildActiveBatchOptions, formatBatchSelectLabel } from '../../utils/batchSelectHelpers'
+import { useFacultySubjectsManagement } from '../../hooks/useFacultySubjectsManagement'
+import {
+  createFacultySubject,
+  deleteFacultySubject,
+  getFacultySubjectById,
+  updateFacultySubject,
+  updateFacultySubjectStatus,
+} from '../../api/facultySubjectsAPI'
+import {
+  buildFacultySubjectApiPayload,
+  mapApiFacultySubjectToFormRow,
+  mapApiFacultySubjectToRow,
+} from '../../utils/facultySubjectHelpers'
+import {
+  removeFacultySubjectFromLocalStorage,
+  syncSingleFacultySubjectToLocal,
+} from '../../utils/facultySubjectSync'
+import { mapUiStatusToApi } from '../../utils/programHelpers'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
@@ -19,34 +35,33 @@ export default function SubjectsPage() {
   const navigate = useNavigate()
   const {
     subjects,
-    upsertSubject,
-    deleteSubject,
-  } = useAcademicsSubjects()
-  const { sourceRows: batchRows } = useBatchesData()
-  const batchOptions = useMemo(() => buildActiveBatchOptions(batchRows), [batchRows])
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+    loading,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    controlledPagination,
+    refreshSubjects,
+    patchSubjectLocally,
+    removeSubjectLocally,
+  } = useFacultySubjectsManagement()
+
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('add')
   const [activeSubject, setActiveSubject] = useState(null)
+  const [editDetailLoading, setEditDetailLoading] = useState(false)
+  const [formSubmitting, setFormSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [statusChangingId, setStatusChangingId] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    return subjects.filter((row) => {
-      const topics = row.topics ?? (row.topic ? [row.topic] : [])
-      const matchSearch =
-        !q ||
-        row.subjectName?.toLowerCase().includes(q) ||
-        topics.some((t) => t.toLowerCase().includes(q)) ||
-        row.teacher?.toLowerCase().includes(q) ||
-        String(row.id).includes(q)
-      const matchStatus = statusFilter === 'all' || row.status === statusFilter
-      return matchSearch && matchStatus
-    })
-  }, [subjects, search, statusFilter])
+  const showEmpty =
+    !loading && subjects.length === 0 && !search.trim() && statusFilter === 'all'
+  const showNoResults =
+    !loading && subjects.length === 0 && !showEmpty
 
   const openCreate = () => {
     setActiveSubject(null)
@@ -54,39 +69,117 @@ export default function SubjectsPage() {
     setModalOpen(true)
   }
 
-  const openContentManagement = (row) => {
-    navigate(`/academics/subjects/${encodeURIComponent(row.id)}/content`)
+  const loadSubjectDetail = useCallback(async (row) => {
+    const data = await getFacultySubjectById(row.id)
+    return mapApiFacultySubjectToFormRow(data)
+  }, [])
+
+  const openContentManagement = async (row) => {
+    try {
+      const detail = await loadSubjectDetail(row)
+      if (detail) syncSingleFacultySubjectToLocal(detail)
+      navigate(`/academics/subjects/${encodeURIComponent(row.id)}/content`)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
+    }
   }
 
-  const openEdit = (row) => {
+  const handleView = async (row) => {
+    setViewItem(row)
+    setViewLoading(true)
+    try {
+      const data = await getFacultySubjectById(row.id)
+      const detail = mapApiFacultySubjectToRow(data)
+      if (detail) {
+        syncSingleFacultySubjectToLocal(data)
+        setViewItem(detail)
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
+      setViewItem(null)
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  const handleViewList = async (row) => {
+    try {
+      const detail = await loadSubjectDetail(row)
+      if (detail) syncSingleFacultySubjectToLocal(detail)
+      navigate(`/academics/subjects/${row.id}`)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
+    }
+  }
+
+  const openEdit = async (row) => {
     setActiveSubject(row)
     setModalMode('edit')
     setModalOpen(true)
+    setEditDetailLoading(true)
+    try {
+      const detail = await loadSubjectDetail(row)
+      if (detail) {
+        setActiveSubject(detail)
+        syncSingleFacultySubjectToLocal(detail)
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load subject for edit'))
+      setModalOpen(false)
+      setActiveSubject(null)
+    } finally {
+      setEditDetailLoading(false)
+    }
   }
 
   const handleSubjectModalSubmit = async (form) => {
-    const existing = modalMode === 'edit' ? activeSubject : null
-    const subjectRow = buildSubjectFromForm(form, existing, subjects)
-    const batchOpt = form.batchId
-      ? {
-          batchId: form.batchId,
-          batch:
-            formatBatchSelectLabel(
-              batchOptions.find((b) => String(b.id) === String(form.batchId)),
-            ) || form.batchId,
-        }
-      : {}
-    upsertSubject({ ...subjectRow, ...batchOpt })
-    toast.success(modalMode === 'edit' ? facultySubjectLabels.updated : facultySubjectLabels.created)
+    setFormSubmitting(true)
+    try {
+      const payload = buildFacultySubjectApiPayload(form)
+      if (modalMode === 'edit' && activeSubject?.id) {
+        await updateFacultySubject(activeSubject.id, payload)
+        toast.success(facultySubjectLabels.updated)
+      } else {
+        await createFacultySubject(payload)
+        toast.success(facultySubjectLabels.created)
+      }
+      await refreshSubjects()
+      setModalOpen(false)
+      setActiveSubject(null)
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(
+          error,
+          modalMode === 'edit' ? 'Failed to update subject' : 'Failed to create subject',
+        ),
+      )
+      throw error
+    } finally {
+      setFormSubmitting(false)
+    }
   }
 
-  const handleStatusChange = (row, nextStatus) => {
-    upsertSubject({ ...row, status: nextStatus })
-    toast.success(
-      nextStatus === 'Active'
-        ? `${facultySubjectLabels.singular} activated`
-        : `${facultySubjectLabels.singular} deactivated`,
-    )
+  const handleStatusChange = async (row, nextStatus) => {
+    const previousStatus = row.status
+    const nextApi = mapUiStatusToApi(nextStatus)
+
+    patchSubjectLocally(row.id, { status: nextStatus })
+    setStatusChangingId(row.id)
+
+    try {
+      await updateFacultySubjectStatus(row.id, nextApi)
+      syncSingleFacultySubjectToLocal({ ...row, status: nextApi })
+      toast.success(
+        nextStatus === 'Active'
+          ? `${facultySubjectLabels.singular} activated`
+          : `${facultySubjectLabels.singular} deactivated`,
+      )
+    } catch (error) {
+      patchSubjectLocally(row.id, { status: previousStatus })
+      toast.error(getApiErrorMessage(error, 'Failed to update status'))
+    } finally {
+      setStatusChangingId(null)
+    }
   }
 
   const toggleSelect = (id) => {
@@ -100,15 +193,22 @@ export default function SubjectsPage() {
     const targetId = String(deleteTarget.id)
     setDeleteLoading(true)
     try {
-      deleteSubject(targetId)
+      await deleteFacultySubject(targetId)
+      removeSubjectLocally(targetId)
+      removeFacultySubjectFromLocalStorage(targetId)
       setSelectedIds((prev) => prev.filter((id) => id !== targetId))
       toast.success(facultySubjectLabels.deleted)
       setDeleteTarget(null)
-    } catch (err) {
-      toast.error(err?.message || 'Failed to delete subject')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete subject'))
     } finally {
       setDeleteLoading(false)
     }
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
   }
 
   return (
@@ -129,9 +229,15 @@ export default function SubjectsPage() {
           onStatusChange={(e) => setStatusFilter(e.target.value)}
         />
 
-        {filtered.length === 0 && subjects.length === 0 ? (
+        {showEmpty ? (
           <SubjectEmptyState
             description={`Create your first subject using the ${facultySubjectLabels.add} button above.`}
+          />
+        ) : showNoResults ? (
+          <SubjectEmptyState
+            description="No subjects match your search or filter. Try adjusting your criteria."
+            actionLabel="Clear filters"
+            onAction={clearFilters}
           />
         ) : (
           <div
@@ -140,29 +246,48 @@ export default function SubjectsPage() {
             )}
           >
             <SubjectTable
-              data={filtered}
+              data={subjects}
               search={search}
               statusFilter={statusFilter}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onAddRow={openContentManagement}
-              onViewList={(row) => navigate(`/academics/subjects/${row.id}`)}
+              onView={handleView}
+              onViewList={handleViewList}
               onEdit={openEdit}
               onDelete={(row) => setDeleteTarget(row)}
               onStatusChange={handleStatusChange}
+              loading={loading}
+              controlledPagination={controlledPagination}
+              statusChangingId={statusChangingId}
             />
           </div>
         )}
       </section>
 
+      <ViewFacultySubjectModal
+        open={Boolean(viewItem) || viewLoading}
+        onClose={() => {
+          setViewItem(null)
+          setViewLoading(false)
+        }}
+        item={viewItem}
+        loading={viewLoading}
+      />
+
       <SubjectModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false)
+          setActiveSubject(null)
+          setEditDetailLoading(false)
+        }}
         mode={modalMode}
         context="subject"
         subject={activeSubject}
         subjects={subjects}
         onSubmit={handleSubjectModalSubmit}
+        detailLoading={editDetailLoading || formSubmitting}
       />
 
       <ConfirmDeleteDialog

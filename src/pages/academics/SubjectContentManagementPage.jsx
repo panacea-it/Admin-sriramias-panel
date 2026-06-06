@@ -5,7 +5,6 @@ import PageBanner from '../../components/figma/PageBanner'
 import HierarchyExplorer from '../../components/subject-content/HierarchyExplorer'
 import SubjectContentFormPanel, {
   buildItemSavePayload,
-  syncSubjectContentToModules,
 } from '../../components/subject-content/SubjectContentFormPanel'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { useAuth } from '../../contexts/AuthContext'
@@ -24,6 +23,22 @@ import {
 } from '../../utils/facultySubjectContentStorage'
 import { nextLiveClassId } from '../../utils/academicsSubjectsStorage'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
+import {
+  createLiveClass,
+  deleteLiveClass,
+  duplicateLiveClass,
+  updateLiveClass,
+  updateLiveClassPublishStatus,
+} from '../../api/liveClassesHttpAPI'
+import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
+import {
+  buildLiveClassApiPayload,
+  mapApiLiveClassToLocalRow,
+  resolveFacultySubjectApiId,
+  resolveLiveClassApiId,
+  validateLiveClassApiPayload,
+} from '../../utils/liveClassHelpers'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
 export default function SubjectContentManagementPage() {
@@ -31,10 +46,16 @@ export default function SubjectContentManagementPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { subjects, upsertSubject } = useAcademicsSubjects()
-  const subject = useMemo(
+  const {
+    subject: apiSubject,
+    loading: subjectDetailLoading,
+  } = useFacultySubjectDetail(subjectId)
+  const localSubject = useMemo(
     () => subjects.find((s) => String(s.id) === String(subjectId)),
     [subjects, subjectId],
   )
+  const subject = apiSubject || localSubject
+  const facultySubjectApiId = resolveFacultySubjectApiId(subject, subjectId)
 
   const facultyName = user?.name || user?.email || subject?.teacher || 'Faculty'
   const teacherShort = subject?.teacher?.split(' ')[0] || facultyName.split(' ')[0]
@@ -188,6 +209,21 @@ export default function SubjectContentManagementPage() {
   const confirmDeleteItem = async () => {
     if (!deleteItemTarget || !selectedCategoryId || !activeFolder) return
     const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
+    const linkedId = deleteItemTarget?.linkedExistingFormId
+    const apiId = resolveLiveClassApiId({
+      id: linkedId,
+      apiId: deleteItemTarget?.data?.apiId,
+    })
+
+    if (contentType === 'live' && apiId) {
+      try {
+        await deleteLiveClass(apiId)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to delete live class'))
+        return
+      }
+    }
+
     await mutateCategoryFolders(selectedCategoryId, (list) =>
       list.map((f) =>
         f.id === activeFolder.id
@@ -206,6 +242,18 @@ export default function SubjectContentManagementPage() {
 
   const handlePublishItemQuick = async (item) => {
     if (!selectedCategoryId || !activeFolder) return
+    const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
+    const apiId = resolveLiveClassApiId({ id: item?.linkedExistingFormId, apiId: item?.data?.apiId })
+
+    if (contentType === 'live' && apiId) {
+      try {
+        await updateLiveClassPublishStatus(apiId, 'PUBLISHED')
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to publish live class'))
+        return
+      }
+    }
+
     await mutateCategoryFolders(selectedCategoryId, (list) =>
       list.map((f) =>
         f.id === activeFolder.id
@@ -230,19 +278,43 @@ export default function SubjectContentManagementPage() {
     }
     const src = row?.payload
     if (!src) return
-    const newId = nextLiveClassId(mergedSubject?.liveClasses || [])
-    const copy = {
-      ...src,
-      id: newId,
-      classTitle: `${src.classTitle} (Copy)`,
-      folderId: activeFolder.id,
-      categoryId: activeCategory.id,
+
+    const apiId = resolveLiveClassApiId(src)
+    let copy = null
+
+    if (apiId) {
+      try {
+        const result = await duplicateLiveClass(apiId)
+        copy = mapApiLiveClassToLocalRow(result)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to duplicate live class'))
+        return
+      }
     }
+
+    if (!copy) {
+      const newId = nextLiveClassId(mergedSubject?.liveClasses || [])
+      copy = {
+        ...src,
+        id: newId,
+        apiId: newId,
+        classTitle: `${src.classTitle} (Copy)`,
+        folderId: activeFolder.id,
+        categoryId: activeCategory.id,
+      }
+    } else {
+      copy = {
+        ...copy,
+        folderId: activeFolder.id,
+        categoryId: activeCategory.id,
+      }
+    }
+
     const newItem = {
       id: generateContentId('item'),
       itemType: activeCategory.categoryType,
       title: copy.classTitle,
-      linkedExistingFormId: newId,
+      linkedExistingFormId: copy.id,
       status: 'draft',
       lastUpdated: new Date().toISOString(),
       data: copy,
@@ -269,17 +341,52 @@ export default function SubjectContentManagementPage() {
   }) => {
     if (!content || !activeCategory || !activeFolder) return
 
+    let resolvedLiveClassData = liveClassData
+
+    if (contentType === 'live') {
+      try {
+        const isRecurring = Boolean(values.recurring && values.recurrence?.enabled)
+        const apiPayload = buildLiveClassApiPayload(values, {
+          facultySubjectId: facultySubjectApiId,
+          folderId: activeFolder.id,
+          publish,
+          recurring: isRecurring,
+          recurrence: isRecurring ? values.recurrence : null,
+          timezone: values.timezone || 'Asia/Kolkata',
+        })
+        const payloadErrors = validateLiveClassApiPayload(apiPayload)
+        if (payloadErrors.length) {
+          throw new Error(payloadErrors[0])
+        }
+        const existingApiId = resolveLiveClassApiId(liveClassData)
+        const apiResult = existingApiId
+          ? await updateLiveClass(existingApiId, apiPayload)
+          : await createLiveClass(apiPayload)
+        resolvedLiveClassData = mapApiLiveClassToLocalRow(apiResult)
+        if (!resolvedLiveClassData) {
+          throw new Error('Invalid live class response from server')
+        }
+      } catch (error) {
+        throw new Error(getApiErrorMessage(error, 'Failed to save live class'))
+      }
+    }
+
     const { item, subjectPatch } = buildItemSavePayload({
       values,
       contentType,
       subject: mergedSubject || subject,
       existingItem: existingItem || null,
-      liveClassData,
+      liveClassData: resolvedLiveClassData,
       recordingData,
       folder: activeFolder,
       category: activeCategory,
       publish,
     })
+
+    if (contentType === 'live' && resolvedLiveClassData) {
+      item.linkedExistingFormId = resolvedLiveClassData.id
+      item.data = resolvedLiveClassData
+    }
 
     await mutateCategoryFolders(selectedCategoryId, (list) =>
       list.map((f) => {
@@ -293,14 +400,13 @@ export default function SubjectContentManagementPage() {
     )
 
     upsertSubject(subjectPatch)
-    await syncSubjectContentToModules(subjectPatch, contentType, facultyName)
 
     setSelectedItemId(item.id)
     setAddingNewItem(false)
     setPanelMode('list')
   }
 
-  if (!subject && !loading) {
+  if (!subject && !loading && !subjectDetailLoading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8">
         <p className="text-lg font-semibold text-[#1a3a5c]">Subject not found</p>
@@ -332,7 +438,7 @@ export default function SubjectContentManagementPage() {
         </PageBanner>
       </div>
 
-      {loading ? (
+      {loading || subjectDetailLoading ? (
         <div className="flex flex-1 items-center justify-center py-24">
           <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
         </div>
@@ -406,6 +512,7 @@ export default function SubjectContentManagementPage() {
 
             <SubjectContentFormPanel
               subject={mergedSubject || subject}
+              facultySubjectId={facultySubjectApiId}
               subjects={subjects}
               category={activeCategory}
               folder={activeFolder}

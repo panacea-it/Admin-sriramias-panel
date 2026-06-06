@@ -18,6 +18,7 @@ export default function SubjectChipMultiSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [labelCache, setLabelCache] = useState({})
   const rootRef = useRef(null)
   const menuRef = useRef(null)
   const triggerRef = useRef(null)
@@ -25,11 +26,25 @@ export default function SubjectChipMultiSelect({
   const coords = usePortalMenuPosition(triggerRef, open, 8)
 
   const normalizedOptions = useMemo(() => normalizeOptions(options), [options])
-  const labelByValue = useMemo(() => {
-    const map = new Map()
-    normalizedOptions.forEach((o) => map.set(o.value, o.label))
-    return map
+
+  useEffect(() => {
+    setLabelCache((prev) => {
+      const next = { ...prev }
+      let changed = false
+      normalizedOptions.forEach((o) => {
+        if (next[o.value] !== o.label) {
+          next[o.value] = o.label
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
   }, [normalizedOptions])
+
+  const resolveLabel = (item) =>
+    labelCache[item] ||
+    normalizedOptions.find((o) => o.value === item)?.label ||
+    item
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -56,6 +71,10 @@ export default function SubjectChipMultiSelect({
   }, [])
 
   const toggle = (optValue) => {
+    const option = normalizedOptions.find((o) => o.value === optValue)
+    if (option) {
+      setLabelCache((prev) => ({ ...prev, [option.value]: option.label }))
+    }
     const set = new Set(selected)
     if (set.has(optValue)) set.delete(optValue)
     else set.add(optValue)
@@ -64,18 +83,29 @@ export default function SubjectChipMultiSelect({
 
   const remove = (opt, e) => {
     e.stopPropagation()
+    e.preventDefault()
     onChange(selected.filter((x) => x !== opt))
   }
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        disabled={disabled}
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        tabIndex={disabled ? -1 : 0}
         onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (disabled) return
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpen((o) => !o)
+          }
+          if (e.key === 'Escape') setOpen(false)
+        }}
         ref={triggerRef}
         className={cn(
-          'min-h-11 w-full rounded-xl bg-[#d1e9f6] px-3 py-2 text-left text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40',
+          'min-h-11 w-full cursor-pointer rounded-xl bg-[#d1e9f6] px-3 py-2 text-left text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40',
           disabled && 'cursor-not-allowed opacity-60',
           error && 'ring-2 ring-red-400',
         )}
@@ -89,15 +119,25 @@ export default function SubjectChipMultiSelect({
                 key={item}
                 className="inline-flex max-w-full items-center gap-1 rounded-lg bg-white/90 px-2 py-0.5 text-xs font-semibold text-[#246392] shadow-sm"
               >
-                <span className="truncate">{labelByValue.get(item) || item}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${labelByValue.get(item) || item}`}
-                  onClick={(e) => remove(item, e)}
-                  className="rounded p-0.5 hover:bg-[#e8f4fc]"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <span className="truncate">{resolveLabel(item)}</span>
+                {!disabled && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Remove ${resolveLabel(item)}`}
+                    onClick={(e) => remove(item, e)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onChange(selected.filter((x) => x !== item))
+                      }
+                    }}
+                    className="rounded p-0.5 hover:bg-[#e8f4fc]"
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                )}
               </span>
             ))
           )}
@@ -108,7 +148,7 @@ export default function SubjectChipMultiSelect({
             open && 'rotate-180',
           )}
         />
-      </button>
+      </div>
 
       {open &&
         createPortal(

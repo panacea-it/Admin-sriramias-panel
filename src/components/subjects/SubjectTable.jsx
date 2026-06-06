@@ -12,17 +12,17 @@ import {
 import { normalizeTestSeriesBlock } from '../../utils/batchTestSeriesForm'
 import { parseDateForDisplay } from '../../utils/academicsSubjectsStorage'
 
-function IdCell({ id, selected, onToggleSelect }) {
+function IdCell({ id, displayId, selected, onToggleSelect }) {
   return (
     <div className="flex items-center gap-3">
       <input
         type="checkbox"
         checked={Boolean(selected)}
         onChange={() => onToggleSelect?.(String(id))}
-        aria-label={`Select subject ${id}`}
+        aria-label={`Select subject ${displayId || id}`}
         className="h-4 w-4 shrink-0 cursor-pointer rounded border-[#55ace7]/40 text-[#246392] focus:ring-[#55ace7]/50"
       />
-      <span className="font-mono text-sm font-semibold text-[#111]">{id}</span>
+      <span className="font-mono text-sm font-semibold text-[#111]">{displayId || id}</span>
     </div>
   )
 }
@@ -30,6 +30,7 @@ function IdCell({ id, selected, onToggleSelect }) {
 export default function SubjectTable({
   data,
   onAddRow,
+  onView,
   onViewList,
   onEdit,
   onDelete,
@@ -39,6 +40,9 @@ export default function SubjectTable({
   selectedIds = [],
   onToggleSelect,
   emptyMessage = `No ${facultySubjectLabels.plural.toLowerCase()} found.`,
+  loading = false,
+  controlledPagination,
+  statusChangingId,
 }) {
   const columns = [
     {
@@ -47,6 +51,7 @@ export default function SubjectTable({
       render: (row) => (
         <IdCell
           id={row.id}
+          displayId={row.displayId || row.facultySubjectId}
           selected={selectedIds.includes(String(row.id))}
           onToggleSelect={onToggleSelect}
         />
@@ -123,6 +128,7 @@ export default function SubjectTable({
       render: (row) => (
         <SubjectStatusToggle
           status={row.status}
+          disabled={statusChangingId === row.id}
           onChange={(next) => onStatusChange?.(row, next)}
         />
       ),
@@ -136,6 +142,7 @@ export default function SubjectTable({
         <div className="flex justify-center py-1">
           <SubjectRowActions
             onAdd={() => onAddRow(row)}
+            onView={() => onView?.(row)}
             onViewList={() => onViewList(row)}
             onEdit={() => onEdit(row)}
             onDelete={() => onDelete(row)}
@@ -153,6 +160,8 @@ export default function SubjectTable({
       itemLabel="subjects"
       resetDeps={[search, statusFilter]}
       rowClassName="transition-colors hover:bg-[#f8fbff]"
+      loading={loading}
+      controlledPagination={controlledPagination}
     />
   )
 }

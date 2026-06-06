@@ -12,7 +12,10 @@ import {
   validateContentForm,
 } from '../subjects/subjectFormUtils'
 import { useAuth } from '../../contexts/AuthContext'
+import { useLiveClassFormOptions } from '../../hooks/useLiveClassFormOptions'
 import { useBatchesData } from '../../hooks/useBatchesData'
+import { getLiveClassById } from '../../api/liveClassesHttpAPI'
+import { mapApiLiveClassToFormValues } from '../../utils/liveClassHelpers'
 import {
   createRecurrenceFromSubjectForm,
   flattenSubjectsLiveClassesForConflicts,
@@ -59,7 +62,6 @@ export default function SubjectContentFormPanel({
 }) {
   const { user } = useAuth()
   const actorName = user?.name || user?.email || facultyName || 'Admin'
-  const { sourceRows: batches, loading: batchesLoading } = useBatchesData()
   const contentType = category ? contentTypeFromCategoryType(category.categoryType) : 'live'
 
   const [testSeriesErrors, setTestSeriesErrors] = useState({})
@@ -92,12 +94,73 @@ export default function SubjectContentFormPanel({
     formState: { errors },
   } = useForm({ defaultValues: EMPTY_SUBJECT_FORM })
 
+  const watchedCenterId = watch('centerId')
+  const {
+    batches,
+    centers,
+    classrooms,
+    loadingBatches,
+    loadingCenters,
+    loadingClassrooms,
+  } = useLiveClassFormOptions({
+    centerId: watchedCenterId,
+    enabled: contentType === 'live',
+  })
+  const { sourceRows: fallbackBatches, loading: fallbackBatchesLoading } = useBatchesData({
+    enabled: contentType !== 'live',
+  })
+  const batchOptions = contentType === 'live' ? batches : fallbackBatches
+  const batchOptionsLoading = contentType === 'live' ? loadingBatches : fallbackBatchesLoading
+
   useEffect(() => {
     if (!folder || !category) return
-    let seeded = subjectToForm(subject)
-    if (contentType === 'live' && liveClassData) {
-      seeded = subjectToForm(subject, liveClassData)
-    } else if (contentType === 'recording' && recordingData) {
+    let cancelled = false
+
+    const seedForm = (seeded, recurrenceState = {}) => {
+      reset({ ...seeded, contentType })
+      setRecurring(Boolean(recurrenceState.recurring))
+      setRecurrence(recurrenceState.recurrence || null)
+      setTimezone(recurrenceState.timezone || seeded.timezone || 'Asia/Kolkata')
+      setTestSeriesErrors({})
+      setRecordingUploadError(null)
+      clearErrors()
+    }
+
+    ;(async () => {
+      let seeded = subjectToForm(subject)
+      let recurrenceState = {}
+
+      if (contentType === 'live' && liveClassData) {
+        const apiId = liveClassData.apiId || liveClassData.id
+        if (apiId && /^[a-f0-9]{24}$/i.test(String(apiId))) {
+          try {
+            const data = await getLiveClassById(apiId)
+            const mapped = mapApiLiveClassToFormValues(data, subject)
+            if (mapped && !cancelled) {
+              seeded = { ...seeded, ...mapped }
+              recurrenceState = {
+                recurring: mapped.recurring,
+                recurrence: mapped.recurrence,
+                timezone: mapped.timezone,
+              }
+            }
+          } catch {
+            seeded = subjectToForm(subject, liveClassData)
+            recurrenceState = {
+              recurring: Boolean(liveClassData.recurring),
+              recurrence: liveClassData.recurrence || null,
+              timezone: liveClassData.timezone || liveClassData.recurrence?.timezone || 'Asia/Kolkata',
+            }
+          }
+        } else {
+          seeded = subjectToForm(subject, liveClassData)
+          recurrenceState = {
+            recurring: Boolean(liveClassData.recurring),
+            recurrence: liveClassData.recurrence || null,
+            timezone: liveClassData.timezone || liveClassData.recurrence?.timezone || 'Asia/Kolkata',
+          }
+        }
+      } else if (contentType === 'recording' && recordingData) {
       seeded = {
         ...subjectToForm(subject),
         recordingLessonName: recordingData.lessonName || item?.title || '',
@@ -145,10 +208,13 @@ export default function SubjectContentFormPanel({
     } else if (contentType === 'test' && addingNew) {
       seeded = { ...seeded, contentType: 'test' }
     }
-    reset({ ...seeded, contentType })
-    setTestSeriesErrors({})
-    setRecordingUploadError(null)
-    clearErrors()
+
+      if (!cancelled) seedForm(seeded, recurrenceState)
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [
     folder?.id,
     category?.id,
@@ -408,8 +474,15 @@ export default function SubjectContentFormPanel({
               subject={subject}
               liveClass={liveClassData}
               subjects={subjects}
-              batches={batches}
-              batchesLoading={batchesLoading}
+              batches={batchOptions}
+              batchesLoading={batchOptionsLoading}
+              centerOptions={centers}
+              centersLoading={loadingCenters}
+              classroomOptions={classrooms}
+              classroomsLoading={loadingClassrooms}
+              onCenterChange={(centerId) => {
+                setValue('centerId', centerId, { shouldValidate: true })
+              }}
               recurring={recurring}
               onRecurringToggle={(enabled) => {
                 setRecurring(enabled)
@@ -419,7 +492,9 @@ export default function SubjectContentFormPanel({
                       ? prev
                       : createRecurrenceFromSubjectForm({ date: watchedDate, timezone }),
                   )
-                } else setRecurrence(null)
+                } else {
+                  setRecurrence(null)
+                }
               }}
               recurrence={recurrence}
               onRecurrenceChange={setRecurrence}

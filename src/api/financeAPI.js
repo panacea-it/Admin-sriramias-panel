@@ -36,6 +36,7 @@ import {
   mapReceiptCenterRow,
   ensureReceiptOnRecord,
   shouldAutoGenerateReceipt,
+  buildReceiptEditAuditEntry,
 } from '../utils/receiptCompletion'
 import {
   buildCommunicationAlerts,
@@ -1503,6 +1504,8 @@ export async function submitOfflinePaymentReport(form) {
         centerName: form.centerName,
         course: form.courseName,
         courseId: form.courseId,
+        batchId: form.batchId,
+        batchName: form.batchName,
         courseType: form.courseType,
         amount: form.amount,
         paymentMode: form.paymentMode,
@@ -1694,6 +1697,46 @@ export async function generateReceipt(paymentId) {
 
 export async function resendReceipt(paymentId, channel) {
   return sendReceiptCommunication(paymentId, { channel, message: '' })
+}
+
+export async function updateCompletedReceipt(paymentId, payload) {
+  return tryApi(
+    () => api.put(`/finance/receipts/${paymentId}`, payload),
+    () => {
+      mockReports = mockReports.map((r) => {
+        if (r.id !== paymentId) return r
+        const auditEntry = buildReceiptEditAuditEntry(payload, r)
+        const amountPaid = payload.amountPaid != null ? Number(payload.amountPaid) : r.amountPaid
+        const updated = {
+          ...r,
+          studentName: payload.studentName?.trim() ?? r.studentName,
+          courseId: payload.courseId ?? r.courseId,
+          courseName: payload.courseName?.trim() ?? r.courseName,
+          batchId: payload.batchId ?? r.batchId,
+          batchName: payload.batchName ?? r.batchName,
+          paymentDate: payload.paymentDate ?? r.paymentDate,
+          paymentMode: payload.paymentMode ?? r.paymentMode,
+          amountPaid,
+          totalFees: amountPaid,
+          transactionId: payload.transactionId?.trim() ?? r.transactionId,
+          utrNumber: payload.transactionId?.trim() ?? r.utrNumber ?? r.transactionId,
+          remarks: payload.remarks ?? r.remarks,
+          verificationNotes: payload.remarks ?? r.verificationNotes,
+          receiptLifecycleStatus: payload.receiptLifecycleStatus ?? r.receiptLifecycleStatus,
+          receiptNumber: r.receiptNumber,
+          invoiceNumber: r.invoiceNumber,
+          adminLogs: [...(r.adminLogs || []), auditEntry],
+          timeline: [
+            ...(r.timeline || []),
+            { event: 'Receipt Details Updated', timestamp: new Date().toISOString() },
+          ],
+        }
+        return updated
+      })
+      const row = mockReports.find((r) => r.id === paymentId)
+      return mapReceiptCenterRow(row, mockGst)
+    },
+  )
 }
 
 export async function fetchPaymentModeSettings() {

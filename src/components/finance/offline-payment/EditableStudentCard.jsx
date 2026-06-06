@@ -1,10 +1,16 @@
+import { useMemo } from 'react'
 import { Search, UserPlus } from 'lucide-react'
 import { FINANCE_COURSES } from '../../../data/financeMockData'
 import { VERIFICATION_STUDENT_OPTIONS } from '../../../data/financeVerificationData'
+import { useBatchSelectOptions } from '../../../hooks/useBatchSelectOptions'
 import { formatINR } from '../../../utils/financeFilters'
+import SearchableSelect from '../../categories/SearchableSelect'
 
 const fieldClass =
   'mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-[#222] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
+
+const batchTriggerClass =
+  'mt-1 flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm font-medium text-[#222] outline-none transition hover:border-[#93c5fd] focus:ring-2 focus:ring-[#55ace7]/25'
 
 export default function EditableStudentCard({
   profile,
@@ -13,8 +19,32 @@ export default function EditableStudentCard({
   financials,
   onSearchSelect,
   onWalkIn,
+  batchError,
 }) {
+  const { options: batchOptions, loading: batchesLoading, error: batchesFetchError } =
+    useBatchSelectOptions()
+
+  const filteredBatchOptions = useMemo(() => {
+    if (!profile.courseId) return batchOptions
+    const matched = batchOptions.filter(
+      (opt) => !opt.courseId || opt.courseId === profile.courseId,
+    )
+    return matched.length > 0 ? matched : batchOptions
+  }, [batchOptions, profile.courseId])
+
   const set = (key, value) => onChange({ ...profile, [key]: value })
+
+  const setCourseId = (courseId) => {
+    const next = { ...profile, courseId }
+    if (profile.batchId) {
+      const selected = batchOptions.find((opt) => opt.value === profile.batchId)
+      if (selected?.courseId && selected.courseId !== courseId) {
+        next.batchId = ''
+        next.batchName = ''
+      }
+    }
+    onChange(next)
+  }
 
   return (
     <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
@@ -101,7 +131,7 @@ export default function EditableStudentCard({
           Course *
           <select
             value={profile.courseId}
-            onChange={(e) => set('courseId', e.target.value)}
+            onChange={(e) => setCourseId(e.target.value)}
             className={fieldClass}
           >
             <option value="">Select course</option>
@@ -111,6 +141,27 @@ export default function EditableStudentCard({
               </option>
             ))}
           </select>
+        </label>
+        <label className="block text-xs font-semibold text-[#555]">
+          Select Batch *
+          <SearchableSelect
+            value={profile.batchId || ''}
+            onChange={(batchId) => {
+              const selected = filteredBatchOptions.find((opt) => opt.value === batchId)
+              onChange({
+                ...profile,
+                batchId,
+                batchName: selected?.batchName || '',
+              })
+            }}
+            options={filteredBatchOptions}
+            placeholder="Select batch"
+            emptyMessage={batchesFetchError || 'No batches available'}
+            loading={batchesLoading}
+            disabled={batchesLoading}
+            error={batchError}
+            triggerClassName={batchTriggerClass}
+          />
         </label>
         {profile.isWalkIn && (
           <label className="block text-xs font-semibold text-[#555] sm:col-span-2">

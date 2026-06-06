@@ -5,11 +5,12 @@ import {
   mapInitialBatchesToRows,
 } from '../utils/batchHelpers'
 
-export function useBatchesData() {
+export function useBatchesData({ enabled = true } = {}) {
   const [apiBatches, setApiBatches] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(enabled))
 
   const loadBatches = useCallback(async ({ silent = false } = {}) => {
+    if (!enabled) return
     if (!silent) setLoading(true)
     try {
       const rows = await fetchCourses()
@@ -19,11 +20,16 @@ export function useBatchesData() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return undefined
+    }
     loadBatches()
-  }, [loadBatches])
+    return undefined
+  }, [enabled, loadBatches])
 
   const sourceRows = useMemo(() => {
     if (apiBatches.length > 0) return apiBatches

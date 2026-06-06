@@ -57,6 +57,7 @@ export const EMPTY_SUBJECT_FORM = {
   batch: '',
   classTitle: '',
   center: '',
+  centerId: '',
   classroomId: '',
   classRoom: '',
   date: '',
@@ -111,8 +112,13 @@ export function subjectToForm(subject, liveClass = null) {
   if (!subject && !liveClass) return { ...EMPTY_SUBJECT_FORM }
   const time = parseTimeToFormParts(liveClass?.startTime || liveClass?.scheduledTime)
   const recording = subject?.recordings?.[0]
-  const topics = normalizeTopics(subject?.topics ?? subject?.topic)
-  const categories = categoriesFromSubject(subject, liveClass)
+  const topics = Array.isArray(subject?.topicIds) && subject.topicIds.length
+    ? normalizeTopics(subject.topicIds)
+    : normalizeTopics(subject?.topics ?? subject?.topic)
+  const rawCategories = subject?.categories ?? subject?.category
+  const categories = Array.isArray(rawCategories) && rawCategories.length
+    ? rawCategories.map(String).filter(Boolean)
+    : categoriesFromSubject(subject, liveClass)
 
   const pdf = subject?.pdfs?.[0]
 
@@ -120,12 +126,16 @@ export function subjectToForm(subject, liveClass = null) {
     subjectName: subject?.subjectName || '',
     subjectCode: subject?.subjectCode || '',
     description: subject?.description || '',
-    subject: subject?.subject || subject?.subjectName || '',
+    subject: subject?.subject ? String(subject.subject) : '',
     academicYear: subject?.academicYear || '',
     thumbnailFileName: subject?.thumbnailFileName || '',
     topics,
     categories: categories.length ? categories : [],
-    teacher: subject?.teacher || '',
+    teacher: subject?.teacherId
+      ? String(subject.teacherId)
+      : subject?.teacher
+        ? String(subject.teacher)
+        : '',
     batchId: subject?.batchId || subject?.batchIds?.[0] || '',
     batchIds: Array.isArray(subject?.batchIds)
       ? subject.batchIds.map(String).filter(Boolean)
@@ -135,6 +145,7 @@ export function subjectToForm(subject, liveClass = null) {
     batch: subject?.batch || '',
     classTitle: liveClass?.classTitle || '',
     center: liveClass?.center || '',
+    centerId: liveClass?.centerId || '',
     classroomId: liveClass?.classroomId || '',
     classRoom: liveClass?.classroom || liveClass?.classRoom || '',
     date: liveClass?.date || '',
@@ -223,6 +234,7 @@ export function buildLiveClassFromForm(form, existingLiveClass, subject) {
     id,
     classTitle: form.classTitle?.trim() || 'Untitled Class',
     center: form.center?.trim() || '',
+    centerId: form.centerId?.trim() || '',
     classroomId: form.classroomId || '',
     classroom: classroom?.name || form.classRoom?.trim() || '',
     classRoom: classroom?.name || form.classRoom?.trim() || '',
@@ -295,10 +307,22 @@ export function buildPdfFromForm(form, existingPdf, subject) {
   }
 }
 
+/** Allow 1–2 digit entry while typing; does not force padding until complete. */
 export function clampTimeField(value, max = 59) {
   const digits = String(value || '').replace(/\D/g, '').slice(0, 2)
   if (digits === '') return ''
-  const n = Math.min(max, parseInt(digits, 10))
+  const n = parseInt(digits, 10)
+  if (Number.isNaN(n)) return ''
+  const clamped = Math.min(max, n)
+  if (digits.length < 2) return digits
+  return String(clamped).padStart(2, '0')
+}
+
+/** Normalize a time segment on blur. */
+export function finalizeTimeField(value, max = 59) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 2)
+  if (digits === '') return '00'
+  const n = Math.min(max, parseInt(digits, 10) || 0)
   return String(n).padStart(2, '0')
 }
 
@@ -350,10 +374,16 @@ export function validateSubjectForm(
     if (!values.subjectName?.trim()) errors.subjectName = 'Subject name is required'
     if (!values.subject?.trim()) errors.subject = 'Subject is required'
     if (!values.teacher?.trim()) errors.teacher = 'Teacher is required'
-    if (!categories.length) errors.categories = 'Select at least one category'
+    const selectedCategories = Array.isArray(values.categories)
+      ? values.categories.map(String).filter(Boolean)
+      : []
+    if (!selectedCategories.length) errors.categories = 'Select at least one category'
   }
 
   if (subjectOnly && !liveClassOnly && !activeContent) {
+    if (!normalizeTopics(values.topics).length) {
+      errors.topics = 'Select at least one topic'
+    }
     return errors
   }
 
@@ -369,7 +399,9 @@ export function validateSubjectForm(
   if (needsLiveClass) {
     if (!values.batchId?.trim()) errors.batchId = 'Batch is required'
     if (!values.classTitle?.trim()) errors.classTitle = 'Class title is required'
-    if (!values.center?.trim()) errors.center = 'Center is required'
+    if (!values.centerId?.trim() && !values.center?.trim()) {
+      errors.center = 'Center is required'
+    }
     if (!values.classroomId?.trim()) errors.classRoom = 'Classroom is required'
     if (!values.date?.trim()) errors.date = 'Date is required'
     const startTime = minutesToTimeString(

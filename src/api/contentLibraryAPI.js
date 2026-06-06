@@ -31,7 +31,7 @@ import {
   getStudentBookmarks,
 } from '../utils/contentLibraryStorage'
 
-const BASE = '/api/content-library'
+const BASE = '/content-library'
 
 function useLocal() {
   return isFrontendOnly

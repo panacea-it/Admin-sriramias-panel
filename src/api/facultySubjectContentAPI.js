@@ -6,7 +6,7 @@ import {
   deleteSubjectContentStorage,
 } from '../utils/facultySubjectContentStorage'
 
-const BASE = '/api/faculty-subject-content'
+const BASE = '/faculty-subject-content'
 
 function useLocal() {
   return isFrontendOnly

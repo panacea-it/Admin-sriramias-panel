@@ -45,13 +45,28 @@ export function FormTextarea({ register, name, error, rows = 3, ...props }) {
   )
 }
 
-export function FormSelect({ register, name, error, options, placeholder }) {
+export function FormSelect({
+  register,
+  name,
+  error,
+  options,
+  placeholder,
+  disabled = false,
+  onChange,
+}) {
+  const registration = register(name)
   return (
     <div className="relative">
       <select
-        {...register(name)}
+        {...registration}
+        disabled={disabled}
+        onChange={(e) => {
+          registration.onChange(e)
+          onChange?.(e)
+        }}
         className={cn(
           'h-11 w-full appearance-none rounded-xl bg-[#d1e9f6] px-4 pr-10 text-sm text-[#222] outline-none focus:ring-2 focus:ring-[#55ace7]/40',
+          disabled && 'cursor-not-allowed opacity-60',
           error && 'ring-2 ring-red-400',
         )}
       >

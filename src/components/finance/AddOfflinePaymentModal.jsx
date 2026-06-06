@@ -16,8 +16,14 @@ import EmiInstallmentCollectDialog from './offline-payment/EmiInstallmentCollect
 const fieldClass =
   'mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
 
-export default function AddOfflinePaymentModal({ open, onClose, onSubmit, loading }) {
-  const form = useOfflinePaymentEmiForm({ open })
+export default function AddOfflinePaymentModal({
+  open,
+  onClose,
+  onSubmit,
+  loading,
+  initialStudentProfile,
+}) {
+  const form = useOfflinePaymentEmiForm({ open, initialStudentProfile })
 
   const {
     register,
@@ -75,6 +81,9 @@ export default function AddOfflinePaymentModal({ open, onClose, onSubmit, loadin
     })()
 
   const planClosed = emiPlanStatus === 'Closed Early'
+  const batchError = validationErrors.includes('Batch is required.')
+    ? 'Please select a batch.'
+    : undefined
 
   return (
     <Modal open={open} onClose={onClose} size="full" title="Offline EMI Payment">
@@ -104,6 +113,7 @@ export default function AddOfflinePaymentModal({ open, onClose, onSubmit, loadin
               financials={financials}
               onSearchSelect={handleSearchSelect}
               onWalkIn={handleWalkIn}
+              batchError={batchError}
             />
 
             {emiEnabled ? (

@@ -22,8 +22,10 @@ export default function ClassroomSelectField({
   showLabel = true,
   disabled,
   className,
+  options: externalOptions,
+  loading: externalLoading = false,
 }) {
-  const { options, loading, occupiedIds } = useClassroomAvailability({
+  const availability = useClassroomAvailability({
     date,
     startTime,
     timeHrs,
@@ -34,8 +36,21 @@ export default function ClassroomSelectField({
     durationMin,
     durationSec,
     excludeSourceIds,
-    enabled: Boolean(date),
+    enabled: Boolean(date) && !externalOptions,
   })
+
+  const options = externalOptions
+    ? externalOptions.map((room) => ({
+        id: room.value,
+        name: room.label,
+        code: room.code || '',
+        occupied: false,
+        available: true,
+      }))
+    : availability.options
+
+  const loading = externalOptions ? externalLoading : availability.loading
+  const occupiedIds = externalOptions ? new Set() : availability.occupiedIds
 
   const selected = findClassroomById(value)
   const hasSchedule = Boolean(date && (startTime || timeHrs != null))
@@ -90,8 +105,11 @@ export default function ClassroomSelectField({
           {options.filter((o) => o.occupied).length} occupied
         </p>
       )}
-      {!date && (
+      {!externalOptions && !date && (
         <p className="mt-1 text-[11px] text-[#94a3b8]">Select date & time to see availability</p>
+      )}
+      {externalOptions && !loading && options.length === 0 && (
+        <p className="mt-1 text-[11px] text-[#94a3b8]">Select a center to load classrooms</p>
       )}
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </div>

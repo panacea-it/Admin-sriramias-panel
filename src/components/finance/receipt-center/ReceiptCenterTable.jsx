@@ -1,4 +1,4 @@
-import { Eye, Download, Send, ChevronDown, ChevronUp } from 'lucide-react'
+import { Eye, Download, Send, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import ReceiptStatusBadge from './ReceiptStatusBadge'
 import CommunicationStatusChips from './CommunicationStatusChips'
 import { formatINR } from '../../../utils/financeFilters'
@@ -10,7 +10,9 @@ export default function ReceiptCenterTable({
   onSendReceipt,
   onPreview,
   onDownload,
+  onEditReceipt,
   canSend = true,
+  canEdit = true,
   selectedIds = [],
   onToggleSelect,
   onToggleSelectAll,
@@ -161,6 +163,16 @@ export default function ReceiptCenterTable({
                     >
                       <Download className="h-3.5 w-3.5" />
                     </button>
+                    {canEdit && onEditReceipt && (
+                      <button
+                        type="button"
+                        title="Edit receipt"
+                        onClick={() => onEditReceipt(row)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#55ace7]/30 text-[#246392] transition hover:bg-[#eef6fc]"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {canSend && (
                       <button
                         type="button"

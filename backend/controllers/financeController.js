@@ -8,6 +8,7 @@ import {
   getCompletedReceipts,
   previewInvoiceNumber,
   sendReceiptNotification,
+  updateReceiptForPayment,
 } from '../services/receiptService.js'
 import {
   SEED_PAYMENTS,
@@ -824,6 +825,19 @@ export async function sendReceiptHandler(req, res, next) {
       sentBy,
     })
     if (!data) return res.status(404).json({ success: false, message: 'Payment not found' })
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateCompletedReceiptHandler(req, res, next) {
+  try {
+    const adminName = req.user?.name || 'Finance Admin'
+    const data = await updateReceiptForPayment(req.params.paymentId, req.body || {}, { adminName })
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Receipt or payment not found' })
+    }
     res.json({ success: true, data })
   } catch (error) {
     next(error)

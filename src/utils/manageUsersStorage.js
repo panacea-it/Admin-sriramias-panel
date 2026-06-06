@@ -2,6 +2,24 @@ import { DEFAULT_CENTER_NAMES, USER_ROLES } from '../data/manageUsersConfig'
 
 const STORAGE_KEY = 'sriram_manage_users_v1'
 
+const SEED_STUDENT_ADDRESSES = {
+  'arjun.mehta@student.sriramias.in': {
+    address: '123 Rajpath Colony, Connaught Place',
+    city: 'New Delhi',
+    pinCode: '110001',
+  },
+  'priya.sharma@student.sriramias.in': {
+    address: '45 Jubilee Hills Road, Banjara Hills',
+    city: 'Hyderabad',
+    pinCode: '500034',
+  },
+  'vikram.singh@student.sriramias.in': {
+    address: '123 ABC Street, Whitefield',
+    city: 'Bangalore',
+    pinCode: '560066',
+  },
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -23,36 +41,42 @@ function defaultSeed() {
   const t = nowIso()
   const centers = DEFAULT_CENTER_NAMES
   const rows = [
-    ['Arjun Mehta', 'arjun.mehta@student.sriramias.in', '9876543210', 'student', centers[0], 'Rajesh Mehta', '9876501234'],
-    ['Priya Sharma', 'priya.sharma@student.sriramias.in', '9876543211', 'student', centers[1], 'Sunil Sharma', '9876501235'],
-    ['Dr. Ravi Kumar', 'ravi.kumar@sriramias.in', '9876543220', 'faculty', centers[0], '', ''],
-    ['Anita Desai', 'anita.desai@sriramias.in', '9876543221', 'faculty', centers[3], '', ''],
-    ['Suresh Nair', 'suresh.nair@sriramias.in', '9876543230', 'employee', centers[2], '', ''],
-    ['Kavitha Reddy', 'kavitha.reddy@sriramias.in', '9876543231', 'counselor', centers[1], '', ''],
-    ['Rahul Verma', 'rahul.verma@sriramias.in', '9876543240', 'admin', centers[0], '', ''],
-    ['Meera Iyer', 'meera.iyer@sriramias.in', '9876543241', 'support_staff', centers[4], '', ''],
-    ['Vikram Singh', 'vikram.singh@student.sriramias.in', '9876543250', 'student', centers[4], 'Harpreet Singh', '9876501236'],
-    ['Deepa Joshi', 'deepa.joshi@sriramias.in', '9876543251', 'employee', centers[3], '', ''],
+    ['Arjun Mehta', 'arjun.mehta@student.sriramias.in', '9876543210', 'student', centers[0], 'Rajesh Mehta', '9876501234', '123 Rajpath Colony, Connaught Place', 'New Delhi', '110001'],
+    ['Priya Sharma', 'priya.sharma@student.sriramias.in', '9876543211', 'student', centers[1], 'Sunil Sharma', '9876501235', '45 Jubilee Hills Road, Banjara Hills', 'Hyderabad', '500034'],
+    ['Dr. Ravi Kumar', 'ravi.kumar@sriramias.in', '9876543220', 'faculty', centers[0], '', '', '', '', ''],
+    ['Anita Desai', 'anita.desai@sriramias.in', '9876543221', 'faculty', centers[3], '', '', '', '', ''],
+    ['Suresh Nair', 'suresh.nair@sriramias.in', '9876543230', 'employee', centers[2], '', '', '', '', ''],
+    ['Kavitha Reddy', 'kavitha.reddy@sriramias.in', '9876543231', 'counselor', centers[1], '', '', '', '', ''],
+    ['Rahul Verma', 'rahul.verma@sriramias.in', '9876543240', 'admin', centers[0], '', '', '', '', ''],
+    ['Meera Iyer', 'meera.iyer@sriramias.in', '9876543241', 'support_staff', centers[4], '', '', '', '', ''],
+    ['Vikram Singh', 'vikram.singh@student.sriramias.in', '9876543250', 'student', centers[4], 'Harpreet Singh', '9876501236', '123 ABC Street, Whitefield', 'Bangalore', '560066'],
+    ['Deepa Joshi', 'deepa.joshi@sriramias.in', '9876543251', 'employee', centers[3], '', '', '', '', ''],
   ]
-  return rows.map(([fullName, email, phone, role, assignedCenter, parentName, parentPhone], i) => ({
-    id: newId(),
-    userId: `USR${String(i + 1).padStart(4, '0')}`,
-    fullName,
-    email,
-    phone,
-    role,
-    assignedCenter,
-    parentName: String(parentName || '').trim(),
-    parentPhone: String(parentPhone || '').trim(),
-    status: i % 7 === 0 ? 'In Active' : 'Active',
-    profileImage: '',
-    joinedAt: t,
-    updatedAt: t,
-  }))
+  return rows.map(
+    ([fullName, email, phone, role, assignedCenter, parentName, parentPhone, address, city, pinCode], i) => ({
+      id: newId(),
+      userId: `USR${String(i + 1).padStart(4, '0')}`,
+      fullName,
+      email,
+      phone,
+      role,
+      assignedCenter,
+      parentName: String(parentName || '').trim(),
+      parentPhone: String(parentPhone || '').trim(),
+      address: String(address || '').trim(),
+      city: String(city || '').trim(),
+      pinCode: String(pinCode || '').trim(),
+      status: i % 7 === 0 ? 'In Active' : 'Active',
+      profileImage: '',
+      joinedAt: t,
+      updatedAt: t,
+    }),
+  )
 }
 
 function normalizeUser(row) {
   const validRole = USER_ROLES.some((r) => r.value === row.role)
+  const seedAddress = SEED_STUDENT_ADDRESSES[String(row.email || '').trim().toLowerCase()] || {}
   return {
     id: row.id || newId(),
     userId: String(row.userId || '').trim(),
@@ -65,6 +89,9 @@ function normalizeUser(row) {
     profileImage: String(row.profileImage || ''),
     parentName: String(row.parentName || '').trim(),
     parentPhone: String(row.parentPhone || '').trim(),
+    address: String(row.address || seedAddress.address || '').trim(),
+    city: String(row.city || seedAddress.city || '').trim(),
+    pinCode: String(row.pinCode || row.pincode || seedAddress.pinCode || '').trim(),
     joinedAt: row.joinedAt || nowIso(),
     updatedAt: row.updatedAt || row.joinedAt || nowIso(),
   }

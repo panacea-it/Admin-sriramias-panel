@@ -283,6 +283,52 @@ export function filterReceiptCenterRows(rows, filters = {}) {
   return list
 }
 
+/** Validate receipt edit form — preserves receipt number; requires audit reason */
+export function validateReceiptEdit(form) {
+  const errors = []
+  if (!form.studentName?.trim()) errors.push('Student name is required.')
+  if (!form.courseName?.trim()) errors.push('Course is required.')
+  if (!form.paymentDate) errors.push('Payment date is required.')
+  if (!form.paymentMode?.trim()) errors.push('Payment mode is required.')
+  const amount = Number(form.amountPaid)
+  if (!Number.isFinite(amount) || amount <= 0) errors.push('Amount paid must be greater than zero.')
+  if (!form.editReason?.trim()) errors.push('Edit reason is required for the audit trail.')
+  return errors
+}
+
+export function buildReceiptEditAuditEntry(payload, previous = {}) {
+  const changes = []
+  if (payload.studentName && payload.studentName !== previous.studentName) {
+    changes.push(`Student: ${previous.studentName} → ${payload.studentName}`)
+  }
+  if (payload.courseName && payload.courseName !== previous.courseName) {
+    changes.push(`Course: ${previous.courseName} → ${payload.courseName}`)
+  }
+  if (payload.batchName && payload.batchName !== previous.batchName) {
+    changes.push(`Batch: ${previous.batchName || '—'} → ${payload.batchName}`)
+  }
+  if (payload.paymentMode && payload.paymentMode !== previous.paymentMode) {
+    changes.push(`Mode: ${previous.paymentMode} → ${payload.paymentMode}`)
+  }
+  if (payload.amountPaid != null && Number(payload.amountPaid) !== Number(previous.amountPaid)) {
+    changes.push(`Amount: ${previous.amountPaid} → ${payload.amountPaid}`)
+  }
+  if (payload.transactionId && payload.transactionId !== previous.transactionId) {
+    changes.push(`Reference updated`)
+  }
+  if (payload.receiptLifecycleStatus && payload.receiptLifecycleStatus !== previous.receiptLifecycleStatus) {
+    changes.push(`Status: ${previous.receiptLifecycleStatus} → ${payload.receiptLifecycleStatus}`)
+  }
+  return {
+    adminName: payload.adminName || 'Finance Admin',
+    action: 'Receipt Edited',
+    comment: [payload.editReason?.trim(), changes.length ? changes.join('; ') : null]
+      .filter(Boolean)
+      .join(' — '),
+    timestamp: new Date().toISOString(),
+  }
+}
+
 export function sortReceiptRows(rows, sortKey = 'receiptGeneratedAt', sortDir = 'desc') {
   const dir = sortDir === 'asc' ? 1 : -1
   return [...rows].sort((a, b) => {

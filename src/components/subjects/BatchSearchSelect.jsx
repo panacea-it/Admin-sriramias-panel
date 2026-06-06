@@ -18,6 +18,7 @@ export default function BatchSearchSelect({
   required = false,
   placeholder = 'Search and select batch…',
   className,
+  emptyHint = 'No batches available',
 }) {
   const listboxId = useId()
   const rootRef = useRef(null)
@@ -132,7 +133,7 @@ export default function BatchSearchSelect({
           {loading
             ? 'Loading batches…'
             : empty
-              ? 'No active batches — create under Batch Management'
+              ? emptyHint
               : selected
                 ? formatBatchSelectLabel(selected)
                 : placeholder}

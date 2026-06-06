@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Controller } from 'react-hook-form'
-import { Calendar, FileText, Film } from 'lucide-react'
+import { Calendar, ChevronDown, FileText, Film } from 'lucide-react'
 import TimeDurationFields from './TimeDurationFields'
 import BatchSearchSelect from './BatchSearchSelect'
 import BatchMultiSearchSelect from './BatchMultiSearchSelect'
@@ -10,12 +10,13 @@ import ClassroomSelectField from '../classrooms/ClassroomSelectField'
 import RecurringScheduleSection from '../live-classes/RecurringScheduleSection'
 import { CourseFormField, CourseSelect } from '../courses/CourseFormField'
 import { RECURRENCE_EDIT_SCOPES } from '../../constants/recurrence'
-import { CENTER_DROPDOWN_OPTIONS, TOPIC_DROPDOWN_OPTIONS } from '../../data/academicsSubjectsSeed'
+import { TOPIC_DROPDOWN_OPTIONS } from '../../data/academicsSubjectsSeed'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
 import { patchTestSeriesBlock } from '../../utils/batchTestSeriesForm'
 import {
   clampTimeField,
+  finalizeTimeField,
   shouldShowLiveClassSection,
   shouldShowPdfSection,
   shouldShowRecordingSection,
@@ -37,6 +38,11 @@ export default function SubjectContentFields({
   subjects = [],
   batches = [],
   batchesLoading = false,
+  centerOptions = [],
+  centersLoading = false,
+  classroomOptions = [],
+  classroomsLoading = false,
+  onCenterChange,
   recurring,
   onRecurringToggle,
   recurrence,
@@ -64,6 +70,7 @@ export default function SubjectContentFields({
 
   const watchedDate = watch('date')
   const watchedTeacher = watch('teacher')
+  const watchedCenterId = watch('centerId')
   const batchId = watch('batchId')
   const batchIds = watch('batchIds') || []
 
@@ -76,6 +83,7 @@ export default function SubjectContentFields({
         onChange={(id) => setValue('batchId', id, { shouldValidate: true })}
         error={errors.batchId?.message}
         required
+        emptyHint={batchesLoading ? 'Loading batches…' : 'No batches available'}
       />
     </div>
   )
@@ -110,7 +118,42 @@ export default function SubjectContentFields({
             </div>
             <div>
               <FieldLabel required>Center</FieldLabel>
-              <FormSelect register={register} name="center" error={errors.center} options={CENTER_DROPDOWN_OPTIONS} placeholder="Choose Center" />
+              <Controller
+                control={control}
+                name="centerId"
+                render={({ field }) => (
+                  <div className="relative">
+                    <select
+                      {...field}
+                      disabled={centersLoading}
+                      onChange={(e) => {
+                        field.onChange(e.target.value)
+                        const selected = centerOptions.find(
+                          (o) => String(o.value) === String(e.target.value),
+                        )
+                        setValue('center', selected?.label || '', { shouldValidate: true })
+                        setValue('classroomId', '', { shouldValidate: true })
+                        onCenterChange?.(e.target.value)
+                      }}
+                      className={cn(
+                        'h-11 w-full appearance-none rounded-xl bg-[#d1e9f6] px-4 pr-10 text-sm text-[#222] outline-none focus:ring-2 focus:ring-[#55ace7]/40',
+                        centersLoading && 'cursor-not-allowed opacity-60',
+                        errors.center && 'ring-2 ring-red-400',
+                      )}
+                    >
+                      <option value="">
+                        {centersLoading ? 'Loading centers…' : 'Choose Center'}
+                      </option>
+                      {centerOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#687180]" />
+                  </div>
+                )}
+              />
               {errors.center && <p className="mt-1 text-xs text-red-500">{errors.center.message}</p>}
             </div>
             <Controller
@@ -131,6 +174,9 @@ export default function SubjectContentFields({
                   error={errors.classRoom?.message}
                   required
                   label="Select Classroom"
+                  options={classroomOptions}
+                  loading={classroomsLoading}
+                  disabled={!watchedCenterId || classroomsLoading}
                 />
               )}
             />
@@ -168,8 +214,19 @@ export default function SubjectContentFields({
                   min={watch('timeMin')}
                   sec={watch('timeSec')}
                   onHrsChange={(e) => field.onChange(clampTimeField(e.target.value, 23))}
-                  onMinChange={(e) => setValue('timeMin', clampTimeField(e.target.value))}
-                  onSecChange={(e) => setValue('timeSec', clampTimeField(e.target.value))}
+                  onHrsBlur={(e) => field.onChange(finalizeTimeField(e.target.value, 23))}
+                  onMinChange={(e) =>
+                    setValue('timeMin', clampTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onMinBlur={(e) =>
+                    setValue('timeMin', finalizeTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onSecChange={(e) =>
+                    setValue('timeSec', clampTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onSecBlur={(e) =>
+                    setValue('timeSec', finalizeTimeField(e.target.value), { shouldDirty: true })
+                  }
                   error={errors.time?.message}
                 />
               )}
@@ -184,8 +241,19 @@ export default function SubjectContentFields({
                   min={watch('durationMin')}
                   sec={watch('durationSec')}
                   onHrsChange={(e) => field.onChange(clampTimeField(e.target.value, 23))}
-                  onMinChange={(e) => setValue('durationMin', clampTimeField(e.target.value))}
-                  onSecChange={(e) => setValue('durationSec', clampTimeField(e.target.value))}
+                  onHrsBlur={(e) => field.onChange(finalizeTimeField(e.target.value, 23))}
+                  onMinChange={(e) =>
+                    setValue('durationMin', clampTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onMinBlur={(e) =>
+                    setValue('durationMin', finalizeTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onSecChange={(e) =>
+                    setValue('durationSec', clampTimeField(e.target.value), { shouldDirty: true })
+                  }
+                  onSecBlur={(e) =>
+                    setValue('durationSec', finalizeTimeField(e.target.value), { shouldDirty: true })
+                  }
                 />
               )}
             />
