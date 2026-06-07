@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
+import ErrorState from '../../feedback/ErrorState'
 import Modal from '../../ui/Modal'
 import { StatusBadge } from '../../academics/AcademicsUi'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
@@ -27,10 +28,13 @@ function DetailRow({ label, children }) {
 export default function AdminRoleViewModal({ open, roleId, onClose }) {
   const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!open || !roleId) {
       setRole(null)
+      setLoadError(null)
       return
     }
 
@@ -38,13 +42,16 @@ export default function AdminRoleViewModal({ open, roleId, onClose }) {
 
     async function load() {
       setLoading(true)
+      setLoadError(null)
       try {
         const data = await getRoleById(roleId)
         const mapped = mapApiRoleToLocal(unwrapRoleResponse(data))
         if (!cancelled) {
           if (!mapped) {
-            toast.error('Role not found')
-            onClose()
+            const message = 'Role not found'
+            setLoadError(message)
+            setRole(null)
+            toast.error(message)
             return
           }
           setRole(mapped)
@@ -54,8 +61,10 @@ export default function AdminRoleViewModal({ open, roleId, onClose }) {
           if (import.meta.env.DEV) {
             console.error(error)
           }
-          toast.error(getApiErrorMessage(error, 'Failed to load role details'))
-          onClose()
+          const message = getApiErrorMessage(error, 'Failed to load role details')
+          setLoadError(message)
+          setRole(null)
+          toast.error(message)
         }
       } finally {
         if (!cancelled) {
@@ -68,7 +77,7 @@ export default function AdminRoleViewModal({ open, roleId, onClose }) {
     return () => {
       cancelled = true
     }
-  }, [open, roleId, onClose])
+  }, [open, roleId, reloadKey])
 
   if (!open) return null
 
@@ -85,6 +94,12 @@ export default function AdminRoleViewModal({ open, roleId, onClose }) {
               <Loader2 className="h-5 w-5 animate-spin text-[#246392]" />
               Loading role details…
             </div>
+          ) : loadError ? (
+            <ErrorState
+              title="Unable to load role details"
+              message={loadError}
+              onRetry={() => setReloadKey((key) => key + 1)}
+            />
           ) : role ? (
             <>
               <DetailRow label="Role Title (Display)">{role.label}</DetailRow>

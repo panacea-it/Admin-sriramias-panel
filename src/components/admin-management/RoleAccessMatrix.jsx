@@ -195,6 +195,9 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
               Module-level access with granular feature RBAC. Click any status chip to open the permission
               drawer. Status reflects feature coverage: Full Access, Custom, or Restricted.
             </p>
+            <p className="text-xs font-medium text-slate-400">
+              Permissions are stored locally until the server sync is available.
+            </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end md:w-auto md:min-w-[320px]">
             <label className="relative block flex-1 md:min-w-[220px]">
@@ -245,7 +248,7 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
             className="sticky top-0 z-30 grid border-b border-slate-200/90 bg-slate-50/95 shadow-[0_4px_12px_rgba(15,23,42,0.06)] backdrop-blur-md"
             style={matrixGridStyle}
           >
-            <div className="sticky left-0 z-40 flex min-h-[56px] items-center border-r border-slate-200/80 bg-slate-50/98 px-5 py-4">
+            <div className="sticky left-0 z-40 flex min-h-[56px] items-center justify-center border-r border-slate-200/80 bg-slate-50/98 px-5 py-4 text-center">
               <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                 Role
               </span>
@@ -271,6 +274,23 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
             ))}
           </div>
 
+          {filteredRoles.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm font-semibold text-slate-600">
+                {roleFilter.trim() ? 'No roles match your search.' : 'No roles configured yet.'}
+              </p>
+              {roleFilter.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setRoleFilter('')}
+                  className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+                >
+                  Clear search
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           {filteredRoles.map((role) => {
             const isActive = activeRole === role.id
             const count = moduleGrantCount(role.id, role.fullAccess)
@@ -287,12 +307,12 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
                 )}
                 style={matrixGridStyle}
               >
-                <div className="sticky left-0 z-20 flex items-center gap-3 border-r border-slate-100/90 bg-white/98 px-5 py-4 backdrop-blur-sm">
+                <div className="sticky left-0 z-20 flex items-center justify-center gap-3 border-r border-slate-100/90 bg-white/98 px-5 py-4 text-center backdrop-blur-sm">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
                     <role.icon className="h-[18px] w-[18px]" strokeWidth={2} />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
                       <p className="truncate text-sm font-bold text-slate-900">{role.label}</p>
                       {!role.fullAccess && !role.enabled ? (
                         <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
@@ -301,7 +321,7 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
                       ) : null}
                     </div>
                     {role.fullAccess ? (
-                      <span className="mt-1 inline-flex items-center gap-0.5 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-500/20">
+                      <span className="mt-1 inline-flex items-center justify-center gap-0.5 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-500/20">
                         <Shield className="h-2.5 w-2.5" />
                         Full platform
                       </span>
@@ -361,6 +381,23 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
       </div>
 
       <div className="space-y-3 px-4 py-5 md:hidden">
+        {filteredRoles.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-12 text-center">
+            <p className="text-sm font-semibold text-slate-600">
+              {roleFilter.trim() ? 'No roles match your search.' : 'No roles configured yet.'}
+            </p>
+            {roleFilter.trim() ? (
+              <button
+                type="button"
+                onClick={() => setRoleFilter('')}
+                className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+              >
+                Clear search
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {filteredRoles.map((role) => (
           <div
             key={role.id}
@@ -428,14 +465,17 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
       </div>
 
       {editable && (
-        <div className="flex justify-end border-t border-slate-100 px-5 py-4 sm:px-7">
+        <div className="flex flex-col items-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-7">
+          <p className="w-full text-right text-xs text-slate-400 sm:w-auto">
+            Saves to this browser until server sync is available.
+          </p>
           <button
             type="button"
             onClick={submitMatrixSave}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg"
           >
             <Save className="h-4 w-4" />
-            Save permissions
+            Save permissions (local)
           </button>
         </div>
       )}

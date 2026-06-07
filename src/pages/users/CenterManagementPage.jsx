@@ -10,6 +10,7 @@ import {
   Trash2,
   UserCheck,
 } from 'lucide-react'
+import ErrorState from '../../components/feedback/ErrorState'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import TablePagination from '../../components/figma/TablePagination'
@@ -20,8 +21,6 @@ import ConfirmCenterStatusModal from '../../components/center-management/Confirm
 import CenterTableSkeleton from '../../components/center-management/CenterTableSkeleton'
 import { useCenters } from '../../contexts/CentersContext'
 import { useCenterManagement } from '../../hooks/useCenterManagement'
-import AdminCheckbox from '../../components/admin-management/ui/AdminCheckbox'
-import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../utils/apiError'
 import {
   buildUpdateCenterPayloadFromPatch,
@@ -32,14 +31,14 @@ import {
 import { cn } from '../../utils/cn'
 
 const CENTER_STATUS_OPTIONS = [
-  { value: 'all', label: 'All' },
+  { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'disabled', label: 'Disabled' },
 ]
 
 function CenterStatusFilter({ value, onChange, disabled }) {
   return (
-    <div className="relative w-full sm:w-auto sm:min-w-[150px]">
+    <div className="relative w-full sm:w-auto sm:min-w-[160px]">
       <select
         id="center-status-filter"
         value={value}
@@ -75,6 +74,53 @@ function StatusPill({ status }) {
   )
 }
 
+function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
+  return (
+    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
+      <button
+        type="button"
+        onClick={onView}
+        title="View"
+        aria-label={`View ${row.centerName}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392] sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+      >
+        <Eye className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">View</span>
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        title="Edit"
+        aria-label={`Edit ${row.centerName}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392] sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Edit</span>
+      </button>
+      <button
+        type="button"
+        onClick={onStatusToggle}
+        title={row.status === 'active' ? 'Disable' : 'Enable'}
+        aria-label={row.status === 'active' ? `Disable ${row.centerName}` : `Enable ${row.centerName}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-50 sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+      >
+        <Ban className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{row.status === 'active' ? 'Disable' : 'Enable'}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        title="Delete"
+        aria-label={`Delete ${row.centerName}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition hover:bg-rose-50 sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Delete</span>
+      </button>
+    </div>
+  )
+}
+
 export default function CenterManagementPage() {
   const { createCenter } = useCenters()
   const {
@@ -102,8 +148,6 @@ export default function CenterManagementPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-
-  const { selectedIds, selection } = useTableRowSelection((row) => row.centerId)
 
   const openCreate = () => {
     setFormMode('create')
@@ -164,12 +208,6 @@ export default function CenterManagementPage() {
     }
   }
 
-  const toggleSelectAllFiltered = () => {
-    const ids = centers.map((c) => c.centerId)
-    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.includes(id))
-    selection.onTogglePage(ids, !allSelected)
-  }
-
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleteLoading(true)
@@ -189,15 +227,35 @@ export default function CenterManagementPage() {
     }
   }
 
-  const emptyMessage = loading
-    ? null
-    : search.trim() || statusFilter !== 'all'
-      ? 'No centers match your filters.'
-      : 'No centers found. Create your first center to get started.'
+  const hasActiveFilters = Boolean(search.trim() || statusFilter !== 'all')
+
+  const emptyPanel = hasActiveFilters ? (
+    <div className="px-6 py-14 text-center text-[14px] font-semibold text-slate-500">
+      No centers match your filters.
+    </div>
+  ) : (
+    <div className="px-4 py-6 sm:px-6">
+      <ErrorState
+        title="No centers to display"
+        message="If you expected data here, the server may be unavailable. Try loading again or create a new center."
+        onRetry={refreshCenters}
+      />
+      <div className="mt-4 flex justify-center">
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Create Center
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-screen-2xl space-y-6 sm:space-y-8">
+      <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
         <PageBanner icon={Building2} title="Center Management">
           <button
             type="button"
@@ -219,7 +277,7 @@ export default function CenterManagementPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search centers by name, code, city, admin…"
                 disabled={loading && centers.length === 0}
-                className="w-full rounded-xl border border-slate-200/90 bg-slate-50/80 py-2.5 pl-10 pr-3 text-[13px] font-medium text-slate-900 outline-none ring-violet-500/0 transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/15 disabled:opacity-60"
+                className="h-10 w-full rounded-xl border border-slate-200/90 bg-slate-50/80 py-2.5 pl-10 pr-3 text-[13px] font-medium text-slate-900 outline-none ring-violet-500/0 transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/15 disabled:opacity-60"
               />
             </div>
             <CenterStatusFilter
@@ -230,36 +288,31 @@ export default function CenterManagementPage() {
           </div>
 
           {loading && centers.length === 0 ? (
-            <CenterTableSkeleton />
+            <div className="mt-5">
+              <CenterTableSkeleton />
+            </div>
+          ) : centers.length === 0 ? (
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+              {emptyPanel}
+            </div>
           ) : (
             <>
               <div
                 className={cn(
-                  'mt-6 overflow-x-auto rounded-xl border border-slate-100',
+                  'mt-5 overflow-x-auto rounded-xl border border-slate-100',
                   loading && 'pointer-events-none opacity-60',
                 )}
               >
-                <table className="min-w-[880px] w-full border-collapse text-left text-[13px]">
+                <table className="min-w-[820px] w-full border-collapse text-left text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/90 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                      <th className="w-12 whitespace-nowrap px-4 py-3">
-                        <AdminCheckbox
-                          id="center-select-all"
-                          checked={
-                            centers.length > 0 &&
-                            centers.every((c) => selectedIds.includes(c.centerId))
-                          }
-                          aria-label="Select all centers on this page"
-                          onChange={toggleSelectAllFiltered}
-                        />
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3">Center</th>
-                      <th className="whitespace-nowrap px-4 py-3">City</th>
-                      <th className="whitespace-nowrap px-4 py-3">State</th>
-                      <th className="whitespace-nowrap px-4 py-3">Status</th>
-                      <th className="whitespace-nowrap px-4 py-3">Assigned admins</th>
-                      <th className="whitespace-nowrap px-4 py-3">Created</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
+                      <th className="whitespace-nowrap px-5 py-3.5 sm:px-6">Center</th>
+                      <th className="whitespace-nowrap px-4 py-3.5">City</th>
+                      <th className="whitespace-nowrap px-4 py-3.5">State</th>
+                      <th className="whitespace-nowrap px-4 py-3.5">Status</th>
+                      <th className="whitespace-nowrap px-4 py-3.5">Assigned admins</th>
+                      <th className="whitespace-nowrap px-4 py-3.5">Created</th>
+                      <th className="whitespace-nowrap px-5 py-3.5 text-right sm:px-6">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -268,36 +321,28 @@ export default function CenterManagementPage() {
                         key={row.centerId}
                         className="bg-white transition hover:bg-violet-50/40"
                       >
-                        <td className="px-4 py-3">
-                          <AdminCheckbox
-                            id={`center-select-${row.centerId}`}
-                            checked={selectedIds.includes(row.centerId)}
-                            aria-label={`Select ${row.centerName}`}
-                            onChange={() => selection.onToggle(row.centerId)}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5 sm:px-6">
                           <div className="font-semibold text-slate-900">{row.centerName}</div>
                           <div className="text-[12px] font-medium text-slate-500">
                             Code: {row.centerCode}
                           </div>
                         </td>
-                        <td className="px-4 py-3 font-medium text-slate-800">
+                        <td className="px-4 py-3.5 font-medium text-slate-800">
                           {row.city || '—'}
                         </td>
-                        <td className="px-4 py-3 font-medium text-slate-800">
+                        <td className="px-4 py-3.5 font-medium text-slate-800">
                           {row.state || '—'}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3.5">
                           <StatusPill status={row.status} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3.5">
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-800 ring-1 ring-violet-500/15">
                             <UserCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
                             {row.assignedAdmins?.length ?? 0}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600">
+                        <td className="whitespace-nowrap px-4 py-3.5 font-medium text-slate-600">
                           {row.createdAt
                             ? new Date(row.createdAt).toLocaleDateString(undefined, {
                                 year: 'numeric',
@@ -306,51 +351,19 @@ export default function CenterManagementPage() {
                               })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-nowrap items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setViewingId(row.centerId)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:border-violet-300 hover:text-violet-700"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openEdit(row)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:border-violet-300 hover:text-violet-700"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStatusToggleRequest(row)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:border-amber-300 hover:text-amber-800"
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                              {row.status === 'active' ? 'Disable' : 'Enable'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(row)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200/90 bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold text-rose-800 shadow-sm transition hover:bg-rose-100"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
+                        <td className="px-5 py-3.5 sm:px-6">
+                          <CenterTableActions
+                            row={row}
+                            onView={() => setViewingId(row.centerId)}
+                            onEdit={() => openEdit(row)}
+                            onStatusToggle={() => handleStatusToggleRequest(row)}
+                            onDelete={() => setDeleteTarget(row)}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {!loading && centers.length === 0 && emptyMessage && (
-                  <div className="px-6 py-14 text-center text-[14px] font-semibold text-slate-500">
-                    {emptyMessage}
-                  </div>
-                )}
               </div>
 
               {pagination.totalItems > 0 && (
@@ -364,7 +377,7 @@ export default function CenterManagementPage() {
                   onPageChange={setPage}
                   onPageSizeChange={setPageSize}
                   itemLabel="centers"
-                  className="mt-0 rounded-b-xl"
+                  className="mt-0 rounded-b-xl border-x border-b border-slate-100"
                 />
               )}
             </>

@@ -5,13 +5,11 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Loader2, Mail, Phone, User, Hash, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
-import { SESSION_TIMEOUTS } from '../../data/adminManagementConfig'
 import { useRolesDropdown } from '../../hooks/useRolesDropdown'
 import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
 import { useRolePreview } from '../../hooks/useRolePreview'
 import FloatingInput from './ui/FloatingInput'
 import PasswordField from './ui/PasswordField'
-import Switch from './ui/Switch'
 import RoleOverviewCard from './RoleOverviewCard'
 import ErrorState from '../feedback/ErrorState'
 import { getApiErrorMessage } from '../../utils/apiError'
@@ -123,6 +121,8 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [detailLoadError, setDetailLoadError] = useState(null)
+  const [detailReloadKey, setDetailReloadKey] = useState(0)
   const editingIdRef = useRef(editingId)
   editingIdRef.current = editingId
   const editKey = getModalEditKey(editingId)
@@ -151,12 +151,16 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
   })
 
   useEffect(() => {
-    if (!open || !editingId) return
+    if (!open || !editingId) {
+      setDetailLoadError(null)
+      return
+    }
 
     let cancelled = false
 
     async function loadDetail() {
       setDetailLoading(true)
+      setDetailLoadError(null)
       try {
         const data = await getAdminUserById(editingId)
         if (cancelled) return
@@ -172,8 +176,9 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
           if (import.meta.env.DEV) {
             console.error(error)
           }
-          toast.error(getApiErrorMessage(error, 'Failed to load user access'))
-          onClose()
+          const message = getApiErrorMessage(error, 'Failed to load user access')
+          setDetailLoadError(message)
+          toast.error(message)
         }
       } finally {
         if (!cancelled) {
@@ -186,7 +191,7 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
     return () => {
       cancelled = true
     }
-  }, [open, editingId, onClose, safeRoleOptions, safeCenterOptions])
+  }, [open, editingId, safeRoleOptions, safeCenterOptions, detailReloadKey])
 
   useEffect(() => {
     if (!open || isEdit) return
@@ -338,7 +343,24 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
               </button>
             </div>
 
-            {detailLoading || dropdownsLoading ? (
+            {detailLoadError ? (
+              <div className="flex min-h-0 flex-1 flex-col px-6 py-8 sm:px-8">
+                <ErrorState
+                  title="Unable to load user details"
+                  message={detailLoadError}
+                  onRetry={() => setDetailReloadKey((key) => key + 1)}
+                />
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : detailLoading || dropdownsLoading ? (
               <div className="flex flex-1 items-center justify-center py-24">
                 <Loader2 className="h-8 w-8 animate-spin text-violet-600" aria-label="Loading form data" />
               </div>
@@ -476,104 +498,30 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
 
                     <SectionCard
                       id="section-security"
-                      title="Security & Session"
-                      description="Set login credentials and session preferences."
+                      title="Security"
+                      description="Set login credentials."
                     >
-                      <div className="space-y-5">
-                        <div>
-                          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                            Login credentials
-                          </p>
-                          <div className={formGridClass}>
-                            <PasswordField
-                              id="modal-password"
-                              label={isEdit ? 'New password (optional)' : 'Password'}
-                              labelVariant="static"
-                              required={!isEdit}
-                              value={form.password}
-                              onChange={set('password')}
-                              error={errors.password}
-                              inputSize="comfortable"
-                            />
-                            <PasswordField
-                              id="modal-confirmPassword"
-                              label={isEdit ? 'Confirm new password' : 'Confirm Password'}
-                              labelVariant="static"
-                              required={!isEdit}
-                              value={form.confirmPassword}
-                              onChange={set('confirmPassword')}
-                              error={errors.confirmPassword}
-                              inputSize="comfortable"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="border-t border-slate-100 pt-5">
-                          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                            Session & alerts
-                          </p>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-x-5 md:gap-y-3">
-                            <Switch
-                              id="modal-active"
-                              relaxed
-                              label="Account status"
-                              description={
-                                form.active ? 'Active — can sign in' : 'Inactive — access blocked'
-                              }
-                              checked={form.active}
-                              onChange={(v) => setForm((f) => ({ ...f, active: v }))}
-                            />
-                            <Switch
-                              id="modal-twoFactor"
-                              relaxed
-                              label="Two-factor authentication"
-                              description="Require OTP on each login"
-                              checked={form.twoFactor}
-                              onChange={(v) => setForm((f) => ({ ...f, twoFactor: v }))}
-                            />
-                            <Switch
-                              id="modal-loginAlert"
-                              relaxed
-                              label="Login alert"
-                              description="Email when this admin signs in"
-                              checked={form.loginAlert}
-                              onChange={(v) => setForm((f) => ({ ...f, loginAlert: v }))}
-                            />
-                            <div className="rounded-lg border border-slate-200/80 bg-slate-50/50 px-4 py-3.5">
-                              <label htmlFor="modal-sessionTimeout" className={fieldLabelClass}>
-                                Session timeout
-                              </label>
-                              <div className="relative mt-0">
-                                <select
-                                  id="modal-sessionTimeout"
-                                  value={form.sessionTimeout}
-                                  onChange={set('sessionTimeout')}
-                                  className={selectClassName}
-                                >
-                                  {(SESSION_TIMEOUTS || []).map((o) => (
-                                    <option key={o.value} value={o.value}>
-                                      {o.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ChevronDown
-                                  className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-slate-400"
-                                  aria-hidden="true"
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
-                            <button
-                              type="button"
-                              onClick={resetAll}
-                              className="text-[13px] font-medium text-slate-500 transition hover:text-violet-600"
-                            >
-                              Reset form
-                            </button>
-                          </div>
-                        </div>
+                      <div className={formGridClass}>
+                        <PasswordField
+                          id="modal-password"
+                          label={isEdit ? 'New password (optional)' : 'Password'}
+                          labelVariant="static"
+                          required={!isEdit}
+                          value={form.password}
+                          onChange={set('password')}
+                          error={errors.password}
+                          inputSize="comfortable"
+                        />
+                        <PasswordField
+                          id="modal-confirmPassword"
+                          label={isEdit ? 'Confirm new password' : 'Confirm Password'}
+                          labelVariant="static"
+                          required={!isEdit}
+                          value={form.confirmPassword}
+                          onChange={set('confirmPassword')}
+                          error={errors.confirmPassword}
+                          inputSize="comfortable"
+                        />
                       </div>
                     </SectionCard>
                   </div>

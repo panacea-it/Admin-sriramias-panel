@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Eye, LayoutGrid, Pencil, Trash2 } from 'lucide-react'
+import { Eye, LayoutGrid, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
+import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CategoryBreadcrumb from '../../components/categories/CategoryBreadcrumb'
@@ -9,13 +10,13 @@ import { BannerButton, StatusBadge } from '../../components/academics/AcademicsU
 import AdminRoleFormModal from '../../components/admin-management/roles/AdminRoleFormModal'
 import AdminRoleViewModal from '../../components/admin-management/roles/AdminRoleViewModal'
 import ConfirmRoleDeleteModal from '../../components/admin-management/roles/ConfirmRoleDeleteModal'
+import ConfirmRoleStatusModal from '../../components/admin-management/roles/ConfirmRoleStatusModal'
 import { useRoleManagement } from '../../hooks/useRoleManagement'
 import { useApiRolesCatalogSync, syncApiRolesCatalog } from '../../hooks/useApiRolesCatalogSync'
 import { useAdminRolesSafe } from '../../contexts/AdminRolesContext'
-import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../utils/apiError'
-import { deleteRole as deleteRoleApi } from '../../services/roleService'
+import { deleteRole as deleteRoleApi, updateRole as updateRoleApi } from '../../services/roleService'
 import { cn } from '../../utils/cn'
 
 const BREADCRUMB = [
@@ -33,15 +34,19 @@ function roleStatus(role) {
   return role.enabled ? 'Active' : 'In Active'
 }
 
+function canToggleRoleStatus(role) {
+  return role && !role.systemProtected && !role.fullAccess
+}
+
 function RoleAccessTableActions({ onView, onEdit, onDelete, canDelete }) {
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       <button
         type="button"
         onClick={onView}
         title="View"
         aria-label="View"
-        className="inline-flex items-center justify-center rounded-md p-1.5 text-[#686868] transition hover:bg-slate-100 hover:text-[#246392]"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392]"
       >
         <Eye className="h-4 w-4" strokeWidth={2.2} />
       </button>
@@ -50,7 +55,7 @@ function RoleAccessTableActions({ onView, onEdit, onDelete, canDelete }) {
         onClick={onEdit}
         title="Edit"
         aria-label="Edit"
-        className="inline-flex items-center justify-center rounded-md p-1.5 text-[#686868] transition hover:bg-slate-100 hover:text-[#246392]"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392]"
       >
         <Pencil className="h-4 w-4" strokeWidth={2.2} />
       </button>
@@ -61,7 +66,7 @@ function RoleAccessTableActions({ onView, onEdit, onDelete, canDelete }) {
         title="Delete"
         aria-label="Delete"
         className={cn(
-          'inline-flex items-center justify-center rounded-md p-1.5 text-[#c96565] transition hover:bg-red-50 hover:text-[#b94b4b]',
+          'inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700',
           !canDelete && 'cursor-not-allowed opacity-40 hover:bg-transparent',
         )}
       >
@@ -90,7 +95,7 @@ export default function RoleAccessPage() {
     pagination,
     refreshRoles,
     removeRoleLocally,
-    resetFilters,
+    patchRoleLocally,
   } = useRoleManagement()
 
   const [formOpen, setFormOpen] = useState(false)
@@ -98,8 +103,9 @@ export default function RoleAccessPage() {
   const [viewingId, setViewingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
-
-  const { selection, clearSelection } = useTableRowSelection((row) => row.id)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null)
 
   const controlledPagination = useMemo(
     () => ({
@@ -135,6 +141,44 @@ export default function RoleAccessPage() {
     await syncApiRolesCatalog(adminRoles?.mergeApiRoles)
   }, [refreshRoles, adminRoles?.mergeApiRoles])
 
+  const handleStatusToggleRequest = useCallback((row) => {
+    if (!canToggleRoleStatus(row) || statusUpdatingId) return
+    setStatusTarget(row)
+  }, [statusUpdatingId])
+
+  const confirmStatusChange = useCallback(async () => {
+    if (!statusTarget) return
+
+    const enabling = !statusTarget.enabled
+    const nextEnabled = enabling
+    const previousEnabled = statusTarget.enabled
+    const roleId = statusTarget.id
+
+    setStatusLoading(true)
+    setStatusUpdatingId(roleId)
+    patchRoleLocally(roleId, { enabled: nextEnabled, status: enabling ? 'ACTIVE' : 'INACTIVE' })
+
+    try {
+      await updateRoleApi(roleId, {
+        roleTitle: statusTarget.label,
+        roleCode: statusTarget.roleCode,
+        status: enabling ? 'ACTIVE' : 'INACTIVE',
+      })
+      toast.success(enabling ? 'Role activated' : 'Role deactivated')
+      setStatusTarget(null)
+      await refreshRolesAndCatalog()
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      patchRoleLocally(roleId, { enabled: previousEnabled, status: previousEnabled ? 'ACTIVE' : 'INACTIVE' })
+      toast.error(getApiErrorMessage(error, 'Failed to update role status'))
+    } finally {
+      setStatusLoading(false)
+      setStatusUpdatingId(null)
+    }
+  }, [statusTarget, patchRoleLocally, refreshRolesAndCatalog])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
     setDeleteLoading(true)
@@ -154,11 +198,6 @@ export default function RoleAccessPage() {
     }
   }, [deleteTarget, removeRoleLocally, refreshRolesAndCatalog])
 
-  const handleResetFilters = useCallback(() => {
-    resetFilters()
-    clearSelection()
-  }, [resetFilters, clearSelection])
-
   const emptyMessage = useMemo(() => {
     if (loading) return null
     if (loadError) return 'Unable to load roles.'
@@ -169,15 +208,12 @@ export default function RoleAccessPage() {
   }, [loading, loadError, search, statusFilter])
 
   const emptyState = loadError ? (
-    <div className="flex flex-col items-center gap-3 px-6 py-10">
-      <p className="text-sm font-semibold text-slate-600">{loadError}</p>
-      <button
-        type="button"
-        onClick={() => refreshRolesAndCatalog()}
-        className="rounded-lg border border-[#55ace7]/25 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
-      >
-        Retry
-      </button>
+    <div className="px-4 py-6 sm:px-6">
+      <ErrorState
+        title="Unable to load roles"
+        message={loadError}
+        onRetry={refreshRolesAndCatalog}
+      />
     </div>
   ) : undefined
 
@@ -186,8 +222,8 @@ export default function RoleAccessPage() {
       {
         key: 'num',
         label: '#',
-        headerClassName: 'w-14 pl-6 sm:pl-10',
-        cellClassName: 'pl-6 sm:pl-10 text-[#686868]',
+        headerClassName: 'w-14 pl-6 sm:pl-8',
+        cellClassName: 'pl-6 sm:pl-8 text-slate-500 tabular-nums',
         render: (row) => {
           const index = roles.findIndex((r) => r.id === row.id)
           return index >= 0 ? pagination.startIndex + index + 1 : '—'
@@ -196,7 +232,9 @@ export default function RoleAccessPage() {
       {
         key: 'label',
         label: 'Role Title (Display)',
-        render: (row) => <span className="font-medium">{row.label}</span>,
+        render: (row) => (
+          <span className="font-semibold text-slate-900">{row.label}</span>
+        ),
       },
       {
         key: 'code',
@@ -210,13 +248,40 @@ export default function RoleAccessPage() {
       {
         key: 'status',
         label: 'Status',
-        render: (row) => <StatusBadge status={roleStatus(row)} />,
+        render: (row) => {
+          const isUpdating = statusUpdatingId === row.id
+          const toggleable = canToggleRoleStatus(row)
+
+          if (isUpdating) {
+            return (
+              <span className="inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Updating
+              </span>
+            )
+          }
+
+          if (!toggleable) {
+            return <StatusBadge status={roleStatus(row)} />
+          }
+
+          return (
+            <button
+              type="button"
+              onClick={() => handleStatusToggleRequest(row)}
+              className="rounded-md transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+              title="Click to change status"
+            >
+              <StatusBadge status={roleStatus(row)} />
+            </button>
+          )
+        },
       },
       {
         key: 'createdAt',
         label: 'Created On',
         render: (row) => (
-          <span className="whitespace-nowrap text-[#686868]">
+          <span className="whitespace-nowrap text-slate-500">
             {row.createdAt ? formatCategoryDateTime(row.createdAt) : '—'}
           </span>
         ),
@@ -224,6 +289,8 @@ export default function RoleAccessPage() {
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'pr-6 sm:pr-8',
+        cellClassName: 'pr-6 sm:pr-8',
         render: (row) => (
           <RoleAccessTableActions
             onView={() => setViewingId(row.id)}
@@ -234,11 +301,11 @@ export default function RoleAccessPage() {
         ),
       },
     ],
-    [roles, pagination.startIndex, openEdit],
+    [roles, pagination.startIndex, openEdit, handleStatusToggleRequest, statusUpdatingId],
   )
 
   return (
-    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
+    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
       <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
         <CategoryBreadcrumb items={BREADCRUMB} />
 
@@ -251,39 +318,32 @@ export default function RoleAccessPage() {
           <BannerButton onClick={openCreate}>Create Role Access</BannerButton>
         </PageBanner>
 
-        <div className="flex min-h-14 flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <CourseFilterToolbar
-              search={search}
-              onSearchChange={(e) => setSearch(e.target.value)}
-              searchPlaceholder="Search roles"
-              status={statusFilter}
-              onStatusChange={(e) => setStatusFilter(e.target.value)}
-              statusOptions={STATUS_FILTER_OPTIONS}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <CourseFilterToolbar
+            search={search}
+            onSearchChange={(e) => setSearch(e.target.value)}
+            searchPlaceholder="Search roles by title or code"
+            status={statusFilter}
+            onStatusChange={(e) => setStatusFilter(e.target.value)}
+            statusOptions={STATUS_FILTER_OPTIONS}
+            disabled={loading && roles.length === 0}
+          />
+
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <PaginatedFigmaTable
+              columns={columns}
+              data={roles}
+              emptyMessage={emptyMessage}
+              emptyState={emptyState}
+              itemLabel="roles"
+              loading={loading}
+              skeletonRowCount={pageSize}
+              rowClassName="hover:bg-slate-50/90"
+              controlledPagination={controlledPagination}
+              tableClassName="rounded-none border-0 shadow-none"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            disabled={loading && roles.length === 0}
-            className="h-10 shrink-0 rounded-lg border border-[#d5dae8] bg-white px-4 text-sm font-semibold text-[#246392] shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:bg-[#eef2fc] disabled:opacity-60 sm:text-base"
-          >
-            Reset filter
-          </button>
         </div>
-
-        <PaginatedFigmaTable
-          columns={columns}
-          data={roles}
-          emptyMessage={emptyMessage}
-          emptyState={emptyState}
-          itemLabel="roles"
-          loading={loading}
-          skeletonRowCount={pageSize}
-          rowClassName="hover:bg-slate-50/90"
-          selection={selection}
-          controlledPagination={controlledPagination}
-        />
       </section>
 
       <AdminRoleFormModal
@@ -303,6 +363,14 @@ export default function RoleAccessPage() {
         loading={deleteLoading}
         onCancel={() => !deleteLoading && setDeleteTarget(null)}
         onConfirm={confirmDelete}
+      />
+      <ConfirmRoleStatusModal
+        open={!!statusTarget}
+        roleLabel={statusTarget?.label || 'this role'}
+        enabling={!statusTarget?.enabled}
+        loading={statusLoading}
+        onCancel={() => !statusLoading && setStatusTarget(null)}
+        onConfirm={confirmStatusChange}
       />
     </div>
   )

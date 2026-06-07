@@ -87,6 +87,10 @@ export function useRoleManagement() {
     setTotalItems((prev) => Math.max(0, prev - 1))
   }, [])
 
+  const patchRoleLocally = useCallback((roleId, patch) => {
+    setRoles((prev) => prev.map((row) => (row.id === roleId ? { ...row, ...patch } : row)))
+  }, [])
+
   const resetFilters = useCallback(() => {
     setSearch('')
     setStatusFilter('all')
@@ -108,6 +112,7 @@ export function useRoleManagement() {
     pagination,
     refreshRoles: fetchRoles,
     removeRoleLocally,
+    patchRoleLocally,
     resetFilters,
   }
 }

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2, Mail, Phone, Shield, User, Hash, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
+import ErrorState from '../feedback/ErrorState'
 import { StatusBadge } from '../academics/AcademicsUi'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../utils/apiError'
@@ -38,10 +39,13 @@ function Row({ icon: Icon, label, value }) {
 export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!open || !adminAccessId) {
       setUser(null)
+      setLoadError(null)
       return
     }
 
@@ -49,6 +53,7 @@ export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
 
     async function load() {
       setLoading(true)
+      setLoadError(null)
       try {
         const data = await getAdminUserById(adminAccessId)
         const mapped = mapApiAdminToRow(unwrapAdminUserResponse(data))
@@ -60,8 +65,10 @@ export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
           if (import.meta.env.DEV) {
             console.error(error)
           }
-          toast.error(getApiErrorMessage(error, 'Failed to load user access details'))
-          onClose()
+          const message = getApiErrorMessage(error, 'Failed to load user access details')
+          setLoadError(message)
+          setUser(null)
+          toast.error(message)
         }
       } finally {
         if (!cancelled) {
@@ -74,7 +81,7 @@ export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
     return () => {
       cancelled = true
     }
-  }, [open, adminAccessId, onClose])
+  }, [open, adminAccessId, reloadKey])
 
   useEffect(() => {
     if (!open) return
@@ -147,6 +154,14 @@ export default function ViewAdminDrawer({ open, adminAccessId, onClose }) {
             {loading ? (
               <div className="flex flex-1 items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-violet-600" aria-label="Loading" />
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-1 flex-col px-6 py-8">
+                <ErrorState
+                  title="Unable to load user details"
+                  message={loadError}
+                  onRetry={() => setReloadKey((key) => key + 1)}
+                />
               </div>
             ) : user ? (
               <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto px-6 py-6">

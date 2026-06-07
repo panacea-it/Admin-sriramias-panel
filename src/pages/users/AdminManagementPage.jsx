@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Eye, Plus, Shield, Trash2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
+import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
@@ -9,7 +10,6 @@ import ViewAdminDrawer from '../../components/admin-management/ViewAdminDrawer'
 import ConfirmAdminDeleteModal from '../../components/admin-management/ConfirmAdminDeleteModal'
 import ConfirmAdminStatusModal from '../../components/admin-management/ConfirmAdminStatusModal'
 import EditButton from '../../components/common/EditButton'
-import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { StatusBadge } from '../../components/academics/AcademicsUi'
 import { useAdminManagement } from '../../hooks/useAdminManagement'
 import { useApiRolesCatalogSync } from '../../hooks/useApiRolesCatalogSync'
@@ -39,14 +39,21 @@ export default function AdminManagementPage() {
     statusFilter,
     setStatusFilter,
     pagination,
-    resetFilters,
     refreshUsers,
     patchUserLocally,
     removeUserLocally,
   } = useAdminManagement()
 
-  const { options: roleDropdownOptions = [] } = useRolesDropdown()
-  const { options: centerDropdownOptions = [] } = useCentersDropdownOptions()
+  const {
+    options: roleDropdownOptions = [],
+    error: rolesDropdownError,
+    refresh: refreshRolesDropdown,
+  } = useRolesDropdown()
+  const {
+    options: centerDropdownOptions = [],
+    error: centersDropdownError,
+    refresh: refreshCentersDropdown,
+  } = useCentersDropdownOptions()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [viewingId, setViewingId] = useState(null)
@@ -54,8 +61,6 @@ export default function AdminManagementPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-
-  const { selection, clearSelection } = useTableRowSelection((row) => row.id)
 
   const roleFilterOptions = useMemo(
     () => [
@@ -72,11 +77,6 @@ export default function AdminManagementPage() {
     ],
     [centerDropdownOptions],
   )
-
-  const handleResetFilters = () => {
-    resetFilters()
-    clearSelection()
-  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -103,7 +103,6 @@ export default function AdminManagementPage() {
     try {
       await deleteAdminUser(deleteTarget.id)
       removeUserLocally(deleteTarget.id)
-      clearSelection()
       toast.success('User access deleted')
       setDeleteTarget(null)
       await refreshUsers()
@@ -224,17 +223,21 @@ export default function AdminManagementPage() {
       : 'No employees found'
 
   const emptyState = loadError ? (
-    <div className="flex flex-col items-center gap-3 px-6 py-10">
-      <p className="text-sm font-semibold text-slate-600">{loadError}</p>
-      <button
-        type="button"
-        onClick={() => refreshUsers()}
-        className="rounded-lg border border-[#55ace7]/25 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
-      >
-        Retry
-      </button>
+    <div className="px-4 py-6 sm:px-6">
+      <ErrorState
+        title="Unable to load admin users"
+        message={loadError}
+        onRetry={refreshUsers}
+      />
     </div>
   ) : undefined
+
+  const filterDropdownWarning =
+    rolesDropdownError || centersDropdownError
+      ? [rolesDropdownError && 'Role filter unavailable', centersDropdownError && 'Center filter unavailable']
+          .filter(Boolean)
+          .join(' · ')
+      : null
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
@@ -276,47 +279,59 @@ export default function AdminManagementPage() {
           onConfirm={confirmStatusChange}
         />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <CourseFilterToolbar
-              search={search}
-              onSearchChange={(e) => setSearch(e.target.value)}
-              searchPlaceholder="Search by employee name or employee ID"
-              category={roleFilter}
-              onCategoryChange={(e) => setRoleFilter(e.target.value)}
-              categoryOptions={roleFilterOptions}
-              categoryAriaLabel="Role Title"
-              center={centerFilter}
-              onCenterChange={(e) => setCenterFilter(e.target.value)}
-              centerOptions={centerFilterOptions}
-              centerAriaLabel="Center"
-              status={statusFilter}
-              onStatusChange={(e) => setStatusFilter(e.target.value)}
-              disabled={loading && users.length === 0}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <CourseFilterToolbar
+            search={search}
+            onSearchChange={(e) => setSearch(e.target.value)}
+            searchPlaceholder="Search by employee name or employee ID"
+            category={roleFilter}
+            onCategoryChange={(e) => setRoleFilter(e.target.value)}
+            categoryOptions={roleFilterOptions}
+            categoryAriaLabel="Role Title"
+            center={centerFilter}
+            onCenterChange={(e) => setCenterFilter(e.target.value)}
+            centerOptions={centerFilterOptions}
+            centerAriaLabel="Center"
+            status={statusFilter}
+            onStatusChange={(e) => setStatusFilter(e.target.value)}
+            disabled={loading && users.length === 0}
+          />
+
+          {filterDropdownWarning && (
+            <div
+              className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+              role="status"
+            >
+              <p className="font-medium">{filterDropdownWarning}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (rolesDropdownError) refreshRolesDropdown()
+                  if (centersDropdownError) refreshCentersDropdown()
+                }}
+                className="shrink-0 self-start rounded-lg border border-amber-300/80 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100/60 sm:self-center"
+              >
+                Retry filters
+              </button>
+            </div>
+          )}
+
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <PaginatedFigmaTable
+              columns={columns}
+              data={users}
+              emptyMessage={emptyMessage}
+              emptyState={emptyState}
+              itemLabel="employees"
+              loading={loading}
+              skeletonRowCount={8}
+              controlledPagination={pagination}
+              resetDeps={[search, roleFilter, centerFilter, statusFilter]}
+              rowClassName="hover:bg-slate-50/90"
+              tableClassName="rounded-none border-0 shadow-none"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            className="h-10 min-h-[38px] shrink-0 rounded-lg border border-[#55ace7]/25 bg-white px-4 text-sm font-semibold text-[#246392] shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:bg-[#eef2fc] sm:text-base"
-          >
-            Reset
-          </button>
         </div>
-
-        <PaginatedFigmaTable
-          columns={columns}
-          data={users}
-          emptyMessage={emptyMessage}
-          emptyState={emptyState}
-          itemLabel="employees"
-          loading={loading}
-          skeletonRowCount={8}
-          controlledPagination={pagination}
-          resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-          rowClassName="hover:bg-slate-50/90"
-          selection={selection}
-        />
       </section>
     </div>
   )
