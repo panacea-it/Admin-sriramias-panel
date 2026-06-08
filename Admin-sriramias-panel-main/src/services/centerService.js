@@ -1,0 +1,231 @@
+import api from '../config/api'
+import apiClient from './apiClient'
+import { throwApiError } from '../utils/apiError'
+import { createCachedRequest } from '../utils/apiRequestCache'
+
+const centersDropdownCache = createCachedRequest({ ttlMs: 5 * 60_000 })
+
+export function clearCentersDropdownCache() {
+  centersDropdownCache.clear()
+}
+
+export function buildCreateCenterPayload(form) {
+  const assignedList = String(form.assignedAdminsText || '')
+    .split(/[,;\n]/g)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return {
+    centerName: form.centerName.trim(),
+    centerCode: form.centerCode.trim(),
+    address: form.address.trim(),
+    city: form.city.trim(),
+    state: form.state.trim(),
+    contactNumber: String(form.contactNumber || '').replace(/\D/g, ''),
+    email: form.email.trim(),
+    status: form.status === 'disabled' ? 'DISABLED' : 'ACTIVE',
+    assignedAdmins: assignedList.length > 0 ? assignedList.join(', ') : '',
+  }
+}
+
+export function buildUpdateCenterPayload(form) {
+  const assignedList = String(form.assignedAdminsText || '')
+    .split(/[,;\n]/g)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return {
+    centerName: form.centerName.trim(),
+    address: form.address.trim(),
+    contactNumber: String(form.contactNumber || '').replace(/\D/g, ''),
+    assignedAdmins: assignedList.length > 0 ? assignedList.join(', ') : '',
+  }
+}
+
+export function buildUpdateCenterPayloadFromPatch(patch) {
+  const assignedList = Array.isArray(patch.assignedAdmins)
+    ? patch.assignedAdmins
+    : String(patch.assignedAdmins || '')
+        .split(/[,;\n]/g)
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+  return {
+    centerName: String(patch.centerName || '').trim(),
+    address: String(patch.address || '').trim(),
+    contactNumber: String(patch.contactNumber || '').replace(/\D/g, ''),
+    assignedAdmins: assignedList.length > 0 ? assignedList.join(', ') : '',
+  }
+}
+
+export function mapStatusFilterToApi(statusFilter) {
+  if (statusFilter === 'active') return 'ACTIVE'
+  if (statusFilter === 'disabled') return 'DISABLED'
+  return 'ALL'
+}
+
+export function mapApiCenterToLocal(data) {
+  if (!data || typeof data !== 'object') return null
+
+  const rawAdmins = data.assignedAdmins
+  let assignedAdmins = []
+  if (Array.isArray(rawAdmins)) {
+    assignedAdmins = rawAdmins.map(String).filter(Boolean)
+  } else if (typeof rawAdmins === 'string' && rawAdmins.trim()) {
+    assignedAdmins = rawAdmins
+      .split(/[,;\n]/g)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+
+  const statusRaw = String(data.status || 'ACTIVE').toUpperCase()
+
+  return {
+    centerId: data.centerId || data.id || data._id || null,
+    centerName: String(data.centerName || '').trim(),
+    centerCode: String(data.centerCode || '').trim(),
+    address: String(data.address || ''),
+    state: String(data.state || ''),
+    city: String(data.city || ''),
+    contactNumber: String(data.contactNumber || ''),
+    email: String(data.email || ''),
+    status: statusRaw === 'DISABLED' ? 'disabled' : 'active',
+    assignedAdmins,
+    linkedStudentCount: Number(data.linkedStudentCount) || 0,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+  }
+}
+
+export function normalizeCentersListResponse(data, { page = 1, limit = 10 } = {}) {
+  const payload = data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
+  const itemsRaw =
+    payload?.centers ||
+    payload?.items ||
+    payload?.results ||
+    data?.centers ||
+    data?.items ||
+    (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
+
+  const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
+    .map((row) => mapApiCenterToLocal(row))
+    .filter(Boolean)
+
+  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
+  const total =
+    pagination.total ??
+    payload?.total ??
+    data?.total ??
+    payload?.totalCount ??
+    data?.totalCount ??
+    items.length
+  const totalPages =
+    pagination.totalPages ??
+    payload?.totalPages ??
+    data?.totalPages ??
+    Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
+
+  return {
+    items,
+    total,
+    totalPages,
+    page: currentPage,
+  }
+}
+
+export function normalizeCentersDropdown(data) {
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+      ? data.data
+      : data?.data?.centers ||
+        data?.data?.items ||
+        data?.centers ||
+        data?.items ||
+        []
+
+  return (Array.isArray(list) ? list : []).map((item) => ({
+    label: item.label || item.centerName || String(item.name || ''),
+    value: String(item.value || item._id || item.id || item.centerId || ''),
+  })).filter((opt) => opt.label && opt.value)
+}
+
+export function getCreateCenterErrorMessage(error) {
+  if (!error) return 'Failed to create center'
+  if (typeof error === 'string') return error
+  if (error.message && typeof error.message === 'string') return error.message
+  if (error.error && typeof error.error === 'string') return error.error
+  if (Array.isArray(error.errors) && error.errors[0]) {
+    const first = error.errors[0]
+    return typeof first === 'string' ? first : first.message || 'Failed to create center'
+  }
+  return 'Failed to create center'
+}
+
+/** Create Center — unchanged integration (uses apiClient alias) */
+export const createCenter = async (payload) => {
+  try {
+    const response = await apiClient.post('/api/admin/centers', payload)
+
+    return response.data
+  } catch (error) {
+    throw error?.response?.data || error?.message || 'Something went wrong'
+  }
+}
+
+export const getCenters = async (params = {}) => {
+  try {
+    const response = await api.get('/api/admin/centers', { params })
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export const getCenterById = async (centerId) => {
+  try {
+    const response = await api.get(`/api/admin/centers/${centerId}`)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export const updateCenter = async (centerId, payload) => {
+  try {
+    const response = await api.put(`/api/admin/centers/${centerId}`, payload)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export const updateCenterStatus = async (centerId, status) => {
+  try {
+    const response = await api.patch(`/api/admin/centers/${centerId}/status`, { status })
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export const deleteCenter = async (centerId) => {
+  try {
+    const response = await api.delete(`/api/admin/centers/${centerId}`)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export const getCentersDropdown = async () => {
+  try {
+    return await centersDropdownCache.fetch('centers-dropdown', async () => {
+      const response = await api.get('/api/admin/centers/dropdown')
+      return response.data
+    })
+  } catch (error) {
+    throwApiError(error)
+  }
+}
