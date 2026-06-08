@@ -1,0 +1,220 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from '@/utils/toast'
+import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
+import AnswerSheetViewer from '../../components/test-management/evaluation-workspace/AnswerSheetViewer'
+import EvaluationSidebar from '../../components/test-management/evaluation-workspace/EvaluationSidebar'
+import {
+  DEFAULT_WORKSPACE_RUBRIC,
+} from '../../data/evaluationOversightSeed'
+import {
+  fetchEvaluationPaperById,
+  publishEvaluationResult,
+  saveEvaluationDraft,
+  savePaperAnnotations,
+} from '../../api/evaluationOversightAPI'
+import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
+
+const AUTOSAVE_MS = 25000
+
+function normalizeRubric(rubric) {
+  const base = Array.isArray(rubric) && rubric.length ? rubric : DEFAULT_WORKSPACE_RUBRIC
+  return base.map((r) => ({ ...r }))
+}
+
+export default function EvaluationWorkspacePage() {
+  const { paperId } = useParams()
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [paper, setPaper] = useState(null)
+  const [rubric, setRubric] = useState(normalizeRubric())
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageCount, setPageCount] = useState(12)
+  const [scale, setScale] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const [activeTool, setActiveTool] = useState('highlight')
+  const silentToastRef = useRef(false)
+
+  const locked = !!paper?.locked
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchEvaluationPaperById(paperId)
+      setPaper(data)
+      setRubric(normalizeRubric(data.rubric))
+      setDirty(false)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to load paper')
+    } finally {
+      setLoading(false)
+    }
+  }, [paperId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const buildPatch = useCallback(
+    () => ({
+      rubric,
+      annotations: paper?.annotations,
+      remarks: paper?.remarks,
+    }),
+    [rubric, paper?.annotations, paper?.remarks],
+  )
+
+  const saveDraft = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!paper || locked) return
+      setSaving(true)
+      try {
+        const saved = await saveEvaluationDraft(paper.id, buildPatch())
+        setPaper((prev) => ({ ...prev, ...saved, status: 'In Progress' }))
+        setDirty(false)
+        if (silent) {
+          if (!silentToastRef.current) {
+            silentToastRef.current = true
+            toast.message('Draft saved')
+            setTimeout(() => {
+              silentToastRef.current = false
+            }, 4000)
+          }
+        } else {
+          toast.success('Draft saved')
+        }
+      } catch (err) {
+        if (!silent) toast.error(err?.message || 'Failed to save draft')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [paper, locked, buildPatch],
+  )
+
+  useEffect(() => {
+    if (!dirty || locked) return undefined
+    const t = setInterval(() => saveDraft({ silent: true }), AUTOSAVE_MS)
+    return () => clearInterval(t)
+  }, [dirty, locked, saveDraft])
+
+  const setRubricScore = (idx, score) => {
+    setRubric((prev) =>
+      prev.map((r, i) =>
+        i === idx ? { ...r, score: Math.min(Number(r.max), Math.max(0, Number(score))) } : r,
+      ),
+    )
+    setDirty(true)
+  }
+
+  const setRubricFeedback = (idx, feedback) => {
+    setRubric((prev) => prev.map((r, i) => (i === idx ? { ...r, feedback } : r)))
+    setDirty(true)
+  }
+
+  const handleAnnotate = async (ann) => {
+    if (!paper || locked) return
+    const next = [
+      ...(Array.isArray(paper.annotations) ? paper.annotations : []),
+      { id: `ANN-${Date.now()}`, ...ann },
+    ]
+    setPaper((prev) => ({ ...prev, annotations: next }))
+    setDirty(true)
+    try {
+      await savePaperAnnotations(paper.id, next)
+    } catch {
+      /* non-blocking */
+    }
+  }
+
+  const handlePublish = async () => {
+    if (!paper) return
+    setSaving(true)
+    try {
+      const saved = await publishEvaluationResult(paper.id, buildPatch())
+      setPaper((prev) => ({ ...prev, ...saved }))
+      setDirty(false)
+      toast.success('Result published')
+      navigate(TEST_MANAGEMENT_ROUTES.evaluations)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to publish')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <TestManagementPageShell icon={ArrowLeft} title="Paper Evaluation">
+        <div className="animate-pulse space-y-4">
+          <div className="h-32 rounded-2xl bg-white shadow-sm" />
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="h-[520px] rounded-2xl bg-white lg:col-span-7" />
+            <div className="h-[520px] rounded-2xl bg-white lg:col-span-5" />
+          </div>
+        </div>
+      </TestManagementPageShell>
+    )
+  }
+
+  if (!paper) {
+    return (
+      <TestManagementPageShell icon={ArrowLeft} title="Paper Evaluation">
+        <p className="text-sm font-semibold text-slate-600">Paper not found.</p>
+      </TestManagementPageShell>
+    )
+  }
+
+  return (
+    <TestManagementPageShell
+      icon={ArrowLeft}
+      title="Detailed Paper Evaluation"
+      actions={
+        <button
+          type="button"
+          onClick={() => navigate(TEST_MANAGEMENT_ROUTES.evaluations)}
+          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/90 px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm hover:bg-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Oversight
+        </button>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-12 lg:items-start">
+        <div className="lg:col-span-7">
+          <AnswerSheetViewer
+            paper={paper}
+            page={page}
+            pageCount={pageCount}
+            scale={scale}
+            rotation={rotation}
+            activeTool={activeTool}
+            annotations={paper.annotations}
+            locked={locked}
+            onPageChange={setPage}
+            onScaleChange={setScale}
+            onRotate={() => setRotation((r) => (r + 90) % 360)}
+            onToolChange={setActiveTool}
+            onPageCount={(n) => setPageCount(n || paper?.answerSheet?.pages || 12)}
+            onAnnotate={handleAnnotate}
+          />
+        </div>
+        <div className="lg:col-span-5">
+          <EvaluationSidebar
+            paper={paper}
+            rubric={rubric}
+            locked={locked}
+            saving={saving}
+            onRubricScore={setRubricScore}
+            onRubricFeedback={setRubricFeedback}
+            onSaveDraft={() => saveDraft({ silent: false })}
+            onPublish={handlePublish}
+          />
+        </div>
+      </div>
+    </TestManagementPageShell>
+  )
+}
