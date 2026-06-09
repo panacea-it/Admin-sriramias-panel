@@ -304,6 +304,10 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
             form={form}
             setForm={setForm}
             courseName={form.name}
+            centerLabel={
+              centreSelectOptions.find((c) => String(c.value) === String(form.centerId))
+                ?.label || item?.centerName || ''
+            }
           />
         </div>
 

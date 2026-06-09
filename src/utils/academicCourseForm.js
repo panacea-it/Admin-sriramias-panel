@@ -5,6 +5,9 @@ import {
   mapWhyChooseFeaturesForWebsite,
   normalizeWhyChooseFeatures,
 } from './whyChooseFeatures'
+import { createEmptyNewDelhiUi, resolveNewDelhiUi } from './newDelhiCourseUi'
+import { createEmptyHyderabadUi, resolveHyderabadUi } from './hyderabadCourseUi'
+import { createEmptyPuneUi, resolvePuneUi } from './puneCourseUi'
 
 const makeSlots = (count, factory) => Array.from({ length: count }, (_, i) => factory(i))
 
@@ -145,6 +148,9 @@ function mergeItemWithCourseFormData(item) {
     sectionTitleHowHelps: stored.sectionTitleHowHelps ?? item.sectionTitleHowHelps,
     whyChooseTitle: stored.whyChooseTitle ?? item.whyChooseTitle ?? '',
     whyChooseSubtitle: stored.whyChooseSubtitle ?? item.whyChooseSubtitle ?? '',
+    newDelhiUi: stored.newDelhiUi ?? item.newDelhiUi,
+    hyderabadUi: stored.hyderabadUi ?? item.hyderabadUi,
+    puneUi: stored.puneUi ?? item.puneUi,
   }
 }
 
@@ -211,6 +217,9 @@ export function academicCourseItemToContent(item) {
       row.sectionTitleWhyChoose?.trim() || defaults.sectionTitleWhyChoose,
     sectionTitleHowHelps:
       row.sectionTitleHowHelps?.trim() || defaults.sectionTitleHowHelps,
+    newDelhiUi: resolveNewDelhiUi(row),
+    hyderabadUi: resolveHyderabadUi(row),
+    puneUi: resolvePuneUi(row),
   }
 }
 
@@ -322,6 +331,9 @@ export function serializeAcademicCourseContent(form, meta = {}) {
   const sectionTitleHowHelps = String(
     form.sectionTitleHowHelps ?? titles.howHelps,
   ).trim()
+  const newDelhiUi = form.newDelhiUi || createEmptyNewDelhiUi()
+  const hyderabadUi = form.hyderabadUi || createEmptyHyderabadUi()
+  const puneUi = form.puneUi || createEmptyPuneUi()
 
   return {
     subjects: normalizeSubjects(form.subjects).filter((s) => s.subjectName),
@@ -351,6 +363,9 @@ export function serializeAcademicCourseContent(form, meta = {}) {
       sectionTitleKeyFeatures,
       sectionTitleWhyChoose,
       sectionTitleHowHelps,
+      newDelhiUi,
+      hyderabadUi,
+      puneUi,
     },
   }
 }

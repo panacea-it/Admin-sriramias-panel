@@ -6,7 +6,6 @@ import { toast } from '@/utils/toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { getDefaultRouteForRole } from '../../config/rbacAccess'
 import { LOGIN_ROLE_OPTIONS } from '../../constants/roles'
-import { getDemoUserByRole } from '../../data/demoAuthUsers'
 import SriramLogo from '../../components/brand/SriramLogo'
 import { cn } from '../../utils/cn'
 import { resolveLoginErrorMessage } from '../../utils/authHelpers'
@@ -26,11 +25,6 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submitLock = useRef(false)
 
-  useEffect(() => {
-    const demo = getDemoUserByRole(LOGIN_ROLE_OPTIONS[0].id)
-    if (demo) setForm({ email: demo.email, password: demo.password })
-  }, [])
-
   const redirectTo =
     location.state?.from?.pathname && location.state.from.pathname !== '/login'
       ? location.state.from.pathname
@@ -48,10 +42,6 @@ export default function LoginPage() {
 
   const handleRoleSelect = (roleId) => {
     setSelectedRole(roleId)
-    const demo = getDemoUserByRole(roleId)
-    if (demo) {
-      setForm({ email: demo.email, password: demo.password })
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -113,7 +103,7 @@ export default function LoginPage() {
           </li>
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#ca8a04]" />
-            Demo credentials for every role
+            Secure session management
           </li>
         </ul>
       </div>
@@ -239,10 +229,6 @@ export default function LoginPage() {
                 'Sign in'
               )}
             </button>
-
-            <p className="mt-5 text-center text-xs font-medium text-[#9ca0a8]">
-              Demo accounts available for each role when API is offline
-            </p>
           </form>
         </div>
       </div>

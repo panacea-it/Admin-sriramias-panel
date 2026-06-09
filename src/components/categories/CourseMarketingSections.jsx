@@ -1,7 +1,13 @@
 import BatchFormSection from '../courses/BatchFormSection'
-import EditableSectionBar from '../courses/EditableSectionBar'
+import EditableSectionTitleField from '../courses/EditableSectionTitleField'
 import WhyChooseFeaturesSection from '../courses/WhyChooseFeaturesSection'
 import HelpSectionCardsSection from './HelpSectionCardsSection'
+import NewDelhiCourseMarketingSections from './newDelhi/NewDelhiCourseMarketingSections'
+import HyderabadCourseMarketingSections from './hyderabad/HyderabadCourseMarketingSections'
+import PuneCourseMarketingSections from './pune/PuneCourseMarketingSections'
+import { isNewDelhiCenter } from '../../utils/newDelhiCourseUi'
+import { isHyderabadCenter } from '../../utils/hyderabadCourseUi'
+import { isPuneCenter } from '../../utils/puneCourseUi'
 import {
   CourseAddMoreLink,
   CourseFormField,
@@ -38,7 +44,38 @@ export default function CourseMarketingSections({
   form,
   setForm,
   courseName = '',
+  centerLabel = '',
 }) {
+  if (isNewDelhiCenter(centerLabel)) {
+    return (
+      <NewDelhiCourseMarketingSections
+        form={form}
+        setForm={setForm}
+        courseName={courseName}
+      />
+    )
+  }
+
+  if (isHyderabadCenter(centerLabel)) {
+    return (
+      <HyderabadCourseMarketingSections
+        form={form}
+        setForm={setForm}
+        courseName={courseName}
+      />
+    )
+  }
+
+  if (isPuneCenter(centerLabel)) {
+    return (
+      <PuneCourseMarketingSections
+        form={form}
+        setForm={setForm}
+        courseName={courseName}
+      />
+    )
+  }
+
   const defaultHowTitle = buildHowHelpsTitle(courseName || form.name)
   const displayWhyTitle = resolveWhyChooseTitle(form)
   const displayWhySubtitle = resolveWhyChooseSubtitle(form)
@@ -59,9 +96,11 @@ export default function CourseMarketingSections({
   return (
     <div className="space-y-8">
       <div className="space-y-6">
-        <EditableSectionBar
+        <EditableSectionTitleField
+          sectionHeader="Course Overview"
+          fieldLabel="Course Overview Section Title"
           value={form.sectionTitleOverview ?? ''}
-          defaultValue={DEFAULT_SECTION_TITLE_OVERVIEW}
+          defaultDisplayValue={DEFAULT_SECTION_TITLE_OVERVIEW}
           onChange={setSectionTitle('sectionTitleOverview')}
           placeholder={DEFAULT_SECTION_TITLE_OVERVIEW}
           aria-label="Course Overview section title"
@@ -77,9 +116,11 @@ export default function CourseMarketingSections({
       </div>
 
       <div className="space-y-6">
-        <EditableSectionBar
+        <EditableSectionTitleField
+          sectionHeader="Key Features Of Course"
+          fieldLabel="Key Features Section Title"
           value={form.sectionTitleKeyFeatures ?? ''}
-          defaultValue={DEFAULT_SECTION_TITLE_KEY_FEATURES}
+          defaultDisplayValue={DEFAULT_SECTION_TITLE_KEY_FEATURES}
           onChange={setSectionTitle('sectionTitleKeyFeatures')}
           placeholder={DEFAULT_SECTION_TITLE_KEY_FEATURES}
           aria-label="Key Features section title"
@@ -138,23 +179,18 @@ export default function CourseMarketingSections({
       </div>
 
       <div className="space-y-6">
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 text-center shadow-sm">
-          <h3 className="text-base font-bold tracking-tight text-[#246392] sm:text-lg">
-            {displayWhyTitle}
-          </h3>
-          <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-600">{displayWhySubtitle}</p>
-        </div>
+        <EditableSectionTitleField
+          sectionHeader="Why Choose This Course"
+          fieldLabel="Why Choose Section Title"
+          value={form.whyChooseTitle ?? ''}
+          defaultDisplayValue={DEFAULT_WHY_CHOOSE_TITLE}
+          onChange={(value) => setForm((f) => ({ ...f, whyChooseTitle: value }))}
+          placeholder={DEFAULT_WHY_CHOOSE_TITLE}
+          previewSubtitle={displayWhySubtitle}
+          aria-label="Why Choose section title"
+        />
 
         <BatchFormSection className="space-y-5">
-          <CourseFormField label="Why Choose Section Title">
-            <CourseInput
-              value={form.whyChooseTitle ?? ''}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, whyChooseTitle: e.target.value }))
-              }
-              placeholder={DEFAULT_WHY_CHOOSE_TITLE}
-            />
-          </CourseFormField>
           <CourseFormField label="Why Choose Section Subtitle">
             <CourseTextarea
               value={form.whyChooseSubtitle ?? ''}
@@ -176,9 +212,11 @@ export default function CourseMarketingSections({
       </div>
 
       <div className="space-y-6">
-        <EditableSectionBar
+        <EditableSectionTitleField
+          sectionHeader="How Will This Course Help You"
+          fieldLabel="How Will Section Title"
           value={form.sectionTitleHowHelps ?? ''}
-          defaultValue={defaultHowTitle}
+          defaultDisplayValue={defaultHowTitle}
           onChange={setSectionTitle('sectionTitleHowHelps')}
           placeholder={sectionDefaults.sectionTitleHowHelps}
           aria-label="How Will section title"
