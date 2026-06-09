@@ -1,6 +1,11 @@
 import { PERMISSION_MODULES } from '../data/adminManagementConfig'
 import { RBAC_MODULE_FEATURES } from '../data/rbacConfig'
 import {
+  emptyPermissionSet,
+  flattenFeatureDefinitions,
+  mergeSavedFeatureValue,
+} from './rbacPermissionModel'
+import {
   buildEmptyFeatureMap,
   buildFullFeatureMap,
   cloneNestedRbac,
@@ -17,6 +22,16 @@ function dispatchRbacChanged() {
   } catch {
     /* ignore SSR */
   }
+}
+
+function mergeModuleFeatureMap(defMap, savMap) {
+  const merged = { ...defMap }
+  for (const key of Object.keys(defMap)) {
+    if (Object.prototype.hasOwnProperty.call(savMap, key)) {
+      merged[key] = mergeSavedFeatureValue(defMap[key], savMap[key])
+    }
+  }
+  return merged
 }
 
 /**
@@ -42,11 +57,7 @@ export function mergeRbacWithDefaults(savedRaw, roles) {
       const savMap = savedRole[moduleId]
       if (!defMap || !savMap || typeof savMap !== 'object') continue
 
-      const merged = { ...defMap }
-      for (const key of Object.keys(defMap)) {
-        if (typeof savMap[key] === 'boolean') merged[key] = savMap[key]
-      }
-      out[roleId][moduleId] = merged
+      out[roleId][moduleId] = mergeModuleFeatureMap(defMap, savMap)
     }
   }
 
@@ -129,11 +140,7 @@ export function syncNestedKeysForRoles(prevNested, roles) {
       const prevMap = prevRole?.[moduleId]
 
       if (defMap && prevMap && typeof prevMap === 'object') {
-        const mergedMod = { ...defMap }
-        for (const k of Object.keys(defMap)) {
-          if (typeof prevMap[k] === 'boolean') mergedMod[k] = prevMap[k]
-        }
-        next[id][moduleId] = mergedMod
+        next[id][moduleId] = mergeModuleFeatureMap(defMap, prevMap)
       } else {
         next[id][moduleId] = defMap ? { ...defMap } : {}
       }
@@ -146,7 +153,8 @@ export function syncNestedKeysForRoles(prevNested, roles) {
 export function getDefaultModuleFeatures(roleId, moduleId, roles) {
   const defaults = getDefaultNestedRbacForRoles(roles)
   const base = defaults[roleId]?.[moduleId]
-  if (base && typeof base === 'object') return { ...base }
+  if (base && typeof base === 'object') return JSON.parse(JSON.stringify(base))
   const defs = RBAC_MODULE_FEATURES[moduleId] || []
-  return Object.fromEntries(defs.map((d) => [d.id, false]))
+  const leaves = flattenFeatureDefinitions(defs)
+  return Object.fromEntries(leaves.map((d) => [d.id, emptyPermissionSet()]))
 }

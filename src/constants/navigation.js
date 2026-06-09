@@ -215,6 +215,12 @@ export function isNavItemActive(item, pathname) {
       pathname.startsWith('/test-management/omr')
     )
   }
+  if (item.id === 'test-management-mains') {
+    return (
+      pathname.startsWith('/test-management/mains') ||
+      pathname.startsWith('/test-management/evaluations')
+    )
+  }
   if (item.path?.startsWith('/finance')) {
     return pathname === '/finance' || pathname.startsWith('/finance/')
   }

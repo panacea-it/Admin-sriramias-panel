@@ -43,8 +43,15 @@ export function useApiRolesCatalogSync({ enabled = true } = {}) {
     }
 
     sync()
+
+    const onFocus = () => {
+      if (!cancelled) sync()
+    }
+    window.addEventListener('focus', onFocus)
+
     return () => {
       cancelled = true
+      window.removeEventListener('focus', onFocus)
     }
   }, [enabled, mergeApiRoles])
 }

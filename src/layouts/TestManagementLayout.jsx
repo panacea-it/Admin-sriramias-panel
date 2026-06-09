@@ -184,11 +184,11 @@ export default function TestManagementLayout() {
               <Route path="test-integration" element={<Navigate to={TEST_MANAGEMENT_ROUTES.cbt} replace />} />
               <Route
                 path="results-analytics"
-                element={<Navigate to={TEST_MANAGEMENT_ROUTES.analytics} replace />}
+                element={<Navigate to={TEST_MANAGEMENT_ROUTES.dashboard} replace />}
               />
               <Route
                 path="results-analytics-engine"
-                element={<Navigate to={TEST_MANAGEMENT_ROUTES.analytics} replace />}
+                element={<Navigate to={TEST_MANAGEMENT_ROUTES.dashboard} replace />}
               />
               <Route
                 path="evaluation-management"

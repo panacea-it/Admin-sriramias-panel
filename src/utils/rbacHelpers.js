@@ -2,6 +2,7 @@ import { PERMISSION_MODULES } from '../data/adminManagementConfig'
 import { RBAC_MODULE_FEATURES } from '../data/rbacConfig'
 import {
   emptyPermissionSet,
+  flattenFeatureDefinitions,
   fullPermissionSet,
   isFeaturePermissionActive,
   summarizeFeatureMap,
@@ -12,7 +13,18 @@ import {
  */
 
 /** Aggregate feature booleans → matrix cell status chip. */
-export function deriveModuleAccessStatus(featureMap) {
+export function deriveModuleAccessStatus(featureMap, moduleId = null) {
+  const defs = moduleId ? RBAC_MODULE_FEATURES[moduleId] || [] : null
+  const leaves = defs?.length ? flattenFeatureDefinitions(defs) : null
+
+  if (leaves?.length) {
+    const enabled = leaves.filter((d) => isFeaturePermissionActive(featureMap?.[d.id])).length
+    const total = leaves.length
+    if (enabled === 0) return 'restricted'
+    if (enabled === total) return 'full'
+    return 'custom'
+  }
+
   if (!featureMap || typeof featureMap !== 'object') return 'restricted'
 
   const values = Object.values(featureMap || {})
@@ -26,18 +38,21 @@ export function deriveModuleAccessStatus(featureMap) {
   return 'custom'
 }
 
-export function featureSummary(featureMap) {
-  return summarizeFeatureMap(featureMap)
+export function featureSummary(featureMap, moduleId = null) {
+  const defs = moduleId ? RBAC_MODULE_FEATURES[moduleId] || [] : null
+  return summarizeFeatureMap(featureMap, defs?.length ? defs : null)
 }
 
 export function buildFullFeatureMap(moduleId) {
   const defs = RBAC_MODULE_FEATURES[moduleId] || []
-  return Object.fromEntries(defs.map((d) => [d.id, fullPermissionSet()]))
+  const leaves = flattenFeatureDefinitions(defs)
+  return Object.fromEntries(leaves.map((d) => [d.id, fullPermissionSet()]))
 }
 
 export function buildEmptyFeatureMap(moduleId) {
   const defs = RBAC_MODULE_FEATURES[moduleId] || []
-  return Object.fromEntries(defs.map((d) => [d.id, emptyPermissionSet()]))
+  const leaves = flattenFeatureDefinitions(defs)
+  return Object.fromEntries(leaves.map((d) => [d.id, emptyPermissionSet()]))
 }
 
 /**
@@ -58,8 +73,9 @@ export function buildNestedRbacFromLegacy(legacyMatrix, roles) {
       const defs = RBAC_MODULE_FEATURES[mod.id]
       if (!defs?.length) continue
 
+      const leaves = flattenFeatureDefinitions(defs)
       out[role.id][mod.id] = Object.fromEntries(
-        defs.map((d) => [d.id, legacyOn ? fullPermissionSet() : emptyPermissionSet()]),
+        leaves.map((d) => [d.id, legacyOn ? fullPermissionSet() : emptyPermissionSet()]),
       )
     }
   }
@@ -95,7 +111,7 @@ export function rbacStateToRolesPayload(nestedState) {
     const permissions = {}
     for (const [moduleId, features] of Object.entries(modules || {})) {
       permissions[moduleId] = {
-        access: deriveModuleAccessStatus(features),
+        access: deriveModuleAccessStatus(features, moduleId),
         features: { ...features },
       }
     }

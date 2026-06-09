@@ -45,8 +45,11 @@ export default function PermissionDrawer({
   }, [open, mod?.id, role?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const definitions = useMemo(() => (mod?.id ? RBAC_MODULE_FEATURES[mod.id] || [] : []), [mod])
-  const status = useMemo(() => deriveModuleAccessStatus(featureMap), [featureMap])
-  const summary = useMemo(() => featureSummary(featureMap), [featureMap])
+  const status = useMemo(
+    () => deriveModuleAccessStatus(featureMap, mod?.id),
+    [featureMap, mod?.id],
+  )
+  const summary = useMemo(() => featureSummary(featureMap, mod?.id), [featureMap, mod?.id])
 
   const handleRestrictAll = useCallback(() => {
     if (!mod || !role) return
@@ -81,6 +84,14 @@ export default function PermissionDrawer({
       onReplaceFeatures(role.id, mod.id, { ...featureMap, [featureId]: { ...permissionSet } })
     },
     [mod, role, featureMap, onReplaceFeatures],
+  )
+
+  const handleReplaceFeatureMap = useCallback(
+    (nextMap) => {
+      if (!mod || !role) return
+      onReplaceFeatures(role.id, mod.id, nextMap)
+    },
+    [mod, role, onReplaceFeatures],
   )
 
   const persist = useCallback(() => {
@@ -154,7 +165,7 @@ export default function PermissionDrawer({
           </div>
         </header>
 
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
           {status === 'restricted' && (
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2.5 text-[13px] text-amber-900">
               <Shield className="mt-0.5 h-4 w-4 shrink-0" />
@@ -176,7 +187,7 @@ export default function PermissionDrawer({
             placeholder="Filter features…"
           />
 
-          <h3 className="mt-4 mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+          <h3 className="mt-5 mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
             Feature-level access
           </h3>
 
@@ -184,6 +195,7 @@ export default function PermissionDrawer({
             definitions={definitions}
             featureMap={featureMap}
             onFeatureBulkChange={handleFeatureBulkChange}
+            onReplaceFeatures={handleReplaceFeatureMap}
             searchQuery={search}
             editable
           />

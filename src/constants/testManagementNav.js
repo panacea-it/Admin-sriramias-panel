@@ -1,11 +1,10 @@
 import {
   LayoutDashboard,
   Monitor,
-  ListChecks,
   Database,
   ClipboardCheck,
-  BarChart3,
   ScanLine,
+  ListChecks,
 } from 'lucide-react'
 import { TEST_CONFIGURATION_SUBMENU } from './testConfigurationNav'
 
@@ -54,14 +53,29 @@ export const CBT_MANAGEMENT_SUBMENU = {
   ],
 }
 
+export const MAINS_MANAGEMENT_SUBMENU = {
+  id: 'test-management-mains',
+  label: 'Mains Management',
+  children: [
+    {
+      label: 'Mains Management',
+      path: TEST_MANAGEMENT_ROUTES.mains,
+      icon: ListChecks,
+    },
+    {
+      label: 'Evaluation Oversight',
+      path: TEST_MANAGEMENT_ROUTES.evaluations,
+      icon: ClipboardCheck,
+    },
+  ],
+}
+
 export const TEST_MANAGEMENT_NAV_ITEMS = [
   { label: 'Dashboard', path: TEST_MANAGEMENT_ROUTES.dashboard, icon: LayoutDashboard },
   CBT_MANAGEMENT_SUBMENU,
-  { label: 'Mains Management', path: TEST_MANAGEMENT_ROUTES.mains, icon: ListChecks },
+  MAINS_MANAGEMENT_SUBMENU,
   { label: 'Question Bank', path: TEST_MANAGEMENT_ROUTES.questionBank, icon: Database },
   TEST_CONFIGURATION_SUBMENU,
-  { label: 'Evaluation Oversight', path: TEST_MANAGEMENT_ROUTES.evaluations, icon: ClipboardCheck },
-  { label: 'Analytics', path: TEST_MANAGEMENT_ROUTES.analytics, icon: BarChart3 },
 ]
 
 export function isTestManagementPath(pathname) {

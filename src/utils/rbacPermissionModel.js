@@ -35,8 +35,42 @@ export function isFeaturePermissionActive(value) {
   return PERMISSION_ACTIONS.some((a) => norm[a.key])
 }
 
+/** Flatten nested feature definitions to leaf nodes. */
+export function flattenFeatureDefinitions(definitions) {
+  const leaves = []
+
+  function walk(items) {
+    for (const item of Array.isArray(items) ? items : []) {
+      if (item.children?.length) {
+        walk(item.children)
+      } else if (item?.id) {
+        leaves.push(item)
+      }
+    }
+  }
+
+  walk(definitions)
+  return leaves
+}
+
+/** Collect leaf ids from a group node's children. */
+export function collectLeafIds(nodes) {
+  return flattenFeatureDefinitions(nodes).map((n) => n.id)
+}
+
 /** @param {Record<string, boolean|Record<string, boolean>>} featureMap */
-export function summarizeFeatureMap(featureMap) {
+export function summarizeFeatureMap(featureMap, definitions = null) {
+  const leaves = definitions ? flattenFeatureDefinitions(definitions) : null
+
+  if (leaves?.length) {
+    let allowed = 0
+    for (const leaf of leaves) {
+      if (isFeaturePermissionActive(featureMap?.[leaf.id])) allowed += 1
+    }
+    const total = leaves.length
+    return { allowed, restricted: total - allowed, total }
+  }
+
   const entries = Object.values(featureMap || {})
   let allowed = 0
   for (const val of entries) {
@@ -44,4 +78,15 @@ export function summarizeFeatureMap(featureMap) {
   }
   const total = entries.length
   return { allowed, restricted: total - allowed, total }
+}
+
+/** Merge saved feature permissions with defaults (handles booleans and permission sets). */
+export function mergeSavedFeatureValue(defaultVal, savedVal) {
+  if (typeof savedVal === 'boolean') {
+    return savedVal ? fullPermissionSet() : emptyPermissionSet()
+  }
+  if (savedVal && typeof savedVal === 'object') {
+    return normalizeFeaturePermissions(savedVal)
+  }
+  return normalizeFeaturePermissions(defaultVal)
 }

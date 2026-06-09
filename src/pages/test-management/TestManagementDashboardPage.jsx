@@ -16,6 +16,7 @@ import {
   ParticipationAreaChart,
   TestTypePieChart,
 } from '../../components/test-management/TestManagementDashboardCharts'
+import TestManagementAnalyticsSection from '../../components/test-management/TestManagementAnalyticsSection'
 
 export default function TestManagementDashboardPage() {
   const stats = TM_DASHBOARD_STATS
@@ -96,6 +97,8 @@ export default function TestManagementDashboardPage() {
           initialPageSize={5}
         />
       </article>
+
+      <TestManagementAnalyticsSection />
     </TestManagementPageShell>
   )
 }
