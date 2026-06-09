@@ -37,7 +37,43 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       emptyOutDir: true,
       sourcemap: false,
-      chunkSizeWarningLimit: 700,
+      chunkSizeWarningLimit: 500,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-react',
+                test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,
+              },
+              {
+                name: 'vendor-motion',
+                test: /node_modules[\\/]framer-motion[\\/]/,
+              },
+              {
+                name: 'vendor-charts',
+                test: /node_modules[\\/](recharts|d3-[^/]+)[\\/]/,
+              },
+              {
+                name: 'vendor-xlsx',
+                test: /node_modules[\\/]xlsx[\\/]/,
+              },
+              {
+                name: 'vendor-pdf',
+                test: /node_modules[\\/]pdfjs-dist[\\/]/,
+              },
+              {
+                name: 'vendor-dnd',
+                test: /node_modules[\\/]@dnd-kit[\\/]/,
+              },
+              {
+                name: 'vendor-misc',
+                test: /node_modules[\\/]/,
+              },
+            ],
+          },
+        },
+      },
     },
     plugins: [react(), tailwindcss()],
     server: {
