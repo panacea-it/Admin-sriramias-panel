@@ -37,7 +37,7 @@ api.interceptors.request.use((config) => {
       }),
     )
   }
-  const token = getAuthToken()
+  const token = getAuthToken() || localStorage.getItem('SuperAdminToken')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })

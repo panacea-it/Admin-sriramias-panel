@@ -83,6 +83,29 @@ export function normalizeBatchesDropdownResponse(data) {
 }
 
 /** Prefer route/API Mongo id over legacy local seed ids (e.g. "001"). */
+export function resolveFolderApiId(folder) {
+  if (!folder || typeof folder !== 'object') return ''
+  const candidates = [folder.apiId, folder._id, folder.id]
+  for (const raw of candidates) {
+    const id = String(raw || '').trim()
+    if (isMongoObjectId(id)) return id
+  }
+  return ''
+}
+
+function normalizeApiDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (slash) {
+    const [, mm, dd, yyyy] = slash
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
+  }
+  return raw
+}
+
+/** Prefer route/API Mongo id over legacy local seed ids (e.g. "001"). */
 export function resolveFacultySubjectApiId(subject, routeSubjectId) {
   if (isMongoObjectId(routeSubjectId)) return String(routeSubjectId)
   if (isMongoObjectId(subject?.id)) return String(subject.id)
@@ -119,11 +142,13 @@ export function mapRecurrenceFormToApi(recurrence, scheduledDate = '') {
     enabled: true,
     repeatType,
     repeatEvery: Math.max(1, parseInt(recurrence.repeatEvery, 10) || 1),
-    startDate: recurrence.startDate || scheduledDate || '',
-    endDate: recurrence.endDate || '',
-    excludedDates: Array.isArray(recurrence.excludedDates) ? recurrence.excludedDates : [],
+    startDate: normalizeApiDate(recurrence.startDate || scheduledDate || ''),
+    endDate: normalizeApiDate(recurrence.endDate || ''),
+    excludedDates: Array.isArray(recurrence.excludedDates)
+      ? recurrence.excludedDates.map(normalizeApiDate).filter(Boolean)
+      : [],
     paused: Boolean(recurrence.paused),
-    pausedUntil: recurrence.pausedUntil || null,
+    pausedUntil: recurrence.pausedUntil ?? null,
     notes: recurrence.notes || '',
   }
 
@@ -194,7 +219,7 @@ export function buildLiveClassApiPayload(form, meta = {}) {
     centerId: String(form.centerId || '').trim(),
     classroomId: String(form.classroomId || '').trim(),
     classTitle: String(form.classTitle || '').trim(),
-    scheduledDate: form.date || '',
+    scheduledDate: normalizeApiDate(form.date),
     startTime,
     durationHours: parseInt(form.durationHrs, 10) || 0,
     durationMinutes: parseInt(form.durationMin, 10) || 0,
@@ -204,10 +229,12 @@ export function buildLiveClassApiPayload(form, meta = {}) {
     publishStatus: meta.publish ? 'PUBLISHED' : 'DRAFT',
   }
 
-  const includeRecurrence = Boolean(meta.recurring && meta.recurrence?.enabled)
-  if (includeRecurrence) {
+  const isRecurring = Boolean(meta.recurring && meta.recurrence?.enabled)
+  if (isRecurring) {
     const recurrencePayload = mapRecurrenceFormToApi(meta.recurrence, form.date)
-    if (recurrencePayload) payload.recurrence = recurrencePayload
+    payload.recurrence = recurrencePayload || { enabled: false }
+  } else {
+    payload.recurrence = { enabled: false }
   }
 
   return payload
@@ -220,6 +247,9 @@ export function validateLiveClassApiPayload(payload) {
     errors.push('Faculty subject id is invalid')
   }
   if (!payload.folderId) errors.push('Folder is missing')
+  else if (!isMongoObjectId(payload.folderId)) {
+    errors.push('Folder id is invalid — recreate the folder under Live Class')
+  }
   if (!payload.batchId) errors.push('Batch is required')
   if (!payload.centerId) errors.push('Center is required')
   if (!payload.classroomId) errors.push('Classroom is required')

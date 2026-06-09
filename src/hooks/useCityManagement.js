@@ -1,14 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getCities } from '../services/cityService'
+import { clearCitiesListCache, getCities } from '../services/cityService'
 import {
   mapCityStatusFilterToApi,
   normalizeCitiesListResponse,
 } from '../utils/cityApiHelpers'
 
 const DEFAULT_PAGE_SIZE = 10
+
+function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centerFilter }) {
+  const apiStatus = mapCityStatusFilterToApi(statusFilter)
+  const params = {
+    page,
+    limit: pageSize,
+    search: debouncedSearch.trim(),
+  }
+  if (apiStatus) params.status = apiStatus
+  if (centerFilter !== 'all') params.center = centerFilter
+  return params
+}
 
 export function useCityManagement() {
   const [cities, setCities] = useState([])
@@ -21,45 +33,66 @@ export function useCityManagement() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(search, 500)
+  const lastErrorToastAt = useRef(0)
 
-  const fetchCities = useCallback(async () => {
-    setLoading(true)
-    try {
-      const apiStatus = mapCityStatusFilterToApi(statusFilter)
-      const params = {
+  const loadCities = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
+      const params = buildListParams({
         page,
-        limit: pageSize,
-        search: debouncedSearch.trim(),
-      }
-      if (apiStatus) params.status = apiStatus
-      if (centerFilter !== 'all') params.center = centerFilter
+        pageSize,
+        debouncedSearch,
+        statusFilter,
+        centerFilter,
+      })
 
-      const data = await getCities(params)
-      const normalized = normalizeCitiesListResponse(data, { page, limit: pageSize })
-
-      setCities(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
+      setLoading(true)
+      try {
+        const data = await getCities(params, { bypassCache })
+        if (ignoreFlag?.()) return
+        const normalized = normalizeCitiesListResponse(data, { page, limit: pageSize })
+        setCities(normalized.items)
+        setTotalItems(normalized.total)
+        setTotalPages(normalized.totalPages)
+      } catch (error) {
+        if (ignoreFlag?.()) return
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+        const now = Date.now()
+        if (now - lastErrorToastAt.current > 4000) {
+          lastErrorToastAt.current = now
+          toast.error(getApiErrorMessage(error, 'Failed to load cities'))
+        }
+        if (!isRateLimitError(error)) {
+          setCities([])
+          setTotalItems(0)
+          setTotalPages(1)
+        }
+      } finally {
+        if (!ignoreFlag?.()) {
+          setLoading(false)
+        }
       }
-      toast.error(getApiErrorMessage(error, 'Failed to load cities'))
-      setCities([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, debouncedSearch, statusFilter, centerFilter])
+    },
+    [page, pageSize, debouncedSearch, statusFilter, centerFilter],
+  )
 
   useEffect(() => {
-    fetchCities()
-  }, [fetchCities])
+    let ignore = false
+    loadCities({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
+    }
+  }, [loadCities])
 
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, statusFilter, centerFilter, pageSize])
+
+  const refreshCities = useCallback(async () => {
+    clearCitiesListCache()
+    await loadCities({ bypassCache: true })
+  }, [loadCities])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -99,7 +132,8 @@ export function useCityManagement() {
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    debouncedSearch,
     controlledPagination,
-    refreshCities: fetchCities,
+    refreshCities,
   }
 }

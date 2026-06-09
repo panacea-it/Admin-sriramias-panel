@@ -50,10 +50,18 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
       return
     }
 
+    if (!String(values.code || '').trim()) {
+      setError('code', { message: 'City code is required' })
+      return
+    }
+
     try {
       await onSave({
         centerId: values.centerId,
         placeName: values.placeName,
+        code: String(values.code || '')
+          .trim()
+          .toUpperCase(),
         status: cityRef.current?.status || 'Active',
       })
     } catch {
@@ -64,7 +72,7 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
   if (!open) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md">
+    <Modal open={open} onClose={onClose} size="md" title={isEdit ? 'Edit Place' : 'Add City'} showCloseButton={false}>
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="flex max-h-[min(90vh,640px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
@@ -75,11 +83,13 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
           subtitle="Link a branch place to a centre"
           onClose={onClose}
           closeVariant="icon"
+          plainCloseIcon
         />
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
           {loading ? (
             <div className="space-y-4">
+              <div className="h-11 animate-pulse rounded-xl bg-[#d1e9f6]" />
               <div className="h-11 animate-pulse rounded-xl bg-[#d1e9f6]" />
               <div className="h-11 animate-pulse rounded-xl bg-[#d1e9f6]" />
             </div>
@@ -94,6 +104,23 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
                 error={errors.centerId?.message}
                 disabled={isEdit}
               />
+
+              <CourseFormField label="City Code" required>
+                <CourseInput
+                  {...register('code', {
+                    required: 'City code is required',
+                    setValueAs: (value) =>
+                      String(value || '')
+                        .trim()
+                        .toUpperCase(),
+                  })}
+                  placeholder="e.g. DEL-NCR, BLR-IND"
+                  className={fieldClass}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {errors.code && <p className="text-xs text-red-500">{errors.code.message}</p>}
+              </CourseFormField>
 
               <CourseFormField label="Place Name" required>
                 <CourseInput

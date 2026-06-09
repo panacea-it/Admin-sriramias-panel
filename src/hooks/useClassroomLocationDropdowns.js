@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '../utils/toast'
+import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { getCentersDropdown, getCitiesByCenter } from '../services/classroomService'
 import {
   normalizeCentersDropdown,
@@ -12,39 +12,65 @@ export function useClassroomLocationDropdowns(centerId) {
   const [cityOptions, setCityOptions] = useState([])
   const [dropdownLoading, setDropdownLoading] = useState(false)
   const [cityDropdownLoading, setCityDropdownLoading] = useState(false)
+  const lastErrorToastAt = useRef(0)
+  const mountedRef = useRef(true)
 
   const loadCenters = useCallback(async () => {
     setDropdownLoading(true)
     try {
       const data = await getCentersDropdown()
+      if (!mountedRef.current) return
       setCenterOptions(normalizeCentersDropdown(data))
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to load centres'))
+      if (!mountedRef.current) return
+      const now = Date.now()
+      if (now - lastErrorToastAt.current > 4000) {
+        lastErrorToastAt.current = now
+        toast.error(getApiErrorMessage(error, 'Failed to load centres'))
+      }
       setCenterOptions([])
     } finally {
-      setDropdownLoading(false)
+      if (mountedRef.current) {
+        setDropdownLoading(false)
+      }
     }
   }, [])
 
   const loadCities = useCallback(async (id) => {
-    if (!id) {
+    const normalizedId = String(id ?? '').trim()
+    if (!normalizedId || normalizedId === 'all') {
       setCityOptions([])
       return
     }
+
     setCityDropdownLoading(true)
     try {
-      const data = await getCitiesByCenter(id)
+      const data = await getCitiesByCenter(normalizedId)
+      if (!mountedRef.current) return
       setCityOptions(normalizeCitiesByCenter(data))
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to load cities'))
-      setCityOptions([])
+      if (!mountedRef.current) return
+      if (!isRateLimitError(error)) {
+        setCityOptions([])
+      }
+      const now = Date.now()
+      if (now - lastErrorToastAt.current > 4000) {
+        lastErrorToastAt.current = now
+        toast.error(getApiErrorMessage(error, 'Failed to load cities'))
+      }
     } finally {
-      setCityDropdownLoading(false)
+      if (mountedRef.current) {
+        setCityDropdownLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     loadCenters()
+    return () => {
+      mountedRef.current = false
+    }
   }, [loadCenters])
 
   useEffect(() => {

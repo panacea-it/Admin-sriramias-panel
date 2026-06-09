@@ -21,9 +21,6 @@ export default function BatchManagementTable({
   onPageChange,
   onPageSizeChange,
   resetDeps = [],
-  selectedIds = [],
-  onToggleSelect,
-  onToggleSelectAll,
   onStatusChange,
   statusUpdatingIds,
   onDuplicate,
@@ -49,11 +46,6 @@ export default function BatchManagementTable({
   const endIndex = Math.min(startIndex + pageSize, totalItems)
   const paginatedItems = batches.slice(startIndex, endIndex)
 
-  const pageIds = paginatedItems.map((b) => String(b.id))
-  const allPageSelected =
-    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
-  const somePageSelected = pageIds.some((id) => selectedIds.includes(id))
-
   const handlePageChange = (next) => {
     if (isControlled) onPageChange(next)
     else internalPagination.setPage(next)
@@ -70,19 +62,7 @@ export default function BatchManagementTable({
         <table className="w-full min-w-[1080px] border-collapse text-left">
           <thead className="sticky top-0 z-20 shadow-[0_2px_0_rgba(15,23,42,0.06)]">
             <tr className="bg-gradient-to-r from-[#55ace7] to-[#246392] text-sm font-semibold text-white sm:text-base">
-              <th className="w-12 px-3 py-3.5 sm:pl-4">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = somePageSelected && !allPageSelected
-                  }}
-                  onChange={() => onToggleSelectAll?.(pageIds, !allPageSelected)}
-                  aria-label="Select all batches on this page"
-                  className="h-4 w-4 rounded border-white/40 bg-white/20 text-[#246392] focus:ring-white/50"
-                />
-              </th>
-              <th className="px-4 py-3.5">Batch ID</th>
+              <th className="px-4 py-3.5 sm:pl-6">Batch ID</th>
               <th className="px-4 py-3.5 sm:px-5">Batch Name</th>
               <th className="px-4 py-3.5">Course Name</th>
               <th className="px-4 py-3.5">Trainer Name</th>
@@ -96,7 +76,7 @@ export default function BatchManagementTable({
           <tbody>
             {paginatedItems.length === 0 ? (
               <tr>
-                <td colSpan={10} className="py-12 text-center text-sm font-medium text-slate-500">
+                <td colSpan={9} className="py-12 text-center text-sm font-medium text-slate-500">
                   No batches found.
                 </td>
               </tr>
@@ -106,8 +86,6 @@ export default function BatchManagementTable({
                   key={batch.id}
                   batch={batch}
                   listState={listState}
-                  selected={selectedIds.includes(String(batch.id))}
-                  onToggleSelect={onToggleSelect}
                   onEditBatch={onEditBatch}
                   onQuickViewBatch={onQuickViewBatch}
                   onStatusChange={onStatusChange}
@@ -140,8 +118,6 @@ export default function BatchManagementTable({
 function BatchTableRow({
   batch,
   listState,
-  selected,
-  onToggleSelect,
   onEditBatch,
   onQuickViewBatch,
   onStatusChange,
@@ -154,22 +130,8 @@ function BatchTableRow({
   const linkState = listState ? { listState } : undefined
 
   return (
-    <tr
-      className={cn(
-        'border-b border-slate-100 transition-colors duration-150 hover:bg-[#f8fbff]',
-        selected && 'bg-[#eef6fc]/80',
-      )}
-    >
-      <td className="px-3 py-4 sm:pl-4">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect?.(String(batch.id))}
-          aria-label={`Select ${batch.displayName}`}
-          className="h-4 w-4 rounded border-slate-300 text-[#246392] focus:ring-[#55ace7]"
-        />
-      </td>
-      <td className="px-4 py-4">
+    <tr className="border-b border-slate-100 transition-colors duration-150 hover:bg-[#f8fbff]">
+      <td className="px-4 py-4 sm:pl-6">
         <Link
           to={detailsPath}
           state={linkState}

@@ -119,7 +119,7 @@ export default function ExamCategoryFormModal({
   const title = isEdit ? 'Edit Exam Category' : 'Add Exam Category'
 
   return (
-    <Modal open={open} onClose={handleClose} size="md" title={title}>
+    <Modal open={open} onClose={handleClose} size="md" title={title} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
@@ -128,6 +128,7 @@ export default function ExamCategoryFormModal({
           title={title}
           onClose={handleClose}
           closeVariant="icon"
+          plainCloseIcon
           icon={Layers}
           iconClassName="text-[#246392]"
         />

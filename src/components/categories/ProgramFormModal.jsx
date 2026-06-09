@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { LayoutGrid, Loader2 } from 'lucide-react'
 import Modal from '../ui/Modal'
@@ -7,8 +7,6 @@ import SectionBar from '../courses/SectionBar'
 import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
 import CentreMultiSelect from './CentreMultiSelect'
-import CourseMultiSelect from './CourseMultiSelect'
-import { getCoursesCatalog } from '../../utils/coursesCatalog'
 import { mapApiStatusToUi } from '../../utils/programHelpers'
 import { toast } from '../../utils/toast'
 
@@ -46,8 +44,6 @@ export default function ProgramFormModal({
   const isEdit = Boolean(program)
   const [form, setForm] = useState(buildForm(null))
   const [errors, setErrors] = useState({})
-  const [catalog, setCatalog] = useState([])
-  const [loadingCourses, setLoadingCourses] = useState(false)
   const closingRef = useRef(false)
   const programRef = useRef(program)
   programRef.current = program
@@ -58,14 +54,6 @@ export default function ProgramFormModal({
     setForm(buildForm(programRef.current))
     setErrors({})
   })
-
-  useEffect(() => {
-    if (!open) return
-    setLoadingCourses(true)
-    getCoursesCatalog()
-      .then(setCatalog)
-      .finally(() => setLoadingCourses(false))
-  }, [open])
 
   const handleClose = () => {
     if (closingRef.current || submitting) return
@@ -118,7 +106,7 @@ export default function ProgramFormModal({
   const title = isEdit ? 'Edit Program' : 'Add Program'
 
   return (
-    <Modal open={open} onClose={handleClose} size="lg" title={title}>
+    <Modal open={open} onClose={handleClose} size="lg" title={title} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
@@ -127,6 +115,7 @@ export default function ProgramFormModal({
           title={title}
           onClose={handleClose}
           closeVariant="icon"
+          plainCloseIcon
           icon={LayoutGrid}
           iconClassName="text-[#246392]"
         />
@@ -189,17 +178,6 @@ export default function ProgramFormModal({
               {errors.status && (
                 <p className="text-xs font-medium text-[#dc2626]">{errors.status}</p>
               )}
-            </div>
-
-            <SectionBar title="Linked Courses" />
-
-            <div className="rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:px-6 sm:py-6">
-              <CourseMultiSelect
-                courses={catalog}
-                selectedIds={form.courseIds}
-                onChange={(ids) => setForm((f) => ({ ...f, courseIds: ids }))}
-                loading={loadingCourses}
-              />
             </div>
 
             <FormModalSubmitBar

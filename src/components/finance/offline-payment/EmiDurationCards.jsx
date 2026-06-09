@@ -27,16 +27,21 @@ export default function EmiDurationCards({
     })
   }
 
+  const handleCustomCountChange = (raw) => {
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isNaN(parsed)) return
+    const clamped = Math.min(EMI_SLIDER_MAX, Math.max(EMI_SLIDER_MIN, parsed))
+    onChange({ ...config, installmentCount: clamped, durationPreset: 'custom' })
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <CalendarRange className="h-4 w-4 text-[#246392]" />
-        <h4 className="text-xs font-bold uppercase tracking-wide text-[#246392]">
-          EMI duration
-        </h4>
+        <h4 className="text-xs font-bold uppercase tracking-wide text-[#246392]">Number of months</h4>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {EMI_DURATION_PRESETS.map((preset) => {
           const isCustom = preset.id === 'custom'
           const isActive = config.durationPreset === preset.id
@@ -72,29 +77,18 @@ export default function EmiDurationCards({
               <p className="text-sm font-bold text-[#246392]">{preset.label}</p>
               {preview ? (
                 <>
-                  <p className="mt-2 text-xl font-bold tabular-nums text-[#111]">
+                  <p className="mt-2 text-lg font-bold tabular-nums text-[#111]">
                     {formatINR(preview.monthlyAmount)}
-                    <span className="text-sm font-semibold text-[#686868]">/month</span>
+                    <span className="text-xs font-semibold text-[#686868]">/mo</span>
                   </p>
-                  <dl className="mt-3 space-y-1 text-xs text-[#555]">
-                    <div className="flex justify-between gap-2">
-                      <dt>Start</dt>
-                      <dd className="font-semibold tabular-nums">{formatDisplayDate(preview.startDate)}</dd>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <dt>End</dt>
-                      <dd className="font-semibold tabular-nums">{formatDisplayDate(preview.endDate)}</dd>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <dt>Total EMI</dt>
-                      <dd className="font-semibold tabular-nums">{formatINR(preview.totalPrincipal)}</dd>
-                    </div>
-                  </dl>
+                  <p className="mt-1 text-[10px] text-[#686868]">
+                    Ends {formatDisplayDate(preview.endDate)}
+                  </p>
                 </>
               ) : (
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-[#686868]">
                   <Settings2 className="h-3.5 w-3.5" />
-                  Set installments manually (2–24)
+                  Enter custom count ({EMI_SLIDER_MIN}–{EMI_SLIDER_MAX})
                 </p>
               )}
             </motion.button>
@@ -103,26 +97,28 @@ export default function EmiDurationCards({
       </div>
 
       {config.durationPreset === 'custom' && (
-        <motion.label
+        <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
-          className="block rounded-lg border border-dashed border-[#55ace7]/30 bg-[#f8fbff] p-4"
+          className="rounded-lg border border-dashed border-[#55ace7]/30 bg-[#f8fbff] p-4"
         >
-          <span className="text-sm font-semibold text-[#333]">Custom installment count</span>
-          <input
-            type="range"
-            min={EMI_SLIDER_MIN}
-            max={EMI_SLIDER_MAX}
-            value={config.installmentCount}
-            onChange={(e) =>
-              onChange({ ...config, installmentCount: Number(e.target.value) })
-            }
-            className="mt-2 w-full accent-[#246392]"
-          />
-          <span className="mt-1 inline-block rounded-full bg-[#eef6fc] px-3 py-0.5 text-sm font-bold text-[#246392]">
-            {config.installmentCount} installments
-          </span>
-        </motion.label>
+          <label className="block text-sm font-semibold text-[#333]">
+            Custom number of months
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <input
+                type="number"
+                min={EMI_SLIDER_MIN}
+                max={EMI_SLIDER_MAX}
+                value={config.installmentCount}
+                onChange={(e) => handleCustomCountChange(e.target.value)}
+                className="h-10 w-28 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold tabular-nums outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25"
+              />
+              <span className="rounded-full bg-[#eef6fc] px-3 py-1 text-sm font-bold text-[#246392]">
+                {config.installmentCount} installments
+              </span>
+            </div>
+          </label>
+        </motion.div>
       )}
 
       {schedulePreview?.endDate && (

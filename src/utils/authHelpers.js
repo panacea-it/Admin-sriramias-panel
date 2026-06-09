@@ -101,6 +101,8 @@ const LOGIN_STATUS_MESSAGES = {
   403: 'Access denied. Your account may be restricted.',
   429: 'Too many login attempts. Please wait and try again.',
   500: 'Server error. Please try again later.',
+  502: 'Backend unavailable. Start the API server or check VITE_API_BASE_URL, then restart npm run dev.',
+  503: 'Service temporarily unavailable. Please try again shortly.',
 }
 
 export function getLoginErrorMessage(error) {

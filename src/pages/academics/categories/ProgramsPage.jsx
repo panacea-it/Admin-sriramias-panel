@@ -17,7 +17,6 @@ import { useEditModal } from '../../../hooks/useEditModal'
 import { useProgramManagement } from '../../../hooks/useProgramManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
 import { toast } from '../../../utils/toast'
-import { cn } from '../../../utils/cn'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import {
   buildProgramApiPayload,
@@ -50,14 +49,6 @@ function CreateButton({ onClick, disabled }) {
   )
 }
 
-function LinkedCoursesBadge({ count }) {
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#cbeeff] text-sm font-bold text-[#246392] ring-2 ring-[#e8f4fc]">
-      {count}
-    </span>
-  )
-}
-
 function ProgramsTableSkeleton() {
   return (
     <div className="space-y-3 rounded-2xl bg-[#f0f2f5]/60 p-3">
@@ -85,6 +76,7 @@ export default function ProgramsPage() {
     setStatusFilter,
     centreFilter,
     setCentreFilter,
+    debouncedSearch,
     refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,
@@ -99,7 +91,6 @@ export default function ProgramsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
 
   const centreRows = useMemo(
     () =>
@@ -119,7 +110,6 @@ export default function ProgramsPage() {
     () =>
       programs.map((row) => ({
         ...row,
-        linkedCount: row.linkedCount ?? 0,
         centreLabel: formatCentreNamesLabel(
           activeCenters,
           row.centerIds,
@@ -227,7 +217,6 @@ export default function ProgramsPage() {
     try {
       await deleteProgram(programId)
       removeProgramLocally(programId)
-      setSelectedIds((prev) => prev.filter((sid) => sid !== programId))
       setDeleteTarget(null)
       toast.success('Program deleted')
       await refreshPrograms()
@@ -275,14 +264,6 @@ export default function ProgramsPage() {
     modal.openCreate()
   }
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === enrichedPrograms.length) {
-      setSelectedIds([])
-    } else {
-      setSelectedIds(enrichedPrograms.map((r) => r.id))
-    }
-  }
-
   const clearFilters = () => {
     setSearch('')
     setStatusFilter('all')
@@ -290,33 +271,16 @@ export default function ProgramsPage() {
   }
 
   const filters = useMemo(
-    () => ({ search, status: statusFilter, centre: centreFilter }),
-    [search, statusFilter, centreFilter],
+    () => ({ search: debouncedSearch, status: statusFilter, centre: centreFilter }),
+    [debouncedSearch, statusFilter, centreFilter],
   )
 
   const columns = [
     {
-      key: 'select',
-      label: '',
-      headerClassName: 'w-12 pl-5 sm:pl-6',
-      cellClassName: 'pl-5 sm:pl-6',
-      render: (row) => (
-        <input
-          type="checkbox"
-          checked={selectedIds.includes(row.id)}
-          onChange={() => {
-            setSelectedIds((prev) =>
-              prev.includes(row.id) ? prev.filter((x) => x !== row.id) : [...prev, row.id],
-            )
-          }}
-          className="h-4 w-4 rounded accent-[#246392]"
-          aria-label={`Select ${row.name}`}
-        />
-      ),
-    },
-    {
       key: 'programId',
       label: 'Program ID',
+      headerClassName: 'min-w-[7rem]',
+      cellClassName: 'whitespace-nowrap',
       render: (row) => (
         <span className="font-mono text-sm font-semibold text-[#111]">
           {row.programId || row.id}
@@ -334,11 +298,6 @@ export default function ProgramsPage() {
           <span className="font-semibold text-[#111]">{row.name}</span>
         </div>
       ),
-    },
-    {
-      key: 'linkedCount',
-      label: 'Linked Courses',
-      render: (row) => <LinkedCoursesBadge count={row.linkedCount} />,
     },
     {
       key: 'centre',
@@ -362,16 +321,19 @@ export default function ProgramsPage() {
     {
       key: 'status',
       label: 'Status',
+      align: 'center',
+      headerClassName: 'min-w-[6rem]',
       render: (row) => <CategoryStatusBadge status={row.status} />,
     },
     {
       key: 'actions',
-      label: 'Action',
+      label: 'Actions',
       align: 'right',
-      headerClassName: 'min-w-[11rem] text-right',
-      cellClassName: 'min-w-[11rem] text-right',
+      headerClassName: 'min-w-[11rem] pr-5 sm:pr-6',
+      cellClassName: 'pr-5 sm:pr-6',
       render: (row) => (
         <CategoryTableActions
+          variant="icons"
           status={row.status}
           onView={() => openView(row)}
           onEdit={() => openEdit(row)}
@@ -415,33 +377,6 @@ export default function ProgramsPage() {
           <div className="flex items-center gap-2 rounded-xl border border-slate-100/80 bg-white/70 px-4 py-2.5 text-sm text-[#686868]">
             <Loader2 className="h-4 w-4 animate-spin text-[#246392]" />
             Loading programs…
-          </div>
-        )}
-
-        {!loading && enrichedPrograms.length > 0 && (
-          <div
-            className={cn(
-              'flex items-center gap-2.5 rounded-xl border border-slate-100/80 bg-white/70 px-4 py-2.5',
-              'text-sm text-[#686868] shadow-[0_2px_8px_rgba(15,23,42,0.04)]',
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={
-                selectedIds.length === enrichedPrograms.length && enrichedPrograms.length > 0
-              }
-              onChange={toggleSelectAll}
-              className="h-4 w-4 rounded accent-[#246392]"
-              id="programs-select-all"
-            />
-            <label htmlFor="programs-select-all" className="cursor-pointer font-medium">
-              Select all on this page
-            </label>
-            {selectedIds.length > 0 && (
-              <span className="ml-auto text-xs font-semibold text-[#246392]">
-                {selectedIds.length} selected
-              </span>
-            )}
           </div>
         )}
 

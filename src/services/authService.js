@@ -1,8 +1,20 @@
 import apiClient, { API_ENDPOINTS } from '../config/api'
+import { logAuthError, logAuthResponse } from '../utils/authDebug'
 
 function toAuthError(error) {
+  logAuthError(error)
+
   const status = error?.response?.status
   const data = error?.response?.data
+
+  if (status === 502) {
+    return {
+      message:
+        (typeof data === 'object' && (data.message || data.error)) ||
+        'Backend unavailable (502). Ensure the API server at VITE_API_BASE_URL is running, then restart npm run dev.',
+      status: 502,
+    }
+  }
 
   if (status === 429) {
     return {
@@ -63,8 +75,18 @@ function toAuthError(error) {
 }
 
 export const loginSuperAdmin = async (payload) => {
+  const body = {
+    email: String(payload?.email ?? '').trim(),
+    password: String(payload?.password ?? '').trim(),
+  }
+
   try {
-    const response = await apiClient.post(API_ENDPOINTS.LOGIN_SUPER_ADMIN, payload)
+    const response = await apiClient.post(API_ENDPOINTS.LOGIN_SUPER_ADMIN, body)
+    logAuthResponse({
+      status: response.status,
+      headers: response.headers,
+      data: response.data,
+    })
     return response.data
   } catch (error) {
     throw toAuthError(error)

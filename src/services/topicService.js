@@ -20,8 +20,13 @@ export async function getTopics(params = {}) {
 }
 
 export async function getTopicsBySubject(subjectId) {
+  const key = String(subjectId ?? '').trim()
+  if (!key || key === 'all' || key === 'undefined' || key === 'null') {
+    return []
+  }
+
   try {
-    const response = await axiosInstance.get(`/api/topics/by-subject/${subjectId}`)
+    const response = await axiosInstance.get(`/api/topics/by-subject/${key}`)
     return response.data
   } catch (error) {
     throwApiError(error)

@@ -1,5 +1,6 @@
-import { Layers, X } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import Modal from '../../../../components/ui/Modal'
+import ModalPanelHeader from '../../../../components/courses/ModalPanelHeader'
 import CategoryStatusBadge from '../../../../components/categories/CategoryStatusBadge'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 
@@ -28,27 +29,17 @@ export default function ViewSubjectModal({ open, onClose, item, loading = false 
   if (!item) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title={`View ${item.name}`}>
+    <Modal open={open} onClose={onClose} size="md" title={`View ${item.name}`} showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
-        <header className="flex items-start justify-between gap-3 bg-gradient-to-r from-[#55ace7] via-[#5a7ba8] to-[#1a3a5c] px-5 py-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-              <Layers className="h-6 w-6 text-[#246392]" strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 text-white">
-              <h2 className="truncate text-lg font-bold sm:text-xl">{item.name}</h2>
-              <p className="text-sm text-white/85">{item.displayId || item.subjectId || item.id}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </header>
+        <ModalPanelHeader
+          title={item.name}
+          subtitle={item.displayId || item.subjectId || item.id}
+          onClose={onClose}
+          icon={Layers}
+          iconClassName="text-[#246392]"
+          closeVariant="icon"
+          plainCloseIcon
+        />
 
         <div className="space-y-4 p-5 sm:p-6">
           <h3 className="border-b border-[#eef2fc] pb-2 text-sm font-bold uppercase tracking-wide text-[#246392]">

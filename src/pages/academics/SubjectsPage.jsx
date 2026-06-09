@@ -9,6 +9,7 @@ import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjec
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { useFacultySubjectsManagement } from '../../hooks/useFacultySubjectsManagement'
+import { clearFacultySubjectFormOptionsCache } from '../../hooks/useFacultySubjectFormOptions'
 import {
   createFacultySubject,
   deleteFacultySubject,
@@ -36,6 +37,7 @@ export default function SubjectsPage() {
   const {
     subjects,
     loading,
+    loadError,
     search,
     setSearch,
     statusFilter,
@@ -59,9 +61,10 @@ export default function SubjectsPage() {
   const [viewLoading, setViewLoading] = useState(false)
 
   const showEmpty =
-    !loading && subjects.length === 0 && !search.trim() && statusFilter === 'all'
+    !loading && !loadError && subjects.length === 0 && !search.trim() && statusFilter === 'all'
   const showNoResults =
-    !loading && subjects.length === 0 && !showEmpty
+    !loading && !loadError && subjects.length === 0 && !showEmpty
+  const showLoadError = !loading && Boolean(loadError) && subjects.length === 0
 
   const openCreate = () => {
     setActiveSubject(null)
@@ -143,6 +146,7 @@ export default function SubjectsPage() {
         await createFacultySubject(payload)
         toast.success(facultySubjectLabels.created)
       }
+      clearFacultySubjectFormOptionsCache()
       await refreshSubjects()
       setModalOpen(false)
       setActiveSubject(null)
@@ -229,7 +233,14 @@ export default function SubjectsPage() {
           onStatusChange={(e) => setStatusFilter(e.target.value)}
         />
 
-        {showEmpty ? (
+        {showLoadError ? (
+          <SubjectEmptyState
+            title="Could not load faculty subjects"
+            description={loadError}
+            actionLabel="Try again"
+            onAction={() => refreshSubjects()}
+          />
+        ) : showEmpty ? (
           <SubjectEmptyState
             description={`Create your first subject using the ${facultySubjectLabels.add} button above.`}
           />

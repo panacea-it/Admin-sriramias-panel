@@ -5,23 +5,22 @@ import PageBanner from '../../components/figma/PageBanner'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import AddCourseModal from '../../components/courses/AddCourseModal'
 import BatchManagementTable from '../../components/batch-management/BatchManagementTable'
-import BatchBulkActionsBar from '../../components/batch-management/BatchBulkActionsBar'
 import ViewBatchModal from '../../components/courses/ViewBatchModal'
-import BulkChangeStatusModal from '../../components/batch-management/BulkChangeStatusModal'
 import BatchConfirmDialog from '../../components/batch-management/BatchConfirmDialog'
 import { useBatchManagementContext } from '../../contexts/BatchManagementContext'
 import { useEditModal } from '../../hooks/useEditModal'
 import { useBatchesData } from '../../hooks/useBatchesData'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
-import { mapCourseToApiPayload } from '../../utils/coursesApiMappers'
-import { batchRowToForm } from '../../utils/batchFormMappers'
-import {
-  mapBatchRowToTableFormat,
-  nextBatchId,
-} from '../../utils/batchHelpers'
+import { mapBatchRowToTableFormat } from '../../utils/batchHelpers'
 import { batchStatusFilterOptions } from '../../utils/batchOperations'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
-import { createCourse, updateCourse, deleteCourse } from '../../api/coursesAPI'
+import {
+  createBatch,
+  deleteBatch,
+  duplicateBatch,
+  updateBatch,
+  updateBatchStatus as patchBatchStatus,
+} from '../../api/batchesAPI'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
@@ -47,16 +46,6 @@ function resolveBatchDeleteId(batch) {
   return batch?.apiRow?.id ?? batch?.id
 }
 
-function resolveBatchesToDelete(deleteConfirm, selectedIds, tableBatches) {
-  if (!deleteConfirm) return []
-  if (deleteConfirm.bulk) {
-    return selectedIds
-      .map((id) => tableBatches.find((batch) => String(batch.id) === String(id)))
-      .filter(Boolean)
-  }
-  return [deleteConfirm]
-}
-
 function rowMatchesSearch(row, q) {
   if (!q) return true
   const courseName = row.linkedCourseName || row.program || 'Course'
@@ -77,7 +66,8 @@ export default function BatchesPage() {
   const navigate = useNavigate()
   const restored = location.state?.listState
 
-  const { sourceRows, loading, loadBatches, apiBatches, existingCourseIds } = useBatchesData()
+  const { sourceRows, loading, error: listError, loadBatches, apiBatches, existingCourseIds } =
+    useBatchesData()
   const { getStudentCount } = useBatchManagementContext()
   const { logBatchActivity } = useBatchAudit()
 
@@ -85,7 +75,6 @@ export default function BatchesPage() {
   const [statusFilter, setStatusFilter] = useState(restored?.statusFilter ?? 'all')
   const [tablePage, setTablePage] = useState(restored?.page ?? 1)
   const [tablePageSize, setTablePageSize] = useState(restored?.pageSize ?? 10)
-  const [selectedIds, setSelectedIds] = useState([])
 
   const modal = useEditModal()
   const [viewItem, setViewItem] = useState(null)
@@ -93,15 +82,19 @@ export default function BatchesPage() {
   const [statusUpdatingIds, setStatusUpdatingIds] = useState(() => new Set())
   const [actionLoading, setActionLoading] = useState(false)
 
-  const [archiveConfirm, setArchiveConfirm] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [bulkStatusOpen, setBulkStatusOpen] = useState(false)
 
   useEffect(() => {
     if (location.state?.listState) {
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [navigate, location.pathname, location.state?.listState])
+
+  useEffect(() => {
+    if (listError) {
+      toast.error(listError)
+    }
+  }, [listError])
 
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -139,9 +132,7 @@ export default function BatchesPage() {
     async (batch, nextStatus, { silent = false } = {}) => {
       const row = batch.apiRow ?? apiBatches.find((b) => b.id === batch.id)
       if (!row) return
-      const form = batchRowToForm(row)
-      const payload = mapCourseToApiPayload({ ...form, status: nextStatus }, row)
-      await updateCourse(row.id, payload)
+      await patchBatchStatus(row.id, nextStatus)
       logBatchActivity(row.id, {
         type: BATCH_AUDIT_TYPES.STATUS_CHANGED,
         message: `Status changed from ${batch.status} to ${nextStatus}`,
@@ -153,51 +144,35 @@ export default function BatchesPage() {
   )
 
   const handleSaveBatch = async (form, { isEdit, id, isDuplicate, duplicateFromId }) => {
-    const existing = isEdit ? apiBatches.find((b) => b.id === id) : null
-    const batchId =
-      isEdit && existing?.batchId
-        ? existing.batchId
-        : form.batchId?.trim() || nextBatchId(apiBatches)
-    const courseId = form.courseId || existing?.courseId
-    if (!courseId) {
+    if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
       toast.error('Please select a course')
       return
     }
-    const payload = mapCourseToApiPayload(
-      {
-        ...form,
-        batchId,
-        courseId,
-        academicCourseId: form.academicCourseId,
-        courseName: form.courseName,
-        status: form.status || 'Active',
-      },
-      existing,
-    )
 
     if (isEdit && id != null) {
-      await updateCourse(id, payload)
+      await updateBatch(id, form)
+    } else if (isDuplicate && duplicateFromId) {
+      const created = await duplicateBatch(duplicateFromId, {
+        batchName: form.batchName,
+        status: form.status || 'Active',
+      })
+      const source = apiBatches.find((b) => b.id === duplicateFromId)
+      logBatchActivity(created?.id, {
+        type: BATCH_AUDIT_TYPES.DUPLICATED,
+        message: source
+          ? `Duplicated from ${source.batchName || source.name}`
+          : 'Batch duplicated',
+      })
+      logBatchActivity(duplicateFromId, {
+        type: BATCH_AUDIT_TYPES.DUPLICATED,
+        message: `Cloned as "${form.batchName}"`,
+      })
     } else {
-      const created = await createCourse(payload)
-      const newId = created?.id
-      if (isDuplicate && duplicateFromId) {
-        const source = apiBatches.find((b) => b.id === duplicateFromId)
-        logBatchActivity(newId, {
-          type: BATCH_AUDIT_TYPES.DUPLICATED,
-          message: source
-            ? `Duplicated from ${source.batchName || source.name}`
-            : 'Batch duplicated',
-        })
-        logBatchActivity(duplicateFromId, {
-          type: BATCH_AUDIT_TYPES.DUPLICATED,
-          message: `Cloned as "${form.batchName}"`,
-        })
-      } else {
-        logBatchActivity(newId, {
-          type: BATCH_AUDIT_TYPES.CREATED,
-          message: `Batch "${form.batchName}" created`,
-        })
-      }
+      const created = await createBatch(form)
+      logBatchActivity(created?.id, {
+        type: BATCH_AUDIT_TYPES.CREATED,
+        message: `Batch "${form.batchName}" created`,
+      })
     }
     await loadBatches()
   }
@@ -251,139 +226,37 @@ export default function BatchesPage() {
     setViewItem(row)
   }, [])
 
-  const handleArchive = async (batch) => {
-    setActionLoading(true)
-    try {
-      await updateBatchStatus(batch, 'Archived', { silent: true })
-      logBatchActivity(batch.id, {
-        type: BATCH_AUDIT_TYPES.ARCHIVED,
-        message: 'Batch archived',
-      })
-      toast.success('Batch archived')
-      setArchiveConfirm(null)
-    } catch {
-      toast.error('Failed to archive batch')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   const handleDelete = async () => {
     if (!deleteConfirm || actionLoading) return
 
-    const toDelete = resolveBatchesToDelete(deleteConfirm, selectedIds, tableBatches)
-    if (toDelete.length === 0) {
-      toast.error('No batches selected for deletion')
+    const id = resolveBatchDeleteId(deleteConfirm)
+    if (!id) {
+      toast.error('Missing batch id')
       return
     }
 
     setActionLoading(true)
-    const succeeded = []
-    const failed = []
-
     try {
-      for (const batch of toDelete) {
-        const id = resolveBatchDeleteId(batch)
-        if (!id) {
-          failed.push({ batch, error: new Error('Missing batch id') })
-          continue
-        }
-        try {
-          await deleteCourse(id)
-          logBatchActivity(id, {
-            type: BATCH_AUDIT_TYPES.DELETED,
-            message: 'Batch deleted',
-          })
-          succeeded.push(batch)
-        } catch (error) {
-          failed.push({ batch, error })
-        }
-      }
+      await deleteBatch(id)
+      logBatchActivity(id, {
+        type: BATCH_AUDIT_TYPES.DELETED,
+        message: 'Batch deleted',
+      })
 
-      if (succeeded.length > 0) {
-        const deletedIds = new Set(succeeded.map((batch) => String(batch.id)))
-        setSelectedIds((prev) => prev.filter((id) => !deletedIds.has(String(id))))
+      const remainingCount = filteredRows.filter(
+        (row) => String(row.id) !== String(deleteConfirm.id),
+      ).length
+      const maxPage = Math.max(1, Math.ceil(remainingCount / tablePageSize) || 1)
+      if (tablePage > maxPage) setTablePage(maxPage)
 
-        const remainingCount = filteredRows.filter(
-          (row) => !deletedIds.has(String(row.id)),
-        ).length
-        const maxPage = Math.max(1, Math.ceil(remainingCount / tablePageSize) || 1)
-        if (tablePage > maxPage) setTablePage(maxPage)
-
-        await loadBatches({ silent: true })
-      }
-
-      if (failed.length === 0) {
-        toast.success(
-          succeeded.length > 1
-            ? `${succeeded.length} batches deleted`
-            : 'Batch deleted',
-        )
-        setDeleteConfirm(null)
-      } else if (succeeded.length > 0) {
-        toast.error(
-          `${succeeded.length} batch(es) deleted, ${failed.length} failed. ${getApiErrorMessage(failed[0].error, 'Delete failed')}`,
-        )
-        setDeleteConfirm(null)
-      } else {
-        toast.error(getApiErrorMessage(failed[0].error, 'Failed to delete batch'))
-      }
+      await loadBatches({ silent: true })
+      toast.success('Batch deleted')
+      setDeleteConfirm(null)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete batch'))
     } finally {
       setActionLoading(false)
     }
-  }
-
-  const handleBulkStatus = async (bulkStatusValue) => {
-    const batches = tableBatches.filter((b) => selectedIds.includes(String(b.id)))
-    setActionLoading(true)
-    try {
-      for (const batch of batches) {
-        await updateBatchStatus(batch, bulkStatusValue, { silent: true })
-      }
-      toast.success(`Status updated for ${batches.length} batch(es)`)
-      setBulkStatusOpen(false)
-      setSelectedIds([])
-    } catch {
-      toast.error('Bulk status update failed')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleBulkArchive = async () => {
-    const batches = tableBatches.filter((b) => selectedIds.includes(String(b.id)))
-    setActionLoading(true)
-    try {
-      for (const batch of batches) {
-        await updateBatchStatus(batch, 'Archived', { silent: true })
-        logBatchActivity(batch.id, {
-          type: BATCH_AUDIT_TYPES.ARCHIVED,
-          message: 'Batch archived (bulk)',
-        })
-      }
-      toast.success(`${batches.length} batch(es) archived`)
-      setArchiveConfirm(null)
-      setSelectedIds([])
-      await loadBatches()
-    } catch {
-      toast.error('Bulk archive failed')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }
-
-  const toggleSelectAll = (pageIds, selectAll) => {
-    setSelectedIds((prev) => {
-      if (!selectAll) return prev.filter((id) => !pageIds.includes(id))
-      const merged = new Set([...prev, ...pageIds])
-      return Array.from(merged)
-    })
   }
 
   return (
@@ -413,18 +286,6 @@ export default function BatchesPage() {
             setTablePage(1)
           }}
           statusOptions={batchStatusFilterOptions()}
-        />
-
-        <BatchBulkActionsBar
-          selectedCount={selectedIds.length}
-          onClearSelection={() => setSelectedIds([])}
-          onChangeStatus={() => setBulkStatusOpen(true)}
-          onArchive={() => setArchiveConfirm({ bulk: true, count: selectedIds.length })}
-          onDelete={() => {
-            if (actionLoading || selectedIds.length === 0) return
-            setDeleteConfirm({ bulk: true, count: selectedIds.length })
-          }}
-          disabled={actionLoading}
         />
 
         {loading ? (
@@ -470,9 +331,6 @@ export default function BatchesPage() {
             onEditBatch={handleEditBatch}
             onQuickViewBatch={handleQuickView}
             resetDeps={[search, statusFilter]}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
             onStatusChange={handleStatusChange}
             statusUpdatingIds={statusUpdatingIds}
             onDuplicate={handleDuplicateBatch}
@@ -500,44 +358,12 @@ export default function BatchesPage() {
       />
 
       <BatchConfirmDialog
-        open={Boolean(archiveConfirm)}
-        title={archiveConfirm?.bulk ? 'Archive selected batches?' : 'Archive batch?'}
-        message={
-          archiveConfirm?.bulk
-            ? `Archive ${archiveConfirm.count} selected batch(es)? They remain viewable under Archived status.`
-            : archiveConfirm
-              ? `Archive "${archiveConfirm.displayName}"? You can still view it when filtered by Archived status.`
-              : ''
-        }
-        confirmLabel="Archive"
-        variant="warning"
-        loading={actionLoading}
-        loadingLabel="Archiving…"
-        onClose={() => setArchiveConfirm(null)}
-        onConfirm={() =>
-          archiveConfirm?.bulk
-            ? handleBulkArchive()
-            : archiveConfirm && handleArchive(archiveConfirm)
-        }
-      />
-
-      <BulkChangeStatusModal
-        open={bulkStatusOpen}
-        onClose={() => setBulkStatusOpen(false)}
-        count={selectedIds.length}
-        onSubmit={handleBulkStatus}
-        saving={actionLoading}
-      />
-
-      <BatchConfirmDialog
         open={Boolean(deleteConfirm)}
-        title={deleteConfirm?.bulk ? 'Delete selected batches?' : 'Delete batch?'}
+        title="Delete batch?"
         message={
-          deleteConfirm?.bulk
-            ? `Permanently delete ${deleteConfirm.count} selected batch(es)? This cannot be undone.`
-            : deleteConfirm
-              ? `Permanently delete "${deleteConfirm.displayName}"? This cannot be undone.`
-              : ''
+          deleteConfirm
+            ? `Permanently delete "${deleteConfirm.displayName}"? This cannot be undone.`
+            : ''
         }
         confirmLabel="Delete"
         variant="danger"

@@ -185,7 +185,7 @@ export default function ExamSubCategoryFormModal({
   const title = isEdit ? 'Edit Exam Sub-Category' : 'Add Exam Sub-Category'
 
   return (
-    <Modal open={open} onClose={handleClose} size="md" title={title}>
+    <Modal open={open} onClose={handleClose} size="md" title={title} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
@@ -194,6 +194,7 @@ export default function ExamSubCategoryFormModal({
           title={title}
           onClose={handleClose}
           closeVariant="icon"
+          plainCloseIcon
           icon={FolderTree}
           iconClassName="text-[#246392]"
         />

@@ -1,23 +1,24 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Eye, LayoutGrid, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { LayoutGrid } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CategoryBreadcrumb from '../../components/categories/CategoryBreadcrumb'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
-import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
+import { BannerButton } from '../../components/academics/AcademicsUi'
 import AdminRoleFormModal from '../../components/admin-management/roles/AdminRoleFormModal'
 import AdminRoleViewModal from '../../components/admin-management/roles/AdminRoleViewModal'
 import ConfirmRoleDeleteModal from '../../components/admin-management/roles/ConfirmRoleDeleteModal'
 import ConfirmRoleStatusModal from '../../components/admin-management/roles/ConfirmRoleStatusModal'
+import RoleBulkActionsBar from '../../components/admin-management/roles/RoleBulkActionsBar'
+import RoleManagementTable from '../../components/admin-management/roles/RoleManagementTable'
+import RoleTableActions from '../../components/admin-management/roles/RoleTableActions'
 import { useRoleManagement } from '../../hooks/useRoleManagement'
 import { useApiRolesCatalogSync, syncApiRolesCatalog } from '../../hooks/useApiRolesCatalogSync'
+import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { useAdminRolesSafe } from '../../contexts/AdminRolesContext'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { deleteRole as deleteRoleApi, updateRole as updateRoleApi } from '../../services/roleService'
-import { cn } from '../../utils/cn'
 
 const BREADCRUMB = [
   { label: 'Admin Management' },
@@ -30,50 +31,12 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'In Active' },
 ]
 
-function roleStatus(role) {
-  return role.enabled ? 'Active' : 'In Active'
-}
-
 function canToggleRoleStatus(role) {
   return role && !role.systemProtected && !role.fullAccess
 }
 
-function RoleAccessTableActions({ onView, onEdit, onDelete, canDelete }) {
-  return (
-    <div className="flex items-center gap-1.5 sm:gap-2">
-      <button
-        type="button"
-        onClick={onView}
-        title="View"
-        aria-label="View"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392]"
-      >
-        <Eye className="h-4 w-4" strokeWidth={2.2} />
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label="Edit"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392]"
-      >
-        <Pencil className="h-4 w-4" strokeWidth={2.2} />
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={!canDelete}
-        title="Delete"
-        aria-label="Delete"
-        className={cn(
-          'inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700',
-          !canDelete && 'cursor-not-allowed opacity-40 hover:bg-transparent',
-        )}
-      >
-        <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-      </button>
-    </div>
-  )
+function canDeleteRole(role) {
+  return role && !role.systemProtected && !role.fullAccess
 }
 
 export default function RoleAccessPage() {
@@ -98,12 +61,16 @@ export default function RoleAccessPage() {
     patchRoleLocally,
   } = useRoleManagement()
 
+  const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
+
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [viewingId, setViewingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
+  const [bulkDisableIds, setBulkDisableIds] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
 
@@ -119,6 +86,22 @@ export default function RoleAccessPage() {
       onPageSizeChange: setPageSize,
     }),
     [pagination, setPage, setPageSize],
+  )
+
+  const selectedRoles = useMemo(
+    () => roles.filter((role) => selectedIds.includes(role.id)),
+    [roles, selectedIds],
+  )
+
+  const bulkDisableCount = useMemo(
+    () =>
+      selectedRoles.filter((role) => role.enabled && canToggleRoleStatus(role)).length,
+    [selectedRoles],
+  )
+
+  const bulkDeleteCount = useMemo(
+    () => selectedRoles.filter((role) => canDeleteRole(role)).length,
+    [selectedRoles],
   )
 
   const openCreate = useCallback(() => {
@@ -141,10 +124,13 @@ export default function RoleAccessPage() {
     await syncApiRolesCatalog(adminRoles?.mergeApiRoles)
   }, [refreshRoles, adminRoles?.mergeApiRoles])
 
-  const handleStatusToggleRequest = useCallback((row) => {
-    if (!canToggleRoleStatus(row) || statusUpdatingId) return
-    setStatusTarget(row)
-  }, [statusUpdatingId])
+  const handleStatusToggleRequest = useCallback(
+    (row) => {
+      if (!canToggleRoleStatus(row) || statusUpdatingId) return
+      setStatusTarget(row)
+    },
+    [statusUpdatingId],
+  )
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -179,7 +165,105 @@ export default function RoleAccessPage() {
     }
   }, [statusTarget, patchRoleLocally, refreshRolesAndCatalog])
 
+  const confirmBulkDisable = useCallback(async () => {
+    if (!bulkDisableIds?.length) return
+
+    const targets = roles.filter(
+      (role) =>
+        bulkDisableIds.includes(role.id) && role.enabled && canToggleRoleStatus(role),
+    )
+
+    if (!targets.length) {
+      setBulkDisableIds(null)
+      return
+    }
+
+    setStatusLoading(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const role of targets) {
+      setStatusUpdatingId(role.id)
+      patchRoleLocally(role.id, { enabled: false, status: 'INACTIVE' })
+      try {
+        await updateRoleApi(role.id, {
+          roleTitle: role.label,
+          roleCode: role.roleCode,
+          status: 'INACTIVE',
+        })
+        successCount += 1
+      } catch (error) {
+        failCount += 1
+        patchRoleLocally(role.id, { enabled: role.enabled, status: role.enabled ? 'ACTIVE' : 'INACTIVE' })
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+      } finally {
+        setStatusUpdatingId(null)
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(successCount === 1 ? 'Role deactivated' : `${successCount} roles deactivated`)
+    }
+    if (failCount > 0) {
+      toast.error(
+        failCount === 1
+          ? 'Failed to deactivate 1 role'
+          : `Failed to deactivate ${failCount} roles`,
+      )
+    }
+
+    setBulkDisableIds(null)
+    clearSelection()
+    await refreshRolesAndCatalog()
+    setStatusLoading(false)
+  }, [bulkDisableIds, roles, patchRoleLocally, clearSelection, refreshRolesAndCatalog])
+
   const confirmDelete = useCallback(async () => {
+    if (bulkDeleteIds?.length) {
+      const targets = roles.filter(
+        (role) => bulkDeleteIds.includes(role.id) && canDeleteRole(role),
+      )
+
+      if (!targets.length) {
+        setBulkDeleteIds(null)
+        return
+      }
+
+      setDeleteLoading(true)
+      let successCount = 0
+      let failCount = 0
+
+      for (const role of targets) {
+        try {
+          await deleteRoleApi(role.id)
+          removeRoleLocally(role.id)
+          successCount += 1
+        } catch (error) {
+          failCount += 1
+          if (import.meta.env.DEV) {
+            console.error(error)
+          }
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(successCount === 1 ? 'Role deleted' : `${successCount} roles deleted`)
+      }
+      if (failCount > 0) {
+        toast.error(
+          failCount === 1 ? 'Unable to delete 1 role' : `Unable to delete ${failCount} roles`,
+        )
+      }
+
+      setBulkDeleteIds(null)
+      clearSelection()
+      await refreshRolesAndCatalog()
+      setDeleteLoading(false)
+      return
+    }
+
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
@@ -196,7 +280,22 @@ export default function RoleAccessPage() {
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeRoleLocally, refreshRolesAndCatalog])
+  }, [bulkDeleteIds, roles, deleteTarget, removeRoleLocally, clearSelection, refreshRolesAndCatalog])
+
+  const renderRowActions = useCallback(
+    (row) => (
+      <RoleTableActions
+        row={row}
+        onView={() => setViewingId(row.id)}
+        onEdit={() => openEdit(row)}
+        onStatusToggle={() => handleStatusToggleRequest(row)}
+        onDelete={() => setDeleteTarget(row)}
+        canToggle={canToggleRoleStatus(row)}
+        canDelete={canDeleteRole(row)}
+      />
+    ),
+    [openEdit, handleStatusToggleRequest],
+  )
 
   const emptyMessage = useMemo(() => {
     if (loading) return null
@@ -217,92 +316,17 @@ export default function RoleAccessPage() {
     </div>
   ) : undefined
 
-  const columns = useMemo(
-    () => [
-      {
-        key: 'num',
-        label: '#',
-        headerClassName: 'w-14 pl-6 sm:pl-8',
-        cellClassName: 'pl-6 sm:pl-8 text-slate-500 tabular-nums',
-        render: (row) => {
-          const index = roles.findIndex((r) => r.id === row.id)
-          return index >= 0 ? pagination.startIndex + index + 1 : '—'
-        },
-      },
-      {
-        key: 'label',
-        label: 'Role Title (Display)',
-        render: (row) => (
-          <span className="font-semibold text-slate-900">{row.label}</span>
-        ),
-      },
-      {
-        key: 'code',
-        label: 'Role Code',
-        render: (row) => (
-          <span className="font-mono text-sm tracking-wide text-[#246392]">
-            {row.roleCode || '—'}
-          </span>
-        ),
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (row) => {
-          const isUpdating = statusUpdatingId === row.id
-          const toggleable = canToggleRoleStatus(row)
+  const handleBulkDisable = useCallback(() => {
+    const ids = selectedRoles
+      .filter((role) => role.enabled && canToggleRoleStatus(role))
+      .map((role) => role.id)
+    if (ids.length) setBulkDisableIds(ids)
+  }, [selectedRoles])
 
-          if (isUpdating) {
-            return (
-              <span className="inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                Updating
-              </span>
-            )
-          }
-
-          if (!toggleable) {
-            return <StatusBadge status={roleStatus(row)} />
-          }
-
-          return (
-            <button
-              type="button"
-              onClick={() => handleStatusToggleRequest(row)}
-              className="rounded-md transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
-              title="Click to change status"
-            >
-              <StatusBadge status={roleStatus(row)} />
-            </button>
-          )
-        },
-      },
-      {
-        key: 'createdAt',
-        label: 'Created On',
-        render: (row) => (
-          <span className="whitespace-nowrap text-slate-500">
-            {row.createdAt ? formatCategoryDateTime(row.createdAt) : '—'}
-          </span>
-        ),
-      },
-      {
-        key: 'actions',
-        label: 'Actions',
-        headerClassName: 'pr-6 sm:pr-8',
-        cellClassName: 'pr-6 sm:pr-8',
-        render: (row) => (
-          <RoleAccessTableActions
-            onView={() => setViewingId(row.id)}
-            onEdit={() => openEdit(row)}
-            onDelete={() => setDeleteTarget(row)}
-            canDelete={!row.systemProtected && !row.fullAccess}
-          />
-        ),
-      },
-    ],
-    [roles, pagination.startIndex, openEdit, handleStatusToggleRequest, statusUpdatingId],
-  )
+  const handleBulkDelete = useCallback(() => {
+    const ids = selectedRoles.filter((role) => canDeleteRole(role)).map((role) => role.id)
+    if (ids.length) setBulkDeleteIds(ids)
+  }, [selectedRoles])
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
@@ -329,18 +353,29 @@ export default function RoleAccessPage() {
             disabled={loading && roles.length === 0}
           />
 
+          {selectedIds.length > 0 && (
+            <RoleBulkActionsBar
+              className="mt-4"
+              count={selectedIds.length}
+              disableCount={bulkDisableCount}
+              deleteCount={bulkDeleteCount}
+              onDisable={handleBulkDisable}
+              onDelete={handleBulkDelete}
+            />
+          )}
+
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={roles}
+            <RoleManagementTable
+              roles={roles}
+              loading={loading}
+              controlledPagination={controlledPagination}
+              selection={selection}
+              resetDeps={[search, statusFilter]}
               emptyMessage={emptyMessage}
               emptyState={emptyState}
-              itemLabel="roles"
-              loading={loading}
-              skeletonRowCount={pageSize}
-              rowClassName="hover:bg-slate-50/90"
-              controlledPagination={controlledPagination}
-              tableClassName="rounded-none border-0 shadow-none"
+              paginationStartIndex={pagination.startIndex}
+              statusUpdatingId={statusUpdatingId}
+              renderActions={renderRowActions}
             />
           </div>
         </div>
@@ -358,19 +393,31 @@ export default function RoleAccessPage() {
         onClose={() => setViewingId(null)}
       />
       <ConfirmRoleDeleteModal
-        open={!!deleteTarget}
+        open={!!deleteTarget || !!bulkDeleteIds?.length}
         roleLabel={deleteTarget?.label}
+        bulkCount={bulkDeleteIds?.length || 0}
         loading={deleteLoading}
-        onCancel={() => !deleteLoading && setDeleteTarget(null)}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteTarget(null)
+            setBulkDeleteIds(null)
+          }
+        }}
         onConfirm={confirmDelete}
       />
       <ConfirmRoleStatusModal
-        open={!!statusTarget}
+        open={!!statusTarget || !!bulkDisableIds?.length}
         roleLabel={statusTarget?.label || 'this role'}
-        enabling={!statusTarget?.enabled}
+        bulkCount={bulkDisableIds?.length || 0}
+        enabling={bulkDisableIds?.length ? false : !statusTarget?.enabled}
         loading={statusLoading}
-        onCancel={() => !statusLoading && setStatusTarget(null)}
-        onConfirm={confirmStatusChange}
+        onCancel={() => {
+          if (!statusLoading) {
+            setStatusTarget(null)
+            setBulkDisableIds(null)
+          }
+        }}
+        onConfirm={bulkDisableIds?.length ? confirmBulkDisable : confirmStatusChange}
       />
     </div>
   )

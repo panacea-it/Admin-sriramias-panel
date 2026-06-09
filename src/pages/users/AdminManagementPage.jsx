@@ -1,31 +1,27 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Eye, Plus, Shield, Trash2 } from 'lucide-react'
+import { Plus, Shield } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import CreateAdminModal from '../../components/admin-management/CreateAdminModal'
 import ViewAdminDrawer from '../../components/admin-management/ViewAdminDrawer'
 import ConfirmAdminDeleteModal from '../../components/admin-management/ConfirmAdminDeleteModal'
 import ConfirmAdminStatusModal from '../../components/admin-management/ConfirmAdminStatusModal'
-import EditButton from '../../components/common/EditButton'
-import { StatusBadge } from '../../components/academics/AcademicsUi'
+import AdminBulkActionsBar from '../../components/admin-management/AdminBulkActionsBar'
+import AdminManagementTable from '../../components/admin-management/AdminManagementTable'
+import AdminTableActions from '../../components/admin-management/AdminTableActions'
 import { useAdminManagement } from '../../hooks/useAdminManagement'
-import { useApiRolesCatalogSync } from '../../hooks/useApiRolesCatalogSync'
 import { useRolesDropdown } from '../../hooks/useRolesDropdown'
 import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../utils/apiError'
 import {
   deleteAdminUser,
   updateAdminStatus,
 } from '../../services/adminAccessService'
-import { cn } from '../../utils/cn'
 
 export default function AdminManagementPage() {
-  useApiRolesCatalogSync()
-
   const {
     users,
     loading,
@@ -54,12 +50,17 @@ export default function AdminManagementPage() {
     error: centersDropdownError,
     refresh: refreshCentersDropdown,
   } = useCentersDropdownOptions()
+
+  const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
+
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [viewingId, setViewingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
+  const [bulkDisableIds, setBulkDisableIds] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
 
   const roleFilterOptions = useMemo(
@@ -76,6 +77,11 @@ export default function AdminManagementPage() {
       ...(Array.isArray(centerDropdownOptions) ? centerDropdownOptions : []),
     ],
     [centerDropdownOptions],
+  )
+
+  const selectedActiveCount = useMemo(
+    () => users.filter((u) => selectedIds.includes(u.id) && u.status === 'Active').length,
+    [users, selectedIds],
   )
 
   const openCreate = () => {
@@ -98,6 +104,44 @@ export default function AdminManagementPage() {
   }, [refreshUsers])
 
   const confirmDelete = async () => {
+    if (bulkDeleteIds?.length) {
+      setDeleteLoading(true)
+      let successCount = 0
+      let failCount = 0
+
+      for (const id of bulkDeleteIds) {
+        try {
+          await deleteAdminUser(id)
+          removeUserLocally(id)
+          successCount += 1
+        } catch (error) {
+          failCount += 1
+          if (import.meta.env.DEV) {
+            console.error(error)
+          }
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? 'User access deleted' : `${successCount} user access records deleted`,
+        )
+      }
+      if (failCount > 0) {
+        toast.error(
+          failCount === 1
+            ? 'Failed to delete 1 user access record'
+            : `Failed to delete ${failCount} user access records`,
+        )
+      }
+
+      setBulkDeleteIds(null)
+      clearSelection()
+      await refreshUsers()
+      setDeleteLoading(false)
+      return
+    }
+
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
@@ -150,69 +194,69 @@ export default function AdminManagementPage() {
     }
   }
 
-  const columns = useMemo(
-    () => [
-      {
-        key: 'employeeName',
-        label: 'Employee Name',
-        headerClassName: 'pl-6 sm:pl-10',
-        cellClassName: 'pl-6 sm:pl-10 font-medium',
-      },
-      {
-        key: 'employeeId',
-        label: 'Employee Number / Employee ID',
-      },
-      {
-        key: 'roleTitle',
-        label: 'Role Title',
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (row) => (
-          <button
-            type="button"
-            onClick={() => handleStatusToggleRequest(row)}
-            className={cn('rounded-md transition hover:opacity-90')}
-            title="Click to change status"
-          >
-            <StatusBadge status={row.status} />
-          </button>
-        ),
-      },
-      {
-        key: 'createdAt',
-        label: 'Created Date',
-        render: (row) => (
-          <span className="text-[#686868]">{formatCategoryDateTime(row.createdAt)}</span>
-        ),
-      },
-      {
-        key: 'actions',
-        label: 'Actions',
-        render: (row) => (
-          <div className="flex flex-nowrap items-center gap-3 sm:gap-4">
-            <button
-              type="button"
-              onClick={() => setViewingId(row.id)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-[#686868] transition hover:text-[#246392] sm:text-base"
-            >
-              <Eye className="h-4 w-4" strokeWidth={2.2} />
-              View
-            </button>
-            <EditButton onClick={() => openEdit(row)} />
-            <button
-              type="button"
-              onClick={() => setDeleteTarget(row)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-[#c96565] transition hover:text-[#b94b4b] sm:text-base"
-            >
-              <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-              Delete
-            </button>
-          </div>
-        ),
-      },
-    ],
+  const confirmBulkDisable = async () => {
+    if (!bulkDisableIds?.length) return
+
+    const targets = users.filter(
+      (row) => bulkDisableIds.includes(row.id) && row.status === 'Active',
+    )
+
+    if (!targets.length) {
+      setBulkDisableIds(null)
+      return
+    }
+
+    setStatusLoading(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const row of targets) {
+      patchUserLocally(row.id, {
+        status: 'In Active',
+        accountStatus: false,
+      })
+      try {
+        await updateAdminStatus(row.id, false)
+        successCount += 1
+      } catch (error) {
+        failCount += 1
+        patchUserLocally(row.id, {
+          status: row.status,
+          accountStatus: row.accountStatus,
+        })
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(successCount === 1 ? 'Account disabled' : `${successCount} accounts disabled`)
+    }
+    if (failCount > 0) {
+      toast.error(
+        failCount === 1
+          ? 'Failed to disable 1 account'
+          : `Failed to disable ${failCount} accounts`,
+      )
+    }
+
+    setBulkDisableIds(null)
+    clearSelection()
+    await refreshUsers()
+    setStatusLoading(false)
+  }
+
+  const renderRowActions = useCallback(
+    (row) => (
+      <AdminTableActions
+        row={row}
+        onView={() => setViewingId(row.id)}
+        onEdit={() => openEdit(row)}
+        onStatusToggle={() => handleStatusToggleRequest(row)}
+        onDelete={() => setDeleteTarget(row)}
+      />
+    ),
     [],
   )
 
@@ -263,20 +307,32 @@ export default function AdminManagementPage() {
         <ViewAdminDrawer open={!!viewingId} adminAccessId={viewingId} onClose={() => setViewingId(null)} />
 
         <ConfirmAdminDeleteModal
-          open={!!deleteTarget}
+          open={!!deleteTarget || !!bulkDeleteIds?.length}
           employeeName={deleteTarget?.employeeName}
+          bulkCount={bulkDeleteIds?.length || 0}
           loading={deleteLoading}
-          onCancel={() => !deleteLoading && setDeleteTarget(null)}
+          onCancel={() => {
+            if (!deleteLoading) {
+              setDeleteTarget(null)
+              setBulkDeleteIds(null)
+            }
+          }}
           onConfirm={confirmDelete}
         />
 
         <ConfirmAdminStatusModal
-          open={!!statusTarget}
+          open={!!statusTarget || !!bulkDisableIds?.length}
           employeeName={statusTarget?.employeeName}
-          enabling={statusTarget?.status !== 'Active'}
+          bulkCount={bulkDisableIds?.length || 0}
+          enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'Active'}
           loading={statusLoading}
-          onCancel={() => !statusLoading && setStatusTarget(null)}
-          onConfirm={confirmStatusChange}
+          onCancel={() => {
+            if (!statusLoading) {
+              setStatusTarget(null)
+              setBulkDisableIds(null)
+            }
+          }}
+          onConfirm={bulkDisableIds?.length ? confirmBulkDisable : confirmStatusChange}
         />
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
@@ -316,19 +372,26 @@ export default function AdminManagementPage() {
             </div>
           )}
 
+          {selectedIds.length > 0 && (
+            <AdminBulkActionsBar
+              className="mt-4"
+              count={selectedIds.length}
+              disableCount={selectedActiveCount}
+              onDisable={() => setBulkDisableIds([...selectedIds])}
+              onDelete={() => setBulkDeleteIds([...selectedIds])}
+            />
+          )}
+
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={users}
+            <AdminManagementTable
+              users={users}
+              loading={loading}
+              controlledPagination={pagination}
+              selection={selection}
+              resetDeps={[search, roleFilter, centerFilter, statusFilter]}
               emptyMessage={emptyMessage}
               emptyState={emptyState}
-              itemLabel="employees"
-              loading={loading}
-              skeletonRowCount={8}
-              controlledPagination={pagination}
-              resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-              rowClassName="hover:bg-slate-50/90"
-              tableClassName="rounded-none border-0 shadow-none"
+              renderActions={renderRowActions}
             />
           </div>
         </div>

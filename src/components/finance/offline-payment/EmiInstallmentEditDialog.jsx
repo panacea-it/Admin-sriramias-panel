@@ -50,8 +50,15 @@ export default function EmiInstallmentEditDialog({ open, row, onClose, onSave })
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Customize installment">
-      <form onSubmit={handleSubmit} className="max-h-[70vh] space-y-3 overflow-y-auto p-5">
+    <Modal open={open} onClose={onClose} size="md" title="Customize installment" showCloseButton={false}>
+      <div className="overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
+        <ModalPanelHeader
+          title="Customize installment"
+          subtitle={row ? `Installment #${row.installmentNo}` : undefined}
+          onClose={onClose}
+          closeVariant="icon"
+        />
+        <form onSubmit={handleSubmit} className="max-h-[70vh] space-y-3 overflow-y-auto p-5">
         <p className="rounded-lg bg-[#eef6fc] px-3 py-2 text-xs text-[#246392]">
           Adjust amount, due date, fees, or discounts. Enable rebalance to auto-adjust remaining
           installments to match pending balance.
@@ -205,6 +212,7 @@ export default function EmiInstallmentEditDialog({ open, row, onClose, onSave })
           </button>
         </div>
       </form>
+      </div>
     </Modal>
   )
 }

@@ -39,16 +39,17 @@ export default function VerificationRejectDialog({ open, row, onClose, onConfirm
   if (!row) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Reject payment">
+    <Modal open={open} onClose={onClose} size="md" title="Reject payment" showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
           title="Reject payment verification"
-          onBack={onClose}
+          onClose={onClose}
           icon={XCircle}
           iconClassName="text-[#df8284]"
+          closeVariant="icon"
         />
         <div className="space-y-4 p-5 sm:p-6">
           <p className="text-sm text-[#686868]">

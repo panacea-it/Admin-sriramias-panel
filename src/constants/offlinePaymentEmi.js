@@ -34,7 +34,9 @@ export const EMI_DURATION_PRESETS = [
   { id: '6', months: 6, label: '6 Months' },
   { id: '9', months: 9, label: '9 Months' },
   { id: '12', months: 12, label: '12 Months' },
-  { id: 'custom', months: null, label: 'Custom Plan' },
+  { id: '18', months: 18, label: '18 Months' },
+  { id: '24', months: 24, label: '24 Months' },
+  { id: 'custom', months: null, label: 'Custom' },
 ]
 
 export const OFFLINE_SUBMIT_ACTIONS = {

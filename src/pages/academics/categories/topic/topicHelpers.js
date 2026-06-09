@@ -31,12 +31,35 @@ function formatDisplayId(row, fallbackId) {
   return String(raw)
 }
 
+function looksLikeObjectId(value) {
+  return /^[a-f0-9]{24}$/i.test(String(value || '').trim())
+}
+
 function resolveSubjectLabel(row) {
-  if (typeof row?.subject === 'string') return row.subject
+  const explicitName = String(row?.subjectName ?? '').trim()
+  if (explicitName && !looksLikeObjectId(explicitName)) return explicitName
+
   if (row?.subject && typeof row.subject === 'object') {
-    return String(row.subject.subjectName ?? row.subject.name ?? '').trim()
+    const name = String(row.subject.subjectName ?? row.subject.name ?? '').trim()
+    if (name && !looksLikeObjectId(name)) return name
   }
-  return String(row?.subjectName ?? '').trim()
+
+  if (typeof row?.subject === 'string') {
+    const label = row.subject.trim()
+    if (label && !looksLikeObjectId(label)) return label
+  }
+
+  return ''
+}
+
+export function resolveTopicSubjectDisplay(row, subjectNameById = {}) {
+  const mapped = resolveSubjectLabel(row)
+  if (mapped) return mapped
+
+  const subjectId = String(row?.subjectId ?? resolveSubjectId(row) ?? '').trim()
+  if (subjectId && subjectNameById[subjectId]) return subjectNameById[subjectId]
+
+  return '—'
 }
 
 function resolveSubjectId(row) {

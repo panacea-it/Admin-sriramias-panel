@@ -100,7 +100,12 @@ export default function SubjectModal({
       seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
     }
     if (seeded.subject) {
-      loadCreateFormOptions(seeded.subject)
+      loadCreateFormOptions(seeded.subject, { merge: isEdit }).then((formOptions) => {
+        const label = formOptions?.selectedSubject?.label
+        if (label && !seeded.subjectName?.trim()) {
+          setValue('subjectName', label)
+        }
+      })
     }
   })
 
@@ -108,13 +113,23 @@ export default function SubjectModal({
   const watchedSubjectId = watch('subject')
   const isRecurringEdit = isEdit && Boolean(liveClass?.recurrenceSeriesId)
 
-  const handleSubjectChange = (subjectId) => {
+  const handleSubjectChange = async (subjectId) => {
     const id = String(subjectId || '')
-    if (!id || id === lastSubjectRef.current) return
+    if (id === lastSubjectRef.current) return
     lastSubjectRef.current = id
     setValue('teacher', '')
     setValue('topics', [])
-    loadCreateFormOptions(id, { force: true })
+    if (!id) {
+      await loadCreateFormOptions('')
+      return
+    }
+    const selected = subjectOptions.find((o) => o.value === id)
+    const formOptions = await loadCreateFormOptions(id, { force: true })
+    const subjectLabel =
+      formOptions?.selectedSubject?.label || selected?.label || ''
+    if (subjectLabel && !watch('subjectName')?.trim()) {
+      setValue('subjectName', subjectLabel)
+    }
   }
 
   const handleRecurringToggle = (enabled) => {
@@ -277,7 +292,7 @@ export default function SubjectModal({
             if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
               seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
             }
-            if (seeded.subject) loadCreateFormOptions(seeded.subject)
+            if (seeded.subject) loadCreateFormOptions(seeded.subject, { merge: isEdit })
           }}
         />
       </form>

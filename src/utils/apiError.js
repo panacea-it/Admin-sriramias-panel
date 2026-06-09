@@ -19,9 +19,13 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong') {
 
 export function isRateLimitError(error) {
   if (!error) return false
-  if (error.response?.status === 429) return true
+  if (error.response?.status === 429 || error.status === 429) return true
   const msg = getApiErrorMessage(error, '').toLowerCase()
-  return msg.includes('too many requests') || msg.includes('429')
+  return (
+    msg.includes('too many requests') ||
+    msg.includes('rate limit') ||
+    msg.includes('429')
+  )
 }
 
 export function throwApiError(error) {

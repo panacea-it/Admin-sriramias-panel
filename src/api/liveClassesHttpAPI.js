@@ -31,6 +31,7 @@ export async function createLiveClass(payload) {
     const response = await axiosInstance.post(BASE, payload)
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -43,6 +44,7 @@ export async function updateLiveClass(liveClassId, payload) {
     )
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }

@@ -4,6 +4,7 @@ import {
   getFacultySubjectContentSeed,
 } from '../data/facultySubjectContentSeed'
 import { buildSystemCategoriesFromSubject } from './facultySubjectHierarchy'
+import { generateMongoObjectId, isMongoObjectId } from './facultySubjectHelpers'
 
 const STORAGE_KEY = 'faculty_subject_content_v3'
 const LEGACY_KEYS = ['faculty_subject_content_v1', 'faculty_subject_content_v2']
@@ -81,8 +82,11 @@ function normalizeItem(item) {
 }
 
 function normalizeFolder(folder) {
+  const rawId = folder._id ?? folder.id
+  const id = isMongoObjectId(rawId) ? String(rawId) : generateMongoObjectId()
   return {
-    id: folder.id || generateContentId('fld'),
+    id,
+    apiId: isMongoObjectId(rawId) ? String(rawId) : id,
     parentFolderId: folder.parentFolderId ?? null,
     folderName: folder.folderName || 'Untitled Folder',
     description: folder.description || '',
@@ -90,6 +94,23 @@ function normalizeFolder(folder) {
     updatedAt: folder.updatedAt || new Date().toISOString(),
     items: (folder.items || []).map(normalizeItem),
   }
+}
+
+/** Upgrade legacy fld-* folder ids to Mongo ids for live-class API compatibility. */
+export function ensureMongoFolderIds(doc) {
+  if (!doc?.categories?.length) return { doc, changed: false }
+  let changed = false
+  const categories = doc.categories.map((cat) => ({
+    ...cat,
+    folders: (cat.folders || []).map((folder) => {
+      if (isMongoObjectId(folder?.id)) {
+        return normalizeFolder(folder)
+      }
+      changed = true
+      return normalizeFolder({ ...folder, id: generateMongoObjectId() })
+    }),
+  }))
+  return { doc: { ...doc, categories }, changed }
 }
 
 function normalizeCategory(cat) {

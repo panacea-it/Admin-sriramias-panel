@@ -7,12 +7,23 @@ import tailwindcss from '@tailwindcss/vite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+function normalizeApiHost(raw) {
+  if (!raw?.trim()) return ''
+  return raw.trim().replace(/\/api\/?$/, '').replace(/\/$/, '')
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, cwd(), '')
   const apiTarget =
-    env.VITE_BASE_URL?.replace(/\/api\/?$/, '') ||
-    env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '') ||
+    normalizeApiHost(env.VITE_API_BASE_URL) ||
+    normalizeApiHost(env.VITE_BASE_URL) ||
     'https://new-sriramias.onrender.com'
+
+  const isHttpsTarget = apiTarget.startsWith('https://')
+
+  if (mode === 'development') {
+    console.log(`[vite] /api proxy → ${apiTarget} (secure: ${isHttpsTarget})`)
+  }
 
   return {
     envPrefix: ['VITE_', 'REACT_APP_'],
@@ -41,7 +52,27 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: apiTarget,
           changeOrigin: true,
-          secure: true,
+          secure: isHttpsTarget,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              if (mode !== 'development' || !req.url?.includes('/auth/login')) return
+              console.log(`[vite proxy] ${req.method} ${req.url} → ${apiTarget}${req.url}`)
+            })
+            proxy.on('error', (err, req, res) => {
+              console.error(
+                `[vite proxy] ${req.method} ${req.url} → ${apiTarget}: ${err.message}`,
+              )
+              if (res && !res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' })
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    message: `Backend unavailable at ${apiTarget}. Start the API server or update VITE_API_BASE_URL, then restart npm run dev.`,
+                  }),
+                )
+              }
+            })
+          },
         },
       },
     },

@@ -1,4 +1,3 @@
-import { RotateCcw } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import {
   FINANCE_COURSE_TYPE_OPTIONS,
@@ -46,7 +45,6 @@ export default function FinanceDashboardFilters({
   onPaymentTypeFilterChange,
   studentTypeFilter,
   onStudentTypeFilterChange,
-  onReset,
   refreshing,
   lastUpdatedLabel,
   className,
@@ -106,19 +104,9 @@ export default function FinanceDashboardFilters({
         <FilterSelect label="Batch" value={batchFilter} onChange={onBatchFilterChange} options={batchOptions} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {lastUpdatedLabel && (
-          <p className="text-xs text-[#686868]">Last updated {lastUpdatedLabel}</p>
-        )}
-        <button
-          type="button"
-          onClick={onReset}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#55ace7]/40 bg-white px-3 py-1.5 text-xs font-semibold text-[#246392] transition hover:bg-[#eef2fc] sm:text-sm"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Reset filters
-        </button>
-      </div>
+      {lastUpdatedLabel && (
+        <p className="text-xs text-[#686868]">Last updated {lastUpdatedLabel}</p>
+      )}
     </div>
   )
 }

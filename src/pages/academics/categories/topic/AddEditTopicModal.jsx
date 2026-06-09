@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Layers, X } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import Modal from '../../../../components/ui/Modal'
+import ModalPanelHeader from '../../../../components/courses/ModalPanelHeader'
 import { getModalEditKey, useInitOnModalOpen } from '../../../../hooks/modalFormSync'
 import { cn } from '../../../../utils/cn'
 import { toast } from '../../../../utils/toast'
@@ -106,28 +107,19 @@ export default function AddEditTopicModal({
   if (!open) return null
 
   return (
-    <Modal open={open} onClose={handleClose} size="lg" title={title}>
+    <Modal open={open} onClose={handleClose} size="lg" title={title} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#55ace7] via-[#4a9ad4] to-[#246392] px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-              <Layers className="h-5 w-5 text-white" strokeWidth={2.2} />
-            </div>
-            <h2 className="text-lg font-bold text-white sm:text-xl">{title}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={submitting}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:opacity-60"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <ModalPanelHeader
+          title={title}
+          onClose={handleClose}
+          closeVariant="icon"
+          plainCloseIcon
+          icon={Layers}
+          iconClassName="text-[#246392]"
+        />
 
         <div className="mx-4 rounded-xl bg-white px-4 py-3 text-center shadow-[0_6px_20px_rgba(15,23,42,0.08)] sm:mx-6">
           <p className="text-sm font-semibold text-[#246392]">Topics Details</p>

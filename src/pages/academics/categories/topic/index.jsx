@@ -23,6 +23,7 @@ import {
   buildCreateTopicPayload,
   buildUpdateTopicPayload,
   mapApiTopicToLocal,
+  resolveTopicSubjectDisplay,
 } from './topicHelpers'
 import AddEditTopicModal from './AddEditTopicModal'
 import ViewTopicModal from './ViewTopicModal'
@@ -82,6 +83,20 @@ export default function TopicSection({ section, Icon }) {
     [subjectDropdownOptions],
   )
 
+  const subjectNameById = useMemo(
+    () => Object.fromEntries(subjectDropdownOptions.map((opt) => [opt.value, opt.label])),
+    [subjectDropdownOptions],
+  )
+
+  const enrichedTopics = useMemo(
+    () =>
+      topics.map((row) => ({
+        ...row,
+        subject: resolveTopicSubjectDisplay(row, subjectNameById),
+      })),
+    [topics, subjectNameById],
+  )
+
   const loadTopicDetail = useCallback(async (row) => {
     const data = await getTopicById(row.id)
     return mapApiTopicToLocal(data)
@@ -89,11 +104,19 @@ export default function TopicSection({ section, Icon }) {
 
   const handleView = useCallback(
     async (row) => {
-      setViewItem(row)
+      setViewItem({
+        ...row,
+        subject: resolveTopicSubjectDisplay(row, subjectNameById),
+      })
       setViewLoading(true)
       try {
         const detail = await loadTopicDetail(row)
-        if (detail) setViewItem(detail)
+        if (detail) {
+          setViewItem({
+            ...detail,
+            subject: resolveTopicSubjectDisplay(detail, subjectNameById),
+          })
+        }
       } catch (error) {
         toast.error(getApiErrorMessage(error, 'Failed to load topic details'))
         setViewItem(null)
@@ -101,7 +124,7 @@ export default function TopicSection({ section, Icon }) {
         setViewLoading(false)
       }
     },
-    [loadTopicDetail],
+    [loadTopicDetail, subjectNameById],
   )
 
   const handleEditOpen = useCallback(
@@ -249,7 +272,7 @@ export default function TopicSection({ section, Icon }) {
         ) : (
           <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
             <TopicTable
-              topics={topics}
+              topics={enrichedTopics}
               loading={loading}
               controlledPagination={controlledPagination}
               onView={handleView}

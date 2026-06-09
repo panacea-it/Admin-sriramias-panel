@@ -13,6 +13,7 @@ export async function getFacultySubjects(params = {}, { signal } = {}) {
     return response.data
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -26,6 +27,7 @@ export async function getFacultySubjectById(facultySubjectId, { signal } = {}) {
     return response.data
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -35,6 +37,7 @@ export async function createFacultySubject(payload) {
     const response = await axiosInstance.post(BASE, payload)
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -47,6 +50,7 @@ export async function updateFacultySubject(facultySubjectId, payload) {
     )
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -59,6 +63,7 @@ export async function updateFacultySubjectStatus(facultySubjectId, status) {
     )
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }
@@ -70,6 +75,7 @@ export async function deleteFacultySubject(facultySubjectId) {
     )
     return response.data
   } catch (error) {
+    if (error?.response) throw error
     throwApiError(error)
   }
 }

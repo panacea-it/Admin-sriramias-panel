@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
-import { useCenters } from '../contexts/CentersContext'
 import { getCentersDropdown, normalizeCentersDropdown } from '../services/centerService'
 import { getApiErrorMessage } from '../utils/apiError'
 
@@ -44,20 +43,10 @@ async function loadCentersDropdownOnce({ force = false } = {}) {
 }
 
 export function useCentersDropdownOptions({ enabled = true } = {}) {
-  const { activeCenters } = useCenters()
   const [options, setOptions] = useState(() => sharedDropdownOptions || [])
   const [loading, setLoading] = useState(() => enabled && !sharedDropdownOptions)
   const [error, setError] = useState(null)
   const mountedRef = useRef(true)
-
-  const fallbackOptions = useMemo(
-    () =>
-      (Array.isArray(activeCenters) ? activeCenters : []).map((c) => ({
-        value: String(c.centerId),
-        label: c.centerName,
-      })),
-    [activeCenters],
-  )
 
   const fetchOptions = useCallback(async ({ force = false } = {}) => {
     if (!enabled) return
@@ -69,25 +58,19 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
       const mapped = await loadCentersDropdownOnce({ force })
       if (!mountedRef.current) return
       const safeMapped = Array.isArray(mapped) ? mapped : []
-      if (safeMapped.length > 0) {
-        setOptions(safeMapped)
-      } else if (fallbackOptions.length > 0) {
-        setOptions(fallbackOptions)
-      } else {
-        setOptions([])
-      }
+      setOptions(safeMapped)
     } catch (err) {
       if (!mountedRef.current) return
       const message = getApiErrorMessage(err, 'Failed to load centers')
       setError(message)
       toast.error(message)
-      setOptions(fallbackOptions.length > 0 ? fallbackOptions : [])
+      setOptions([])
     } finally {
       if (mountedRef.current) {
         setLoading(false)
       }
     }
-  }, [enabled, fallbackOptions])
+  }, [enabled])
 
   useEffect(() => {
     mountedRef.current = true
@@ -114,10 +97,8 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
     }
   }, [enabled, fetchOptions])
 
-  const resolvedOptions = options.length > 0 ? options : fallbackOptions
-
   return {
-    options: Array.isArray(resolvedOptions) ? resolvedOptions : [],
+    options: Array.isArray(options) ? options : [],
     loading,
     error,
     refresh: () => fetchOptions({ force: true }),

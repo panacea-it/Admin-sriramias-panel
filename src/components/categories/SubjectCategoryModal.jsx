@@ -175,6 +175,7 @@ export default function SubjectCategoryModal({
       onClose={handleClose}
       size="full"
       title={isEditMode ? 'Edit subject' : 'Subject creation'}
+      showCloseButton={false}
     >
       <form
         onSubmit={handleSubmit}
@@ -182,7 +183,9 @@ export default function SubjectCategoryModal({
       >
         <ModalPanelHeader
           title={isEditMode ? 'Edit subject' : 'Subject creation'}
-          onBack={handleClose}
+          onClose={handleClose}
+          closeVariant="icon"
+          plainCloseIcon
           icon={BookOpen}
           iconClassName="text-[#246392]"
         />

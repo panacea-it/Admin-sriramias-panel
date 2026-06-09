@@ -1,37 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {
-  ShieldCheck,
-  Check,
-  X,
-  Eye,
-  RotateCcw,
-  ArrowUpRight,
-  Plus,
-  Clock,
-  AlertTriangle,
-  Globe,
-  MessageCircleQuestion,
-  Sparkles,
-} from 'lucide-react'
+import { ShieldCheck, Check, X, Eye, Plus, AlertTriangle } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
-import FinanceFilterPanel from '../../components/finance/FinanceFilterPanel'
 import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import FinanceConfirmDialog from '../../components/finance/FinanceConfirmDialog'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
-import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import VerificationStatusBadge from '../../components/finance/VerificationStatusBadge'
 import ProofViewerModal, { ProofThumbnail } from '../../components/finance/ProofViewerModal'
 import VerificationRejectDialog from '../../components/finance/VerificationRejectDialog'
-import VerificationEscalateDialog from '../../components/finance/VerificationEscalateDialog'
 import VerificationDuplicateDialog from '../../components/finance/VerificationDuplicateDialog'
-import VerificationGatewayLogModal from '../../components/finance/VerificationGatewayLogModal'
-import VerificationClarificationDialog from '../../components/finance/VerificationClarificationDialog'
-import VerificationTimelineDrawer from '../../components/finance/VerificationTimelineDrawer'
 import AddOfflinePaymentModal from '../../components/finance/AddOfflinePaymentModal'
-import VerificationCenterNav from '../../components/finance/communication/VerificationCenterNav'
+import VerificationCenterFilters from '../../components/finance/verification/VerificationCenterFilters'
+import VerificationPaymentViewModal from '../../components/finance/verification/VerificationPaymentViewModal'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import { FINANCE_COURSES } from '../../data/financeMockData'
 import {
@@ -39,12 +21,8 @@ import {
   verifyPayment,
   financeHeadApproveVerification,
   rejectVerification,
-  escalateVerification,
-  requestVerificationReupload,
-  requestVerificationClarification,
   markDuplicatePaymentValid,
   submitOfflinePaymentReport,
-  resetVerificationQueue,
   generateReceipt,
 } from '../../api/financeAPI'
 import {
@@ -54,10 +32,7 @@ import {
 import { FINANCE_APPROVAL_STATUSES, VERIFICATION_QUEUE_EXPORT_COLUMNS } from '../../constants/financeVerification'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import {
-  canVerifierAct,
-  canFinanceHeadAct,
-} from '../../utils/financeVerificationWorkflow'
+import { canVerifierAct, canFinanceHeadAct } from '../../utils/financeVerificationWorkflow'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
@@ -82,21 +57,7 @@ function DuplicateBadge({ row, onClick }) {
   )
 }
 
-function AutoVerifiedBadge({ row, onGatewayClick }) {
-  if (!row.autoVerified) return null
-  return (
-    <button
-      type="button"
-      onClick={onGatewayClick}
-      title="Verified automatically via payment gateway"
-      className="inline-flex items-center gap-1 rounded-md bg-[#69df66]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1a3a5c] ring-1 ring-[#69df66]/40"
-    >
-      <Sparkles className="h-3 w-3 text-[#69df66]" /> Auto Verified
-    </button>
-  )
-}
-
-function VerificationMobileCard({ row, actions, onProofClick, onDuplicateClick, onTimelineClick }) {
+function VerificationMobileCard({ row, actions, onDuplicateClick }) {
   return (
     <article
       className={cn(
@@ -109,13 +70,13 @@ function VerificationMobileCard({ row, actions, onProofClick, onDuplicateClick, 
         <div>
           <p className="font-mono text-xs font-semibold text-[#246392]">{row.id}</p>
           <p className="mt-0.5 font-semibold text-[#222]">{row.student}</p>
-          <p className="text-xs text-[#686868]">{row.paymentMode} · {formatINR(row.amount)}</p>
+          <p className="text-xs text-[#686868]">
+            {row.paymentMode} · {formatINR(row.amount)}
+          </p>
         </div>
         <VerificationStatusBadge status={row.verificationStatus} />
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <FinanceStatusBadge status={row.approvalStatus} />
-        <AutoVerifiedBadge row={row} onGatewayClick={() => actions.onGateway(row)} />
         {row.isDuplicate && <DuplicateBadge row={row} onClick={() => onDuplicateClick(row)} />}
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -132,16 +93,9 @@ function VerificationMobileCard({ row, actions, onProofClick, onDuplicateClick, 
         {(row.proofFiles?.length > 0 || row.paymentProof) && (
           <ProofThumbnail
             proof={row.proofFiles?.[0] || { name: row.paymentProof }}
-            onClick={() => onProofClick(row)}
+            onClick={() => actions.onViewProof(row)}
           />
         )}
-        <button
-          type="button"
-          onClick={() => onTimelineClick(row)}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-[#246392]"
-        >
-          <Clock className="h-3.5 w-3.5" /> Timeline
-        </button>
         {actions.renderMenu(row)}
       </div>
     </article>
@@ -166,16 +120,12 @@ export default function PaymentVerificationCenterPage() {
   const [courseFilter, setCourseFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [viewRow, setViewRow] = useState(null)
   const [proofRow, setProofRow] = useState(null)
   const [verifyRow, setVerifyRow] = useState(null)
   const [headApproveRow, setHeadApproveRow] = useState(null)
   const [rejectRow, setRejectRow] = useState(null)
-  const [escalateRow, setEscalateRow] = useState(null)
-  const [clarifyRow, setClarifyRow] = useState(null)
   const [duplicateRow, setDuplicateRow] = useState(null)
-  const [gatewayRow, setGatewayRow] = useState(null)
-  const [timelineRow, setTimelineRow] = useState(null)
-  const [remarksRow, setRemarksRow] = useState(null)
   const [offlineOpen, setOfflineOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -220,7 +170,8 @@ export default function PaymentVerificationCenterPage() {
       if (approvalFilter !== 'all' && ap !== approvalFilter) return false
       if (modeFilter !== 'all' && row.paymentMode !== modeFilter) return false
       if (centerFilter !== 'all' && row.centerName !== centerFilter) return false
-      if (courseFilter !== 'all' && row.course !== FINANCE_COURSES.find((c) => c.id === courseFilter)?.name) return false
+      if (courseFilter !== 'all' && row.course !== FINANCE_COURSES.find((c) => c.id === courseFilter)?.name)
+        return false
       const dateVal = row.updatedAt || row.submittedAt
       if (dateFrom && dateVal && new Date(dateVal) < new Date(dateFrom)) return false
       if (dateTo && dateVal && new Date(dateVal) > new Date(`${dateTo}T23:59:59`)) return false
@@ -252,27 +203,6 @@ export default function PaymentVerificationCenterPage() {
     dateFrom,
     dateTo,
   ])
-
-  const handleReset = async () => {
-    setSearch('')
-    setStatusFilter('all')
-    setApprovalFilter('all')
-    setModeFilter('all')
-    setCenterFilter('all')
-    setCourseFilter('all')
-    setDateFrom('')
-    setDateTo('')
-    setLoading(true)
-    try {
-      setQueue(await resetVerificationQueue())
-      toast.success('Filters cleared and queue reloaded')
-    } catch {
-      toast.error('Failed to reset')
-      load()
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const runAction = async (fn, successMsg, errorMsg = 'Action failed') => {
     setActionLoading(true)
@@ -324,41 +254,12 @@ export default function PaymentVerificationCenterPage() {
     setRejectRow(null)
   }
 
-  const handleEscalate = async (payload) => {
-    if (!escalateRow) return
-    await runAction(
-      () => escalateVerification(escalateRow.id, { ...payload, adminName }),
-      'Escalated for senior review',
-    )
-    setEscalateRow(null)
-  }
-
-  const handleClarification = async (payload) => {
-    if (!clarifyRow) return
-    await runAction(
-      () => requestVerificationClarification(clarifyRow.id, { ...payload, adminName }),
-      'Clarification requested — returned to verification officer',
-    )
-    setClarifyRow(null)
-  }
-
   const handleMarkDuplicateValid = async (row) => {
     await runAction(
       () => markDuplicatePaymentValid(row.id, { adminName, remark: 'Duplicate reviewed and marked valid' }),
       'Duplicate override saved — approval unlocked',
     )
     setDuplicateRow(null)
-  }
-
-  const handleReupload = async (row) => {
-    await runAction(
-      () =>
-        requestVerificationReupload(row.id, {
-          note: 'Please re-upload clearer payment proof',
-          adminName,
-        }),
-      'Re-upload requested — status set to Under Review',
-    )
   }
 
   const handleOfflineSubmit = async (form) => {
@@ -389,84 +290,44 @@ export default function PaymentVerificationCenterPage() {
 
   const buildRowActions = useCallback(
     (row) => {
-      const rejected = row.approvalStatus === 'Rejected' || row.verificationStatus === 'Rejected'
       const verifierCanAct = canVerify && canVerifierAct(row)
       const headCanAct = canFinanceHeadApprove && canFinanceHeadAct(row)
-      const viewOnly = !canVerify && !canFinanceHeadApprove && !canEdit
+      const canActOnPayment = verifierCanAct || headCanAct
+      const duplicateBlocked = row.isDuplicate && !row.duplicateOverride
 
-      if (rejected) {
-        return [
-          { label: 'View timeline', icon: Clock, onClick: () => setTimelineRow(row) },
-          ...(row.rejectionRemarks
-            ? [{ label: 'View remarks', icon: Eye, onClick: () => setRemarksRow(row) }]
-            : []),
-        ]
+      const actions = [
+        { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
+      ]
+
+      if (canActOnPayment && !duplicateBlocked) {
+        actions.push({
+          label: 'Approve',
+          icon: Check,
+          onClick: () => (headCanAct ? setHeadApproveRow(row) : setVerifyRow(row)),
+        })
       }
 
-      return [
-        { label: 'View proof', icon: Eye, onClick: () => setProofRow(row), show: Boolean(row.proofFiles?.length || row.paymentProof) },
-        { label: 'Activity timeline', icon: Clock, onClick: () => setTimelineRow(row) },
-        {
-          label: 'Verify & send to Finance Head',
-          icon: Check,
-          onClick: () => setVerifyRow(row),
-          show: verifierCanAct && !row.autoVerified,
-        },
-        {
-          label: 'Final approve',
-          icon: Check,
-          onClick: () => setHeadApproveRow(row),
-          show: headCanAct,
-        },
-        {
+      if (canActOnPayment && row.approvalStatus !== 'Approved' && row.verificationStatus !== 'Rejected') {
+        actions.push({
           label: 'Reject',
           icon: X,
           onClick: () => setRejectRow(row),
-          show: verifierCanAct || headCanAct,
           variant: 'danger',
-        },
-        {
-          label: 'Request clarification',
-          icon: MessageCircleQuestion,
-          onClick: () => setClarifyRow(row),
-          show: headCanAct,
-          variant: 'accent',
-        },
-        {
-          label: 'Escalate',
-          icon: ArrowUpRight,
-          onClick: () => setEscalateRow(row),
-          show: verifierCanAct,
-          variant: 'accent',
-        },
-        {
-          label: 'Re-upload',
-          icon: RotateCcw,
-          onClick: () => handleReupload(row),
-          show: verifierCanAct,
-        },
-        {
-          label: 'Gateway log',
-          icon: Globe,
-          onClick: () => setGatewayRow(row),
-          show: Boolean(row.gatewayResponse),
-        },
-        {
-          label: 'Review duplicate',
+        })
+      }
+
+      if (row.isDuplicate) {
+        actions.push({
+          label: 'Detect duplicate payment',
           icon: AlertTriangle,
           onClick: () => setDuplicateRow(row),
-          show: row.isDuplicate,
           variant: 'accent',
-        },
-        {
-          label: 'Mark duplicate valid',
-          icon: Check,
-          onClick: () => setDuplicateRow(row),
-          show: row.isDuplicate && canFinanceHeadApprove,
-        },
-      ].filter((a) => a.show !== false)
+        })
+      }
+
+      return actions
     },
-    [canVerify, canFinanceHeadApprove, canEdit],
+    [canVerify, canFinanceHeadApprove],
   )
 
   const columns = useMemo(
@@ -475,12 +336,7 @@ export default function PaymentVerificationCenterPage() {
         key: 'id',
         label: 'Payment ID',
         cellClassName: 'whitespace-nowrap align-middle',
-        render: (r) => (
-          <div className="space-y-1">
-            <span className="font-mono text-xs font-semibold">{r.id}</span>
-            <AutoVerifiedBadge row={r} onGatewayClick={() => setGatewayRow(r)} />
-          </div>
-        ),
+        render: (r) => <span className="font-mono text-xs font-semibold">{r.id}</span>,
       },
       {
         key: 'student',
@@ -505,18 +361,10 @@ export default function PaymentVerificationCenterPage() {
         render: (r) => <VerificationStatusBadge status={r.verificationStatus} />,
       },
       {
-        key: 'approvalStatus',
-        label: 'Approval Status',
-        cellClassName: 'whitespace-nowrap align-middle',
-        render: (r) => <FinanceStatusBadge status={r.approvalStatus} />,
-      },
-      {
         key: 'duplicate',
         label: 'Duplicate',
         cellClassName: 'whitespace-nowrap align-middle',
-        render: (r) => (
-          <DuplicateBadge row={r} onClick={() => setDuplicateRow(r)} />
-        ),
+        render: (r) => <DuplicateBadge row={r} onClick={() => setDuplicateRow(r)} />,
       },
       {
         key: 'proof',
@@ -551,7 +399,9 @@ export default function PaymentVerificationCenterPage() {
               <div className="text-xs">
                 <span className="font-semibold text-[#69df66]">Approved</span>
                 {r.approvedBy && <p className="text-[#686868]">by {r.approvedBy}</p>}
-                {r.approvedAt && <p className="tabular-nums text-[#9ca0a8]">{formatCategoryDateTime(r.approvedAt)}</p>}
+                {r.approvedAt && (
+                  <p className="tabular-nums text-[#9ca0a8]">{formatCategoryDateTime(r.approvedAt)}</p>
+                )}
               </div>
             )
           }
@@ -560,15 +410,6 @@ export default function PaymentVerificationCenterPage() {
               <div className="text-xs">
                 <span className="font-semibold text-[#df8284]">Rejected</span>
                 {r.rejectedBy && <p className="text-[#686868]">by {r.rejectedBy}</p>}
-                {r.rejectionRemarks && (
-                  <button
-                    type="button"
-                    onClick={() => setRemarksRow(r)}
-                    className="mt-0.5 font-semibold text-[#df8284] hover:underline"
-                  >
-                    View remarks
-                  </button>
-                )}
               </div>
             )
           }
@@ -597,11 +438,11 @@ export default function PaymentVerificationCenterPage() {
       {
         key: 'actions',
         label: 'Actions',
-        cellClassName: 'align-middle min-w-[80px]',
+        cellClassName: 'align-middle min-w-[120px]',
         render: (row) => {
           const actions = buildRowActions(row)
-          if (!actions.length) return <span className="text-xs text-[#686868]">View only</span>
-          return <FinanceActionMenu actions={actions} />
+          if (!actions.length) return <span className="text-xs text-[#686868]">—</span>
+          return <FinanceActionMenu actions={actions} inlineFrom="sm" />
         },
       },
     ],
@@ -612,8 +453,8 @@ export default function PaymentVerificationCenterPage() {
     'inline-flex h-10 items-center gap-2 rounded-lg bg-white/20 px-3 text-sm font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/30'
 
   const mobileActions = {
-    onGateway: setGatewayRow,
-    renderMenu: (row) => <FinanceActionMenu actions={buildRowActions(row)} />,
+    onViewProof: setProofRow,
+    renderMenu: (row) => <FinanceActionMenu actions={buildRowActions(row)} inlineFrom="sm" />,
   }
 
   return (
@@ -638,9 +479,7 @@ export default function PaymentVerificationCenterPage() {
         </div>
       }
     >
-      <VerificationCenterNav />
-
-      <FinanceFilterPanel
+      <VerificationCenterFilters
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
         searchPlaceholder="Search student, transaction ID, payment mode, status…"
@@ -695,10 +534,12 @@ export default function PaymentVerificationCenterPage() {
             label: 'Course',
             value: courseFilter,
             onChange: (e) => setCourseFilter(e.target.value),
-            options: [{ value: 'all', label: 'All courses' }, ...FINANCE_COURSES.map((c) => ({ value: c.id, label: c.name }))],
+            options: [
+              { value: 'all', label: 'All courses' },
+              ...FINANCE_COURSES.map((c) => ({ value: c.id, label: c.name })),
+            ],
           },
         ]}
-        onReset={handleReset}
       />
 
       <div className="flex items-center justify-between gap-2">
@@ -708,7 +549,7 @@ export default function PaymentVerificationCenterPage() {
       </div>
 
       {loading ? (
-        <FinanceTableSkeleton rows={6} columns={10} />
+        <FinanceTableSkeleton rows={6} columns={9} />
       ) : filtered.length === 0 ? (
         <FinanceEmptyState
           title="No verification records"
@@ -745,14 +586,19 @@ export default function PaymentVerificationCenterPage() {
                 key={row.id}
                 row={row}
                 actions={mobileActions}
-                onProofClick={setProofRow}
                 onDuplicateClick={setDuplicateRow}
-                onTimelineClick={setTimelineRow}
               />
             ))}
           </div>
         </>
       )}
+
+      <VerificationPaymentViewModal
+        open={!!viewRow}
+        row={viewRow}
+        onClose={() => setViewRow(null)}
+        onViewProof={setProofRow}
+      />
 
       <ProofViewerModal
         open={!!proofRow}
@@ -801,22 +647,6 @@ export default function PaymentVerificationCenterPage() {
         loading={actionLoading}
       />
 
-      <VerificationEscalateDialog
-        open={!!escalateRow}
-        row={escalateRow}
-        onClose={() => setEscalateRow(null)}
-        onConfirm={handleEscalate}
-        loading={actionLoading}
-      />
-
-      <VerificationClarificationDialog
-        open={!!clarifyRow}
-        row={clarifyRow}
-        onClose={() => setClarifyRow(null)}
-        onConfirm={handleClarification}
-        loading={actionLoading}
-      />
-
       <VerificationDuplicateDialog
         open={!!duplicateRow}
         row={duplicateRow}
@@ -825,26 +655,6 @@ export default function PaymentVerificationCenterPage() {
         loading={actionLoading}
         canMarkValid={canFinanceHeadApprove}
       />
-
-      <VerificationGatewayLogModal
-        open={!!gatewayRow}
-        row={gatewayRow}
-        onClose={() => setGatewayRow(null)}
-      />
-
-      <VerificationTimelineDrawer
-        open={!!timelineRow}
-        row={timelineRow}
-        onClose={() => setTimelineRow(null)}
-      />
-
-      {remarksRow && (
-        <VerificationTimelineDrawer
-          open={!!remarksRow}
-          row={remarksRow}
-          onClose={() => setRemarksRow(null)}
-        />
-      )}
 
       <AddOfflinePaymentModal
         open={offlineOpen}

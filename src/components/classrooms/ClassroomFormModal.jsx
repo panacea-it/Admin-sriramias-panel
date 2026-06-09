@@ -104,7 +104,13 @@ export default function ClassroomFormModal({
   if (!open) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md">
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title={isEdit ? 'Edit Classroom' : 'Add Classroom'}
+      showCloseButton={false}
+    >
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
@@ -115,6 +121,7 @@ export default function ClassroomFormModal({
           subtitle="Manage room details and capacity"
           onClose={onClose}
           closeVariant="icon"
+          plainCloseIcon
         />
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">

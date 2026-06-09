@@ -1,14 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getClassrooms } from '../services/classroomService'
+import { clearClassroomsListCache, getClassrooms } from '../services/classroomService'
 import {
   mapClassroomStatusFilterToApi,
   normalizeClassroomsListResponse,
 } from '../utils/classroomApiHelpers'
 
 const DEFAULT_PAGE_SIZE = 10
+
+function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centerFilter }) {
+  const apiStatus = mapClassroomStatusFilterToApi(statusFilter)
+  const params = {
+    page,
+    limit: pageSize,
+    search: debouncedSearch.trim(),
+  }
+  if (apiStatus) params.status = apiStatus
+  if (centerFilter !== 'all') params.center = centerFilter
+  return params
+}
 
 export function useClassroomManagement() {
   const [classrooms, setClassrooms] = useState([])
@@ -21,45 +33,66 @@ export function useClassroomManagement() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(search, 500)
+  const lastErrorToastAt = useRef(0)
 
-  const fetchClassrooms = useCallback(async () => {
-    setLoading(true)
-    try {
-      const apiStatus = mapClassroomStatusFilterToApi(statusFilter)
-      const params = {
+  const loadClassrooms = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
+      const params = buildListParams({
         page,
-        limit: pageSize,
-        search: debouncedSearch.trim(),
-      }
-      if (apiStatus) params.status = apiStatus
-      if (centerFilter !== 'all') params.center = centerFilter
+        pageSize,
+        debouncedSearch,
+        statusFilter,
+        centerFilter,
+      })
 
-      const data = await getClassrooms(params)
-      const normalized = normalizeClassroomsListResponse(data, { page, limit: pageSize })
-
-      setClassrooms(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
+      setLoading(true)
+      try {
+        const data = await getClassrooms(params, { bypassCache })
+        if (ignoreFlag?.()) return
+        const normalized = normalizeClassroomsListResponse(data, { page, limit: pageSize })
+        setClassrooms(normalized.items)
+        setTotalItems(normalized.total)
+        setTotalPages(normalized.totalPages)
+      } catch (error) {
+        if (ignoreFlag?.()) return
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+        const now = Date.now()
+        if (now - lastErrorToastAt.current > 4000) {
+          lastErrorToastAt.current = now
+          toast.error(getApiErrorMessage(error, 'Failed to load classrooms'))
+        }
+        if (!isRateLimitError(error)) {
+          setClassrooms([])
+          setTotalItems(0)
+          setTotalPages(1)
+        }
+      } finally {
+        if (!ignoreFlag?.()) {
+          setLoading(false)
+        }
       }
-      toast.error(getApiErrorMessage(error, 'Failed to load classrooms'))
-      setClassrooms([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, debouncedSearch, statusFilter, centerFilter])
+    },
+    [page, pageSize, debouncedSearch, statusFilter, centerFilter],
+  )
 
   useEffect(() => {
-    fetchClassrooms()
-  }, [fetchClassrooms])
+    let ignore = false
+    loadClassrooms({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
+    }
+  }, [loadClassrooms])
 
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, statusFilter, centerFilter, pageSize])
+
+  const refreshClassrooms = useCallback(async () => {
+    clearClassroomsListCache()
+    await loadClassrooms({ bypassCache: true })
+  }, [loadClassrooms])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -99,7 +132,8 @@ export function useClassroomManagement() {
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    debouncedSearch,
     controlledPagination,
-    refreshClassrooms: fetchClassrooms,
+    refreshClassrooms,
   }
 }

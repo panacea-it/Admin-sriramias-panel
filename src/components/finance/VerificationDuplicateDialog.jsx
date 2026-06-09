@@ -10,13 +10,14 @@ export default function VerificationDuplicateDialog({ open, row, onClose, onMark
   const matches = row.duplicateMatches || []
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Possible duplicate payment">
+    <Modal open={open} onClose={onClose} size="md" title="Possible duplicate payment" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
         <ModalPanelHeader
           title="Duplicate payment detected"
           onClose={onClose}
           icon={AlertTriangle}
           iconClassName="text-amber-600"
+          closeVariant="icon"
         />
         <div className="space-y-4 p-5 sm:p-6">
           <p className="text-sm text-[#686868]">

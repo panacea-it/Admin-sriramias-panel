@@ -110,11 +110,12 @@ export function buildClassroomTableColumns({ onView, onEdit, onToggle, onDelete 
       key: 'actions',
       label: 'Actions',
       align: 'right',
-      headerClassName: 'min-w-[11rem] text-right',
-      cellClassName: 'min-w-[11rem] text-right',
+      headerClassName: 'min-w-[11rem] pr-5 sm:pr-6',
+      cellClassName: 'min-w-[11rem] pr-5 sm:pr-6',
       render: (row) => (
         <CategoryTableActions
-          compact
+          variant="icons"
+          statusLabel="Status"
           status={normalizeClassroomStatus(row.status)}
           onView={() => onView(row)}
           onEdit={() => onEdit(row)}

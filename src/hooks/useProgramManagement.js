@@ -1,12 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getPrograms } from '../services/programService'
+import { clearProgramsListCache, getPrograms } from '../services/programService'
 import {
   mapProgramStatusFilterToApi,
   normalizeProgramsListResponse,
 } from '../utils/programHelpers'
+
+function buildListParams({ debouncedSearch, statusFilter, centreFilter }) {
+  const params = {
+    search: debouncedSearch.trim(),
+  }
+
+  const apiStatus = mapProgramStatusFilterToApi(statusFilter)
+  if (apiStatus) params.status = apiStatus
+  if (centreFilter !== 'all') params.center = centreFilter
+
+  return params
+}
 
 export function useProgramManagement() {
   const [programs, setPrograms] = useState([])
@@ -15,34 +27,52 @@ export function useProgramManagement() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [centreFilter, setCentreFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(search, 500)
+  const lastErrorToastAt = useRef(0)
 
-  const fetchPrograms = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = {
-        search: debouncedSearch.trim(),
+  const loadPrograms = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
+      const params = buildListParams({ debouncedSearch, statusFilter, centreFilter })
+
+      setLoading(true)
+      try {
+        const data = await getPrograms(params, { bypassCache })
+        if (ignoreFlag?.()) return
+        setPrograms(normalizeProgramsListResponse(data))
+      } catch (error) {
+        if (ignoreFlag?.()) return
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+        if (!isRateLimitError(error)) {
+          const now = Date.now()
+          if (now - lastErrorToastAt.current > 4000) {
+            lastErrorToastAt.current = now
+            toast.error(getApiErrorMessage(error, 'Failed to load programs'))
+          }
+          setPrograms([])
+        } else {
+          const now = Date.now()
+          if (now - lastErrorToastAt.current > 4000) {
+            lastErrorToastAt.current = now
+            toast.error('Too many requests. Please wait a moment and try again.')
+          }
+        }
+      } finally {
+        if (!ignoreFlag?.()) {
+          setLoading(false)
+        }
       }
-
-      const apiStatus = mapProgramStatusFilterToApi(statusFilter)
-      if (apiStatus) params.status = apiStatus
-      if (centreFilter !== 'all') params.center = centreFilter
-
-      const data = await getPrograms(params)
-      setPrograms(normalizeProgramsListResponse(data))
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load programs'))
-      setPrograms([])
-    } finally {
-      setLoading(false)
-    }
-  }, [debouncedSearch, statusFilter, centreFilter])
+    },
+    [debouncedSearch, statusFilter, centreFilter],
+  )
 
   useEffect(() => {
-    fetchPrograms()
-  }, [fetchPrograms])
+    let ignore = false
+    loadPrograms({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
+    }
+  }, [loadPrograms])
 
   const enrichedPrograms = useMemo(
     () =>
@@ -52,6 +82,11 @@ export function useProgramManagement() {
       })),
     [programs],
   )
+
+  const refreshPrograms = useCallback(async () => {
+    clearProgramsListCache()
+    await loadPrograms({ bypassCache: true })
+  }, [loadPrograms])
 
   const patchProgramLocally = useCallback((programId, patch) => {
     setPrograms((prev) =>
@@ -72,7 +107,8 @@ export function useProgramManagement() {
     setStatusFilter,
     centreFilter,
     setCentreFilter,
-    refreshPrograms: fetchPrograms,
+    debouncedSearch,
+    refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,
   }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
+import { createCachedRequest } from '../utils/apiRequestCache'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getFacultySubjects } from '../api/facultySubjectsAPI'
 import {
@@ -10,10 +11,7 @@ import {
 import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
 
 const DEFAULT_PAGE_SIZE = 10
-const LIST_CACHE_TTL_MS = 2500
-
-let listResponseCache = { key: '', payload: null, at: 0 }
-let rateLimitToastAt = 0
+const facultySubjectsListCache = createCachedRequest({ ttlMs: 60_000 })
 
 function buildListParams({ page, pageSize, debouncedSearch, statusFilter }) {
   const params = { page, limit: pageSize }
@@ -24,25 +22,16 @@ function buildListParams({ page, pageSize, debouncedSearch, statusFilter }) {
   return params
 }
 
-function buildListCacheKey(params) {
-  return JSON.stringify(params)
+export function clearFacultySubjectsListCache() {
+  facultySubjectsListCache.clear()
 }
 
-async function fetchFacultySubjectsList(params, { signal, bypassCache = false } = {}) {
-  const cacheKey = buildListCacheKey(params)
-  const now = Date.now()
-  if (
-    !bypassCache &&
-    listResponseCache.key === cacheKey &&
-    listResponseCache.payload &&
-    now - listResponseCache.at < LIST_CACHE_TTL_MS
-  ) {
-    return listResponseCache.payload
-  }
-
-  const data = await getFacultySubjects(params, { signal })
-  listResponseCache = { key: cacheKey, payload: data, at: now }
-  return data
+async function fetchFacultySubjectsList(params, { bypassCache = false } = {}) {
+  return facultySubjectsListCache.fetch(
+    params,
+    async () => getFacultySubjects(params),
+    { bypass: bypassCache },
+  )
 }
 
 export function useFacultySubjectsManagement() {
@@ -54,77 +43,67 @@ export function useFacultySubjectsManagement() {
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [refreshNonce, setRefreshNonce] = useState(0)
   const debouncedSearch = useDebouncedValue(search, 500)
-  const filtersKey = `${debouncedSearch}|${statusFilter}|${pageSize}`
-  const prevFiltersKeyRef = useRef(filtersKey)
-  const abortRef = useRef(null)
-  const requestSeqRef = useRef(0)
+  const [loadError, setLoadError] = useState(null)
+  const lastErrorToastAt = useRef(0)
 
-  useEffect(() => {
-    if (prevFiltersKeyRef.current !== filtersKey) {
-      prevFiltersKeyRef.current = filtersKey
-      if (page !== 1) {
-        setPage(1)
-        return undefined
-      }
-    }
-
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    const requestSeq = ++requestSeqRef.current
-    let cancelled = false
-
-    const run = async () => {
+  const loadSubjects = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({ page, pageSize, debouncedSearch, statusFilter })
       setLoading(true)
+      setLoadError(null)
 
       try {
-        const data = await fetchFacultySubjectsList(params, {
-          signal: controller.signal,
-          bypassCache: refreshNonce > 0,
-        })
-        if (cancelled || requestSeq !== requestSeqRef.current) return
+        const data = await fetchFacultySubjectsList(params, { bypassCache })
+        if (ignoreFlag?.()) return
 
-        const normalized = normalizeFacultySubjectsListResponse(data, { page, limit: pageSize })
+        const normalized = normalizeFacultySubjectsListResponse(data, {
+          page,
+          limit: pageSize,
+        })
         setSubjects(normalized.items)
         setTotalItems(normalized.total)
         setTotalPages(normalized.totalPages)
         syncFacultySubjectsToLocalStorage(normalized.items)
+        setLoadError(null)
       } catch (error) {
-        if (cancelled || requestSeq !== requestSeqRef.current) return
-        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-
+        if (ignoreFlag?.()) return
         if (import.meta.env.DEV) console.error(error)
 
-        if (isRateLimitError(error)) {
-          const now = Date.now()
-          if (now - rateLimitToastAt > 4000) {
-            rateLimitToastAt = now
-            toast.error(getApiErrorMessage(error, 'Too many requests. Please wait and try again.'))
-          }
-          return
+        const message = getApiErrorMessage(error, 'Failed to load faculty subjects')
+        setLoadError(message)
+
+        const now = Date.now()
+        if (now - lastErrorToastAt.current > 4000) {
+          lastErrorToastAt.current = now
+          toast.error(message)
         }
 
-        toast.error(getApiErrorMessage(error, 'Failed to load faculty subjects'))
-        setSubjects([])
-        setTotalItems(0)
-        setTotalPages(1)
+        if (!isRateLimitError(error)) {
+          setSubjects([])
+          setTotalItems(0)
+          setTotalPages(1)
+        }
       } finally {
-        if (!cancelled && requestSeq === requestSeqRef.current) {
+        if (!ignoreFlag?.()) {
           setLoading(false)
         }
       }
-    }
+    },
+    [page, pageSize, debouncedSearch, statusFilter],
+  )
 
-    run()
-
+  useEffect(() => {
+    let ignore = false
+    loadSubjects({ ignoreFlag: () => ignore })
     return () => {
-      cancelled = true
-      controller.abort()
+      ignore = true
     }
-  }, [page, pageSize, debouncedSearch, statusFilter, filtersKey, refreshNonce])
+  }, [loadSubjects])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter, pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -155,10 +134,10 @@ export function useFacultySubjectsManagement() {
     [pagination],
   )
 
-  const refreshSubjects = useCallback(() => {
-    listResponseCache = { key: '', payload: null, at: 0 }
-    setRefreshNonce((value) => value + 1)
-  }, [])
+  const refreshSubjects = useCallback(async () => {
+    clearFacultySubjectsListCache()
+    await loadSubjects({ bypassCache: true })
+  }, [loadSubjects])
 
   const patchSubjectLocally = useCallback((subjectId, patch) => {
     setSubjects((prev) =>
@@ -174,6 +153,7 @@ export function useFacultySubjectsManagement() {
   return {
     subjects,
     loading,
+    loadError,
     search,
     setSearch,
     statusFilter,

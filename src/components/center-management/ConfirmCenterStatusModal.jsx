@@ -3,15 +3,23 @@ import Modal from '../ui/Modal'
 export default function ConfirmCenterStatusModal({
   open,
   centerName,
+  bulkCount = 0,
   enabling,
   loading,
   onCancel,
   onConfirm,
 }) {
-  const title = enabling ? 'Enable center?' : 'Disable center?'
-  const description = enabling
-    ? `This will mark ${centerName} as active and restore it in operational dropdowns.`
-    : `This will mark ${centerName} as disabled. It will be hidden from operational dropdowns until re-enabled.`
+  const isBulk = bulkCount > 0
+  const title = isBulk
+    ? 'Disable Selected Centers?'
+    : enabling
+      ? 'Enable center?'
+      : 'Disable center?'
+  const description = isBulk
+    ? `You are about to disable ${bulkCount} selected ${bulkCount === 1 ? 'center' : 'centers'}. They will be hidden from operational dropdowns until re-enabled.`
+    : enabling
+      ? `This will mark ${centerName} as active and restore it in operational dropdowns.`
+      : `This will mark ${centerName} as disabled. It will be hidden from operational dropdowns until re-enabled.`
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
@@ -39,7 +47,7 @@ export default function ConfirmCenterStatusModal({
                 : 'rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
             }
           >
-            {loading ? 'Updating…' : enabling ? 'Enable center' : 'Disable center'}
+            {loading ? 'Updating…' : isBulk ? 'Disable' : enabling ? 'Enable center' : 'Disable center'}
           </button>
         </div>
       </div>

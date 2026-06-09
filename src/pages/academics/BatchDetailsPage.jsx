@@ -13,13 +13,9 @@ import { BATCHES_BASE } from '../../constants/batchNav'
 import { useEditModal } from '../../hooks/useEditModal'
 import { findBatchRow, useBatchesData } from '../../hooks/useBatchesData'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
-import { mapCourseToApiPayload } from '../../utils/coursesApiMappers'
-import {
-  mapBatchRowToTableFormat,
-  nextBatchId,
-} from '../../utils/batchHelpers'
+import { mapBatchRowToTableFormat } from '../../utils/batchHelpers'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
-import { createCourse, updateCourse } from '../../api/coursesAPI'
+import { createBatch, updateBatch } from '../../api/batchesAPI'
 import { toast } from '../../utils/toast'
 
 const BREADCRUMB = [
@@ -92,30 +88,16 @@ export default function BatchDetailsPage() {
   )
 
   const handleSaveBatch = async (form, { isEdit, id }) => {
-    const existing = isEdit ? apiBatches.find((b) => b.id === id) : null
-    const newBatchId = form.batchId || existing?.batchId || nextBatchId(apiBatches)
-    const courseId = form.courseId || existing?.courseId
-    if (!courseId) {
+    if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
       toast.error('Please select a course')
       return
     }
-    const payload = mapCourseToApiPayload(
-      {
-        ...form,
-        batchId: newBatchId,
-        courseId,
-        academicCourseId: form.academicCourseId,
-        courseName: form.courseName,
-        status: form.status || 'Active',
-      },
-      existing,
-    )
 
     if (isEdit && id != null) {
-      await updateCourse(id, payload)
+      await updateBatch(id, form)
       toast.success('Batch updated')
     } else {
-      await createCourse(payload)
+      await createBatch(form)
       toast.success('Batch created')
     }
     await loadBatches()

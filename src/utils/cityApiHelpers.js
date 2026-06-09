@@ -115,17 +115,25 @@ export function normalizeCitiesListResponse(data, { page = 1, limit = 10 } = {})
   }
 }
 
-export function buildCreateCityPayload({ centerId, placeName }) {
+export function buildCreateCityPayload({ centerId, placeName, code }) {
+  const normalizedCode = String(code || '')
+    .trim()
+    .toUpperCase()
   return {
     centerId: String(centerId || '').trim(),
     cityAddress: String(placeName || '').trim(),
+    cityCode: normalizedCode,
     status: 'ACTIVE',
   }
 }
 
-export function buildUpdateCityPayload({ placeName, status }) {
+export function buildUpdateCityPayload({ placeName, status, code }) {
+  const normalizedCode = String(code || '')
+    .trim()
+    .toUpperCase()
   return {
     cityAddress: String(placeName || '').trim(),
+    cityCode: normalizedCode,
     status: mapUiCityStatusToApi(status),
   }
 }

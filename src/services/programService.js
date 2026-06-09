@@ -1,6 +1,17 @@
 import axiosInstance from './axiosInstance'
 import { throwApiError } from '../utils/apiError'
+import { createCachedRequest } from '../utils/apiRequestCache'
 import { getCentersDropdown, normalizeCentersDropdown } from './centerService'
+
+const programsListCache = createCachedRequest({ ttlMs: 30_000 })
+
+export function clearProgramsListCache() {
+  programsListCache.clear()
+}
+
+function invalidateProgramsListCache() {
+  clearProgramsListCache()
+}
 
 export async function getCentersDropdownForPrograms() {
   const data = await getCentersDropdown()
@@ -16,10 +27,16 @@ export async function getLegacyCategories() {
   }
 }
 
-export async function getPrograms(params = {}) {
+export async function getPrograms(params = {}, { bypassCache = false } = {}) {
   try {
-    const response = await axiosInstance.get('/api/programs', { params })
-    return response.data
+    return await programsListCache.fetch(
+      params,
+      async () => {
+        const response = await axiosInstance.get('/api/programs', { params })
+        return response.data
+      },
+      { bypass: bypassCache },
+    )
   } catch (error) {
     throwApiError(error)
   }
@@ -37,6 +54,7 @@ export async function getProgramById(programId) {
 export async function createProgram(payload) {
   try {
     const response = await axiosInstance.post('/api/programs', payload)
+    invalidateProgramsListCache()
     return response.data
   } catch (error) {
     throwApiError(error)
@@ -46,6 +64,7 @@ export async function createProgram(payload) {
 export async function updateProgram(programId, payload) {
   try {
     const response = await axiosInstance.put(`/api/programs/${programId}`, payload)
+    invalidateProgramsListCache()
     return response.data
   } catch (error) {
     throwApiError(error)
@@ -57,6 +76,7 @@ export async function updateProgramStatus(programId, status) {
     const response = await axiosInstance.patch(`/api/programs/status/${programId}`, {
       status,
     })
+    invalidateProgramsListCache()
     return response.data
   } catch (error) {
     throwApiError(error)
@@ -66,6 +86,7 @@ export async function updateProgramStatus(programId, status) {
 export async function deleteProgram(programId) {
   try {
     const response = await axiosInstance.delete(`/api/programs/${programId}`)
+    invalidateProgramsListCache()
     return response.data
   } catch (error) {
     throwApiError(error)

@@ -1,40 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchCourses } from '../api/coursesAPI'
-import {
-  enrichBatchRow,
-  mapInitialBatchesToRows,
-} from '../utils/batchHelpers'
+import { fetchBatches } from '../api/batchesAPI'
+import { enrichBatchRow } from '../utils/batchHelpers'
+import { getApiErrorMessage } from '../utils/apiError'
 
 export function useBatchesData({ enabled = true } = {}) {
   const [apiBatches, setApiBatches] = useState([])
   const [loading, setLoading] = useState(Boolean(enabled))
+  const [error, setError] = useState(null)
 
   const loadBatches = useCallback(async ({ silent = false } = {}) => {
     if (!enabled) return
     if (!silent) setLoading(true)
     try {
-      const rows = await fetchCourses()
+      const { rows } = await fetchBatches({ page: 1, limit: 500 })
       setApiBatches(rows.map((row, i) => enrichBatchRow(row, i)))
-    } catch {
-      setApiBatches(mapInitialBatchesToRows().map((row, i) => enrichBatchRow(row, i)))
+      setError(null)
+    } catch (err) {
+      setApiBatches([])
+      setError(getApiErrorMessage(err, 'Failed to load batches'))
     } finally {
       if (!silent) setLoading(false)
     }
   }, [enabled])
 
   useEffect(() => {
-    if (!enabled) {
-      setLoading(false)
-      return undefined
-    }
-    loadBatches()
-    return undefined
+    if (!enabled) return undefined
+    const timer = window.setTimeout(() => {
+      void loadBatches()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [enabled, loadBatches])
 
-  const sourceRows = useMemo(() => {
-    if (apiBatches.length > 0) return apiBatches
-    return mapInitialBatchesToRows()
-  }, [apiBatches])
+  const sourceRows = useMemo(() => apiBatches, [apiBatches])
 
   const existingCourseIds = useMemo(
     () => apiBatches.map((b) => b.courseId).filter(Boolean),
@@ -45,6 +42,7 @@ export function useBatchesData({ enabled = true } = {}) {
     apiBatches,
     sourceRows,
     loading,
+    error,
     loadBatches,
     existingCourseIds,
   }

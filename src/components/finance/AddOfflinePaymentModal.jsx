@@ -85,8 +85,21 @@ export default function AddOfflinePaymentModal({
     ? 'Please select a batch.'
     : undefined
 
+  const expectedEmiPrincipal = Math.max(
+    0,
+    (financials?.pendingAmount ?? 0) - (Number(emiConfig.downPayment) || 0),
+  )
+
+  const handleInlineAmountChange = (row, amount) => {
+    updateInstallment({
+      ...row,
+      emiAmount: amount,
+      rebalanceRemaining: false,
+    })
+  }
+
   return (
-    <Modal open={open} onClose={onClose} size="full" title="Offline EMI Payment">
+    <Modal open={open} onClose={onClose} size="full" title="Offline EMI Payment" showCloseButton={false}>
       <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-[#f4f6f9] shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <OfflinePaymentModalHeader
           paymentId={paymentId}
@@ -123,6 +136,7 @@ export default function AddOfflinePaymentModal({
                   onChange={setEmiConfig}
                   financials={financials}
                   schedulePreview={schedulePreview}
+                  installments={installments}
                 />
 
                 <EmiEarlyClosurePanel
@@ -139,6 +153,9 @@ export default function AddOfflinePaymentModal({
                     planClosed={planClosed}
                     onCollect={(row) => openCollectDialog(row)}
                     onEdit={setEditInstallment}
+                    customLayout
+                    expectedPrincipal={expectedEmiPrincipal}
+                    onAmountChange={handleInlineAmountChange}
                   />
                 </div>
 

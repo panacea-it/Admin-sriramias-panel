@@ -70,6 +70,15 @@ export default function SubjectTable({
       render: (row) => <span className="text-sm text-[#444]">{row.teacher || '—'}</span>,
     },
     {
+      key: 'topics',
+      label: 'Topics',
+      render: (row) => (
+        <TableValueChips
+          values={Array.isArray(row.topics) ? row.topics : row.topic ? [row.topic] : []}
+        />
+      ),
+    },
+    {
       key: 'categories',
       label: 'Categories',
       render: (row) => (

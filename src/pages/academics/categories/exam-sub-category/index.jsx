@@ -15,8 +15,6 @@ import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDi
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamSubCategoryManagement } from '../../../../hooks/useExamSubCategoryManagement'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
-import { useProgramsByCenter } from '../../../../hooks/useProgramsByCenter'
-import { useCategoriesByCenterAndProgram } from '../../../../hooks/useCategoriesByCenterAndProgram'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { toast } from '../../../../utils/toast'
@@ -72,15 +70,8 @@ export default function ExamSubCategorySection({ section, Icon }) {
   } = useExamSubCategoryManagement()
 
   const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
-  const filterCenterId = centerFilter === 'all' ? '' : centerFilter
-  const filterProgramId = programFilter === 'all' ? '' : programFilter
-  const { programOptions: filterProgramOptions, loading: filterProgramsLoading } =
-    useProgramsByCenter(filterCenterId)
-  const { categoryOptions: filterCategoryOptions, loading: filterCategoriesLoading } =
-    useCategoriesByCenterAndProgram(filterCenterId, filterProgramId)
 
   const { isOpen, isEditMode, openEdit, openCreate, close, selectedItem } = useEditModal()
-  const [selectedIds, setSelectedIds] = useState([])
   const [viewItem, setViewItem] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [editDetail, setEditDetail] = useState(null)
@@ -97,18 +88,6 @@ export default function ExamSubCategorySection({ section, Icon }) {
   )
 
   const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
-
-  const programFilterOptions = useMemo(() => {
-    const base = [{ value: 'all', label: 'All Programs' }]
-    if (centerFilter === 'all') return base
-    return [...base, ...filterProgramOptions.map((o) => ({ value: o.value, label: o.label }))]
-  }, [centerFilter, filterProgramOptions])
-
-  const categoryFilterOptions = useMemo(() => {
-    const base = [{ value: 'all', label: 'All Categories' }]
-    if (centerFilter === 'all' || programFilter === 'all') return base
-    return [...base, ...filterCategoryOptions.map((o) => ({ value: o.value, label: o.label }))]
-  }, [centerFilter, programFilter, filterCategoryOptions])
 
   const loadSubCategoryDetail = useCallback(async (row) => {
     const data = await getSubCategoryById(row.id)
@@ -191,7 +170,6 @@ export default function ExamSubCategorySection({ section, Icon }) {
     try {
       await deleteSubCategory(deleteTarget.id)
       removeSubCategoryLocally(deleteTarget.id)
-      setSelectedIds((prev) => prev.filter((sid) => sid !== deleteTarget.id))
       toast.success('Sub-category deleted')
       setDeleteTarget(null)
     } catch (error) {
@@ -223,35 +201,8 @@ export default function ExamSubCategorySection({ section, Icon }) {
     }
   }, [statusTarget, patchSubCategoryLocally])
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === subCategories.length) {
-      setSelectedIds([])
-    } else {
-      setSelectedIds(subCategories.map((r) => r.id))
-    }
-  }
-
   const columns = useMemo(
     () => [
-      {
-        key: 'select',
-        label: '',
-        headerClassName: 'w-12 pl-6 sm:pl-8',
-        cellClassName: 'pl-6 sm:pl-8',
-        render: (row) => (
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(row.id)}
-            onChange={() => {
-              setSelectedIds((prev) =>
-                prev.includes(row.id) ? prev.filter((x) => x !== row.id) : [...prev, row.id],
-              )
-            }}
-            className="h-4 w-4 rounded accent-[#246392]"
-            aria-label={`Select ${row.name}`}
-          />
-        ),
-      },
       {
         key: 'subcategoryId',
         label: 'ID',
@@ -318,7 +269,7 @@ export default function ExamSubCategorySection({ section, Icon }) {
         ),
       },
     ],
-    [selectedIds, handleView, handleEditOpen],
+    [handleView, handleEditOpen],
   )
 
   const hasActiveFilters =
@@ -364,47 +315,6 @@ export default function ExamSubCategorySection({ section, Icon }) {
           onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
           centerOptions={centreOptions}
         />
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <select
-            value={programFilter}
-            onChange={(e) => setProgramFilter(e.target.value)}
-            disabled={centerFilter === 'all' || filterProgramsLoading}
-            className="h-10 rounded-lg bg-[#55ace7] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4a9ad4] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {programFilterOptions.map((o) => (
-              <option key={o.value} value={o.value} className="text-[#222]">
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            disabled={
-              centerFilter === 'all' || programFilter === 'all' || filterCategoriesLoading
-            }
-            className="h-10 rounded-lg bg-[#55ace7] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4a9ad4] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {categoryFilterOptions.map((o) => (
-              <option key={o.value} value={o.value} className="text-[#222]">
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {!loading && subCategories.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-[#686868]">
-            <input
-              type="checkbox"
-              checked={selectedIds.length === subCategories.length && subCategories.length > 0}
-              onChange={toggleSelectAll}
-              className="h-4 w-4 rounded accent-[#246392]"
-            />
-            <span>Select all on this page</span>
-          </div>
-        )}
 
         {loading ? (
           <ExamSubCategoryTableSkeleton />

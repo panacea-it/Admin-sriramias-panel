@@ -69,46 +69,51 @@ export function mapUiCategoriesToApi(categories) {
 function formatDisplayId(row, fallbackId) {
   const raw = row?.facultySubjectId ?? row?.displayId ?? fallbackId
   if (raw == null || raw === '') return '—'
-  const num = parseInt(String(raw).replace(/\D/g, ''), 10)
+  const str = String(raw).trim()
+  if (/[a-zA-Z]/.test(str)) return str
+  const num = parseInt(str.replace(/\D/g, ''), 10)
   if (!Number.isNaN(num) && num > 0) return String(num).padStart(3, '0')
-  return String(raw)
+  return str
 }
 
 function extractTeacherName(apiRow) {
   if (apiRow?.teacherDetails?.teacherName) return apiRow.teacherDetails.teacherName
   if (apiRow?.teacherName) return apiRow.teacherName
-  if (typeof apiRow?.teacher === 'object' && apiRow.teacher?.teacherName) {
-    return apiRow.teacher.teacherName
+  const teacher = apiRow?.teacher
+  if (teacher && typeof teacher === 'object' && teacher.teacherName) {
+    return teacher.teacherName
   }
-  if (typeof apiRow?.teacher === 'string' && !/^[a-f0-9]{24}$/i.test(apiRow.teacher)) {
-    return apiRow.teacher
+  if (typeof teacher === 'string' && !/^[a-f0-9]{24}$/i.test(teacher)) {
+    return teacher
   }
   return ''
 }
 
 function extractTeacherId(apiRow) {
-  if (typeof apiRow?.teacher === 'object') return String(apiRow.teacher._id || apiRow.teacher.id || '')
-  if (typeof apiRow?.teacher === 'string') return apiRow.teacher
+  const teacher = apiRow?.teacher
+  if (teacher && typeof teacher === 'object') return String(teacher._id || teacher.id || '')
+  if (typeof teacher === 'string') return teacher
   return String(apiRow?.teacherId || '')
 }
 
 function extractSubjectId(apiRow) {
-  if (typeof apiRow?.subject === 'object') return String(apiRow.subject._id || apiRow.subject.id || '')
-  if (typeof apiRow?.subject === 'string') return apiRow.subject
+  const subject = apiRow?.subject
+  if (subject && typeof subject === 'object') return String(subject._id || subject.id || '')
+  if (typeof subject === 'string') return subject
   return String(apiRow?.subjectId || '')
 }
 
 function extractTopicIds(apiRow) {
   if (!Array.isArray(apiRow?.topics)) return []
   return apiRow.topics
-    .map((t) => (typeof t === 'object' ? String(t._id || t.id || '') : String(t)))
+    .map((t) => (t && typeof t === 'object' ? String(t._id || t.id || '') : String(t ?? '')))
     .filter(Boolean)
 }
 
 function extractTopicNames(apiRow) {
   if (!Array.isArray(apiRow?.topics)) return []
   return apiRow.topics
-    .map((t) => (typeof t === 'object' ? String(t.topicName || t.name || '') : String(t)))
+    .map((t) => (t && typeof t === 'object' ? String(t.topicName || t.name || '') : String(t ?? '')))
     .filter(Boolean)
 }
 
@@ -169,6 +174,16 @@ export function isMongoObjectId(value) {
   return MONGO_OBJECT_ID.test(String(value || '').trim())
 }
 
+/** Client-side ObjectId for API folder/subject references when the backend expects Mongo ids. */
+export function generateMongoObjectId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 24)
+  }
+  return Array.from({ length: 24 }, () =>
+    Math.floor(Math.random() * 16).toString(16),
+  ).join('')
+}
+
 /** Row shape for edit form — stores ids in subject / teacher / topics fields. */
 export function mapApiFacultySubjectToFormRow(data) {
   const row = mapApiFacultySubjectToRow(data)
@@ -190,7 +205,7 @@ export function mapApiFacultySubjectToFormRow(data) {
     topicMeta: Array.isArray(apiRow.topics)
       ? apiRow.topics
           .map((t) =>
-            typeof t === 'object'
+            t && typeof t === 'object'
               ? {
                   value: String(t._id || t.id || ''),
                   label: String(t.topicName || t.name || ''),
@@ -225,11 +240,14 @@ function resolveTeacherId(form) {
 }
 
 export function buildFacultySubjectApiPayload(form) {
+  const subjectId = String(form.subject || '').trim()
+  const teacherId = resolveTeacherId(form)
+  const topicIds = resolveTopicIds(form)
   return {
     subjectName: String(form.subjectName || '').trim(),
-    subjectId: String(form.subject || '').trim(),
-    topicIds: resolveTopicIds(form),
-    teacherId: resolveTeacherId(form),
+    subjectId,
+    teacherId,
+    topicIds,
     categories: mapUiCategoriesToApi(form.categories),
     status: mapUiStatusToApi(form.status || 'Active'),
   }
@@ -246,7 +264,13 @@ export function normalizeFacultySubjectsListResponse(data, { page = 1, limit = 1
       (Array.isArray(payload) ? payload : [])
 
   const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
-    .map((row) => mapApiFacultySubjectToRow(row))
+    .map((row) => {
+      try {
+        return mapApiFacultySubjectToRow(row)
+      } catch {
+        return null
+      }
+    })
     .filter(Boolean)
 
   const total = data?.total ?? payload?.total ?? items.length
@@ -266,7 +290,14 @@ export function normalizeFacultySubjectsListResponse(data, { page = 1, limit = 1
 
 /** @returns {SelectOption[]} */
 export function normalizeSubjectsDropdownResponse(data) {
-  const list = Array.isArray(data?.data) ? data.data : data?.data ?? data?.items ?? []
+  const list = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data)
+        ? data
+        : []
+
   return (Array.isArray(list) ? list : [])
     .map((row) => {
       const value = String(row._id ?? row.id ?? '')
@@ -319,7 +350,7 @@ export function buildCategoryOptionsFromEnums(enums = []) {
   }))
 }
 
-/** @returns {{ subjects: SelectOption[], topics: SelectOption[], teachers: SelectOption[] }} */
+/** @returns {{ subjects: SelectOption[], topics: SelectOption[], teachers: SelectOption[], selectedSubject: SelectOption | null }} */
 export function normalizeFacultySubjectCreateFormResponse(data) {
   const payload = data?.data ?? data ?? {}
   const mapTopic = (row) => ({
@@ -335,6 +366,12 @@ export function normalizeFacultySubjectCreateFormResponse(data) {
     label: String(row.subjectName ?? row.name ?? ''),
   })
 
+  const selectedRaw = payload.selectedSubject
+  const selectedSubject =
+    selectedRaw && typeof selectedRaw === 'object'
+      ? mapSubject(selectedRaw)
+      : null
+
   return {
     subjects: (Array.isArray(payload.subjects) ? payload.subjects : [])
       .map(mapSubject)
@@ -345,5 +382,6 @@ export function normalizeFacultySubjectCreateFormResponse(data) {
     teachers: (Array.isArray(payload.teachers) ? payload.teachers : [])
       .map(mapTeacher)
       .filter((o) => o.value),
+    selectedSubject: selectedSubject?.value ? selectedSubject : null,
   }
 }

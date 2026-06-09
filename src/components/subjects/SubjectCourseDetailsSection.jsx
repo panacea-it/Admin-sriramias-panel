@@ -105,7 +105,9 @@ export default function SubjectCourseDetailsSection({
                     ? 'Loading topics…'
                     : disabledTopicsTeachers
                       ? 'Choose Subject first'
-                      : 'Choose Topic'
+                      : topicOptions.length
+                        ? 'Choose Topic'
+                        : 'No topics available'
                 }
                 disabled={disabledTopicsTeachers || loadingFormOptions}
                 error={errors.topics?.message}
@@ -131,7 +133,9 @@ export default function SubjectCourseDetailsSection({
                     ? 'Loading teachers…'
                     : disabledTopicsTeachers
                       ? 'Choose Subject first'
-                      : 'Choose Teacher'
+                      : teacherOptions.length
+                        ? 'Choose Teacher'
+                        : 'No teachers available'
                 }
                 disabled={disabledTopicsTeachers || loadingFormOptions}
               />

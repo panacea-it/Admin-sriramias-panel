@@ -19,7 +19,6 @@ import {
 } from '../../utils/facultySubjectHierarchy'
 import {
   generateContentId,
-  updateCategoryFolders,
 } from '../../utils/facultySubjectContentStorage'
 import { nextLiveClassId } from '../../utils/academicsSubjectsStorage'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
@@ -35,6 +34,7 @@ import {
   buildLiveClassApiPayload,
   mapApiLiveClassToLocalRow,
   resolveFacultySubjectApiId,
+  resolveFolderApiId,
   resolveLiveClassApiId,
   validateLiveClassApiPayload,
 } from '../../utils/liveClassHelpers'
@@ -60,8 +60,18 @@ export default function SubjectContentManagementPage() {
   const facultyName = user?.name || user?.email || subject?.teacher || 'Faculty'
   const teacherShort = subject?.teacher?.split(' ')[0] || facultyName.split(' ')[0]
 
-  const { content, loading, saving, persist } = useSubjectContent(subjectId, {
+  const {
+    content,
+    loading,
+    saving,
+    persist,
+    createFolder,
+    renameFolder,
+    removeFolder,
+    updateFolderItems,
+  } = useSubjectContent(subjectId, {
     subjectMeta: subject,
+    facultySubjectApiId,
   })
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
@@ -119,68 +129,69 @@ export default function SubjectContentManagementPage() {
     setInitialSelectionDone(true)
   }, [loading, categories, initialSelectionDone])
 
-  const mutateCategoryFolders = useCallback(
-    async (categoryId, updater) => {
-      if (!content) return
-      const next = updateCategoryFolders(content, categoryId, updater)
-      await persist({
-        ...next,
-        subjectName: subject?.subjectName || content.subjectName,
-        categoryIds: categoryChips,
-        facultyName,
-      })
-      return next
+  const mutateFolderItems = useCallback(
+    (categoryId, folderId, updater) => {
+      updateFolderItems(categoryId, folderId, updater)
     },
-    [content, persist, subject, categoryChips, facultyName],
+    [updateFolderItems],
   )
 
   const handleAddFolder = async () => {
-    if (!newFolderName.trim() || !selectedCategoryId) {
+    if (!newFolderName.trim() || !selectedCategoryId || !activeCategory) {
       toast.error('Folder name and category are required')
       return
     }
-    const folder = {
-      id: generateContentId('fld'),
-      parentFolderId: null,
-      folderName: newFolderName.trim(),
-      description: newFolderDescription.trim(),
-      orderIndex: activeCategory?.folders?.length || 0,
-      items: [],
-      updatedAt: new Date().toISOString(),
+    try {
+      const folder = await createFolder({
+        categoryId: selectedCategoryId,
+        categoryType: activeCategory.categoryType,
+        folderName: newFolderName.trim(),
+        description: newFolderDescription.trim(),
+      })
+      setAddingFolder(false)
+      setNewFolderName('')
+      setNewFolderDescription('')
+      if (folder?.id) setSelectedFolderId(folder.id)
+      setSelectedItemId(null)
+      setPanelMode('list')
+      setAddingNewItem(false)
+      toast.success('Folder created')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to create folder'))
     }
-    await mutateCategoryFolders(selectedCategoryId, (list) => [...list, folder])
-    setAddingFolder(false)
-    setNewFolderName('')
-    setNewFolderDescription('')
-    setSelectedFolderId(folder.id)
-    setSelectedItemId(null)
-    setPanelMode('list')
-    setAddingNewItem(false)
-    toast.success('Folder created')
   }
 
   const handleRenameFolder = async (folderId, name) => {
     if (!name.trim() || !selectedCategoryId) return
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.map((f) => (f.id === folderId ? { ...f, folderName: name.trim() } : f)),
-    )
-    toast.success('Folder renamed')
+    const folder = activeCategory?.folders?.find((f) => f.id === folderId)
+    try {
+      await renameFolder({
+        folderId,
+        folderName: name.trim(),
+        description: folder?.description || '',
+      })
+      toast.success('Folder renamed')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to rename folder'))
+    }
   }
 
   const handleDeleteFolder = (folderId) => setDeleteFolderTarget(folderId)
 
   const confirmDeleteFolder = async () => {
     if (!selectedCategoryId || !deleteFolderTarget) return
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.filter((f) => f.id !== deleteFolderTarget),
-    )
-    if (selectedFolderId === deleteFolderTarget) {
-      setSelectedFolderId(null)
-      setSelectedItemId(null)
-      setPanelMode('list')
+    try {
+      await removeFolder(deleteFolderTarget)
+      if (selectedFolderId === deleteFolderTarget) {
+        setSelectedFolderId(null)
+        setSelectedItemId(null)
+        setPanelMode('list')
+      }
+      setDeleteFolderTarget(null)
+      toast.success('Folder deleted')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete folder'))
     }
-    setDeleteFolderTarget(null)
-    toast.success('Folder deleted')
   }
 
   const removeItemFromSubject = (item, contentType) => {
@@ -224,12 +235,8 @@ export default function SubjectContentManagementPage() {
       }
     }
 
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.map((f) =>
-        f.id === activeFolder.id
-          ? { ...f, items: f.items.filter((i) => i.id !== deleteItemTarget.id) }
-          : f,
-      ),
+    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
+      items.filter((i) => i.id !== deleteItemTarget.id),
     )
     upsertSubject(removeItemFromSubject(deleteItemTarget, contentType))
     if (selectedItemId === deleteItemTarget.id) {
@@ -254,17 +261,8 @@ export default function SubjectContentManagementPage() {
       }
     }
 
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.map((f) =>
-        f.id === activeFolder.id
-          ? {
-              ...f,
-              items: f.items.map((i) =>
-                i.id === item.id ? { ...i, status: 'published' } : i,
-              ),
-            }
-          : f,
-      ),
+    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
+      items.map((i) => (i.id === item.id ? { ...i, status: 'published' } : i)),
     )
     toast.success('Published')
   }
@@ -319,11 +317,7 @@ export default function SubjectContentManagementPage() {
       lastUpdated: new Date().toISOString(),
       data: copy,
     }
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.map((f) =>
-        f.id === activeFolder.id ? { ...f, items: [...f.items, newItem] } : f,
-      ),
-    )
+    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) => [...items, newItem])
     upsertSubject({
       ...mergedSubject,
       liveClasses: [...(mergedSubject?.liveClasses || []), copy],
@@ -345,10 +339,31 @@ export default function SubjectContentManagementPage() {
 
     if (contentType === 'live') {
       try {
+        if (activeCategory.categoryType !== 'LIVE_CLASS') {
+          throw new Error('Live classes must be saved under the Live Class category')
+        }
+        if (!facultySubjectApiId) {
+          throw new Error('Faculty subject id is missing — open this page from Faculty Subjects list')
+        }
+
+        const folderApiId = resolveFolderApiId(activeFolder)
+        if (!folderApiId) {
+          throw new Error(
+            'Folder id is invalid. Delete this folder, create a new one under Live Class, then try again.',
+          )
+        }
+
+        await persist({
+          ...content,
+          subjectName: subject?.subjectName || content.subjectName,
+          categoryIds: categoryChips,
+          facultyName,
+        })
+
         const isRecurring = Boolean(values.recurring && values.recurrence?.enabled)
         const apiPayload = buildLiveClassApiPayload(values, {
           facultySubjectId: facultySubjectApiId,
-          folderId: activeFolder.id,
+          folderId: folderApiId,
           publish,
           recurring: isRecurring,
           recurrence: isRecurring ? values.recurrence : null,
@@ -388,16 +403,13 @@ export default function SubjectContentManagementPage() {
       item.data = resolvedLiveClassData
     }
 
-    await mutateCategoryFolders(selectedCategoryId, (list) =>
-      list.map((f) => {
-        if (f.id !== activeFolder.id) return f
-        const items = [...(f.items || [])]
-        const idx = items.findIndex((i) => i.id === item.id)
-        if (idx >= 0) items[idx] = { ...item, data: item.data }
-        else items.push(item)
-        return { ...f, items, updatedAt: new Date().toISOString() }
-      }),
-    )
+    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) => {
+      const next = [...items]
+      const idx = next.findIndex((i) => i.id === item.id)
+      if (idx >= 0) next[idx] = { ...item, data: item.data }
+      else next.push(item)
+      return next
+    })
 
     upsertSubject(subjectPatch)
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileSpreadsheet, Eye, Pencil, Receipt, Bell, Columns3, UserCircle, SearchX, RotateCcw } from 'lucide-react'
+import { FileSpreadsheet, Eye, Pencil, SearchX, RotateCcw } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import FinanceRefundBadge from '../../components/finance/FinanceRefundBadge'
@@ -14,7 +14,6 @@ import FinanceMobileFilters, {
   FilterChip,
   FilterField,
   FilterInput,
-  FilterSelect,
   FILTER_FIELD_CLASS,
 } from '../../components/finance/FinanceMobileFilters'
 import PaymentViewDrawer from '../../components/finance/PaymentViewDrawer'
@@ -25,11 +24,8 @@ import {
   fetchPaymentReports,
   fetchPaymentModeSettings,
   updatePaymentStatus,
-  sendPaymentReminder,
-  generateReceipt,
-  resendReceipt,
 } from '../../api/financeAPI'
-import { FINANCE_COURSES, FINANCE_BRANCHES } from '../../data/financeMockData'
+import { FINANCE_COURSES } from '../../data/financeMockData'
 import {
   filterPaymentReports,
   formatINR,
@@ -49,80 +45,97 @@ import {
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
-const ALL_COLUMNS = [
+const TABLE_COLUMNS = [
   { key: 'studentName', label: 'Student' },
-  { key: 'studentId', label: 'Student ID' },
-  { key: 'enrollmentNumber', label: 'Enrollment' },
   { key: 'centerName', label: 'Center' },
   { key: 'courseName', label: 'Course' },
   { key: 'batchName', label: 'Batch' },
   { key: 'paymentStatus', label: 'Status' },
   { key: 'refundStatus', label: 'Refund' },
   { key: 'accessStatus', label: 'Access' },
-  { key: 'verificationStatus', label: 'Verification' },
-  { key: 'emiStatus', label: 'EMI' },
-  { key: 'paymentType', label: 'Type' },
-  { key: 'totalFees', label: 'Total fees' },
   { key: 'amountPaid', label: 'Paid' },
   { key: 'pendingAmount', label: 'Pending' },
   { key: 'paymentMode', label: 'Mode' },
   { key: 'paymentGateway', label: 'Gateway' },
-  { key: 'branch', label: 'Branch' },
-  { key: 'receiptNumber', label: 'Receipt' },
   { key: 'paymentDate', label: 'Date' },
-]
-
-const DEFAULT_VISIBLE = [
-  'studentName',
-  'centerName',
-  'courseName',
-  'batchName',
-  'paymentStatus',
-  'refundStatus',
-  'accessStatus',
-  'amountPaid',
-  'pendingAmount',
-  'paymentMode',
-  'paymentGateway',
-  'paymentDate',
+  { key: 'editReason', label: 'Reason' },
+  { key: 'editComment', label: 'Comments' },
 ]
 
 const COLUMN_ALIGN = {
   studentName: 'left',
-  studentId: 'left',
-  enrollmentNumber: 'left',
   centerName: 'left',
   courseName: 'left',
   batchName: 'left',
   paymentStatus: 'center',
   refundStatus: 'center',
   accessStatus: 'center',
-  verificationStatus: 'center',
-  emiStatus: 'center',
-  paymentType: 'left',
-  totalFees: 'right',
   amountPaid: 'right',
   pendingAmount: 'right',
   paymentMode: 'left',
   paymentGateway: 'left',
-  branch: 'left',
-  receiptNumber: 'left',
   paymentDate: 'center',
+  editReason: 'left',
+  editComment: 'left',
   actions: 'center',
 }
 
+const CELL_BASE = 'px-4 py-3 align-middle text-sm'
+const TEXT_CELL = 'max-w-[180px] truncate'
+const STATUS_CELL = 'whitespace-nowrap'
+
 const STATUS_FILTER_OPTIONS = ['Paid', 'Partial', 'Pending', 'Failed', 'Refunded', 'EMI Running']
 
-function countActiveFilters(filters, search, advancedSearch) {
+/** Latest admin edit note — reason and comment are stored together in adminLogs.comment */
+function parseLatestAdminNote(row) {
+  const logs = Array.isArray(row?.adminLogs) ? row.adminLogs : []
+  if (!logs.length) return { reason: '', comment: '' }
+
+  const latest = logs[logs.length - 1]
+  const raw = (latest.comment || '').trim()
+  if (!raw) return { reason: '', comment: '' }
+
+  const colonIdx = raw.indexOf(': ')
+  if (colonIdx > 0) {
+    return {
+      reason: raw.slice(0, colonIdx).trim(),
+      comment: raw.slice(colonIdx + 2).trim(),
+    }
+  }
+
+  return { reason: latest.action || '', comment: raw }
+}
+
+function NoteCell({ value, variant = 'text' }) {
+  if (!value?.trim()) {
+    return <span className="text-[#9ca0a8]">—</span>
+  }
+
+  if (variant === 'reason') {
+    return (
+      <span
+        className="inline-flex max-w-[160px] truncate rounded-full bg-[#eef6fc] px-2.5 py-1 text-xs font-semibold text-[#246392]"
+        title={value}
+      >
+        {value}
+      </span>
+    )
+  }
+
+  return (
+    <span className="block max-w-[200px] truncate text-[#444]" title={value}>
+      {value}
+    </span>
+  )
+}
+
+function countActiveFilters(filters, search) {
   let count = 0
   Object.entries(filters).forEach(([key, val]) => {
     if (key === 'studentId' && val?.trim()) count++
     else if (val && val !== 'all' && val !== '') count++
   })
   if (search.trim()) count++
-  Object.values(advancedSearch).forEach((v) => {
-    if (v?.trim()) count++
-  })
   return count
 }
 
@@ -144,33 +157,20 @@ function FilterSelectRow({ value, onChange, options, ariaLabel, className }) {
 }
 
 export default function StudentPaymentReportsPage() {
-  const { canEdit, canExport, canReceipts } = useFinancePermissions()
-  const { openStudentProfile, refreshToken } = useFinanceOperations()
+  const { canEdit, canExport } = useFinancePermissions()
+  const { refreshToken } = useFinanceOperations()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [modeSettings, setModeSettings] = useState([])
-  const [tableDensity, setTableDensity] = useState('compact')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 350)
-  const [advancedSearch, setAdvancedSearch] = useState({
-    mobile: '',
-    email: '',
-    enrollmentNumber: '',
-    receiptNumber: '',
-    transactionId: '',
-  })
-  const debouncedAdvanced = useDebouncedValue(advancedSearch, 350)
   const [filters, setFilters] = useState({ ...DEFAULT_PAYMENT_REPORT_FILTERS })
-  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
-  const [colMenuOpen, setColMenuOpen] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const [editForm, setEditForm] = useState({ newStatus: 'Paid', amountAdjustment: '', reason: 'Manual Approval', comment: '' })
   const [saving, setSaving] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -193,9 +193,8 @@ export default function StudentPaymentReportsPage() {
     () => ({
       ...filters,
       search: debouncedSearch,
-      ...debouncedAdvanced,
     }),
-    [filters, debouncedSearch, debouncedAdvanced],
+    [filters, debouncedSearch],
   )
 
   const filtered = useMemo(
@@ -208,42 +207,20 @@ export default function StudentPaymentReportsPage() {
     [modeSettings],
   )
 
-  const branchOptions = useMemo(() => {
-    const fromData = [...new Set((rows ?? []).map((r) => r?.branch).filter(Boolean))]
-    const fromConfig = FINANCE_BRANCHES.map((b) => b.name)
-    return [...new Set([...fromConfig, ...fromData])].sort()
-  }, [rows])
-
   const centerOptions = useMemo(() => {
     const names = [...new Set((rows ?? []).map((r) => r?.centerName).filter(Boolean))]
     return names.sort()
   }, [rows])
 
-  const activeFilterCount = countActiveFilters(filters, search, advancedSearch)
+  const activeFilterCount = countActiveFilters(filters, search)
 
   const filterChips = useMemo(() => {
     const chips = []
     if (search.trim()) chips.push({ key: 'search', label: `Search: ${search.trim()}`, clear: () => setSearch('') })
-    Object.entries(advancedSearch).forEach(([key, val]) => {
-      if (!val?.trim()) return
-      const labels = {
-        mobile: 'Mobile',
-        email: 'Email',
-        enrollmentNumber: 'Enrollment',
-        receiptNumber: 'Receipt',
-        transactionId: 'Txn ID',
-      }
-      chips.push({
-        key,
-        label: `${labels[key]}: ${val.trim()}`,
-        clear: () => setAdvancedSearch((s) => ({ ...s, [key]: '' })),
-      })
-    })
     const filterLabels = {
       paymentStatus: 'Status',
       paymentType: 'Type',
       paymentMode: 'Mode',
-      branch: 'Branch',
       paymentGateway: 'Gateway',
       refundStatus: 'Refund',
       accessStatus: 'Access',
@@ -272,11 +249,10 @@ export default function StudentPaymentReportsPage() {
       })
     })
     return chips
-  }, [search, advancedSearch, filters])
+  }, [search, filters])
 
   const resetAllFilters = () => {
     setSearch('')
-    setAdvancedSearch({ mobile: '', email: '', enrollmentNumber: '', receiptNumber: '', transactionId: '' })
     setFilters({ ...DEFAULT_PAYMENT_REPORT_FILTERS })
   }
 
@@ -299,42 +275,6 @@ export default function StudentPaymentReportsPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleReminder = async (row) => {
-    try {
-      await sendPaymentReminder({ mobile: row.mobile, email: row.email, channel: 'WhatsApp' })
-      toast.success('Reminder queued')
-    } catch {
-      toast.error('Reminder failed')
-    }
-  }
-
-  const handleReceipt = async (row) => {
-    try {
-      await generateReceipt(row.id)
-      toast.success('Receipt generated')
-      load()
-    } catch {
-      toast.error('Receipt generation failed')
-    }
-  }
-
-  const handlePrintReceipt = (row) => {
-    window.open(`/finance/receipts?preview=${row.id}`, '_blank')
-  }
-
-  const handleResendReceipt = async (row, channel = 'Email') => {
-    try {
-      await resendReceipt(row.id, channel)
-      toast.success(`Receipt sent via ${channel}`)
-    } catch {
-      toast.error('Failed to send receipt')
-    }
-  }
-
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   const renderFilterFields = (layout = 'desktop') => {
@@ -367,14 +307,6 @@ export default function StudentPaymentReportsPage() {
             onChange={(e) => setFilters((f) => ({ ...f, paymentMode: e.target.value }))}
             ariaLabel="Payment mode"
             options={paymentModeOptions}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Branch')}>
-          <FilterSelectRow
-            value={filters.branch}
-            onChange={(e) => setFilters((f) => ({ ...f, branch: e.target.value }))}
-            ariaLabel="Branch"
-            options={[{ value: 'all', label: 'All branches' }, ...branchOptions.map((b) => ({ value: b, label: b }))]}
           />
         </Wrapper>
         <Wrapper {...wrapProps('Payment gateway')}>
@@ -451,21 +383,24 @@ export default function StudentPaymentReportsPage() {
   }
 
   const columns = useMemo(() => {
-    const defs = ALL_COLUMNS.filter((c) => visibleCols.includes(c.key)).map((c) => {
+    const defs = TABLE_COLUMNS.map((c) => {
       const base = {
         ...c,
         align: COLUMN_ALIGN[c.key] || 'left',
-        headerClassName: cn(c.key === 'studentName' && 'pl-6 sm:pl-10'),
+        headerClassName: cn(CELL_BASE, 'font-semibold', c.key === 'studentName' && 'pl-5 sm:pl-6'),
         cellClassName: cn(
-          c.key === 'studentName' && 'pl-6 sm:pl-10',
-          ['paymentStatus', 'verificationStatus', 'emiStatus', 'refundStatus', 'accessStatus'].includes(c.key) && 'whitespace-nowrap',
-          ['amountPaid', 'pendingAmount', 'totalFees'].includes(c.key) && 'tabular-nums font-medium text-[#111111]',
+          CELL_BASE,
+          c.key === 'studentName' && 'pl-5 sm:pl-6',
+          ['centerName', 'courseName', 'batchName', 'paymentMode', 'paymentGateway', 'editComment'].includes(c.key) && TEXT_CELL,
+          c.key === 'editReason' && 'max-w-[160px]',
+          ['paymentStatus', 'refundStatus', 'accessStatus'].includes(c.key) && STATUS_CELL,
+          ['amountPaid', 'pendingAmount'].includes(c.key) && 'tabular-nums font-medium text-[#111111] whitespace-nowrap',
           c.key === 'paymentDate' && 'whitespace-nowrap tabular-nums',
         ),
       }
 
-      if (c.key === 'paymentStatus' || c.key === 'verificationStatus' || c.key === 'emiStatus') {
-        return { ...base, render: (r) => <FinanceStatusBadge status={r[c.key]} className="rounded-full px-3 py-1 text-xs" /> }
+      if (c.key === 'paymentStatus') {
+        return { ...base, render: (r) => <FinanceStatusBadge status={r.paymentStatus} className="rounded-full px-3 py-1 text-xs" /> }
       }
       if (c.key === 'refundStatus') {
         return { ...base, render: (r) => <FinanceRefundBadge status={r.refundStatus} className="rounded-full px-3 py-1 text-xs" /> }
@@ -473,7 +408,7 @@ export default function StudentPaymentReportsPage() {
       if (c.key === 'accessStatus') {
         return { ...base, render: (r) => <FinanceAccessStatusBadge status={r.accessStatus} className="rounded-full px-3 py-1 text-xs" /> }
       }
-      if (['totalFees', 'amountPaid', 'pendingAmount'].includes(c.key)) {
+      if (['amountPaid', 'pendingAmount'].includes(c.key)) {
         return { ...base, render: (r) => formatINR(r[c.key]) }
       }
       if (c.key === 'paymentDate') {
@@ -487,60 +422,58 @@ export default function StudentPaymentReportsPage() {
         }
       }
       if (c.key === 'studentName') {
-        return { ...base, render: (r) => <span className="font-semibold text-[#111111]">{r.studentName}</span> }
+        return { ...base, render: (r) => <span className="block truncate font-semibold text-[#111111]" title={r.studentName}>{r.studentName}</span> }
+      }
+      if (['centerName', 'courseName', 'batchName', 'paymentMode', 'paymentGateway'].includes(c.key)) {
+        return { ...base, render: (r) => <span className="block truncate" title={r[c.key]}>{r[c.key] || '—'}</span> }
+      }
+      if (c.key === 'editReason') {
+        return {
+          ...base,
+          render: (r) => <NoteCell value={parseLatestAdminNote(r).reason} variant="reason" />,
+        }
+      }
+      if (c.key === 'editComment') {
+        return {
+          ...base,
+          render: (r) => <NoteCell value={parseLatestAdminNote(r).comment} />,
+        }
       }
       return base
-    })
-
-    defs.unshift({
-      key: '_select',
-      label: '',
-      align: 'center',
-      headerClassName: 'w-10',
-      render: (row) => (
-        <input
-          type="checkbox"
-          checked={selectedIds.includes(row.id)}
-          onChange={() => toggleSelect(row.id)}
-          aria-label={`Select ${row.studentName}`}
-          className="h-4 w-4 rounded border-slate-300"
-        />
-      ),
     })
 
     defs.push({
       key: 'actions',
       label: 'Actions',
       align: 'center',
-      headerClassName: 'min-w-[80px]',
-      cellClassName: 'whitespace-nowrap bg-inherit',
+      headerClassName: cn(CELL_BASE, 'min-w-[88px] pr-5 sm:pr-6'),
+      cellClassName: cn(CELL_BASE, 'whitespace-nowrap pr-5 sm:pr-6'),
       render: (row) => (
         <FinanceActionMenu
+          className="mx-auto"
           actions={[
             { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
             {
               label: 'Edit',
               icon: Pencil,
               onClick: () => {
+                const note = parseLatestAdminNote(row)
                 setEditRow(row)
                 setEditForm({
                   newStatus: row.paymentStatus,
                   amountAdjustment: String(row.amountPaid),
-                  reason: 'Manual Approval',
-                  comment: '',
+                  reason: note.reason || 'Manual Approval',
+                  comment: note.comment || '',
                 })
               },
               show: canEdit,
             },
-            { label: 'Receipt', icon: Receipt, onClick: () => handleReceipt(row), show: canReceipts },
-            { label: 'Notify', icon: Bell, onClick: () => handleReminder(row), variant: 'accent' },
-            { label: 'Profile', icon: UserCircle, onClick: () => openStudentProfile(row.studentId, row) },
           ]}
         />
       ),
     })
     return defs
-  }, [visibleCols, canEdit, canReceipts, openStudentProfile, selectedIds])
+  }, [canEdit])
 
   return (
     <FinancePageShell
@@ -567,20 +500,13 @@ export default function StudentPaymentReportsPage() {
     >
       <div className="sticky top-0 z-10 space-y-3">
         <div className="rounded-xl bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-wrap items-start gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <FinanceSearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search student, course, txn, receipt…"
-              className="min-w-0 flex-1 sm:min-w-[240px]"
+              className="min-w-0 flex-1"
             />
-            <button
-              type="button"
-              onClick={() => setShowAdvancedSearch((s) => !s)}
-              className="hidden h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#246392] hover:bg-slate-50 sm:inline-flex"
-            >
-              {showAdvancedSearch ? 'Hide' : 'Advanced'} search
-            </button>
             <FinanceMobileFilters
               open={mobileFiltersOpen}
               onOpen={() => setMobileFiltersOpen(true)}
@@ -589,41 +515,6 @@ export default function StudentPaymentReportsPage() {
               activeCount={activeFilterCount}
             >
               {renderFilterFields('mobile')}
-              <FilterField label="Mobile">
-                <FilterInput
-                  value={advancedSearch.mobile}
-                  onChange={(e) => setAdvancedSearch((s) => ({ ...s, mobile: e.target.value }))}
-                  placeholder="Mobile number"
-                />
-              </FilterField>
-              <FilterField label="Email">
-                <FilterInput
-                  value={advancedSearch.email}
-                  onChange={(e) => setAdvancedSearch((s) => ({ ...s, email: e.target.value }))}
-                  placeholder="Email"
-                />
-              </FilterField>
-              <FilterField label="Enrollment">
-                <FilterInput
-                  value={advancedSearch.enrollmentNumber}
-                  onChange={(e) => setAdvancedSearch((s) => ({ ...s, enrollmentNumber: e.target.value }))}
-                  placeholder="Enrollment number"
-                />
-              </FilterField>
-              <FilterField label="Receipt">
-                <FilterInput
-                  value={advancedSearch.receiptNumber}
-                  onChange={(e) => setAdvancedSearch((s) => ({ ...s, receiptNumber: e.target.value }))}
-                  placeholder="Receipt number"
-                />
-              </FilterField>
-              <FilterField label="Transaction ID">
-                <FilterInput
-                  value={advancedSearch.transactionId}
-                  onChange={(e) => setAdvancedSearch((s) => ({ ...s, transactionId: e.target.value }))}
-                  placeholder="Transaction ID"
-                />
-              </FilterField>
             </FinanceMobileFilters>
             {activeFilterCount > 0 && (
               <button
@@ -636,41 +527,6 @@ export default function StudentPaymentReportsPage() {
               </button>
             )}
           </div>
-
-          {(showAdvancedSearch || Object.values(advancedSearch).some((v) => v?.trim())) && (
-            <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
-              <FilterInput
-                value={advancedSearch.mobile}
-                onChange={(e) => setAdvancedSearch((s) => ({ ...s, mobile: e.target.value }))}
-                placeholder="Mobile number"
-                ariaLabel="Mobile number"
-              />
-              <FilterInput
-                value={advancedSearch.email}
-                onChange={(e) => setAdvancedSearch((s) => ({ ...s, email: e.target.value }))}
-                placeholder="Email"
-                ariaLabel="Email"
-              />
-              <FilterInput
-                value={advancedSearch.enrollmentNumber}
-                onChange={(e) => setAdvancedSearch((s) => ({ ...s, enrollmentNumber: e.target.value }))}
-                placeholder="Enrollment number"
-                ariaLabel="Enrollment number"
-              />
-              <FilterInput
-                value={advancedSearch.receiptNumber}
-                onChange={(e) => setAdvancedSearch((s) => ({ ...s, receiptNumber: e.target.value }))}
-                placeholder="Receipt number"
-                ariaLabel="Receipt number"
-              />
-              <FilterInput
-                value={advancedSearch.transactionId}
-                onChange={(e) => setAdvancedSearch((s) => ({ ...s, transactionId: e.target.value }))}
-                placeholder="Transaction ID"
-                ariaLabel="Transaction ID"
-              />
-            </div>
-          )}
 
           <div className="mt-3 hidden gap-3 lg:grid lg:grid-cols-4 xl:grid-cols-5">
             {renderFilterFields('desktop')}
@@ -689,66 +545,7 @@ export default function StudentPaymentReportsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-medium text-[#686868]">
           {loading ? 'Loading…' : `${filtered.length} records`}
-          {selectedIds.length > 0 && (
-            <span className="ml-2 text-[#246392]">· {selectedIds.length} selected</span>
-          )}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => toast.success(`Bulk reminder queued for ${selectedIds.length} students (UI placeholder)`)}
-              className="rounded-lg bg-[#246392] px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              Bulk reminder
-            </button>
-          )}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="group" aria-label="Table density">
-            {[
-              { id: 'compact', label: 'Compact' },
-              { id: 'comfortable', label: 'Comfortable' },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTableDensity(id)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-                  tableDensity === id ? 'bg-[#246392] text-white shadow-sm' : 'text-[#686868] hover:bg-slate-50',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setColMenuOpen((o) => !o)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-[#246392] hover:bg-slate-50"
-            >
-              <Columns3 className="h-4 w-4" /> Columns
-            </button>
-            {colMenuOpen && (
-              <div className="absolute right-0 z-20 mt-1 max-h-72 w-52 overflow-y-auto rounded-lg border border-slate-100 bg-white p-2 shadow-lg">
-                {ALL_COLUMNS.map((c) => (
-                  <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={visibleCols.includes(c.key)}
-                      onChange={() => {
-                        setVisibleCols((prev) =>
-                          prev.includes(c.key) ? prev.filter((k) => k !== c.key) : [...prev, c.key],
-                        )
-                      }}
-                    />
-                    {c.label}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {loading ? (
@@ -758,8 +555,7 @@ export default function StudentPaymentReportsPage() {
           columns={columns}
           data={filtered}
           itemLabel="payments"
-          resetDeps={[debouncedSearch, debouncedAdvanced, filters, visibleCols, tableDensity]}
-          density={tableDensity}
+          resetDeps={[debouncedSearch, filters]}
           zebraStriping
           stickyHeader
           stickyLastColumn
@@ -795,11 +591,6 @@ export default function StudentPaymentReportsPage() {
         open={!!viewRow}
         payment={viewRow}
         onClose={() => setViewRow(null)}
-        canReceipts={canReceipts}
-        onDownloadReceipt={handleReceipt}
-        onPrintReceipt={handlePrintReceipt}
-        onResendReceipt={(row) => handleResendReceipt(row, 'Email')}
-        onWhatsAppReceipt={(row) => handleResendReceipt(row, 'WhatsApp')}
       />
       <PaymentEditModal
         open={!!editRow}

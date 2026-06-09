@@ -12,6 +12,46 @@ import {
 } from '../../services/centerService'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { cn } from '../../utils/cn'
+import SearchableSelect from '../categories/SearchableSelect'
+
+const INDIAN_STATES_AND_UTS = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+]
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -137,6 +177,15 @@ export default function CenterFormDrawer({
   }, [open])
 
   const title = useMemo(() => (mode === 'edit' ? 'Edit Center' : 'Create Center'), [mode])
+
+  const stateOptions = useMemo(() => {
+    const options = INDIAN_STATES_AND_UTS.map((name) => ({ value: name, label: name }))
+    const current = form.state.trim()
+    if (current && !INDIAN_STATES_AND_UTS.includes(current)) {
+      return [{ value: current, label: current }, ...options]
+    }
+    return options
+  }, [form.state])
 
   const set =
     (key) =>
@@ -280,7 +329,9 @@ export default function CenterFormDrawer({
                     {title}
                   </h2>
                   <p className="mt-1 max-w-xl text-[13px] leading-snug text-slate-500 sm:text-[14px]">
-                    Configure center profile, regional details, and assigned administrators.
+                    {mode === 'edit'
+                      ? 'Configure center profile, regional details, and assigned administrators.'
+                      : 'Configure center profile and regional details.'}
                   </p>
                 </div>
               </div>
@@ -371,13 +422,20 @@ export default function CenterFormDrawer({
                       </FormField>
 
                       <FormField id="cf-state" label="State" error={errors.state}>
-                        <input
-                          id="cf-state"
-                          className={cn(inputClass, errors.state && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15')}
+                        <SearchableSelect
+                          options={stateOptions}
                           value={form.state}
-                          onChange={set('state')}
-                          placeholder="State"
-                          autoComplete="address-level1"
+                          onChange={(val) => {
+                            setForm((f) => ({ ...f, state: val }))
+                            setErrors((err) => ({ ...err, state: undefined }))
+                          }}
+                          placeholder="Select state"
+                          emptyMessage="No matching state"
+                          triggerClassName={cn(
+                            selectClassName,
+                            'flex items-center justify-between text-left',
+                            errors.state && 'border-rose-400 focus:border-rose-400 focus:ring-rose-500/15',
+                          )}
                         />
                       </FormField>
                     </div>
@@ -420,18 +478,20 @@ export default function CenterFormDrawer({
                     </div>
                   </FormSection>
 
-                  <FormSection id="center-section-admin" title="Administrative Details">
-                    <FormField id="cf-admins" label="Assigned admins">
-                      <textarea
-                        id="cf-admins"
-                        rows={3}
-                        className={cn(inputClass, 'min-h-[6rem] resize-y py-3')}
-                        value={form.assignedAdminsText}
-                        onChange={set('assignedAdminsText')}
-                        placeholder="Comma-separated names or IDs (e.g. Priya Sharma, RA102)"
-                      />
-                    </FormField>
-                  </FormSection>
+                  {mode === 'edit' && (
+                    <FormSection id="center-section-admin" title="Administrative Details">
+                      <FormField id="cf-admins" label="Assigned admins">
+                        <textarea
+                          id="cf-admins"
+                          rows={3}
+                          className={cn(inputClass, 'min-h-[6rem] resize-y py-3')}
+                          value={form.assignedAdminsText}
+                          onChange={set('assignedAdminsText')}
+                          placeholder="Comma-separated names or IDs (e.g. Priya Sharma, RA102)"
+                        />
+                      </FormField>
+                    </FormSection>
+                  )}
                 </div>
               </div>
 

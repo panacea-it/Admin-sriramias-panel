@@ -3,15 +3,24 @@ import Modal from '../../ui/Modal'
 export default function ConfirmRoleStatusModal({
   open,
   roleLabel,
+  bulkCount = 0,
   enabling,
   loading,
   onCancel,
   onConfirm,
 }) {
-  const title = enabling ? 'Activate role access?' : 'Deactivate role access?'
-  const description = enabling
-    ? `"${roleLabel}" will become active and available for assignment.`
-    : `"${roleLabel}" will be marked inactive. Existing assignments may be restricted until reactivated.`
+  const isBulk = bulkCount > 0
+  const title = isBulk
+    ? 'Disable Selected Roles?'
+    : enabling
+      ? 'Activate role access?'
+      : 'Deactivate role access?'
+
+  const description = isBulk
+    ? `You are about to disable ${bulkCount} selected ${bulkCount === 1 ? 'role' : 'roles'}.`
+    : enabling
+      ? `"${roleLabel}" will become active and available for assignment.`
+      : `"${roleLabel}" will be marked inactive. Existing assignments may be restricted until reactivated.`
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
@@ -34,12 +43,12 @@ export default function ConfirmRoleStatusModal({
             onClick={onConfirm}
             disabled={loading}
             className={
-              enabling
+              enabling && !isBulk
                 ? 'rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
                 : 'rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
             }
           >
-            {loading ? 'Updating…' : enabling ? 'Activate role' : 'Deactivate role'}
+            {loading ? 'Updating…' : isBulk ? 'Disable' : enabling ? 'Activate role' : 'Deactivate role'}
           </button>
         </div>
       </div>
