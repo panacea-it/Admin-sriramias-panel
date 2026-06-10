@@ -1,0 +1,151 @@
+﻿Module Name,Test Case ID,Test Scenario,Steps to Test,Expected Result,Priority,Severity,Status,Possible Bug,Suggested Fix
+Login Page,AUTH-LOGIN-001,Successful login with Super Admin demo credentials,"1. Open /login. 2. Select Super Admin role chip. 3. Verify email/password auto-fill. 4. Click Sign in.",Toast Welcome back; redirect to role default route; header shows user name and role.,P0,Critical,Not Run,Double navigation if handleSubmit and useEffect both redirect.,Use single redirect path after login() resolves.
+Login Page,AUTH-LOGIN-002,Submit with empty fields,Clear email and password; click Sign in.,Toast Please fill in all fields; no navigation.,P0,High,Not Run,HTML5 required may block before toast.,Align on one validation layer.
+Login Page,AUTH-LOGIN-003,Role chip switch updates credentials,Click each role in grid; observe email/password fields.,Fields update per demo user; animation without breaking input.,P1,Medium,Not Run,Framer motion remount may reset caret.,Avoid remounting entire field block on role change.
+Login Page,AUTH-LOGIN-004,Password visibility toggle,Enter password; toggle eye icon.,Input type toggles; aria-label updates Show/Hide password.,P1,Low,Not Run,None expected.,â€”
+Login Page,AUTH-LOGIN-005,Mobile layout 375px,Resize to 375px; verify form and role grid.,No horizontal scroll; brand panel hidden; logo centered.,P1,Medium,Not Run,8 role chips cramped on small screens.,Scrollable role list or accordion below sm.
+Login Page,AUTH-LOGIN-006,Forgot password link,Look for forgot-password or signup links on login.,Feature not implemented (document as N/A).,P2,Medium,Fail (Static),No /forgot-password route in AppRoutes.,Add route when API ready or hide links.
+Login Page,AUTH-LOGIN-007,Remember me persistence,Check Remember me; login; close browser; reopen.,Session persists in storage per remember flag.,P1,High,Not Run,Storage key mismatch between session/local.,Verify authStorage remember behavior.
+Login Page,AUTH-LOGIN-008,Invalid credentials,Enter wrong password; submit.,Error toast; remain on login.,P0,High,Not Run,Generic error message.,Map API error codes to user-friendly copy.
+Login Page,AUTH-LOGIN-009,Role mismatch login,Select role A; use credentials for role B; submit.,Login fails with role mismatch message.,P1,High,Not Run,Demo mode may allow mismatch.,Enforce expectedRole server-side later.
+Login Page,AUTH-LOGIN-010,Already authenticated visit login,While logged in navigate to /login.,Redirect away via GuestRoute.,P1,Medium,Not Run,Flash of login form.,Show loading until auth bootstrap completes.
+Signup Page,AUTH-SIGNUP-001,Navigate to signup,Visit /signup or link from login.,Route should exist for production.,P2,High,Fail (Static),No signup route.,Implement guest signup or document admin-only provisioning.
+Forgot Password,AUTH-FORGOT-001,Forgot password flow,Visit /forgot-password; enter email; submit.,Reset email sent UI (when implemented).,P2,High,Fail (Static),Page not implemented.,Add forgot-password page and API hook.
+Dashboard,DASH-001,Role-based dashboard content,Login as each role; open /dashboard.,Widgets differ per RoleBasedDashboard; no permission errors.,P0,High,Not Run,Wrong widgets for scoped roles.,QA matrix per role vs rbacAccess.
+Dashboard,DASH-002,Header download summary,On dashboard click header download icon.,Export/download triggers; toast on result.,P2,Low,Not Run,Mock data only.,Wire to API with loading state.
+Dashboard,DASH-003,Dashboard responsive 320px,Open dashboard at 320px width.,Cards stack; charts readable; no overflow.,P1,High,Not Run,Chart labels clipped.,Responsive chart margins and scroll containers.
+Dashboard,DASH-004,Dark mode on dashboard,Toggle theme on dashboard.,Charts and cards readable in dark mode.,P2,Medium,Not Run,Hardcoded light colors in charts.,Use CSS variables in Recharts theming.
+Navbar,NAV-001,Global search navigation,Focus search; type batch; select result with Enter.,Navigates to route; menus close.,P1,Medium,Not Run,Missing combobox ARIA.,Implement ARIA combobox pattern.
+Navbar,NAV-002,Notification panel,Open bell; mark read; click outside.,Panel closes; unread badge updates.,P2,Low,Not Run,Mock notifications only.,Connect to API.
+Navbar,NAV-003,Profile menu logout,Avatar dropdown; Log out.,Session cleared; redirect to /login.,P0,Critical,Not Run,â€”,â€”
+Navbar,NAV-004,Center selector super admin,Change center; visit finance filtered views.,Filter context updates across dependent modules.,P1,High,Not Run,Stale data in child pages.,Ensure all pages subscribe to center context.
+Navbar,NAV-005,Header Add button,Click + in header.,Navigates to configured add route (categories/courses).,P2,Low,Not Run,Wrong target for some roles.,Role-based header actions.
+Navbar,NAV-006,Theme toggle persistence,Toggle dark mode; refresh.,Theme persists via initTheme storage.,P1,Medium,Not Run,Flash of wrong theme.,Apply theme class before first paint.
+Navbar,NAV-007,Mobile menu button 375px,At 375px open hamburger.,Sidebar drawer opens; body scroll locked.,P0,High,Not Run,â€”,â€”
+Navbar,NAV-008,Touch target size header icons,Measure icon buttons on mobile.,Minimum 44x44px touch targets.,P1,Medium,Not Run,IconAction is 36x36px.,Increase hit area with padding.
+Sidebar,SIDE-001,Mobile drawer open close,375px: menu; navigate link.,Sidebar closes on link; body scroll restored.,P0,High,Not Run,Overlay may not close sidebar.,Verify backdrop click handler.
+Sidebar,SIDE-002,Nested Categories submenu,Expand Categories; open Programs.,Submenu animates; active child highlighted.,P1,Medium,Not Run,Collapsed items may be focusable.,Use inert or hidden when collapsed.
+Sidebar,SIDE-003,Desktop fixed offset 1440px,Verify main content not under sidebar.,Content aligned; lg:pl-[272px] correct.,P1,Medium,Not Run,â€”,â€”
+Sidebar,SIDE-004,Active route highlighting,Navigate deep nested route.,Parent and child nav show active styles.,P1,Medium,Not Run,Wrong group expanded.,Verify getGroupIdForPath logic.
+Sidebar,SIDE-005,RBAC hidden menu items,Login limited role; check sidebar.,Unauthorized modules not visible.,P0,High,Not Run,Direct URL still reachable.,RoutePermissionGuard must block.
+Sidebar,SIDE-006,Scroll long sidebar,Many items; scroll sidebar on short viewport.,Active item scrolls into view when expanded.,P2,Low,Not Run,â€”,â€”
+Settings,SET-001,Profile save without API,Change name; Save changes.,Success toast; values in local state only.,P1,Medium,Not Run,Lost on refresh.,Show demo mode label until API wired.
+Settings,SET-002,Label association a11y,Click label text for Full name.,Input receives focus.,P1,Medium,Fail (Static),Labels lack htmlFor in SettingsPage.,Add id/htmlFor pairing.
+Settings,SET-003,Notification toggles,Toggle push and email digest; save.,Checkboxes update; toast on save.,P2,Low,Not Run,No persistence.,API integration.
+Settings,SET-004,Settings routes,Visit profile notifications general paths.,Correct section renders per route.,P1,Medium,Not Run,â€”,â€”
+Profile Page,SET-PROFILE-001,Profile via settings route,Open /settings/profile.,Profile form visible; matches user from auth.,P1,Medium,Not Run,No dedicated /profile route.,Document settings as profile.
+Tables,TBL-001,Pagination page size change,Change page size on paginated table.,Range text updates; correct rows shown.,P1,Medium,Not Run,Two pagination components differ.,Consolidate TablePagination and Pagination.
+Tables,TBL-002,Horizontal scroll 320px,Open wide table at 320px.,Table scrolls inside container; no page horizontal scroll.,P0,High,Not Run,Missing overflow-x-auto.,Wrap all tables consistently.
+Tables,TBL-003,Row action menu viewport edge,Open menu on last visible row.,Menu flips; not clipped.,P1,Medium,Not Run,TableActionMenu positioning.,Use floating-ui or flip logic.
+Tables,TBL-004,Empty filter results,Apply filters with zero matches.,Empty state with clear filters CTA.,P1,Medium,Not Run,Blank table without message.,Use EmptyState component.
+Tables,TBL-005,Sort and search debounce,Rapid typing in search.,Debounced filter; no UI freeze.,P2,Medium,Not Run,No debounce on large lists.,Add debounce or useMemo filter.
+Forms,FORM-001,Required field validation,Submit modal form with empty required fields.,Inline errors; modal stays open.,P0,High,Not Run,â€”,â€”
+Forms,FORM-002,Invalid email format,Enter not-an-email; submit.,Validation error shown.,P1,High,Not Run,â€”,â€”
+Forms,FORM-003,Password mismatch,Forms with confirm password.,Mismatch error before submit.,P1,High,Not Run,â€”,â€”
+Forms,FORM-004,XSS input display,Enter script tag in text field; save view.,Script not executed; sanitized display.,P0,Critical,Not Run,BlogRichEditor uses innerHTML.,Add DOMPurify sanitize.
+Forms,FORM-005,Whitespace trim,Leading/trailing spaces in email.,Trimmed on submit or rejected.,P2,Medium,Not Run,â€”,â€”
+Forms,FORM-006,File upload UI,Upload over size limit file.,Error hint; no crash.,P1,High,Not Run,â€”,Verify uploadConstraints constants.
+Forms,FORM-007,Disabled submit while loading,Submit long-running form.,Button disabled; loading label.,P1,Medium,Not Run,Double submit.,Disable button and guard handler.
+Modals,MOD-001,Escape and backdrop close,Open ui/Modal; Escape; backdrop click.,Closes; body scroll restored.,P0,High,Not Run,â€”,â€”
+Modals,MOD-002,Focus trap bookstore modal,Open BookstoreModal; Tab through.,Focus cycles inside modal.,P1,High,Not Run,ui/Modal lacks focus trap.,Reuse useFocusTrap globally.
+Modals,MOD-003,Stacked modals z-index,Open confirm over edit modal.,Top modal interactive; correct z-index.,P1,High,Not Run,â€”,Document z-index scale.
+Modals,MOD-004,Mobile modal full height,Open modal at 375px.,Usable height; close button visible.,P1,Medium,Not Run,â€”,â€”
+Drawers,DRAW-001,Finance slide drawer,Open FinanceSlideDrawer; close.,Slides in; scroll inside; closes cleanly.,P1,Medium,Not Run,â€”,â€”
+Drawers,DRAW-002,Permission drawer admin,Open permission drawer; toggle permissions.,Toggles work; save bar sticky.,P1,High,Not Run,setState in effect ESLint flags.,Refactor PermissionDrawer effects.
+Loaders,LOAD-001,Suspense route transition,Navigate between lazy routes.,LoadingState shown during chunk load.,P1,Medium,Not Run,â€”,â€”
+Loaders,LOAD-002,Skeleton vs spinner,Open finance dashboard and batch detail.,Skeleton placeholders where implemented.,P2,Low,Not Run,Inconsistent loading UX.,Standardize skeleton usage.
+Empty States,EMPTY-001,Category empty state,Filter categories to zero rows.,CategoryEmptyState with CTA.,P1,Medium,Not Run,â€”,â€”
+Empty States,EMPTY-002,Sales empty state,Open sales page with no mock data edge.,SalesEmptyState displays.,P2,Low,Not Run,â€”,â€”
+Error Pages,ERR-001,404 Not Found,Visit /unknown-route.,NotFoundPage with link to dashboard.,P1,Medium,Not Run,â€”,â€”
+Error Pages,ERR-002,Permission denied,Access forbidden path for role.,PermissionDeniedPage with defaultRoute CTA.,P1,Medium,Not Run,â€”,â€”
+Error Pages,ERR-003,Bookstore error boundary,Force child error in bookstore (dev).,BookstoreErrorBoundary fallback; app stable.,P1,High,Not Run,No global boundary.,Add App ErrorBoundary.
+Notifications,NOTIF-001,Toast success error,S trigger success and error toasts.,Sonner displays; auto dismiss.,P1,Low,Not Run,â€”,â€”
+Notifications,NOTIF-002,Header notification panel,Open panel; mark all read.,Unread count zero.,P2,Low,Not Run,â€”,â€”
+Dropdowns,DD-001,Center selector dropdown,Open center dropdown; select center.,Selection updates header label.,P1,Medium,Not Run,â€”,â€”
+Dropdowns,DD-002,Table action menu keyboard,Open menu; arrow keys; Enter.,Keyboard operable actions.,P1,Medium,Not Run,â€”,â€”
+Search,SEARCH-001,Header global search,Search partial path name; navigate.,Correct route navigation.,P1,Medium,Not Run,â€”,â€”
+Search,SEARCH-002,Module filter toolbar search,Use page-level search on Manage Users.,Table filters client-side.,P1,Medium,Not Run,â€”,â€”
+Pagination,PAG-001,Jump to page,Use jump input in TablePagination.,Lands on valid page number.,P2,Low,Not Run,Invalid jump value.,Validate jump input range.
+Pagination,PAG-002,First last page buttons,Navigate to first and last page.,Correct data slice shown.,P2,Low,Not Run,â€”,â€”
+Charts,CHART-001,Recharts resize,Resize window on analytics page.,Charts reflow without break.,P1,Medium,Not Run,â€”,â€”
+Charts,CHART-002,Empty chart data,View chart with zero data.,No data message or empty state.,P2,Low,Not Run,â€”,â€”
+Filters,FILTER-001,Multi-filter combine,Apply status + search together.,AND logic correct.,P1,Medium,Not Run,â€”,â€”
+Filters,FILTER-002,Clear filters reset,Click clear/reset on filter toolbar.,All filters reset; full list shown.,P1,Medium,Not Run,â€”,â€”
+CRUD UI,CRUD-001,Create open modal,Click Add on list page.,Modal opens with empty form.,P0,High,Not Run,â€”,â€”
+CRUD UI,CRUD-002,Edit prefilled modal,Click edit on row.,Modal opens with row data.,P0,High,Not Run,Stale data if key missing.,Use editKey pattern from useEditModal.
+CRUD UI,CRUD-003,Delete confirmation,Click delete.,Confirm dialog; row removed on confirm.,P0,High,Not Run,â€”,â€”
+Multi-step Forms,MSF-001,Batch details sections,Navigate batch form sections.,Section state preserved; validation per step.,P1,High,Not Run,â€”,â€”
+Dynamic Forms,DF-001,Why choose features add row,Add/remove dynamic feature rows.,Rows add/remove without crash.,P1,Medium,Not Run,â€”,â€”
+Batch Management,BATCH-001,List to detail navigation,/academics/batch â†’ click batch.,Detail page loads with skeleton.,P0,Critical,Not Run,â€”,â€”
+Batch Management,BATCH-002,Student form validation,Open student modal; submit empty.,Inline errors shown.,P1,High,Not Run,â€”,â€”
+Batch Management,BATCH-003,Batch filters,Apply batch filter toolbar.,List filters correctly.,P1,Medium,Not Run,â€”,â€”
+Batch Management,BATCH-004,Legacy route redirect,/academics/batches/:id.,Redirects to /academics/batch/:id.,P2,Low,Not Run,â€”,â€”
+Student Management,STU-001,Student table actions,View edit delete student actions.,Modals open; actions work on mock data.,P1,High,Not Run,â€”,â€”
+Student Management,STU-002,Student detail page,/users/manage/students/:userId.,Profile sections render.,P1,High,Not Run,â€”,â€”
+Subjects,SUBJ-001,Subjects list empty,No subjects mock edge.,SubjectEmptyState shown.,P1,Medium,Not Run,â€”,â€”
+Subjects,SUBJ-002,Subject modal create edit,Open SubjectModal create and edit.,Form fields correct per mode.,P1,High,Not Run,â€”,â€”
+Live Classes,LC-001,Schedule class modal,Open schedule; fill required; save.,Toast success; appears in list.,P0,High,Not Run,â€”,â€”
+Live Classes,LC-002,Calendar view filters,Apply calendar filters.,Events filter; empty state if none.,P1,Medium,Not Run,â€”,â€”
+Live Classes,LC-003,Recurrence scope dialog,Edit recurring class; choose scope.,Dialog options work.,P1,High,Not Run,â€”,â€”
+Live Classes,LC-004,Live class detail page,Open /academics/live-classes/:id.,Detail renders.,P1,Medium,Not Run,â€”,â€”
+Content Library,CL-001,Upload content flow,Upload page: metadata and file UI.,Validation and success path.,P0,High,Not Run,â€”,â€”
+Content Library,CL-002,Recycle bin restore,Delete â†’ recycle â†’ restore.,Item returns to list.,P1,High,Not Run,â€”,â€”
+Content Library,CL-003,Content preview modal,Preview PDF/video content.,Preview modal renders.,P1,Medium,Not Run,Large PDF slow.,Lazy load pdfjs.
+Content Library,CL-004,Bulk upload page,Bulk upload UI.,Multi-file UI behaves.,P2,Medium,Not Run,â€”,â€”
+Content Library,CL-005,Access control page,Open access control route.,UI loads for permissions config.,P2,Medium,Not Run,â€”,â€”
+Categories,CAT-001,Programs CRUD,Programs page add edit delete.,Modals and table update.,P0,High,Not Run,â€”,â€”
+Categories,CAT-002,Exam category nested,Exam category and subcategory flows.,Nested modals and breadcrumbs.,P1,High,Not Run,â€”,â€”
+Categories,CAT-003,Course form marketing sections,Open course form marketing tabs.,Editable sections save locally.,P1,High,Not Run,â€”,â€”
+Categories,CAT-004,Classrooms page,Classrooms list and form modal.,CRUD UI works.,P1,Medium,Not Run,â€”,â€”
+Tests,TEST-001,Add test modal,Open AddTestModal; submit.,Test appears in list.,P1,High,Not Run,â€”,â€”
+Current Affairs,CA-001,Bulk upload modal,Open bulk upload for current affairs.,Upload UI and validation.,P1,Medium,Not Run,â€”,â€”
+Free Resources,FR-001,Add free resource modal,Create free resource.,Modal and list update.,P2,Medium,Not Run,â€”,â€”
+Manage Users,USER-001,User list filters,Search and filter users.,Table updates.,P0,High,Not Run,â€”,â€”
+Manage Users,USER-002,User form modal,Add/edit user.,Validation on required fields.,P1,High,Not Run,â€”,â€”
+Admin Management,ADMIN-001,Create admin modal,Open CreateAdminModal.,Form validation and role fields.,P0,High,Not Run,Ref during render ESLint.,Fix editingRef pattern.
+Admin Management,ADMIN-002,Permission drawer,Edit admin permissions.,Drawer toggles and save.,P1,High,Not Run,â€”,â€”
+Role Access Matrix,RBAC-001,Matrix page load,/users/role-matrix as super admin.,Matrix renders; super admin only.,P0,High,Not Run,â€”,â€”
+Center Management,CENTER-001,Center form drawer,Add/edit center.,Drawer validation.,P1,High,Not Run,â€”,â€”
+Coupons,COUP-001,Add coupon modal,Create coupon.,Form saves to mock storage.,P2,Medium,Not Run,â€”,â€”
+CRM Leads,CRM-LEAD-001,Leads filter toolbar,Filter leads list.,Results match filters.,P1,Medium,Not Run,â€”,â€”
+CRM Enquiries,CRM-ENQ-001,Enquiry status badge,Change status if editable.,Badge updates.,P1,Medium,Not Run,â€”,â€”
+Help Desk,HD-001,Help desk table and modal,Open ticket description modal.,Full description readable.,P1,Medium,Not Run,â€”,â€”
+Push Notifications,PUSH-001,Send push modal,Open send notification modal.,Form validation.,P2,Medium,Not Run,â€”,â€”
+Marketing Banners,BAN-001,Banner CRUD,Banners page add edit delete.,Table and modals work.,P1,High,Not Run,â€”,â€”
+Marketing Website,WEB-001,Website form modal,Add/edit website entry.,Tabs and form fields.,P1,High,Not Run,â€”,â€”
+Marketing Blogs,BLOG-001,Rich editor formatting,BlogRichEditor bold lists links.,HTML stored; display safe.,P0,Critical,Not Run,XSS via innerHTML.,Sanitize with DOMPurify.
+Marketing Books,BOOK-001,Add book modal,Books page add book.,Modal submit works.,P2,Medium,Not Run,â€”,â€”
+Finance,FIN-001,Finance dashboard load,/finance/dashboard.,Charts and skeleton load.,P0,High,Not Run,Large chunk ~70KB.,Further code split.
+Finance,FIN-002,EMI edit modal,Open EMI edit; change values.,Modal saves locally.,P1,High,Not Run,â€”,â€”
+Finance,FIN-003,Offline approval modal,Offline payment approval flow.,Approve/reject UI.,P1,High,Not Run,â€”,â€”
+Finance,FIN-004,Finance route tabs,Switch finance sub-routes via tabs.,URL and tab sync.,P1,Medium,Not Run,â€”,â€”
+Finance,FIN-005,Receipt preview,Open receipt preview.,Print-friendly layout.,P2,Low,Not Run,â€”,â€”
+Sales Analytics,SALES-001,Lead dashboard charts,/sales-analytics/dashboard.,Charts render.,P1,High,Not Run,â€”,â€”
+Sales Analytics,SALES-002,Tracking config super admin,Non-super-admin visits tracking config.,Blocked by RoleRoute.,P1,High,Not Run,â€”,â€”
+Sales Analytics,SALES-003,Conversion funnel page,Funnel page filters.,Funnel stages display.,P2,Medium,Not Run,â€”,â€”
+Bookstore,BS-001,RBAC route guard,Role without access â†’ bookstore URL.,Redirect or denied.,P0,Critical,Not Run,â€”,â€”
+Bookstore,BS-002,Product form modal,Add/edit product.,Large form scroll and validation.,P0,High,Not Run,â€”,â€”
+Bookstore,BS-003,Recommendations drag sort,Reorder recommended books.,DnD order persists locally.,P1,High,Not Run,â€”,â€”
+Bookstore,BS-004,Dashboard charts mobile,Bookstore dashboard at 375px.,Charts responsive.,P1,High,Not Run,414KB chunk.,Lazy load chart module.
+Bookstore,BS-005,Orders and payments tables,Orders and payments pages.,Tables paginate and filter.,P1,Medium,Not Run,â€”,â€”
+Analytics,ANAL-001,Analytics page load,/analytics.,Stat cards and charts render.,P2,Medium,Not Run,â€”,â€”
+Placeholder Modules,PLH-001,Wallet placeholder,/users/wallet Add Transaction.,UI only; document as stub.,P3,Low,Not Run,Users think feature complete.,Coming soon badge or hide nav.
+Placeholder Modules,PLH-002,SEO landing placeholder,/marketing/seo-landing.,ModuleListPage sample data.,P3,Low,Not Run,â€”,â€”
+Placeholder Modules,PLH-003,API integrations placeholder,/system/api-integrations.,Placeholder list.,P3,Low,Not Run,â€”,â€”
+Navigation,NAV-ROUTE-001,Protected route when logged out,Visit /dashboard logged out.,Redirect to login with from state.,P0,Critical,Not Run,â€”,â€”
+Navigation,NAV-ROUTE-002,Browser refresh deep link,Refresh on nested route e.g. batch detail.,Same page reloads.,P1,High,Not Run,â€”,â€”
+Navigation,NAV-ROUTE-003,Breadcrumb accuracy,Pages with CategoryBreadcrumb.,Trail matches hierarchy.,P2,Low,Not Run,â€”,â€”
+Responsive,RESP-320-001,Login at 320px,Full login flow at 320px width.,Usable without horizontal scroll.,P0,High,Not Run,â€”,â€”
+Responsive,RESP-768-001,Tablet sidebar,768px width layout.,Drawer sidebar until 1024.,P1,Medium,Not Run,â€”,â€”
+Responsive,RESP-1920-001,Ultra-wide dashboard,1920px dashboard.,No excessive empty margins unless designed.,P2,Low,Not Run,â€”,â€”
+Accessibility,A11Y-001,Keyboard tab order main,Tab through header sidebar main.,Logical focus order.,P0,High,Not Run,â€”,Add skip link.
+Accessibility,A11Y-002,Modal focus trap all,Tab in non-bookstore modal.,Focus trapped (expected).,P0,High,Fail (Static),ui/Modal no trap.,Add useFocusTrap.
+Accessibility,A11Y-003,Color contrast muted text,Check #686868 on #f7f7f7.,WCAG AA for body text.,P1,Medium,Not Run,â€”,â€”
+Performance,PERF-001,Initial load Lighthouse,Run Lighthouse on login.,Acceptable LCP on broadband.,P1,Medium,Not Run,Large main bundle.,Code split pdf xlsx.
+Performance,PERF-002,Route transition timing,Navigate heavy routes.,Suspense fallback < perceived threshold.,P2,Medium,Not Run,â€”,â€”
+Browser,BROWSER-001,Chrome layout smoke,Smoke test core flows in Chrome.,Layouts correct.,P0,High,Not Run,â€”,â€”
+Browser,BROWSER-002,Safari iOS modal dvh,Modals on Safari iOS.,100dvh modals usable.,P1,Medium,Not Run,Address bar resize.,Test safe-area insets.
+Console,CONSOLE-001,Dev console clean navigation,Navigate 10 routes in dev.,No uncaught errors.,P1,High,Not Run,StrictMode double effects.,Distinguish dev vs prod.
+Console,CONSOLE-002,React key warnings,Open lists with dynamic data.,No missing key warnings.,P1,Medium,Not Run,key={index} in places.,Stable keys from ids.
+Production,PROD-001,Production build,npm run build.,Build succeeds.,P0,Critical,Pass,Chunks >500KB warning.,Split large dependencies.
+Production,PROD-002,Preview production,npm run preview.,App works from dist.,P0,Critical,Not Run,â€”,â€”
