@@ -14,14 +14,165 @@ import {
   createEmptyOption,
   parseQuestionCount,
 } from './freeResourceFormUtils'
+import { UPLOAD_PROFILES } from '../constants/uploadConstraints'
 import { getFileExtension } from './uploadValidation'
 
-export const NCERT_BOOKS_MAX_PDF_BYTES = 25 * 1024 * 1024
+/** Matches UploadField PDF_STANDARD hint (10 MB) shown on NCERT / Previous Year forms */
+export const NCERT_BOOKS_MAX_PDF_BYTES = UPLOAD_PROFILES.PDF_STANDARD.maxBytes
+
+function ncertPdfMaxSizeMessage() {
+  const mb = Math.round(NCERT_BOOKS_MAX_PDF_BYTES / (1024 * 1024))
+  return `Maximum file size is ${mb} MB.`
+}
 
 export const DEFAULT_STATUS_OPTIONS = [
   { label: 'Active', value: 'ACTIVE' },
   { label: 'Inactive', value: 'INACTIVE' },
 ]
+
+const FREE_RESOURCE_LIST_MAX_LIMIT = 50
+
+/** GET list query params — page/limit/search as strings. */
+export function buildFreeResourceListParams({ page = 1, limit = 10, search } = {}) {
+  return {
+    page: String(Math.max(1, Number(page) || 1)),
+    limit: String(
+      Math.min(FREE_RESOURCE_LIST_MAX_LIMIT, Math.max(1, Number(limit) || 10)),
+    ),
+    search: String(search ?? '').trim(),
+  }
+}
+
+/** POST /free-resources/list JSON body. */
+export function buildFreeResourceListBody({ page = 1, limit = 10, search } = {}) {
+  return {
+    page: Math.max(1, Number(page) || 1),
+    limit: Math.min(FREE_RESOURCE_LIST_MAX_LIMIT, Math.max(1, Number(limit) || 10)),
+    search: String(search ?? '').trim(),
+  }
+}
+
+export function mapResourceCategoryEnumToFormCategory(
+  resourceCategory,
+  resourceCategoryLabel = '',
+) {
+  const normalized = String(resourceCategory || '').toUpperCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'NCERT_BOOKS') return FREE_RESOURCE_CATEGORY.NCERT
+  if (normalized === 'PREVIOUS_YEAR_QUESTIONS' || normalized === 'PREVIOUS_YEAR_QUESTION_PAPERS') {
+    return FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR
+  }
+  if (normalized === 'STUDY_MATERIAL') return FREE_RESOURCE_CATEGORY.STUDY_MATERIAL
+  if (normalized === 'FREE_MOCK_TEST' || normalized === 'FREE_MOCK_TESTS') {
+    return FREE_RESOURCE_CATEGORY.MOCK_TEST
+  }
+  return resolveResourceCategoryFormValue(
+    { resourceCategory, resourceCategoryLabel },
+    [],
+    normalizeFreeResourceCategory(resourceCategoryLabel || resourceCategory),
+  )
+}
+
+function resolveUnifiedResourceDisplayName(item, resourceCategory) {
+  const resourceName = String(item?.resourceName || '').trim()
+  if (resourceName) return resourceName
+
+  if (resourceCategory === 'NCERT_BOOKS') {
+    return String(item?.bookName || 'NCERT Book').trim()
+  }
+  if (resourceCategory === 'PREVIOUS_YEAR_QUESTIONS') {
+    return String(item?.paperName || 'Question Paper').trim()
+  }
+  if (resourceCategory === 'STUDY_MATERIAL') {
+    return String(item?.studyMaterialName || 'Study Material').trim()
+  }
+  return 'Resource'
+}
+
+function unwrapUnifiedFreeResourceList(data) {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.data)) return data.data
+  const nested = data?.data
+  if (nested && typeof nested === 'object') {
+    for (const key of ['resources', 'items', 'results', 'rows']) {
+      if (Array.isArray(nested[key])) return nested[key]
+    }
+  }
+  for (const key of ['resources', 'items', 'results', 'rows']) {
+    if (Array.isArray(data?.[key])) return data[key]
+  }
+  return []
+}
+
+export function mapUnifiedFreeResourceApiToRow(raw) {
+  const item = raw || {}
+  const id = item._id || item.id
+  if (!id) return null
+
+  const resourceCategory = String(item.resourceCategory || '').toUpperCase()
+  if (resourceCategory === 'FREE_MOCK_TEST') return null
+
+  const category = mapResourceCategoryEnumToFormCategory(
+    resourceCategory,
+    item.resourceCategoryLabel,
+  )
+  const name = resolveUnifiedResourceDisplayName(item, resourceCategory)
+  const status = mapFreeResourceStatusForList(item.status)
+  const base = {
+    id,
+    apiResourceId: id,
+    name,
+    category,
+    status,
+    resourceCategory,
+    resourceCategoryLabel: item.resourceCategoryLabel || category,
+  }
+
+  if (resourceCategory === 'NCERT_BOOKS') {
+    return {
+      ...base,
+      isApiNcertBook: true,
+      formData: mapNcertBookApiToForm(item),
+    }
+  }
+  if (resourceCategory === 'PREVIOUS_YEAR_QUESTIONS') {
+    return {
+      ...base,
+      isApiPreviousYearPaper: true,
+      formData: mapPreviousYearPaperApiToForm(item),
+    }
+  }
+  if (resourceCategory === 'STUDY_MATERIAL') {
+    return {
+      ...base,
+      isApiStudyMaterial: true,
+      formData: mapStudyMaterialApiToForm(item),
+    }
+  }
+
+  return null
+}
+
+export function normalizeFreeResourcesListResponse(
+  data,
+  { page = 1, limit = 10, includeMockTests = false } = {},
+) {
+  const itemsRaw = unwrapUnifiedFreeResourceList(data)
+  const items = itemsRaw
+    .map((row) => mapUnifiedFreeResourceApiToRow(row))
+    .filter(Boolean)
+    .filter((row) => includeMockTests || row.resourceCategory !== 'FREE_MOCK_TEST')
+
+  const total = data?.total ?? data?.count ?? items.length
+  const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = data?.page ?? page
+
+  return {
+    items,
+    total,
+    totalPages,
+    page: currentPage,
+  }
+}
 
 function unwrapList(data, keys) {
   if (Array.isArray(data)) return data
@@ -144,6 +295,7 @@ export function resolveResourceCategoryFormValue(
     return FREE_RESOURCE_CATEGORY.NCERT
   }
   if (
+    normalized === 'PREVIOUS_YEAR_QUESTIONS' ||
     normalized.includes('PREVIOUS_YEAR') ||
     /previous.?year/i.test(apiLabel)
   ) {
@@ -181,6 +333,7 @@ export function isPreviousYearPapersCategory(category, categoryOptions = []) {
   const normalized = value.toUpperCase().replace(/[\s-]+/g, '_')
   if (
     value === FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR ||
+    normalized === 'PREVIOUS_YEAR_QUESTIONS' ||
     normalized === 'PREVIOUS_YEAR_QUESTION_PAPERS' ||
     normalized === 'PREVIOUS_YEAR_QUESTION_PAPER' ||
     normalized === 'PREVIOUS_YEAR_PAPERS' ||
@@ -284,6 +437,46 @@ export function normalizeYearDropdownOptions(data) {
   return YEAR_OPTIONS.map((value) => ({ value, label: value }))
 }
 
+export function normalizeNcertBookClassValue(className) {
+  const raw = String(className || '').trim()
+  if (!raw) return ''
+
+  const classMatch = raw.match(/class\s*(\d{1,2})/i)
+  if (classMatch) return `Class ${classMatch[1]}`
+
+  const numberOnly = raw.match(/^(\d{1,2})$/)
+  if (numberOnly) return `Class ${numberOnly[1]}`
+
+  if (/^class\s+/i.test(raw)) {
+    return raw.replace(/^class/i, 'Class')
+  }
+
+  return raw
+}
+
+function sanitizeUploadFilename(name, fallback = 'upload.pdf') {
+  const trimmed = String(name || '').trim()
+  const safe = trimmed
+    .replace(/[|<>:"/\\?*\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return safe || fallback
+}
+
+function appendMultipartFile(formData, file, { fallbackName = 'upload.pdf', mimeType } = {}) {
+  if (!(file instanceof Blob) || file.size <= 0) return false
+
+  const safeName = sanitizeUploadFilename(file.name, fallbackName)
+  const type = mimeType || file.type || 'application/pdf'
+  const uploadFile =
+    file instanceof File && file.name === safeName && (file.type || type) === type
+      ? file
+      : new File([file], safeName, { type })
+
+  formData.append('file', uploadFile, safeName)
+  return true
+}
+
 export function validateNcertBookPdf(file) {
   if (!file) {
     return { valid: false, message: 'PDF is required' }
@@ -296,21 +489,30 @@ export function validateNcertBookPdf(file) {
   }
 
   if (file.size > NCERT_BOOKS_MAX_PDF_BYTES) {
-    return { valid: false, message: 'Maximum file size is 25 MB.' }
+    return { valid: false, message: ncertPdfMaxSizeMessage() }
   }
 
   return { valid: true }
 }
 
-export function buildNcertBookFormData({ subject, className, bookName, status, bookFile }, { isEdit = false } = {}) {
+export function buildNcertBookFormData(
+  { subject, className, bookName, status, bookFile },
+  { isEdit = false } = {},
+) {
   const formData = new FormData()
   formData.append('subject', String(subject || '').trim())
-  formData.append('class', String(className || '').trim())
+  formData.append('class', normalizeNcertBookClassValue(className))
   formData.append('bookName', String(bookName || '').trim())
   formData.append('status', String(status || 'ACTIVE').trim().toUpperCase())
-  if (bookFile) {
-    formData.append('file', bookFile)
+
+  if (appendMultipartFile(formData, bookFile, { fallbackName: 'book.pdf' })) {
+    return formData
   }
+
+  if (!isEdit) {
+    throw new Error('PDF file is required.')
+  }
+
   return formData
 }
 
@@ -360,20 +562,16 @@ function unwrapNcertBookList(data) {
 export function mapNcertBookApiToRow(raw, categoryOptions = []) {
   const item = unwrapNcertBookRecord(raw) || {}
   const id = item._id || item.id
-  const subject = String(item.subject || '').trim()
-  const className = String(item.class || item.className || '').trim()
-  const bookName = String(item.bookName || item.resourceName || 'NCERT Book').trim()
-  const displayName =
-    subject && className
-      ? `${subject} - ${className} - ${bookName}`.trim()
-      : bookName
+  const name = resolveUnifiedResourceDisplayName(item, 'NCERT_BOOKS')
 
   return {
     id,
-    name: displayName,
+    name,
     category: FREE_RESOURCE_CATEGORY.NCERT,
     status: mapNcertBookStatusForList(item.status),
     apiResourceId: id,
+    resourceCategory: 'NCERT_BOOKS',
+    resourceCategoryLabel: item.resourceCategoryLabel || FREE_RESOURCE_CATEGORY.NCERT,
     formData: mapNcertBookApiToForm(item, categoryOptions),
     isApiNcertBook: true,
   }
@@ -404,6 +602,9 @@ export function mapNcertBookStatusForList(status) {
 
 function getFreeResourceCreateApiErrorMessage(error, fallback) {
   if (!error?.response) {
+    if (error?.code === 'ECONNABORTED') {
+      return 'Request timed out. Please try again.'
+    }
     if (error?.code === 'ERR_NETWORK' || String(error?.message || '').toLowerCase().includes('network')) {
       return 'Network error. Check your connection and try again.'
     }
@@ -411,7 +612,7 @@ function getFreeResourceCreateApiErrorMessage(error, fallback) {
   }
 
   const { status, data } = error.response
-  if ([400, 401, 403, 404, 405, 409, 415, 422, 429, 500].includes(status)) {
+  if ([400, 401, 403, 404, 405, 408, 409, 415, 422, 429, 500].includes(status)) {
     return getApiErrorMessage(data, fallback)
   }
 
@@ -459,7 +660,7 @@ export function validatePreviousYearPaperPdf(file) {
   }
 
   if (file.size > NCERT_BOOKS_MAX_PDF_BYTES) {
-    return { valid: false, message: 'Maximum file size is 25 MB.' }
+    return { valid: false, message: ncertPdfMaxSizeMessage() }
   }
 
   return { valid: true }
@@ -479,9 +680,9 @@ export function buildPreviousYearPaperFormData({
   formData.append('year', String(year || '').trim())
   formData.append('paperName', String(paperName || '').trim())
   formData.append('status', String(status || 'ACTIVE').trim().toUpperCase())
-  if (questionPaperFile) {
-    formData.append('file', questionPaperFile)
-  }
+  appendMultipartFile(formData, questionPaperFile, {
+    fallbackName: 'question-paper.pdf',
+  })
   return formData
 }
 
@@ -532,20 +733,16 @@ function unwrapPreviousYearPaperList(data) {
 export function mapPreviousYearPaperApiToRow(raw, categoryOptions = []) {
   const item = unwrapPreviousYearPaperRecord(raw) || {}
   const id = item._id || item.id
-  const examCategory = String(item.examCategory || '').trim()
-  const paperType = String(item.paperType || '').trim()
-  const year = item.year != null ? String(item.year) : ''
-  const paperName = String(item.paperName || item.resourceName || 'Question Paper').trim()
-  const displayName =
-    [paperType || 'Question Paper', examCategory, year ? `(${year})` : ''].filter(Boolean).join(' - ') +
-    (paperName ? ` ${paperName}` : '')
+  const name = resolveUnifiedResourceDisplayName(item, 'PREVIOUS_YEAR_QUESTIONS')
 
   return {
     id,
-    name: displayName.trim() || paperName,
+    name,
     category: FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR,
     status: mapFreeResourceStatusForList(item.status),
     apiResourceId: id,
+    resourceCategory: 'PREVIOUS_YEAR_QUESTIONS',
+    resourceCategoryLabel: item.resourceCategoryLabel || FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR,
     formData: mapPreviousYearPaperApiToForm(item, categoryOptions),
     isApiPreviousYearPaper: true,
   }
@@ -719,6 +916,8 @@ export function mapMockTestApiToRow(raw) {
     name,
     category: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     status: mapFreeResourceStatusForList(item.status),
+    resourceCategory: 'FREE_MOCK_TEST',
+    resourceCategoryLabel: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     formData: mapMockTestApiToForm(item),
     isApiMockTest: true,
   }
@@ -762,18 +961,72 @@ export function buildMockTestCreatePayload(form) {
     instructions: String(form.instructions || '').trim(),
     numberOfQuestions: questionCount,
     status: String(form.status || 'ACTIVE').trim().toUpperCase() || 'ACTIVE',
+    bulkFile: form.bulkFile ?? null,
   }
 }
 
 export function buildMockTestUpdatePayload(form) {
   return {
+    examCategory: String(form.examCategory || '').trim(),
     mockTestTitle: String(form.mockTestTitle || '').trim(),
+    paperType: String(form.paperType || '').trim(),
+    subject: String(form.subject || '').trim(),
+    topic: String(form.topic || '').trim(),
     duration: parseNumericField(form.duration, 0),
     totalMarks: parseNumericField(form.totalMarks, 0),
     negativeMarking: parseNumericField(form.negativeMarking, 0),
     instructions: String(form.instructions || '').trim(),
     status: String(form.status || 'ACTIVE').trim().toUpperCase() || 'ACTIVE',
+    bulkFile: form.bulkFile ?? null,
   }
+}
+
+function appendMockTestBulkFile(formData, file) {
+  if (!(file instanceof Blob) || file.size <= 0) return false
+
+  const safeName = sanitizeUploadFilename(file.name, 'mock-test-questions.xlsx')
+  const type =
+    file.type ||
+    (safeName.endsWith('.csv')
+      ? 'text/csv'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  const uploadFile =
+    file instanceof File && file.name === safeName ? file : new File([file], safeName, { type })
+
+  formData.append('bulkFile', uploadFile, safeName)
+  return true
+}
+
+/** POST/PUT /api/free-resources/mock-tests — multipart/form-data */
+export function buildMockTestFormData(form, { isEdit = false } = {}) {
+  const payload = isEdit ? buildMockTestUpdatePayload(form) : buildMockTestCreatePayload(form)
+  const formData = new FormData()
+
+  if (!isEdit) {
+    formData.append('examCategory', payload.examCategory)
+    formData.append('paperType', payload.paperType)
+    formData.append('subject', payload.subject)
+    formData.append('topic', payload.topic)
+    if (payload.numberOfQuestions > 0) {
+      formData.append('numberOfQuestions', String(payload.numberOfQuestions))
+    }
+  } else {
+    if (payload.examCategory) formData.append('examCategory', payload.examCategory)
+    if (payload.paperType) formData.append('paperType', payload.paperType)
+    if (payload.subject) formData.append('subject', payload.subject)
+    if (payload.topic) formData.append('topic', payload.topic)
+  }
+
+  formData.append('mockTestTitle', payload.mockTestTitle)
+  formData.append('duration', String(payload.duration))
+  formData.append('totalMarks', String(payload.totalMarks))
+  formData.append('negativeMarking', String(payload.negativeMarking))
+  formData.append('instructions', payload.instructions)
+  formData.append('status', payload.status)
+
+  appendMockTestBulkFile(formData, payload.bulkFile)
+
+  return formData
 }
 
 export function validateMockTestBulkFile(file) {
@@ -867,10 +1120,11 @@ export function buildStudyMaterialFormData(
   formData.append('status', statusValue)
 
   const uploadFile = studyMaterialFile ?? file
-  if (uploadFile instanceof Blob) {
-    const fileName = uploadFile.name || 'study-material.pdf'
-    formData.append('file', uploadFile, fileName)
-  } else if (!isEdit) {
+  if (appendMultipartFile(formData, uploadFile, { fallbackName: 'study-material.pdf' })) {
+    return formData
+  }
+
+  if (!isEdit) {
     throw new Error('Study material file is required.')
   }
 
@@ -899,14 +1153,16 @@ function unwrapStudyMaterialList(data) {
 export function mapStudyMaterialApiToForm(raw) {
   const item = unwrapStudyMaterialRecord(raw) || {}
   const status = String(item.status || 'ACTIVE').toUpperCase()
-  const categoryValue = item.category || item.mainsCategory || ''
+  const categoryValue =
+    item.studyMaterialCategory || item.category || item.mainsCategory || ''
+  const fileMeta = item.file && typeof item.file === 'object' ? item.file : {}
 
   return {
     category: FREE_RESOURCE_CATEGORY.STUDY_MATERIAL,
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
     mainsCategory: categoryValue,
-    studyMaterialName: item.studyMaterialName || item.name || '',
-    studyMaterialFileName: item.fileName || item.originalFileName || '',
+    studyMaterialName: item.studyMaterialName || item.resourceName || item.name || '',
+    studyMaterialFileName: item.fileName || fileMeta.fileName || item.originalFileName || '',
     studyMaterialFile: null,
     apiResourceId: item._id || item.id || null,
   }
@@ -915,20 +1171,23 @@ export function mapStudyMaterialApiToForm(raw) {
 export function mapStudyMaterialApiToRow(raw) {
   const item = unwrapStudyMaterialRecord(raw) || {}
   const id = item._id || item.id
-  const categoryLabel = String(item.category || item.mainsCategory || '').trim()
-  const name = String(item.studyMaterialName || item.name || 'Study Material').trim()
-  const displayName =
-    categoryLabel && name ? `${categoryLabel} - ${name}` : name || categoryLabel || 'Study Material'
+  const name = resolveUnifiedResourceDisplayName(item, 'STUDY_MATERIAL')
 
   return {
     id,
     apiResourceId: id,
-    name: displayName,
+    name,
     category: FREE_RESOURCE_CATEGORY.STUDY_MATERIAL,
     status: mapFreeResourceStatusForList(item.status),
+    resourceCategory: 'STUDY_MATERIAL',
+    resourceCategoryLabel: item.resourceCategoryLabel || FREE_RESOURCE_CATEGORY.STUDY_MATERIAL,
     formData: mapStudyMaterialApiToForm(item),
     isApiStudyMaterial: true,
   }
+}
+
+export function getFreeResourceApiErrorMessage(error, fallback = 'Failed to process free resource.') {
+  return getFreeResourceCreateApiErrorMessage(error, fallback)
 }
 
 export function normalizeStudyMaterialsListResponse(data, { page = 1, limit = 10 } = {}) {

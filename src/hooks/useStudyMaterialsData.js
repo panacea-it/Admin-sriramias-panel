@@ -5,7 +5,7 @@ import {
   normalizeStudyMaterialsListResponse,
 } from '../utils/freeResourceApiHelpers'
 
-export function useStudyMaterialsData({ enabled = true, search = '', page = 1, limit = 100 } = {}) {
+export function useStudyMaterialsData({ enabled = true, search = '', page = 1, limit = 10 } = {}) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)

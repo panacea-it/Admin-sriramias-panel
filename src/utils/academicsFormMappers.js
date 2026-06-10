@@ -130,7 +130,8 @@ export function createEmptyFreeResourceForm() {
     negativeMarking: '',
     instructions: '',
     numberOfQuestions: '',
-
+    bulkFileName: '',
+    bulkFile: null,
     // Study Material
     mainsCategory: '',
     studyMaterialName: '',

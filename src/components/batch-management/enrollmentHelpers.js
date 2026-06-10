@@ -67,6 +67,23 @@ export function buildEnrollmentRowFromEdit(baseStudent, form, putResult) {
   }
 }
 
+/** GET /batch-enrollments/:id with list-row fallback for edit/view prep. */
+export async function fetchEnrollmentForEdit(student, { students = [], getEnrollmentById } = {}) {
+  if (!student) return null
+
+  const enrollmentId = resolveEnrollmentApiId(student)
+  if (enrollmentId && typeof getEnrollmentById === 'function') {
+    try {
+      const fresh = await getEnrollmentById(enrollmentId)
+      if (fresh) return fresh
+    } catch {
+      /* fall back to cached list row */
+    }
+  }
+
+  return findEnrollmentInList(students, student) || student
+}
+
 /** List-only refresh — never calls GET /batch-enrollments/:id. */
 export async function resolveLatestEnrollmentStudent({
   student,

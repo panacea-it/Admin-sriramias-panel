@@ -109,6 +109,34 @@ export async function getBatchStudents(batchId, params = {}, { signal } = {}) {
   }
 }
 
+/** GET /api/batch-enrollments/:enrollmentId */
+export async function getEnrollmentById(enrollmentId, { signal } = {}) {
+  if (isFrontendOnly) {
+    throw new Error('Batch enrollment API is disabled in frontend-only mode')
+  }
+
+  const resolvedEnrollmentId = assertEnrollmentMongoId(enrollmentId)
+  const path = buildPath(resolvedEnrollmentId)
+  logBatchApiDev('getEnrollmentById request', { enrollmentId: resolvedEnrollmentId })
+
+  try {
+    const response = await axiosInstance.get(path, {
+      signal,
+      skipAuthRedirect: true,
+    })
+    logBatchApiDev('getEnrollmentById response', response.data)
+    const doc = unwrapEnrollmentDoc(response.data)
+    return mapApiEnrollmentStudents([doc])[0] || doc
+  } catch (error) {
+    logBatchApiDev('getEnrollmentById error', {
+      status: error?.response?.status,
+      data: error?.response?.data,
+      message: error?.message,
+    })
+    throw mapEnrollmentApiError(error, 'Failed to load enrollment details')
+  }
+}
+
 /** POST /api/batch-enrollments */
 export async function createEnrollment(payload, { signal } = {}) {
   if (isFrontendOnly) {

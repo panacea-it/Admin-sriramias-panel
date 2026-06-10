@@ -23,6 +23,7 @@ import { createBatch, fetchBatchById, updateBatch } from '../../api/batchesAPI'
 import {
   createEnrollment,
   deleteEnrollment,
+  getEnrollmentById,
   moveEnrollment,
   updateEnrollment,
   updateEnrollmentStatus,
@@ -34,6 +35,7 @@ import { getAuthToken } from '../../utils/authStorage'
 import { toast } from '../../utils/toast'
 import {
   buildEnrollmentRowFromEdit,
+  fetchEnrollmentForEdit,
   findEnrollmentInList,
   resolveEnrollmentApiId,
   resolveLatestEnrollmentStudent,
@@ -239,9 +241,9 @@ export default function BatchDetailsPage() {
           email: String(form.email || '').trim(),
           mobileNumber: String(form.phone || '').trim(),
           batchId: mongoBatchId,
-          paymentStatus: 'PENDING',
-          attendancePercentage: 0,
-          courseProgressPercentage: 0,
+          paymentStatus: form.paymentStatus || 'Pending',
+          attendancePercentage: Number(form.attendance) || 0,
+          courseProgressPercentage: Number(form.progress) || 0,
         })
         toast.success('Student Added Successfully')
         await refetchStudentsAfterMutation()
@@ -265,7 +267,8 @@ export default function BatchDetailsPage() {
   )
 
   const handleFetchStudentForEdit = useCallback(
-    async (student) => findEnrollmentInList(students, student) || student,
+    async (student) =>
+      fetchEnrollmentForEdit(student, { students, getEnrollmentById }),
     [students],
   )
 

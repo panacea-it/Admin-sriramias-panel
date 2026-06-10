@@ -40,12 +40,13 @@ api.interceptors.request.use((config) => {
   const token = getAuthToken() || localStorage.getItem('SuperAdminToken')
   if (token) config.headers.Authorization = `Bearer ${token}`
 
-  // FormData must not use the instance default application/json header.
-  if (config.data instanceof FormData) {
-    if (config.headers?.set) {
-      config.headers.set('Content-Type', false)
-    } else if (config.headers) {
-      config.headers['Content-Type'] = false
+  // FormData: remove Content-Type so the browser sets multipart boundary.
+  if (config.data instanceof FormData && config.headers) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type')
+    } else {
+      delete config.headers['Content-Type']
+      delete config.headers.common?.['Content-Type']
     }
   }
 

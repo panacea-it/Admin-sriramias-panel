@@ -9,6 +9,7 @@ export default function DynamicFormRenderer({
   control,
   watch,
   setValue,
+  clearErrors,
   errors,
   previousYearDropdowns = null,
   mockTestDropdowns = null,
@@ -19,6 +20,8 @@ export default function DynamicFormRenderer({
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
+  mockTestBulkFileRequired = false,
+  mockTestBulkFileOptional = false,
 }) {
   const showMock = category === FREE_RESOURCE_CATEGORY.MOCK_TEST
 
@@ -37,6 +40,7 @@ export default function DynamicFormRenderer({
             register={register}
             errors={errors}
             setValue={setValue}
+            clearErrors={clearErrors}
             watch={watch}
             previousYearDropdowns={previousYearDropdowns}
             mockTestDropdowns={mockTestDropdowns}
@@ -44,6 +48,8 @@ export default function DynamicFormRenderer({
             studyMaterialFileRequired={studyMaterialFileRequired}
             ncertBookFileRequired={ncertBookFileRequired}
             previousYearFileRequired={previousYearFileRequired}
+            mockTestBulkFileRequired={mockTestBulkFileRequired}
+            mockTestBulkFileOptional={mockTestBulkFileOptional}
           />
         </motion.div>
       </AnimatePresence>

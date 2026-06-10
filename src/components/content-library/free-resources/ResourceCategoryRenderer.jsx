@@ -3,11 +3,13 @@ import { toast } from '@/utils/toast'
 import { CourseFormField, CourseInput, CourseSelect, CourseTextarea } from '../../courses/CourseFormField'
 import {
   FREE_RESOURCE_CATEGORY,
+  BULK_QUESTION_ACCEPT,
 } from '../../../utils/freeResourceFormConstants'
 import {
   validateNcertBookPdf,
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
+  validateMockTestBulkFile,
 } from '../../../utils/freeResourceApiHelpers'
 import FormFieldError from './FormFieldError'
 import UploadField from './UploadField'
@@ -44,6 +46,7 @@ export default function ResourceCategoryRenderer({
   register,
   errors,
   setValue,
+  clearErrors,
   watch,
   previousYearDropdowns = null,
   mockTestDropdowns: mockTestDropdownsProp = null,
@@ -51,6 +54,8 @@ export default function ResourceCategoryRenderer({
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
+  mockTestBulkFileRequired = false,
+  mockTestBulkFileOptional = false,
 }) {
   if (!category) {
     return (
@@ -94,8 +99,9 @@ export default function ResourceCategoryRenderer({
                 setValue('bookFile', null, { shouldDirty: true })
                 return
               }
-              setValue('bookFileName', name, { shouldDirty: true })
-              setValue('bookFile', file, { shouldDirty: true })
+              setValue('bookFileName', name, { shouldDirty: true, shouldValidate: true })
+              setValue('bookFile', file, { shouldDirty: true, shouldValidate: true })
+              clearErrors?.('bookFileName')
             }}
           />
         </Grid>
@@ -223,11 +229,14 @@ export default function ResourceCategoryRenderer({
                   setValue('questionPaperFile', null, { shouldDirty: true })
                   return
                 }
-                setValue('questionPaperFileName', name, { shouldDirty: true })
-                setValue('questionPaperFile', file, { shouldDirty: true })
+                setValue('questionPaperFileName', name, { shouldDirty: true, shouldValidate: true })
+                setValue('questionPaperFile', file, { shouldDirty: true, shouldValidate: true })
+                clearErrors?.('questionPaperFileName')
                 return
               }
-              setValue('questionPaperFileName', name, { shouldDirty: true })
+              setValue('questionPaperFileName', name, { shouldDirty: true, shouldValidate: true })
+              setValue('questionPaperFile', file, { shouldDirty: true, shouldValidate: true })
+              clearErrors?.('questionPaperFileName')
             }}
           />
         </Grid>
@@ -339,6 +348,33 @@ export default function ResourceCategoryRenderer({
             setValue={setValue}
             error={errors.numberOfQuestions?.message}
           />
+          {(mockTestBulkFileRequired || mockTestBulkFileOptional) && (
+            <UploadField
+              label={
+                mockTestBulkFileRequired
+                  ? 'Upload Questions File (CSV/XLSX)'
+                  : 'Replace Questions File (optional)'
+              }
+              required={mockTestBulkFileRequired}
+              accept={BULK_QUESTION_ACCEPT}
+              bypassValidation
+              fileName={watch('bulkFileName')}
+              className="sm:col-span-2 lg:col-span-3"
+              error={errors.bulkFileName?.message}
+              onFileNameChange={(name, file) => {
+                const result = validateMockTestBulkFile(file)
+                if (!result.valid) {
+                  toast.error(result.message)
+                  setValue('bulkFileName', '', { shouldDirty: true })
+                  setValue('bulkFile', null, { shouldDirty: true })
+                  return
+                }
+                setValue('bulkFileName', name, { shouldDirty: true, shouldValidate: true })
+                setValue('bulkFile', file, { shouldDirty: true, shouldValidate: true })
+                clearErrors?.('bulkFileName')
+              }}
+            />
+          )}
         </Grid>
       )
     }
@@ -410,8 +446,9 @@ export default function ResourceCategoryRenderer({
                 setValue('studyMaterialFile', null, { shouldDirty: true })
                 return
               }
-              setValue('studyMaterialFileName', name, { shouldDirty: true })
-              setValue('studyMaterialFile', file, { shouldDirty: true })
+              setValue('studyMaterialFileName', name, { shouldDirty: true, shouldValidate: true })
+              setValue('studyMaterialFile', file, { shouldDirty: true, shouldValidate: true })
+              clearErrors?.('studyMaterialFileName')
             }}
           />
         </Grid>

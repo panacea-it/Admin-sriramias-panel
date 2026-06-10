@@ -1,5 +1,8 @@
 import axiosInstance from './axiosInstance'
 import {
+  buildFreeResourceListBody,
+  buildFreeResourceListParams,
+  buildMockTestFormData,
   buildNcertBookFormData,
   buildPreviousYearPaperFormData,
   buildStudyMaterialFormData,
@@ -13,10 +16,25 @@ export async function fetchResourceCategoriesDropdown({ signal } = {}) {
   return data
 }
 
+/** POST /api/free-resources/list — unified list (all categories) */
+export async function fetchFreeResourcesList(params = {}, { signal } = {}) {
+  const body = buildFreeResourceListBody(params)
+  const { data } = await axiosInstance.post(`${BASE}/list`, body, { signal })
+  return data
+}
+
+const MULTIPART_REQUEST_OPTIONS = {
+  maxBodyLength: Infinity,
+  maxContentLength: Infinity,
+}
+
 /** POST /api/free-resources/ncert-books — create NCERT book (multipart/form-data) */
 export async function createNcertBook(payload, { signal } = {}) {
   const formData = buildNcertBookFormData(payload)
-  const { data } = await axiosInstance.post(`${BASE}/ncert-books`, formData, { signal })
+  const { data } = await axiosInstance.post(`${BASE}/ncert-books`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
@@ -26,16 +44,30 @@ export async function fetchNcertBookById(resourceId, { signal } = {}) {
   return data
 }
 
+async function fetchFreeResourceList(path, params = {}, { signal } = {}) {
+  const queryParams = buildFreeResourceListParams(params)
+  try {
+    const { data } = await axiosInstance.get(path, { params: queryParams, signal })
+    return data
+  } catch (error) {
+    if (error?.response?.status !== 400) throw error
+    const { data } = await axiosInstance.get(path, { signal })
+    return data
+  }
+}
+
 /** GET /api/free-resources/ncert-books */
 export async function fetchNcertBooks(params = {}, { signal } = {}) {
-  const { data } = await axiosInstance.get(`${BASE}/ncert-books`, { params, signal })
-  return data
+  return fetchFreeResourceList(`${BASE}/ncert-books`, params, { signal })
 }
 
 /** PUT /api/free-resources/ncert-books/{resourceId} */
 export async function updateNcertBook(resourceId, payload, { signal } = {}) {
   const formData = buildNcertBookFormData(payload, { isEdit: true })
-  const { data } = await axiosInstance.put(`${BASE}/ncert-books/${resourceId}`, formData, { signal })
+  const { data } = await axiosInstance.put(`${BASE}/ncert-books/${resourceId}`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
@@ -66,7 +98,10 @@ export async function fetchYearsDropdown({ signal } = {}) {
 /** POST /api/free-resources/previous-year-papers — create previous year paper (multipart/form-data) */
 export async function createPreviousYearPaper(payload, { signal } = {}) {
   const formData = buildPreviousYearPaperFormData(payload)
-  const { data } = await axiosInstance.post(`${BASE}/previous-year-papers`, formData, { signal })
+  const { data } = await axiosInstance.post(`${BASE}/previous-year-papers`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
@@ -78,14 +113,14 @@ export async function fetchPreviousYearPaperById(resourceId, { signal } = {}) {
 
 /** GET /api/free-resources/previous-year-papers */
 export async function fetchPreviousYearPapers(params = {}, { signal } = {}) {
-  const { data } = await axiosInstance.get(`${BASE}/previous-year-papers`, { params, signal })
-  return data
+  return fetchFreeResourceList(`${BASE}/previous-year-papers`, params, { signal })
 }
 
 /** PUT /api/free-resources/previous-year-papers/{resourceId} */
 export async function updatePreviousYearPaper(resourceId, payload, { signal } = {}) {
   const formData = buildPreviousYearPaperFormData(payload, { isEdit: true })
   const { data } = await axiosInstance.put(`${BASE}/previous-year-papers/${resourceId}`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
     signal,
   })
   return data
@@ -97,16 +132,19 @@ export async function deletePreviousYearPaper(resourceId, { signal } = {}) {
   return data
 }
 
-/** POST /api/free-resources/mock-tests — create mock test (JSON) */
+/** POST /api/free-resources/mock-tests — create mock test (multipart/form-data) */
 export async function createMockTest(payload, { signal } = {}) {
-  const { data } = await axiosInstance.post(`${BASE}/mock-tests`, payload, { signal })
+  const formData = buildMockTestFormData(payload, { isEdit: false })
+  const { data } = await axiosInstance.post(`${BASE}/mock-tests`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
 /** GET /api/free-resources/mock-tests */
 export async function fetchMockTests(params = {}, { signal } = {}) {
-  const { data } = await axiosInstance.get(`${BASE}/mock-tests`, { params, signal })
-  return data
+  return fetchFreeResourceList(`${BASE}/mock-tests`, params, { signal })
 }
 
 /** GET /api/free-resources/mock-tests/{mockTestId} */
@@ -117,7 +155,11 @@ export async function fetchMockTestById(mockTestId, { signal } = {}) {
 
 /** PUT /api/free-resources/mock-tests/{mockTestId} */
 export async function updateMockTest(mockTestId, payload, { signal } = {}) {
-  const { data } = await axiosInstance.put(`${BASE}/mock-tests/${mockTestId}`, payload, { signal })
+  const formData = buildMockTestFormData(payload, { isEdit: true })
+  const { data } = await axiosInstance.put(`${BASE}/mock-tests/${mockTestId}`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
@@ -210,14 +252,16 @@ export async function fetchStudyMaterialCategoriesDropdown({ signal } = {}) {
 /** POST /api/free-resources/study-materials — create study material (multipart/form-data) */
 export async function createStudyMaterial(payload, { signal } = {}) {
   const formData = buildStudyMaterialFormData(payload)
-  const { data } = await axiosInstance.post(`${BASE}/study-materials`, formData, { signal })
+  const { data } = await axiosInstance.post(`${BASE}/study-materials`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
+    signal,
+  })
   return data
 }
 
 /** GET /api/free-resources/study-materials */
 export async function fetchStudyMaterials(params = {}, { signal } = {}) {
-  const { data } = await axiosInstance.get(`${BASE}/study-materials`, { params, signal })
-  return data
+  return fetchFreeResourceList(`${BASE}/study-materials`, params, { signal })
 }
 
 /** GET /api/free-resources/study-materials/{resourceId} */
@@ -230,6 +274,7 @@ export async function fetchStudyMaterialById(resourceId, { signal } = {}) {
 export async function updateStudyMaterial(resourceId, payload, { signal } = {}) {
   const formData = buildStudyMaterialFormData(payload, { isEdit: true })
   const { data } = await axiosInstance.put(`${BASE}/study-materials/${resourceId}`, formData, {
+    ...MULTIPART_REQUEST_OPTIONS,
     signal,
   })
   return data
@@ -238,5 +283,15 @@ export async function updateStudyMaterial(resourceId, payload, { signal } = {}) 
 /** DELETE /api/free-resources/study-materials/{resourceId} */
 export async function deleteStudyMaterial(resourceId, { signal } = {}) {
   const { data } = await axiosInstance.delete(`${BASE}/study-materials/${resourceId}`, { signal })
+  return data
+}
+
+/** PATCH /api/free-resources/{resourceId}/status */
+export async function updateFreeResourceStatus(resourceId, status, { signal } = {}) {
+  const { data } = await axiosInstance.patch(
+    `${BASE}/${resourceId}/status`,
+    { status: String(status || 'ACTIVE').trim().toUpperCase() },
+    { signal },
+  )
   return data
 }

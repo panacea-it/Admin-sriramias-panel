@@ -72,6 +72,24 @@ function normalizeCreateFormStatus(status) {
   return 'ACTIVE'
 }
 
+function hasUploadedFile(file) {
+  return file instanceof Blob && file.size > 0
+}
+
+function withUploadFieldValues(values, getValues) {
+  return {
+    ...values,
+    bookFile: getValues('bookFile') ?? values.bookFile,
+    bookFileName: getValues('bookFileName') ?? values.bookFileName,
+    questionPaperFile: getValues('questionPaperFile') ?? values.questionPaperFile,
+    questionPaperFileName: getValues('questionPaperFileName') ?? values.questionPaperFileName,
+    studyMaterialFile: getValues('studyMaterialFile') ?? values.studyMaterialFile,
+    studyMaterialFileName: getValues('studyMaterialFileName') ?? values.studyMaterialFileName,
+    bulkFile: getValues('bulkFile') ?? values.bulkFile,
+    bulkFileName: getValues('bulkFileName') ?? values.bulkFileName,
+  }
+}
+
 function validateNcertBookFields(values, { isEdit = false } = {}) {
   const errors = {}
   if (!String(values.subject || '').trim()) {
@@ -83,8 +101,10 @@ function validateNcertBookFields(values, { isEdit = false } = {}) {
   if (!String(values.bookName || '').trim()) {
     errors.bookName = 'Book name is required'
   }
-  if (!isEdit && !values.bookFile) {
-    errors.bookFileName = 'PDF is required'
+  if (!isEdit && !hasUploadedFile(values.bookFile)) {
+    errors.bookFileName = values.bookFileName
+      ? 'Please re-select the PDF before saving'
+      : 'PDF is required'
   }
   if (!String(values.status || '').trim()) {
     errors.status = 'Status is required'
@@ -106,8 +126,10 @@ function validatePreviousYearPaperFields(values, { isEdit = false } = {}) {
   if (!String(values.paperName || '').trim()) {
     errors.paperName = 'Paper name is required'
   }
-  if (!isEdit && !values.questionPaperFile) {
-    errors.questionPaperFileName = 'PDF is required'
+  if (!isEdit && !hasUploadedFile(values.questionPaperFile)) {
+    errors.questionPaperFileName = values.questionPaperFileName
+      ? 'Please re-select the PDF before saving'
+      : 'PDF is required'
   }
   if (!String(values.status || '').trim()) {
     errors.status = 'Status is required'
@@ -142,6 +164,15 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
     errors.status = 'Status is required'
   }
 
+  if (!isEdit) {
+    const hasBulk = hasUploadedFile(values.bulkFile)
+    const hasManualQuestions = (values.questions || []).some(isFreeResourceQuestionComplete)
+    if (!hasBulk && !hasManualQuestions) {
+      errors.bulkFileName =
+        'Upload a bulk questions file (CSV/XLSX) or add at least one complete question below'
+    }
+  }
+
   return errors
 }
 
@@ -156,7 +187,7 @@ function validateStudyMaterialFields(values, { isEdit = false } = {}) {
   if (!String(values.status || '').trim()) {
     errors.status = 'Status is required'
   }
-  if (!isEdit && !values.studyMaterialFile) {
+  if (!isEdit && !hasUploadedFile(values.studyMaterialFile)) {
     errors.studyMaterialFileName = values.studyMaterialFileName
       ? 'Please re-select the file before saving'
       : 'File is required'
@@ -179,7 +210,17 @@ function resetCreateForm(reset, clearErrors, clearDraftStorage, draftId) {
   clearDraftStorage(draftId)
 }
 
-export default function AddFreeResourceModal({ open, onClose, item, onSubmit, onMockTestSaved, onStudyMaterialSaved, onNcertBookSaved, onPreviousYearPaperSaved }) {
+export default function AddFreeResourceModal({
+  open,
+  onClose,
+  item,
+  onSubmit,
+  onMockTestSaved,
+  onStudyMaterialSaved,
+  onNcertBookSaved,
+  onPreviousYearPaperSaved,
+  viewMode = false,
+}) {
   const [draftSavedAt, setDraftSavedAt] = useState(null)
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -207,6 +248,7 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
     handleSubmit,
     control,
     watch,
+    getValues,
     setValue,
     reset,
     setError,
@@ -217,6 +259,7 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       ...createEmptyFreeResourceForm(),
       ...CREATE_FORM_DEFAULTS,
     },
+    shouldUnregister: false,
   })
 
   const category = watch('category')
@@ -226,21 +269,34 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
     () => resolveFreeResourceRendererCategory(category, categoryOptions),
     [category, categoryOptions],
   )
+  const itemResourceCategory = String(item?.resourceCategory || '').toUpperCase()
   const isNcertCreate = !isEditMode && isNcertBooksCategory(category, categoryOptions)
   const isNcertEdit =
-    isEditMode && (item?.isApiNcertBook || isNcertBooksCategory(item?.category, categoryOptions))
+    isEditMode &&
+    (item?.isApiNcertBook ||
+      itemResourceCategory === 'NCERT_BOOKS' ||
+      isNcertBooksCategory(item?.category, categoryOptions))
   const isPreviousYearSelected = isPreviousYearPapersCategory(category, categoryOptions)
   const isPreviousYearCreate = !isEditMode && isPreviousYearSelected
   const isPreviousYearEdit =
     isEditMode &&
-    (item?.isApiPreviousYearPaper || isPreviousYearPapersCategory(item?.category, categoryOptions))
+    (item?.isApiPreviousYearPaper ||
+      itemResourceCategory === 'PREVIOUS_YEAR_QUESTIONS' ||
+      isPreviousYearPapersCategory(item?.category, categoryOptions))
   const isMockTestSelected = isMockTestsCategory(category, categoryOptions)
   const isMockTestCreate = !isEditMode && isMockTestSelected
-  const isMockTestEdit = isEditMode && (item?.isApiMockTest || isMockTestsCategory(item?.category, categoryOptions))
+  const isMockTestEdit =
+    isEditMode &&
+    (item?.isApiMockTest ||
+      itemResourceCategory === 'FREE_MOCK_TEST' ||
+      isMockTestsCategory(item?.category, categoryOptions))
   const isStudyMaterialSelected = isStudyMaterialCategory(category, categoryOptions)
   const isStudyMaterialCreate = !isEditMode && isStudyMaterialSelected
   const isStudyMaterialEdit =
-    isEditMode && (item?.isApiStudyMaterial || isStudyMaterialCategory(item?.category, categoryOptions))
+    isEditMode &&
+    (item?.isApiStudyMaterial ||
+      itemResourceCategory === 'STUDY_MATERIAL' ||
+      isStudyMaterialCategory(item?.category, categoryOptions))
 
   const previousYearPaperDropdowns = usePreviousYearPaperDropdowns(
     open,
@@ -263,6 +319,16 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
     const seeded = freeResourceRowToForm(itemRef.current)
     const draft = !isEditMode ? loadDraftFromStorage(draftId) : null
     const values = draft ? { ...seeded, ...draft } : seeded
+    if (draft) {
+      values.bookFile = null
+      values.bookFileName = ''
+      values.questionPaperFile = null
+      values.questionPaperFileName = ''
+      values.bulkFile = null
+      values.bulkFileName = ''
+      values.studyMaterialFile = null
+      values.studyMaterialFileName = ''
+    }
     if (values.questions?.length && values.numberOfQuestions) {
       values.questions = resizeFreeResourceQuestions(
         values.questions,
@@ -281,23 +347,31 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       values.category = normalizeFreeResourceCategory(values.category)
       values.status = normalizeCreateFormStatus(values.status)
       const editResourceId = itemRef.current?.apiResourceId || itemRef.current?.id || null
+      const rowResourceCategory = String(itemRef.current?.resourceCategory || '').toUpperCase()
       setMockTestId(
-        itemRef.current?.isApiMockTest || isMockTestsCategory(values.category, categoryOptions)
+        itemRef.current?.isApiMockTest ||
+          rowResourceCategory === 'FREE_MOCK_TEST' ||
+          isMockTestsCategory(values.category, categoryOptions)
           ? editResourceId
           : null,
       )
       setStudyMaterialId(
-        itemRef.current?.isApiStudyMaterial || isStudyMaterialCategory(values.category, categoryOptions)
-          ? editResourceId
+        itemRef.current?.isApiStudyMaterial ||
+          rowResourceCategory === 'STUDY_MATERIAL' ||
+          isStudyMaterialCategory(values.category, categoryOptions)
+          ? itemRef.current?.apiResourceId || editResourceId
           : null,
       )
       setNcertBookId(
-        itemRef.current?.isApiNcertBook || isNcertBooksCategory(values.category, categoryOptions)
+        itemRef.current?.isApiNcertBook ||
+          rowResourceCategory === 'NCERT_BOOKS' ||
+          isNcertBooksCategory(values.category, categoryOptions)
           ? itemRef.current?.apiResourceId || editResourceId
           : null,
       )
       setPreviousYearPaperId(
         itemRef.current?.isApiPreviousYearPaper ||
+          rowResourceCategory === 'PREVIOUS_YEAR_QUESTIONS' ||
           isPreviousYearPapersCategory(values.category, categoryOptions)
           ? itemRef.current?.apiResourceId || editResourceId
           : null,
@@ -432,7 +506,15 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
   useEffect(() => {
     if (!open || isEditMode) return undefined
     const t = setTimeout(() => {
-      const { bookFile, questionPaperFile, studyMaterialFile, ...draftValues } = formValues
+      const {
+        bookFile,
+        bookFileName,
+        questionPaperFile,
+        questionPaperFileName,
+        studyMaterialFile,
+        studyMaterialFileName,
+        ...draftValues
+      } = formValues
       saveDraftToStorage(draftId, draftValues)
       setDraftSavedAt(new Date())
     }, 900)
@@ -463,6 +545,8 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       setValue('totalMarks', '')
       setValue('negativeMarking', '')
       setValue('instructions', '')
+      setValue('bulkFile', null)
+      setValue('bulkFileName', '')
       setValue('mainsCategory', '')
       setValue('studyMaterialName', '')
       setValue('studyMaterialFile', null)
@@ -502,10 +586,11 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
     prevCategoryRef.current = seeded.category || ''
   }
 
-  const onFormSubmit = async (values) => {
+  const onFormSubmit = async (rawValues) => {
     if (savingRef.current) return
     clearErrors()
 
+    const values = withUploadFieldValues(rawValues, getValues)
     const validationErrors = {}
     if (!String(values.category || '').trim()) {
       validationErrors.category = 'Free resource category is required'
@@ -516,15 +601,13 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       const pdfCheck = validateNcertBookPdf(values.bookFile)
       if (!pdfCheck.valid && !validationErrors.bookFileName) {
         validationErrors.bookFileName = pdfCheck.message
-        toast.error(pdfCheck.message)
       }
     } else if (isNcertEdit) {
       Object.assign(validationErrors, validateNcertBookFields(values, { isEdit: true }))
-      if (values.bookFile) {
+      if (hasUploadedFile(values.bookFile)) {
         const pdfCheck = validateNcertBookPdf(values.bookFile)
         if (!pdfCheck.valid && !validationErrors.bookFileName) {
           validationErrors.bookFileName = pdfCheck.message
-          toast.error(pdfCheck.message)
         }
       }
     } else if (isPreviousYearCreate) {
@@ -532,15 +615,13 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       const pdfCheck = validatePreviousYearPaperPdf(values.questionPaperFile)
       if (!pdfCheck.valid && !validationErrors.questionPaperFileName) {
         validationErrors.questionPaperFileName = pdfCheck.message
-        toast.error(pdfCheck.message)
       }
     } else if (isPreviousYearEdit) {
       Object.assign(validationErrors, validatePreviousYearPaperFields(values, { isEdit: true }))
-      if (values.questionPaperFile) {
+      if (hasUploadedFile(values.questionPaperFile)) {
         const pdfCheck = validatePreviousYearPaperPdf(values.questionPaperFile)
         if (!pdfCheck.valid && !validationErrors.questionPaperFileName) {
           validationErrors.questionPaperFileName = pdfCheck.message
-          toast.error(pdfCheck.message)
         }
       }
     } else if (isMockTestCreate || isMockTestEdit) {
@@ -550,11 +631,10 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
         validationErrors,
         validateStudyMaterialFields(values, { isEdit: isStudyMaterialEdit }),
       )
-      if (isStudyMaterialCreate || values.studyMaterialFile) {
+      if (isStudyMaterialCreate || hasUploadedFile(values.studyMaterialFile)) {
         const fileCheck = validateStudyMaterialFile(values.studyMaterialFile)
         if (!fileCheck.valid && !validationErrors.studyMaterialFileName) {
           validationErrors.studyMaterialFileName = fileCheck.message
-          toast.error(fileCheck.message)
         }
       }
     } else if (!String(values.status || '').trim()) {
@@ -565,7 +645,8 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       Object.entries(validationErrors).forEach(([key, message]) => {
         setError(key, { type: 'manual', message })
       })
-      toast.error('Please fix the highlighted fields')
+      const firstMessage = Object.values(validationErrors).find(Boolean)
+      if (firstMessage) toast.error(firstMessage)
       return
     }
 
@@ -698,7 +779,10 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       }
 
       if (isMockTestEdit && mockTestId) {
-        await updateMockTest(mockTestId, buildMockTestUpdatePayload(values))
+        await updateMockTest(mockTestId, {
+          ...buildMockTestUpdatePayload(values),
+          bulkFile: values.bulkFile,
+        })
 
         onSubmit?.(
           {
@@ -717,11 +801,15 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
       }
 
       if (isMockTestCreate) {
-        const createPayload = buildMockTestCreatePayload(values)
+        const createPayload = {
+          ...buildMockTestCreatePayload(values),
+          bulkFile: values.bulkFile,
+        }
         const response = await createMockTest(createPayload)
         const createdId = extractCreatedFreeResourceId(response)
+        const hasBulkFile = hasUploadedFile(values.bulkFile)
 
-        if (createdId) {
+        if (createdId && !hasBulkFile) {
           const questions = resizeFreeResourceQuestions(
             values.questions || [],
             parseQuestionCount(values.numberOfQuestions),
@@ -824,18 +912,19 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
     }
   }
 
-  const showStickySave = rendererCategory === FREE_RESOURCE_CATEGORY.MOCK_TEST
-  const formDisabled = saving || detailLoading
+  const showStickySave = !viewMode && rendererCategory === FREE_RESOURCE_CATEGORY.MOCK_TEST
+  const formDisabled = saving || detailLoading || viewMode
+  const modalTitle = viewMode ? 'View Free Resource' : 'Free Resource'
 
   return (
-    <Modal open={open} onClose={handleClose} size="full" title="Free Resource" showCloseButton={false}>
+    <Modal open={open} onClose={handleClose} size="full" title={modalTitle} showCloseButton={false}>
       <form
-        onSubmit={handleSubmit(onFormSubmit)}
+        onSubmit={viewMode ? (event) => event.preventDefault() : handleSubmit(onFormSubmit)}
         className="flex max-h-[min(92vh,920px)] flex-col overflow-hidden rounded-2xl bg-[#f7f7f7] shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
       >
         <div className="shrink-0">
           <ModalPanelHeader
-            title="Free Resource"
+            title={modalTitle}
             onClose={handleClose}
             icon={Layers}
             closeVariant="icon"
@@ -865,7 +954,10 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
         ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
+          <fieldset
+            disabled={viewMode}
+            className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6 disabled:opacity-100"
+          >
             {detailLoading ? (
               <p className="flex items-center gap-2 text-sm text-[#246392]">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -942,6 +1034,7 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
                   control={control}
                   watch={watch}
                   setValue={setValue}
+                  clearErrors={clearErrors}
                   errors={errors}
                   previousYearDropdowns={
                     rendererCategory === FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR
@@ -963,30 +1056,44 @@ export default function AddFreeResourceModal({ open, onClose, item, onSubmit, on
                   studyMaterialFileRequired={!isStudyMaterialEdit}
                   ncertBookFileRequired={!isNcertEdit}
                   previousYearFileRequired={!isPreviousYearEdit}
+                  mockTestBulkFileRequired={false}
+                  mockTestBulkFileOptional={isMockTestCreate || isMockTestEdit}
                 />
               </motion.div>
             </AnimatePresence>
-          </div>
+          </fieldset>
         </div>
 
         <div className="shrink-0 border-t border-slate-200/80 bg-[#f7f7f7] px-4 py-4 sm:px-6">
-          <FormModalSubmitBar
-            isEditMode={isEditMode}
-            onReset={handleReset}
-            isSubmitting={saving || detailLoading}
-            disableReset={
-              categoriesLoading ||
-              saving ||
-              detailLoading ||
-              previousYearPaperDropdowns.loading ||
-              mockTestDropdowns.loading ||
-              studyMaterialDropdowns.loading
-            }
-            createLabel="Save"
-            updateLabel="Update"
-            loadingLabel="Saving…"
-            className="border-0 pt-0"
-          />
+          {viewMode ? (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="min-w-[148px] rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-10 py-3.5 text-base font-bold text-white shadow-[0_6px_18px_rgba(5,25,45,0.4)] transition hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <FormModalSubmitBar
+              isEditMode={isEditMode}
+              onReset={handleReset}
+              isSubmitting={saving || detailLoading}
+              disableReset={
+                categoriesLoading ||
+                saving ||
+                detailLoading ||
+                previousYearPaperDropdowns.loading ||
+                mockTestDropdowns.loading ||
+                studyMaterialDropdowns.loading
+              }
+              createLabel="Save"
+              updateLabel="Update"
+              loadingLabel="Saving…"
+              className="border-0 pt-0"
+            />
+          )}
         </div>
       </form>
     </Modal>
