@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { fetchBatchById } from '../../api/batchesAPI'
 import { BookOpen, CreditCard, GraduationCap } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
@@ -22,13 +23,14 @@ export default function AddCourseModal({
   item,
   duplicateSource = null,
   onSubmit,
-  existingCourseIds = [],
 }) {
   const isDuplicateMode = Boolean(duplicateSource)
   const modalRecord = isDuplicateMode ? duplicateSource : item
 
-  const mapRowToForm = (row) =>
-    isDuplicateMode && row ? batchRowToDuplicateForm(row) : batchRowToForm(row)
+  const mapRowToForm = useCallback(
+    (row) => (isDuplicateMode && row ? batchRowToDuplicateForm(row) : batchRowToForm(row)),
+    [isDuplicateMode],
+  )
 
   const { form, setForm, isEditMode, reset } = useModalForm(
     open,
@@ -40,6 +42,7 @@ export default function AddCourseModal({
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [brochureUploading, setBrochureUploading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -48,12 +51,42 @@ export default function AddCourseModal({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return undefined
+
+    const batchId = isEditMode ? item?.id : isDuplicateMode ? duplicateSource?.id : null
+    if (!batchId) return undefined
+
+    const ac = new AbortController()
+    let active = true
+    setDetailLoading(true)
+    fetchBatchById(batchId, { signal: ac.signal })
+      .then((row) => {
+        if (!active || !row) return
+        setForm(mapRowToForm(row))
+      })
+      .catch((err) => {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+        /* keep list row prefill */
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false)
+      })
+
+    return () => {
+      active = false
+      ac.abort()
+    }
+  }, [open, isEditMode, isDuplicateMode, item?.id, duplicateSource?.id, mapRowToForm, setForm])
+
   const handleClose = () => onClose()
 
   const validateBatch = () => {
     const next = {}
     if (!form.batchName?.trim()) next.batchName = 'Batch name is required'
-    if (!form.mentorEmail?.trim()) next.mentorEmail = 'Mentor is required'
+    if (!form.mentorId?.trim() && !form.mentorEmail?.trim()) {
+      next.mentorEmail = 'Mentor is required'
+    }
     if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
       next.courseId = 'Please select a course'
     }
@@ -91,9 +124,11 @@ export default function AddCourseModal({
         duplicateFromId: duplicateSource?.id,
       })
       if (isDuplicateMode) {
-        toast.success('Batch duplicated successfully')
+        toast.success('Batch Duplicated Successfully')
       } else {
-        toast.success(isEditMode ? 'Batch updated successfully' : 'Batch created successfully')
+        toast.success(
+          isEditMode ? 'Batch updated successfully' : 'Batch Created Successfully',
+        )
       }
       handleClose()
     } catch (err) {
@@ -139,9 +174,7 @@ export default function AddCourseModal({
                 errors={errors}
                 setErrors={setErrors}
                 onBrochureUploadingChange={setBrochureUploading}
-                excludeCourseIds={
-                  isEditMode || isDuplicateMode ? [] : existingCourseIds
-                }
+                excludeCourseIds={[]}
               />
             </BatchFormCard>
 
@@ -167,7 +200,7 @@ export default function AddCourseModal({
 
         <BatchFormStickyFooter
           isEditMode={isEditMode}
-          saving={submitting || brochureUploading}
+          saving={submitting || brochureUploading || detailLoading}
           onReset={() => {
             reset()
             setErrors({})

@@ -60,6 +60,7 @@ export function buildMentorSelectOptions(employees, roles) {
 export function mentorFieldsFromOption(option) {
   if (!option) {
     return {
+      mentorId: '',
       mentorEmail: '',
       mentorEmployeeId: '',
       mentorName: '',
@@ -68,10 +69,12 @@ export function mentorFieldsFromOption(option) {
       trainerName: '',
     }
   }
-  const emp = option.employee
+  const emp = option.employee || {}
   const name = emp.name || emp.fullName || ''
+  const mentorId = emp._id || option.value || ''
   return {
-    mentorEmail: emp.email || '',
+    mentorId: String(mentorId || ''),
+    mentorEmail: emp.email || emp.officialEmail || '',
     mentorEmployeeId: emp.employeeId || emp.id || '',
     mentorName: name,
     mentorRoleId: option.roleId || '',
@@ -82,10 +85,15 @@ export function mentorFieldsFromOption(option) {
 
 export function resolveMentorDisplayName(row = {}) {
   const fd = row.formData || {}
-  if (fd.mentorName) {
-    const role = fd.mentorRoleLabel ? ` – ${fd.mentorRoleLabel}` : ''
-    const id = fd.mentorEmployeeId ? ` (${fd.mentorEmployeeId})` : ''
-    return `${fd.mentorName}${id}${role}`
+  const name = fd.mentorName || row.mentorName || fd.trainerName || row.trainerName
+  if (name) {
+    const role = (fd.mentorRoleLabel || row.mentorRoleLabel)
+      ? ` – ${fd.mentorRoleLabel || row.mentorRoleLabel}`
+      : ''
+    const id = (fd.mentorEmployeeId || row.mentorEmployeeId)
+      ? ` (${fd.mentorEmployeeId || row.mentorEmployeeId})`
+      : ''
+    return `${name}${id}${role}`
   }
-  return fd.trainerName || row.trainerName || '—'
+  return '—'
 }

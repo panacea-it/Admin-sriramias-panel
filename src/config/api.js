@@ -4,6 +4,7 @@ import { clearAuthStorage, getAuthToken } from '../utils/authStorage'
 function readEnvBaseUrl() {
   const raw =
     import.meta.env.VITE_API_BASE_URL?.trim() ||
+    import.meta.env.VITE_API_URL?.trim() ||
     import.meta.env.VITE_BASE_URL?.trim() ||
     import.meta.env.REACT_APP_BASE_URL?.trim() ||
     ''

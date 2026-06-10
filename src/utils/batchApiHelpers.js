@@ -1,5 +1,6 @@
 import { normalizeLinkedSubjects } from './batchHelpers'
 import { normalizeAcademicFeeDetails, serializeAcademicFeeDetails } from './feeDetailsForm'
+import { isMongoObjectId } from './facultySubjectHelpers'
 
 const BATCH_STATUS_TO_API = {
   Active: 'ACTIVE',
@@ -63,19 +64,48 @@ export function buildBatchFeesJson(form) {
   }
 }
 
-/** JSON body for PUT /api/batches/:id (matches Postman collection) */
-export function buildUpdateBatchJsonPayload(form) {
-  return {
-    batchName: String(form.batchName || '').trim(),
-    courseId: resolveCourseId(form),
-    commencementDate: String(form.commencement || '').trim(),
-    durationInMonths: parseDurationInMonths(form.durationLabel),
-    batchStartDate: String(form.batchStartFrom || '').trim(),
-    batchEndDate: String(form.batchEndTo || '').trim(),
-    fees: buildBatchFeesJson(form),
-    facultySubjects: resolveFacultySubjectIds(form),
-    status: mapBatchStatusToApi(form.status || 'Active'),
+export function formatFormDateForApi(value) {
+  if (value == null || value === '') return ''
+  const str = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10)
+  const parsed = new Date(str)
+  if (Number.isNaN(parsed.getTime())) return str
+  return parsed.toISOString().slice(0, 10)
+}
+
+function resolveMentorId(form) {
+  return String(form.mentorId || '').trim()
+}
+
+async function resolveBrochureFile(form) {
+  if (form.brochureFile instanceof File) return form.brochureFile
+  return null
+}
+
+async function appendBatchFormFields(formData, form) {
+  formData.append('batchName', String(form.batchName || '').trim())
+  const mentorId = resolveMentorId(form)
+  if (mentorId) formData.append('mentorId', mentorId)
+  formData.append('courseId', resolveCourseId(form))
+  formData.append('durationInMonths', String(parseDurationInMonths(form.durationLabel)))
+  formData.append('facultySubjects', JSON.stringify(resolveFacultySubjectIds(form)))
+  formData.append('feesJson', JSON.stringify(buildBatchFeesJson(form)))
+  formData.append('status', mapBatchStatusToApi(form.status || 'Active'))
+  formData.append('commencementDate', formatFormDateForApi(form.commencement))
+  formData.append('batchStartDate', formatFormDateForApi(form.batchStartFrom))
+  formData.append('batchEndDate', formatFormDateForApi(form.batchEndTo))
+
+  const bannerFile = await resolveBannerFile(form)
+  if (bannerFile) {
+    formData.append('bannerImage', bannerFile)
   }
+
+  const brochureFile = await resolveBrochureFile(form)
+  if (brochureFile) {
+    formData.append('brochure', brochureFile)
+  }
+
+  return formData
 }
 
 function mapFacultySubjectsToLinked(facultySubjects = []) {
@@ -159,24 +189,172 @@ async function resolveBannerFile(form) {
 }
 
 export async function buildCreateBatchFormData(form) {
-  const formData = new FormData()
+  return appendBatchFormFields(new FormData(), form)
+}
 
-  formData.append('batchName', String(form.batchName || '').trim())
-  formData.append('courseId', resolveCourseId(form))
-  formData.append('durationInMonths', String(parseDurationInMonths(form.durationLabel)))
-  formData.append('facultySubjects', JSON.stringify(resolveFacultySubjectIds(form)))
-  formData.append('feesJson', JSON.stringify(buildBatchFeesJson(form)))
-  formData.append('status', mapBatchStatusToApi(form.status || 'Active'))
-  formData.append('commencementDate', String(form.commencement || '').trim())
-  formData.append('batchStartDate', String(form.batchStartFrom || '').trim())
-  formData.append('batchEndDate', String(form.batchEndTo || '').trim())
+export async function buildUpdateBatchFormData(form) {
+  return appendBatchFormFields(new FormData(), form)
+}
 
-  const bannerFile = await resolveBannerFile(form)
-  if (bannerFile) {
-    formData.append('bannerImage', bannerFile)
+const PAYMENT_STATUS_TO_UI = {
+  PAID: 'Paid',
+  PENDING: 'Pending',
+  PARTIAL: 'Partial',
+  OVERDUE: 'Overdue',
+  FAILED: 'Failed',
+}
+
+const PAYMENT_STATUS_TO_API = {
+  Paid: 'PAID',
+  Pending: 'PENDING',
+  Partial: 'PARTIAL',
+  Overdue: 'OVERDUE',
+  Failed: 'FAILED',
+}
+
+export function mapPaymentStatusToUi(status) {
+  const upper = String(status || 'PENDING')
+    .trim()
+    .toUpperCase()
+  return PAYMENT_STATUS_TO_UI[upper] || status || 'Pending'
+}
+
+export function mapPaymentStatusToApi(status) {
+  const raw = String(status || '').trim()
+  if (PAYMENT_STATUS_TO_API[raw]) return PAYMENT_STATUS_TO_API[raw]
+  const upper = raw.toUpperCase()
+  return upper || 'PENDING'
+}
+
+export function mapPaymentFilterToApi(filter) {
+  if (!filter || filter === 'all') return undefined
+  return mapPaymentStatusToApi(filter)
+}
+
+export function mapAccountFilterToApi(filter) {
+  if (!filter || filter === 'all') return undefined
+  if (filter === 'Active') return 'ACTIVE'
+  if (filter === 'In Active') return 'INACTIVE'
+  return String(filter).trim().toUpperCase().replace(/\s+/g, '_')
+}
+
+export function mapAccountStatusToApi(status) {
+  if (status === 'Active') return 'ACTIVE'
+  if (status === 'In Active' || status === 'Inactive') return 'INACTIVE'
+  return String(status || 'ACTIVE')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+}
+
+export function mapEnrollmentStatusToUi(status) {
+  const normalized = String(status ?? 'ACTIVE')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+  if (normalized === 'ACTIVE') return 'Active'
+  if (normalized === 'INACTIVE' || normalized === 'IN_ACTIVE') return 'Inactive'
+  const raw = String(status ?? '').trim()
+  return raw || 'Active'
+}
+
+function formatEnrollmentDate(value) {
+  if (!value) return ''
+  const str = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10)
+  const parsed = new Date(str)
+  if (Number.isNaN(parsed.getTime())) return str
+  return parsed.toISOString().slice(0, 10)
+}
+
+function resolveEnrollmentMongoId(entry = {}) {
+  const student = entry.student || {}
+  const studentMongoId = isMongoObjectId(student._id) ? String(student._id).trim() : ''
+  const nested = entry.enrollment && typeof entry.enrollment === 'object' ? entry.enrollment : {}
+  const candidates = [
+    entry._id,
+    entry.id,
+    entry.enrollmentMongoId,
+    entry.batchEnrollmentId,
+    nested._id,
+    nested.id,
+  ]
+  for (const value of candidates) {
+    const id = String(value || '').trim()
+    if (!isMongoObjectId(id)) continue
+    if (studentMongoId && id === studentMongoId) continue
+    return id
   }
+  return ''
+}
 
-  return formData
+/** Map API enrollment rows → batch student panel shape */
+export function mapApiEnrollmentStudents(students = []) {
+  if (!Array.isArray(students)) return []
+  return students.map((entry) => {
+    const student = entry.student || {}
+    const rawEnrollmentStatus =
+      entry.status ?? entry.accountStatus ?? student.enrollmentStatus ?? student.status ?? 'ACTIVE'
+    const status = mapEnrollmentStatusToUi(rawEnrollmentStatus)
+    const enrollmentMongoId = resolveEnrollmentMongoId(entry)
+    const studentMongoId = isMongoObjectId(student._id) ? String(student._id).trim() : ''
+    const displayEnrollmentId =
+      entry.enrollmentId || entry.enrollmentNumber || entry.enrollmentCode || '—'
+    const enrollmentApiId = enrollmentMongoId
+    return {
+      id: enrollmentMongoId || String(displayEnrollmentId),
+      enrollmentApiId,
+      enrollmentMongoId,
+      studentMongoId,
+      name: entry.studentName || entry.name || student.studentName || student.name || '—',
+      email: entry.email || student.email || '',
+      phone: entry.mobileNumber || entry.phone || student.mobileNumber || student.phone || '',
+      enrollmentId: displayEnrollmentId,
+      paymentStatus: mapPaymentStatusToUi(
+        entry.paymentStatus ?? student.paymentStatus ?? 'PENDING',
+      ),
+      attendance:
+        Number(
+          entry.attendancePercentage ??
+            entry.attendance ??
+            student.attendancePercentage ??
+            student.attendance ??
+            0,
+        ) || 0,
+      progress:
+        Number(
+          entry.courseProgressPercentage ??
+            entry.progress ??
+            student.courseProgressPercentage ??
+            student.progress ??
+            0,
+        ) || 0,
+      status,
+      enrolledAt: formatEnrollmentDate(
+        entry.createdAt || entry.enrolledAt || entry.enrollmentDate,
+      ),
+    }
+  })
+}
+
+export function unwrapBatchEnrollmentsList(body) {
+  if (Array.isArray(body)) return body
+  if (Array.isArray(body?.data)) return body.data
+  if (Array.isArray(body?.data?.enrollments)) return body.data.enrollments
+  if (Array.isArray(body?.enrollments)) return body.enrollments
+  if (Array.isArray(body?.items)) return body.items
+  return []
+}
+
+export function unwrapBatchEnrollmentsMeta(body, fallback = {}) {
+  const source = body?.data && !Array.isArray(body.data) ? body.data : body
+  const total = Number(source?.total ?? source?.count ?? fallback.total ?? 0)
+  const page = Number(source?.page ?? fallback.page ?? 1)
+  const limit = Number(source?.limit ?? fallback.limit ?? 10)
+  const pages = Number(
+    source?.pages ?? source?.totalPages ?? Math.max(1, Math.ceil(total / limit) || 1),
+  )
+  return { total, page, pages, limit }
 }
 
 /** Mongo batch document → row shape used by Batch Manager tables */
@@ -184,9 +362,23 @@ export function mapBatchFromApi(doc) {
   if (!doc) return null
 
   const id = doc._id ?? doc.id
-  if (!id) return null
+  if (!id && !doc.batchId) return null
 
-  const fees = doc.fees || doc.feesJson || doc.feeDetails || {}
+  const courseRef = doc.linkedCourse || doc.course || {}
+  const fees =
+    doc.fees ||
+    doc.feesJson ||
+    doc.feeDetails ||
+    (doc.currency || doc.onlinePaymentAmount != null
+      ? {
+          currency: doc.currency,
+          onlineAmount: doc.onlinePaymentAmount,
+          offlineAmount: doc.offlinePaymentAmount,
+          discountAmount: doc.discountAmount,
+          onlineBulletPoints: doc.onlineBulletPoints,
+          offlineBulletPoints: doc.offlineBulletPoints,
+        }
+      : {})
   const linkedSubjects = mapFacultySubjectsToLinked(
     doc.facultySubjects || doc.linkedSubjects || [],
   )
@@ -194,11 +386,11 @@ export function mapBatchFromApi(doc) {
   const courseName =
     doc.courseName ||
     doc.linkedCourseName ||
-    doc.course?.courseName ||
-    doc.course?.name ||
+    courseRef.courseName ||
+    courseRef.name ||
     ''
-  const courseMongoId = doc.course?._id || doc.academicCourseId || ''
-  const courseCode = doc.course?.courseId || doc.courseId || ''
+  const courseMongoId = courseRef._id || doc.academicCourseId || ''
+  const courseCode = courseRef.courseId || doc.courseId || ''
   const bannerUrl =
     resolveMediaUrl(doc.bannerImage) ||
     doc.bannerImageUrl ||
@@ -209,7 +401,10 @@ export function mapBatchFromApi(doc) {
     doc.brochureUrl ||
     ''
   const commencement = formatApiDate(
-    doc.commencementDate || doc.commencement || doc.formData?.commencement,
+    doc.commencementDate ||
+      doc.dateOfCommencement ||
+      doc.commencement ||
+      doc.formData?.commencement,
   )
   const batchStartFrom = formatApiDate(
     doc.batchStartDate || doc.batchStartFrom || doc.formData?.batchStartFrom,
@@ -219,12 +414,18 @@ export function mapBatchFromApi(doc) {
     doc.durationLabel ||
     doc.formData?.durationLabel ||
     (doc.durationInMonths ? `${doc.durationInMonths} Months` : '')
-  const mentor = doc.mentor && typeof doc.mentor === 'object' ? doc.mentor : null
-
   const fd = doc.formData || {}
+  const mentor = doc.mentor && typeof doc.mentor === 'object' ? doc.mentor : null
+  const mentorId = doc.mentorId || mentor?._id || fd.mentorId || ''
+  const mentorName =
+    doc.mentorName || mentor?.fullName || mentor?.name || fd.mentorName || ''
+  const mentorEmail =
+    doc.mentorEmail || mentor?.officialEmail || mentor?.email || fd.mentorEmail || ''
+  const apiStudents = mapApiEnrollmentStudents(doc.students)
+  const resolvedId = id || doc.batchId
 
   return {
-    id,
+    id: resolvedId,
     name: batchName,
     batchId: doc.batchId || doc.batchCode || fd.batchId || '',
     batchName,
@@ -249,12 +450,15 @@ export function mapBatchFromApi(doc) {
     mergedIntoName: doc.mergedIntoName ?? fd.mergedIntoName ?? null,
     feeDetails: mapApiFeesToUi(fees),
     linkedSubjects,
-    mentorEmail: doc.mentorEmail || mentor?.email || fd.mentorEmail || '',
+    mentorId: String(mentorId || ''),
+    mentorEmail,
     mentorEmployeeId: doc.mentorEmployeeId || mentor?.employeeId || fd.mentorEmployeeId || '',
-    mentorName: doc.mentorName || mentor?.name || fd.mentorName || '',
-    mentorRoleId: doc.mentorRoleId || fd.mentorRoleId || '',
-    mentorRoleLabel: doc.mentorRoleLabel || fd.mentorRoleLabel || '',
-    trainerName: doc.trainerName || fd.trainerName || fd.mentorName || mentor?.name || '',
+    mentorName,
+    mentorRoleId: doc.mentorRoleId || mentor?.roleCode || fd.mentorRoleId || '',
+    mentorRoleLabel: doc.mentorRoleLabel || mentor?.roleTitle || fd.mentorRoleLabel || '',
+    trainerName: doc.trainerName || fd.trainerName || mentorName || fd.mentorName || '',
+    students: apiStudents,
+    studentCount: doc.studentCount ?? doc.totalStudents ?? apiStudents.length,
     formData: {
       ...fd,
       batchName,
@@ -271,9 +475,15 @@ export function mapBatchFromApi(doc) {
       feeDetails: mapApiFeesToUi(fees),
       linkedSubjects,
       status: mapApiBatchStatusToUi(doc.status || fd.status),
+      mentorId: String(mentorId || ''),
+      mentorEmail,
+      mentorEmployeeId: doc.mentorEmployeeId || mentor?.employeeId || fd.mentorEmployeeId || '',
+      mentorName,
+      mentorRoleLabel: doc.mentorRoleLabel || mentor?.roleTitle || fd.mentorRoleLabel || '',
+      trainerName: doc.trainerName || fd.trainerName || mentorName || '',
     },
-    createdAt: doc.createdAt,
-    modifiedAt: doc.updatedAt || doc.modifiedAt,
+    createdAt: doc.createdAt || doc.createdOn,
+    modifiedAt: doc.updatedAt || doc.modifiedAt || doc.modifiedOn,
   }
 }
 

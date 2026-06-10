@@ -76,14 +76,23 @@ export default function SubjectContentFields({
 
   const batchBlock = (
     <div className="max-w-md">
-      <BatchSearchSelect
+      <BatchMultiSearchSelect
         batches={batches}
         loading={batchesLoading}
-        value={batchId}
-        onChange={(id) => setValue('batchId', id, { shouldValidate: true })}
-        error={errors.batchId?.message}
+        value={batchIds.length ? batchIds : batchId ? [batchId] : []}
+        onChange={(ids) => {
+          setValue('batchIds', ids, { shouldValidate: true, shouldDirty: true })
+          setValue('batchId', ids[0] || '', { shouldValidate: true, shouldDirty: true })
+        }}
+        error={errors.batchIds?.message || errors.batchId?.message}
         required
-        emptyHint={batchesLoading ? 'Loading batches…' : 'No batches available'}
+        emptyHint={
+          !watchedCenterId
+            ? 'Select a center first'
+            : batchesLoading
+              ? 'Loading batches…'
+              : 'No batches available'
+        }
       />
     </div>
   )
@@ -133,6 +142,9 @@ export default function SubjectContentFields({
                         )
                         setValue('center', selected?.label || '', { shouldValidate: true })
                         setValue('classroomId', '', { shouldValidate: true })
+                        setValue('classRoom', '', { shouldValidate: true })
+                        setValue('batchId', '', { shouldValidate: true })
+                        setValue('batchIds', [], { shouldValidate: true })
                         onCenterChange?.(e.target.value)
                       }}
                       className={cn(

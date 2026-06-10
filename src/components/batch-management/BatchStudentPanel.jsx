@@ -6,6 +6,7 @@ import {
   UserPlus,
   Users,
   GraduationCap,
+  Loader2,
 } from 'lucide-react'
 import { usePagination } from '../../hooks/usePagination'
 import TablePagination from '../figma/TablePagination'
@@ -14,16 +15,59 @@ import ProgressBar from './ProgressBar'
 import StudentFormModal from './StudentFormModal'
 import StudentViewModal from './StudentViewModal'
 import StudentTableActions from './StudentTableActions'
-import CategoryStatusBadge from '../categories/CategoryStatusBadge'
+import StudentEnrollmentStatusBadge from './StudentEnrollmentStatusBadge'
+import { isStudentEnrollmentActive } from './studentStatusDisplay'
 import BatchConfirmDialog from './BatchConfirmDialog'
 import MoveStudentModal from './MoveStudentModal'
 import { PAYMENT_STATUSES, STUDENT_STATUSES } from '../../data/batchManagementData'
+import { mapPaymentStatusToUi } from '../../utils/batchApiHelpers'
 import { cn } from '../../utils/cn'
+import { resolveEnrollmentApiId } from './enrollmentHelpers'
+
+function StudentTableSkeleton({ rows = 5 }) {
+  return Array.from({ length: rows }).map((_, index) => (
+    <tr key={`student-skeleton-${index}`} className="border-t border-slate-100">
+      {Array.from({ length: 10 }).map((__, cellIndex) => (
+        <td key={cellIndex} className="px-4 py-3.5 sm:px-5">
+          <div className="h-4 animate-pulse rounded bg-slate-200" />
+        </td>
+      ))}
+    </tr>
+  ))
+}
 
 export default function BatchStudentPanel({
   batch,
   students: studentsProp,
   variant = 'embedded',
+  serverPaginated = false,
+  studentsLoading = false,
+  searchLoading = false,
+  addStudentSaving = false,
+  editStudentSaving = false,
+  deleteStudentSaving = false,
+  moveStudentSaving = false,
+  togglingStudentId = null,
+  search: controlledSearch,
+  onSearchChange,
+  paymentFilter: controlledPaymentFilter,
+  onPaymentFilterChange,
+  accountFilter: controlledAccountFilter,
+  onAccountFilterChange,
+  page: controlledPage,
+  pageSize: controlledPageSize,
+  totalItems: controlledTotalItems,
+  totalPages: controlledTotalPages,
+  startIndex: controlledStartIndex,
+  endIndex: controlledEndIndex,
+  onPageChange,
+  onPageSizeChange,
+  viewOpen: controlledViewOpen = false,
+  viewStudent: controlledViewStudent,
+  viewLoading = false,
+  onViewStudent,
+  onCloseView,
+  onFetchStudentForEdit,
   onAddStudent,
   onUpdateStudent,
   onDeleteStudent,
@@ -35,19 +79,26 @@ export default function BatchStudentPanel({
   const students = studentsProp ?? batch.students ?? []
   const isPage = variant === 'page'
 
-  const [search, setSearch] = useState('')
-  const [paymentFilter, setPaymentFilter] = useState('all')
-  const [accountFilter, setAccountFilter] = useState('all')
+  const [localSearch, setLocalSearch] = useState('')
+  const [localPaymentFilter, setLocalPaymentFilter] = useState('all')
+  const [localAccountFilter, setLocalAccountFilter] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState('add')
   const [editingStudent, setEditingStudent] = useState(null)
-  const [viewStudent, setViewStudent] = useState(null)
+  const [localViewStudent, setLocalViewStudent] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [moveTarget, setMoveTarget] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [editPreparing, setEditPreparing] = useState(false)
+
+  const search = serverPaginated ? controlledSearch : localSearch
+  const paymentFilter = serverPaginated ? controlledPaymentFilter : localPaymentFilter
+  const accountFilter = serverPaginated ? controlledAccountFilter : localAccountFilter
+  const viewStudent = serverPaginated ? controlledViewStudent : localViewStudent
 
   const filteredStudents = useMemo(() => {
-    const q = search.toLowerCase().trim()
+    if (serverPaginated) return students
+    const q = localSearch.toLowerCase().trim()
     return students.filter((s) => {
       const matchSearch =
         !q ||
@@ -56,17 +107,24 @@ export default function BatchStudentPanel({
         s.enrollmentId.toLowerCase().includes(q) ||
         s.phone.includes(q)
       const matchPayment =
-        paymentFilter === 'all' || s.paymentStatus === paymentFilter
+        localPaymentFilter === 'all' || s.paymentStatus === localPaymentFilter
       const matchAccount =
-        accountFilter === 'all' || s.status === accountFilter
+        localAccountFilter === 'all' ||
+        (localAccountFilter === 'Active' && isStudentEnrollmentActive(s.status)) ||
+        (localAccountFilter === 'In Active' && !isStudentEnrollmentActive(s.status))
       return matchSearch && matchPayment && matchAccount
     })
-  }, [students, search, paymentFilter, accountFilter])
+  }, [students, localSearch, localPaymentFilter, localAccountFilter, serverPaginated])
 
-  const pagination = usePagination(filteredStudents, {
+  const clientPagination = usePagination(filteredStudents, {
     initialPageSize: isPage ? 10 : 5,
-    resetDeps: [search, paymentFilter, accountFilter, batch.id],
+    resetDeps: [localSearch, localPaymentFilter, localAccountFilter, batch.id],
   })
+
+  const displayStudents = serverPaginated ? students : clientPagination.paginatedItems
+  const enrolledCount = serverPaginated
+    ? (controlledTotalItems ?? students.length)
+    : students.length
 
   const openAdd = () => {
     setFormMode('add')
@@ -74,10 +132,21 @@ export default function BatchStudentPanel({
     setFormOpen(true)
   }
 
-  const openEdit = (student) => {
+  const openEdit = async (student) => {
     setFormMode('edit')
     setEditingStudent(student)
     setFormOpen(true)
+    if (!onFetchStudentForEdit) return
+
+    setEditPreparing(true)
+    try {
+      const latest = await onFetchStudentForEdit(student)
+      if (latest) setEditingStudent(latest)
+    } catch {
+      /* keep table row values */
+    } finally {
+      setEditPreparing(false)
+    }
   }
 
   const formInitial = useMemo(
@@ -89,9 +158,9 @@ export default function BatchStudentPanel({
             phone: editingStudent.phone,
             course: batch.courseName,
             batch: batch.displayName,
-            paymentStatus: editingStudent.paymentStatus,
-            attendance: String(editingStudent.attendance),
-            progress: String(editingStudent.progress),
+            paymentStatus: mapPaymentStatusToUi(editingStudent.paymentStatus),
+            attendance: String(editingStudent.attendance ?? 0),
+            progress: String(editingStudent.progress ?? 0),
           }
         : {
             course: batch.courseName,
@@ -105,30 +174,72 @@ export default function BatchStudentPanel({
 
   const formSeedKey =
     formMode === 'edit' && editingStudent
-      ? `edit:${editingStudent.id}`
+      ? `edit:${resolveEnrollmentApiId(editingStudent) || editingStudent.id}:${editingStudent.paymentStatus}:${editingStudent.attendance}:${editingStudent.progress}:${editingStudent.name}`
       : `add:${batch.id}`
 
   const handleFormSubmit = async (form) => {
+    if (saving || addStudentSaving || editStudentSaving || editPreparing) return
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 280))
-    if (formMode === 'edit' && editingStudent) {
-      onUpdateStudent(batch.id, editingStudent.id, form)
-    } else {
-      onAddStudent(batch.id, form)
+    try {
+      if (formMode === 'edit' && editingStudent) {
+        await onUpdateStudent?.(
+          batch.id,
+          resolveEnrollmentApiId(editingStudent),
+          form,
+        )
+        setFormOpen(false)
+        setEditingStudent(null)
+      } else {
+        await onAddStudent?.(batch.id, form)
+        setFormOpen(false)
+        setEditingStudent(null)
+      }
+    } catch {
+      /* parent shows error toast; keep modal open */
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    setFormOpen(false)
-    setEditingStudent(null)
   }
 
   const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget || deleteStudentSaving) return
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 220))
-    onDeleteStudent(batch.id, deleteTarget.id)
-    setSaving(false)
-    setDeleteTarget(null)
+    try {
+      await onDeleteStudent?.(
+        batch.id,
+        resolveEnrollmentApiId(deleteTarget) || deleteTarget.id,
+      )
+      setDeleteTarget(null)
+    } catch {
+      /* parent shows error toast */
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const handleView = (student) => {
+    if (serverPaginated && onViewStudent) {
+      void onViewStudent(student)
+      return
+    }
+    setLocalViewStudent(student)
+  }
+
+  const handleCloseView = () => {
+    if (serverPaginated && onCloseView) {
+      onCloseView()
+      return
+    }
+    setLocalViewStudent(null)
+  }
+
+  const isEmptyWithoutFilters =
+    serverPaginated &&
+    !studentsLoading &&
+    students.length === 0 &&
+    !search?.trim() &&
+    paymentFilter === 'all' &&
+    accountFilter === 'all'
 
   const panelBody = (
     <>
@@ -141,14 +252,15 @@ export default function BatchStudentPanel({
             <h3 className="text-base font-bold text-[#111]">Student Management</h3>
             <p className="text-sm text-[#686868]">
               <GraduationCap className="mr-1 inline h-3.5 w-3.5" />
-              {batch.displayName} · {students.length} enrolled
+              {batch.displayName} · {enrolledCount} enrolled
             </p>
           </div>
         </div>
         <button
           type="button"
           onClick={openAdd}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#55ace7] to-[#246392] px-4 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(85,172,231,0.4)] transition hover:scale-[1.02] active:scale-[0.98]"
+          disabled={addStudentSaving}
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#55ace7] to-[#246392] px-4 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(85,172,231,0.4)] transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <UserPlus className="h-4 w-4" />
           Add Student
@@ -158,18 +270,29 @@ export default function BatchStudentPanel({
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#687180]" />
+          {searchLoading && (
+            <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#55ace7]" />
+          )}
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              if (serverPaginated) onSearchChange?.(value)
+              else setLocalSearch(value)
+            }}
             placeholder="Search students..."
-            className="h-10 w-full rounded-lg bg-[#eef2fc] pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40"
+            className="h-10 w-full rounded-lg bg-[#eef2fc] pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40"
           />
         </div>
         <div className="relative w-full sm:w-44">
           <select
             value={paymentFilter}
-            onChange={(e) => setPaymentFilter(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              if (serverPaginated) onPaymentFilterChange?.(value)
+              else setLocalPaymentFilter(value)
+            }}
             aria-label="Filter by payment status"
             className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-[#333] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/30"
           >
@@ -185,7 +308,11 @@ export default function BatchStudentPanel({
         <div className="relative w-full sm:w-40">
           <select
             value={accountFilter}
-            onChange={(e) => setAccountFilter(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              if (serverPaginated) onAccountFilterChange?.(value)
+              else setLocalAccountFilter(value)
+            }}
             aria-label="Filter by account status"
             className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-[#333] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/30"
           >
@@ -218,10 +345,12 @@ export default function BatchStudentPanel({
               </tr>
             </thead>
             <tbody>
-              {pagination.paginatedItems.length === 0 ? (
+              {studentsLoading ? (
+                <StudentTableSkeleton rows={isPage ? 6 : 4} />
+              ) : displayStudents.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-5 py-10 text-center">
-                    {students.length === 0 ? (
+                    {isEmptyWithoutFilters || (!serverPaginated && students.length === 0) ? (
                       <div className="flex flex-col items-center py-6">
                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef2fc]">
                           <Users className="h-7 w-7 text-[#55ace7]" strokeWidth={2} />
@@ -247,14 +376,19 @@ export default function BatchStudentPanel({
                   </td>
                 </tr>
               ) : (
-                pagination.paginatedItems.map((student) => {
-                  const isInactive = student.status === 'In Active'
+                displayStudents.map((student) => {
+                  const isInactive = !isStudentEnrollmentActive(student.status)
+                  const studentApiId = resolveEnrollmentApiId(student)
+                  const rowBusy =
+                    Boolean(togglingStudentId) &&
+                    togglingStudentId === studentApiId
                   return (
                     <tr
-                      key={student.id}
+                      key={studentApiId || student.enrollmentId || student.id}
                       className={cn(
                         'border-t border-slate-100 transition-colors hover:bg-[#f8fbff]',
                         isInactive && 'bg-slate-50/80 opacity-75',
+                        rowBusy && 'opacity-60',
                       )}
                     >
                       <td className="px-4 py-3.5 font-mono text-xs font-medium text-[#246392] sm:px-5">
@@ -285,19 +419,22 @@ export default function BatchStudentPanel({
                         <ProgressBar value={student.progress} />
                       </td>
                       <td className="px-4 py-3.5">
-                        <CategoryStatusBadge status={student.status ?? 'Active'} />
+                        <StudentEnrollmentStatusBadge status={student.status} />
                       </td>
                       <td className="px-4 py-3.5 sm:px-5">
                         <StudentTableActions
                           status={student.status ?? 'Active'}
-                          onView={() => setViewStudent(student)}
-                          onEdit={() => openEdit(student)}
+                          onView={() => handleView(student)}
+                          onEdit={() => void openEdit(student)}
                           onMove={
                             onMoveStudent ? () => setMoveTarget(student) : undefined
                           }
                           onDelete={() => setDeleteTarget(student)}
                           onToggleStatus={() =>
-                            onToggleStudentStatus(batch.id, student.id)
+                            onToggleStudentStatus?.(
+                              batch.id,
+                              resolveEnrollmentApiId(student) || student.id,
+                            )
                           }
                         />
                       </td>
@@ -308,16 +445,29 @@ export default function BatchStudentPanel({
             </tbody>
           </table>
         </div>
-        {filteredStudents.length > 0 && (
+        {!studentsLoading &&
+          (serverPaginated
+            ? (controlledTotalItems ?? 0) > 0
+            : filteredStudents.length > 0) && (
           <TablePagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            totalItems={pagination.totalItems}
-            totalPages={pagination.totalPages}
-            startIndex={pagination.startIndex}
-            endIndex={pagination.endIndex}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
+            page={serverPaginated ? controlledPage : clientPagination.page}
+            pageSize={serverPaginated ? controlledPageSize : clientPagination.pageSize}
+            totalItems={
+              serverPaginated ? controlledTotalItems : clientPagination.totalItems
+            }
+            totalPages={
+              serverPaginated ? controlledTotalPages : clientPagination.totalPages
+            }
+            startIndex={
+              serverPaginated ? controlledStartIndex : clientPagination.startIndex
+            }
+            endIndex={serverPaginated ? controlledEndIndex : clientPagination.endIndex}
+            onPageChange={
+              serverPaginated ? onPageChange : clientPagination.setPage
+            }
+            onPageSizeChange={
+              serverPaginated ? onPageSizeChange : clientPagination.setPageSize
+            }
             itemLabel="students"
             className="bg-slate-50/50"
           />
@@ -334,27 +484,31 @@ export default function BatchStudentPanel({
         initialValues={formInitial}
         seedKey={formSeedKey}
         onSubmit={handleFormSubmit}
-        saving={saving}
+        saving={saving || addStudentSaving || editStudentSaving || editPreparing}
       />
 
       <StudentViewModal
-        open={Boolean(viewStudent)}
-        onClose={() => setViewStudent(null)}
+        key={viewStudent?.id ?? (viewLoading ? 'view-loading' : 'view-empty')}
+        open={serverPaginated ? controlledViewOpen : Boolean(viewStudent)}
+        onClose={handleCloseView}
         student={viewStudent}
         batch={batch}
+        loading={viewLoading}
       />
 
       <BatchConfirmDialog
         open={Boolean(deleteTarget)}
         title="Delete student?"
         message={
-          deleteTarget
-            ? `Remove ${deleteTarget.name} from ${batch.displayName}? This cannot be undone.`
-            : ''
+          serverPaginated
+            ? 'Are you sure you want to permanently delete this student enrollment?'
+            : deleteTarget
+              ? `Remove ${deleteTarget.name} from ${batch.displayName}? This cannot be undone.`
+              : ''
         }
         confirmLabel="Delete"
         variant="danger"
-        loading={saving}
+        loading={saving || deleteStudentSaving}
         loadingLabel="Deleting…"
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
@@ -367,12 +521,14 @@ export default function BatchStudentPanel({
         currentBatch={batch}
         targetBatches={targetBatches}
         getTargetStrength={getTargetStrength}
-        saving={saving}
+        saving={saving || moveStudentSaving}
         onSubmit={async (values) => {
           setSaving(true)
           try {
             await onMoveStudent?.(moveTarget, values)
             setMoveTarget(null)
+          } catch {
+            /* parent shows error toast */
           } finally {
             setSaving(false)
           }

@@ -18,6 +18,8 @@ export default function BatchManagementTable({
   listState,
   page: controlledPage,
   pageSize: controlledPageSize,
+  totalItems: totalItemsProp,
+  serverPaginated = false,
   onPageChange,
   onPageSizeChange,
   resetDeps = [],
@@ -39,12 +41,14 @@ export default function BatchManagementTable({
 
   const page = isControlled ? controlledPage : internalPagination.page
   const pageSize = isControlled ? controlledPageSize : internalPagination.pageSize
-  const totalItems = batches.length
+  const totalItems = totalItemsProp ?? batches.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1)
   const safePage = Math.min(Math.max(1, page), totalPages)
   const startIndex = totalItems === 0 ? 0 : (safePage - 1) * pageSize
-  const endIndex = Math.min(startIndex + pageSize, totalItems)
-  const paginatedItems = batches.slice(startIndex, endIndex)
+  const endIndex = serverPaginated
+    ? Math.min(startIndex + batches.length, totalItems)
+    : Math.min(startIndex + pageSize, totalItems)
+  const paginatedItems = serverPaginated ? batches : batches.slice(startIndex, endIndex)
 
   const handlePageChange = (next) => {
     if (isControlled) onPageChange(next)

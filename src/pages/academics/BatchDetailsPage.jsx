@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, BookMarked } from 'lucide-react'
@@ -8,15 +8,37 @@ import BatchDetailsSkeleton from '../../components/batch-management/BatchDetails
 import BatchStudentPanel from '../../components/batch-management/BatchStudentPanel'
 import AddCourseModal from '../../components/courses/AddCourseModal'
 import PageBanner from '../../components/figma/PageBanner'
-import { useBatchManagementContext } from '../../contexts/BatchManagementContext'
 import { BATCHES_BASE } from '../../constants/batchNav'
 import { useEditModal } from '../../hooks/useEditModal'
-import { findBatchRow, useBatchesData } from '../../hooks/useBatchesData'
+import {
+  findBatchRow,
+  resolveBatchMongoId,
+  useBatchesData,
+} from '../../hooks/useBatchesData'
+import { useBatchEnrollments } from '../../hooks/useBatchEnrollments'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
-import { mapBatchRowToTableFormat } from '../../utils/batchHelpers'
+import { enrichBatchRow, mapBatchRowToTableFormat } from '../../utils/batchHelpers'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
-import { createBatch, updateBatch } from '../../api/batchesAPI'
+import { createBatch, fetchBatchById, updateBatch } from '../../api/batchesAPI'
+import {
+  createEnrollment,
+  deleteEnrollment,
+  moveEnrollment,
+  updateEnrollment,
+  updateEnrollmentStatus,
+} from '../../services/batchEnrollmentService'
+import { resolveApiBaseUrl } from '../../api/axiosInstance'
+import { BASE_URL } from '../../config/api'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { getAuthToken } from '../../utils/authStorage'
 import { toast } from '../../utils/toast'
+import {
+  buildEnrollmentRowFromEdit,
+  findEnrollmentInList,
+  resolveEnrollmentApiId,
+  resolveLatestEnrollmentStudent,
+} from '../../components/batch-management/enrollmentHelpers'
+import { isStudentEnrollmentActive } from '../../components/batch-management/studentStatusDisplay'
 
 const BREADCRUMB = [
   { label: 'Academics' },
@@ -24,51 +46,138 @@ const BREADCRUMB = [
   { label: 'Batch Details' },
 ]
 
+const ADD_STUDENT_FALLBACK = 'Unable to add student. Please try again.'
+
+function validateBatchApiContext({ selectedBatch, batchId, token, baseUrl }) {
+  if (!selectedBatch) return 'Batch not found'
+  if (!batchId) return 'Missing batch id'
+  if (!token) return 'Authentication required'
+  if (!baseUrl) return 'API base URL is not configured'
+  return null
+}
+
 export default function BatchDetailsPage() {
-  const { batchId } = useParams()
+  const { batchId: routeBatchId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const modal = useEditModal()
-  const { sourceRows, loading, loadBatches, apiBatches, existingCourseIds } = useBatchesData()
-  const {
-    getStudents,
-    getStudentCount,
-    resolveStudentKey,
-    addStudent,
-    updateStudent,
-    deleteStudent,
-    toggleStudentStatus,
-    moveStudentToBatch,
-    studentExistsInBatch,
-  } = useBatchManagementContext()
+  const { sourceRows, loading: listLoading, loadBatches } =
+    useBatchesData({ page: 1, limit: 500 })
+  const [apiRow, setApiRow] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(true)
+  const [detailError, setDetailError] = useState(null)
+  const [addingStudent, setAddingStudent] = useState(false)
+  const [editingStudent, setEditingStudent] = useState(false)
+  const [deletingStudent, setDeletingStudent] = useState(false)
+  const [togglingStudentId, setTogglingStudentId] = useState(null)
+  const [movingStudent, setMovingStudent] = useState(false)
+  const [viewStudent, setViewStudent] = useState(null)
+  const [viewOpen, setViewOpen] = useState(false)
+  const [viewLoading, setViewLoading] = useState(false)
+  const fetchRequestRef = useRef(0)
+  const viewFetchRef = useRef(0)
   const { logBatchActivity } = useBatchAudit()
 
-  const apiRow = useMemo(
-    () => findBatchRow(sourceRows, batchId),
-    [sourceRows, batchId],
+  const selectedBatch = useMemo(
+    () => findBatchRow(sourceRows, routeBatchId),
+    [sourceRows, routeBatchId],
   )
 
-  const studentKey = useMemo(
-    () => (apiRow ? resolveStudentKey(apiRow) : ''),
-    [apiRow, resolveStudentKey],
+  const mongoBatchId = useMemo(
+    () => resolveBatchMongoId(apiRow || selectedBatch || routeBatchId, sourceRows),
+    [apiRow, selectedBatch, routeBatchId, sourceRows],
   )
 
-  const students = useMemo(
-    () => (studentKey ? getStudents(studentKey) : []),
-    [getStudents, studentKey],
-  )
+  const {
+    students,
+    meta: studentsMeta,
+    loading: studentsLoading,
+    searchLoading,
+    error: studentsError,
+    search,
+    paymentFilter,
+    accountFilter,
+    page: studentsPage,
+    pageSize: studentsPageSize,
+    setSearch,
+    setPaymentFilter,
+    setAccountFilter,
+    setPage: setStudentsPage,
+    setPageSize: setStudentsPageSize,
+    refetchStudents,
+    refetchStudentsAfterMutation,
+    mergeEnrollmentUpdate,
+  } = useBatchEnrollments(mongoBatchId, { enabled: Boolean(mongoBatchId) })
+
+  const refetchBatchDetails = useCallback(async () => {
+    const validationError = validateBatchApiContext({
+      selectedBatch: apiRow || selectedBatch,
+      batchId: mongoBatchId,
+      token: getAuthToken(),
+      baseUrl: resolveApiBaseUrl() || BASE_URL,
+    })
+    if (validationError) return null
+
+    const refreshed = await fetchBatchById(mongoBatchId)
+    if (refreshed) setApiRow(enrichBatchRow(refreshed))
+    return refreshed
+  }, [apiRow, selectedBatch, mongoBatchId])
+
+  useEffect(() => {
+    if (!routeBatchId) return undefined
+
+    if (selectedBatch) setApiRow(selectedBatch)
+
+    if (!mongoBatchId) {
+      if (!listLoading) setDetailLoading(false)
+      return undefined
+    }
+
+    const requestId = ++fetchRequestRef.current
+    const ac = new AbortController()
+    let active = true
+    setDetailLoading(true)
+    setDetailError(null)
+
+    fetchBatchById(mongoBatchId, { signal: ac.signal })
+      .then((row) => {
+        if (!active || requestId !== fetchRequestRef.current) return
+        if (row) setApiRow(enrichBatchRow(row))
+      })
+      .catch((err) => {
+        if (!active || requestId !== fetchRequestRef.current) return
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+        if (!selectedBatch) {
+          setApiRow(null)
+          setDetailError(getApiErrorMessage(err, 'Failed to load batch'))
+        }
+      })
+      .finally(() => {
+        if (active && requestId === fetchRequestRef.current) setDetailLoading(false)
+      })
+
+    return () => {
+      active = false
+      ac.abort()
+    }
+  }, [routeBatchId, mongoBatchId, listLoading, selectedBatch])
 
   const batch = useMemo(() => {
     if (!apiRow) return null
-    return mapBatchRowToTableFormat(apiRow, students)
-  }, [apiRow, students])
+    const total = studentsMeta.total ?? apiRow.totalStudents ?? apiRow.studentCount ?? 0
+    return mapBatchRowToTableFormat(apiRow, students, total)
+  }, [apiRow, students, studentsMeta.total])
 
   const allTableBatches = useMemo(
     () =>
       sourceRows.map((row) =>
-        mapBatchRowToTableFormat(row, [], getStudentCount(row)),
+        mapBatchRowToTableFormat(
+          row,
+          [],
+          row.totalStudents ?? row.studentCount ?? 0,
+        ),
       ),
-    [sourceRows, getStudentCount],
+    [sourceRows],
   )
 
   const listState = location.state?.listState
@@ -77,95 +186,359 @@ export default function BatchDetailsPage() {
     navigate(BATCHES_BASE, { state: listState ? { listState } : undefined })
   }, [navigate, listState])
 
-  const getTargetStrength = useCallback(
-    (targetBatch) => {
-      const row = targetBatch.apiRow ?? apiBatches.find((b) => b.id === targetBatch.id)
-      if (!row) return targetBatch.totalStudents ?? 0
-      const key = resolveStudentKey(row)
-      return getStudents(key).length
+  const getTargetStrength = useCallback((targetBatch) => {
+    return targetBatch.totalStudents ?? 0
+  }, [])
+
+  const handleSaveBatch = useCallback(
+    async (form, { isEdit, id }) => {
+      if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
+        toast.error('Please select a course')
+        return
+      }
+
+      const saveBatchId = resolveBatchMongoId(id ?? mongoBatchId, sourceRows)
+      if (!saveBatchId) {
+        toast.error('Missing batch id')
+        return
+      }
+
+      if (isEdit && id != null) {
+        await updateBatch(saveBatchId, form)
+        toast.success('Batch updated')
+      } else {
+        await createBatch(form)
+        toast.success('Batch created')
+      }
+      await loadBatches()
+      await refetchBatchDetails()
+      await refetchStudents({ silent: true })
     },
-    [apiBatches, getStudents, resolveStudentKey],
+    [mongoBatchId, sourceRows, loadBatches, refetchBatchDetails, refetchStudents],
   )
 
-  const handleSaveBatch = async (form, { isEdit, id }) => {
-    if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
-      toast.error('Please select a course')
-      return
-    }
+  const handleAddStudent = useCallback(
+    async (_tableBatchId, form) => {
+      if (addingStudent) return
 
-    if (isEdit && id != null) {
-      await updateBatch(id, form)
-      toast.success('Batch updated')
-    } else {
-      await createBatch(form)
-      toast.success('Batch created')
-    }
-    await loadBatches()
-  }
+      const validationError = validateBatchApiContext({
+        selectedBatch: apiRow || selectedBatch,
+        batchId: mongoBatchId,
+        token: getAuthToken(),
+        baseUrl: resolveApiBaseUrl() || BASE_URL,
+      })
+      if (validationError) {
+        toast.error(validationError)
+        throw new Error(validationError)
+      }
 
-  const handleAddStudent = (tableBatchId, form) => {
-    addStudent(studentKey, form)
-    toast.success(`${form.name} enrolled successfully`)
-  }
+      setAddingStudent(true)
+      try {
+        await createEnrollment({
+          studentName: String(form.name || '').trim(),
+          email: String(form.email || '').trim(),
+          mobileNumber: String(form.phone || '').trim(),
+          batchId: mongoBatchId,
+          paymentStatus: 'PENDING',
+          attendancePercentage: 0,
+          courseProgressPercentage: 0,
+        })
+        toast.success('Student Added Successfully')
+        await refetchStudentsAfterMutation()
+        await refetchBatchDetails()
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
+        toast.error(getApiErrorMessage(err, ADD_STUDENT_FALLBACK))
+        throw err
+      } finally {
+        setAddingStudent(false)
+      }
+    },
+    [
+      addingStudent,
+      apiRow,
+      selectedBatch,
+      mongoBatchId,
+      refetchStudentsAfterMutation,
+      refetchBatchDetails,
+    ],
+  )
 
-  const handleUpdateStudent = (_tableBatchId, studentId, form) => {
-    updateStudent(studentKey, studentId, form)
-    toast.success('Student updated')
-  }
+  const handleFetchStudentForEdit = useCallback(
+    async (student) => findEnrollmentInList(students, student) || student,
+    [students],
+  )
 
-  const handleDeleteStudent = (_tableBatchId, studentId) => {
-    deleteStudent(studentKey, studentId)
-    toast.success('Student removed from batch')
-  }
+  const handleUpdateStudent = useCallback(
+    async (_tableBatchId, studentId, form) => {
+      const enrollmentId = resolveEnrollmentApiId({
+        enrollmentApiId: studentId,
+        id: studentId,
+        enrollmentId: studentId,
+      })
+      if (!enrollmentId) {
+        toast.error('Missing enrollment id')
+        throw new Error('Missing enrollment id')
+      }
+      if (editingStudent) {
+        throw new Error('Update already in progress')
+      }
 
-  const handleToggleStudentStatus = (_tableBatchId, studentId) => {
-    const student = students.find((s) => s.id === studentId)
-    const next = student?.status === 'Active' ? 'In Active' : 'Active'
-    toggleStudentStatus(studentKey, studentId)
-    toast.success(next === 'Active' ? 'Student enabled' : 'Student disabled')
-  }
+      const baseStudent =
+        findEnrollmentInList(students, {
+          enrollmentApiId: enrollmentId,
+          id: enrollmentId,
+          enrollmentId,
+        }) || students.find((s) => resolveEnrollmentApiId(s) === enrollmentId)
 
-  const handleMoveStudent = async (student, values) => {
-    const targetBatch = allTableBatches.find(
-      (b) => String(b.id) === String(values.targetBatchId),
-    )
-    if (!targetBatch) {
-      toast.error('Invalid target batch')
-      return
-    }
-    if (String(values.targetBatchId) === String(batch.id)) {
-      toast.error('Cannot move to the same batch')
-      return
-    }
-    const targetRow = targetBatch.apiRow ?? apiBatches.find((b) => b.id === targetBatch.id)
-    const targetKey = resolveStudentKey(targetRow)
-    if (studentExistsInBatch(targetKey, student.enrollmentId, null)) {
-      toast.error('Student already exists in the target batch')
-      return
-    }
-    const moved = moveStudentToBatch(studentKey, targetKey, student.id)
-    if (!moved) {
-      toast.error('Failed to move student')
-      return
-    }
-    logBatchActivity(batch.id, {
-      type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
-      message: `${student.name} moved to ${targetBatch.displayName}. Reason: ${values.reason}`,
-      meta: values,
-    })
-    logBatchActivity(targetBatch.id, {
-      type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
-      message: `${student.name} transferred from ${batch.displayName}`,
-      meta: values,
-    })
-    toast.success('Student moved successfully')
-  }
+      setEditingStudent(true)
+      try {
+        const putResult = await updateEnrollment(enrollmentId, {
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          paymentStatus: form.paymentStatus,
+          attendance: form.attendance,
+          progress: form.progress,
+        })
 
-  if (!loading && !batch) {
+        const optimistic = buildEnrollmentRowFromEdit(baseStudent || {}, form, putResult)
+        mergeEnrollmentUpdate(optimistic)
+
+        const listResult = await refetchStudentsAfterMutation()
+        const fromList = findEnrollmentInList(listResult?.students || [], {
+          enrollmentApiId: enrollmentId,
+          id: enrollmentId,
+          enrollmentId: baseStudent?.enrollmentId || enrollmentId,
+        })
+
+        const latest = fromList
+          ? {
+              ...fromList,
+              name: optimistic.name,
+              email: optimistic.email,
+              phone: optimistic.phone,
+              paymentStatus: optimistic.paymentStatus,
+              attendance: optimistic.attendance,
+              progress: optimistic.progress,
+            }
+          : optimistic
+
+        mergeEnrollmentUpdate(latest)
+
+        if (viewOpen && resolveEnrollmentApiId(viewStudent) === enrollmentId) {
+          setViewStudent(latest)
+        }
+
+        toast.success('Student updated')
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
+        toast.error(getApiErrorMessage(err, 'Failed to update student'))
+        throw err
+      } finally {
+        setEditingStudent(false)
+      }
+    },
+    [
+      students,
+      editingStudent,
+      mergeEnrollmentUpdate,
+      refetchStudentsAfterMutation,
+      viewOpen,
+      viewStudent,
+    ],
+  )
+
+  const handleDeleteStudent = useCallback(
+    async (_tableBatchId, studentId) => {
+      const enrollmentId = resolveEnrollmentApiId({
+        enrollmentApiId: studentId,
+        id: studentId,
+        enrollmentId: studentId,
+      })
+      if (deletingStudent || !enrollmentId) {
+        if (!enrollmentId) toast.error('Missing enrollment id')
+        return
+      }
+      setDeletingStudent(true)
+      try {
+        await deleteEnrollment(enrollmentId)
+        toast.success('Student deleted successfully')
+        await refetchStudentsAfterMutation()
+        await refetchBatchDetails()
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
+        toast.error(getApiErrorMessage(err, 'Failed to delete student'))
+        throw err
+      } finally {
+        setDeletingStudent(false)
+      }
+    },
+    [deletingStudent, refetchStudentsAfterMutation, refetchBatchDetails],
+  )
+
+  const handleToggleStudentStatus = useCallback(
+    async (_tableBatchId, studentId) => {
+      const enrollmentId = resolveEnrollmentApiId({
+        enrollmentApiId: studentId,
+        id: studentId,
+        enrollmentId: studentId,
+      })
+      if (togglingStudentId || !enrollmentId) {
+        if (!enrollmentId) toast.error('Missing enrollment id')
+        return
+      }
+      const student = students.find((s) => resolveEnrollmentApiId(s) === enrollmentId)
+      if (!student) return
+
+      const nextStatus = isStudentEnrollmentActive(student.status) ? 'In Active' : 'Active'
+      setTogglingStudentId(enrollmentId)
+      try {
+        await updateEnrollmentStatus(enrollmentId, nextStatus)
+        toast.success(nextStatus === 'Active' ? 'Student enabled' : 'Student disabled')
+        await refetchStudentsAfterMutation()
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+        toast.error(getApiErrorMessage(err, 'Failed to update student status'))
+      } finally {
+        setTogglingStudentId(null)
+      }
+    },
+    [students, togglingStudentId, refetchStudentsAfterMutation],
+  )
+
+  const handleMoveStudent = useCallback(
+    async (student, values) => {
+      const enrollmentId = resolveEnrollmentApiId(student)
+      if (movingStudent || !enrollmentId) {
+        if (!enrollmentId) toast.error('Missing enrollment id')
+        return
+      }
+
+      const targetBatch = allTableBatches.find(
+        (b) => String(b.id) === String(values.targetBatchId),
+      )
+      if (!targetBatch) {
+        toast.error('Invalid target batch')
+        return
+      }
+      if (!batch?.id || String(values.targetBatchId) === String(batch.id)) {
+        toast.error('Cannot move to the same batch')
+        return
+      }
+
+      const targetBatchMongoId = resolveBatchMongoId(
+        targetBatch.apiRow || targetBatch,
+        sourceRows,
+      )
+      if (!targetBatchMongoId) {
+        toast.error('Missing target batch id')
+        return
+      }
+
+      setMovingStudent(true)
+      try {
+        await moveEnrollment(enrollmentId, {
+          batchId: targetBatchMongoId,
+          transferDate: values.transferDate,
+          reason: values.reason,
+          transferAttendance: values.transferAttendance,
+          transferFee: values.transferFee,
+          transferTests: values.transferTests,
+        })
+
+        logBatchActivity(batch.id, {
+          type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
+          message: `${student.name} moved to ${targetBatch.displayName}. Reason: ${values.reason}`,
+          meta: values,
+        })
+        logBatchActivity(targetBatch.id, {
+          type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
+          message: `${student.name} transferred from ${batch.displayName}`,
+          meta: values,
+        })
+
+        toast.success('Student moved successfully')
+        await refetchStudentsAfterMutation()
+        await refetchBatchDetails()
+        await loadBatches({ silent: true })
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
+        toast.error(getApiErrorMessage(err, 'Failed to move student'))
+        throw err
+      } finally {
+        setMovingStudent(false)
+      }
+    },
+    [
+      movingStudent,
+      allTableBatches,
+      batch,
+      sourceRows,
+      logBatchActivity,
+      refetchStudentsAfterMutation,
+      refetchBatchDetails,
+      loadBatches,
+    ],
+  )
+
+  const handleCloseView = useCallback(() => {
+    setViewOpen(false)
+    setViewStudent(null)
+    setViewLoading(false)
+  }, [])
+
+  const handleViewStudent = useCallback(
+    async (student) => {
+      const requestId = ++viewFetchRef.current
+
+      setViewOpen(true)
+      setViewStudent(null)
+      setViewLoading(true)
+
+      try {
+        const latest = await resolveLatestEnrollmentStudent({
+          student,
+          students,
+          refetchStudents: refetchStudentsAfterMutation,
+        })
+        if (requestId !== viewFetchRef.current) return
+        const resolved = latest || student
+        setViewStudent(resolved)
+        if (resolved) mergeEnrollmentUpdate(resolved)
+      } catch (err) {
+        if (requestId !== viewFetchRef.current) return
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+        toast.error(getApiErrorMessage(err, 'Failed to load enrollment details'))
+        setViewStudent(student)
+      } finally {
+        if (requestId === viewFetchRef.current) setViewLoading(false)
+      }
+    },
+    [students, refetchStudentsAfterMutation, mergeEnrollmentUpdate],
+  )
+
+  useEffect(() => {
+    if (detailError) toast.error(detailError)
+  }, [detailError])
+
+  useEffect(() => {
+    if (studentsError) toast.error(studentsError)
+  }, [studentsError])
+
+  const pageLoading = listLoading && !apiRow
+  const shouldRedirect = !pageLoading && !detailLoading && !batch
+  const showSkeleton = pageLoading || !batch
+
+  const studentsStartIndex =
+    studentsMeta.total === 0 ? 0 : (studentsMeta.page - 1) * studentsPageSize
+  const studentsEndIndex = Math.min(studentsStartIndex + students.length, studentsMeta.total)
+
+  if (shouldRedirect) {
     return <Navigate to={BATCHES_BASE} replace />
   }
 
-  if (loading || !batch) {
+  if (showSkeleton) {
     return <BatchDetailsSkeleton />
   }
 
@@ -203,6 +576,34 @@ export default function BatchDetailsPage() {
           variant="page"
           batch={batch}
           students={students}
+          serverPaginated
+          studentsLoading={studentsLoading}
+          searchLoading={searchLoading}
+          addStudentSaving={addingStudent}
+          editStudentSaving={editingStudent}
+          deleteStudentSaving={deletingStudent}
+          moveStudentSaving={movingStudent}
+          togglingStudentId={togglingStudentId}
+          search={search}
+          onSearchChange={setSearch}
+          paymentFilter={paymentFilter}
+          onPaymentFilterChange={setPaymentFilter}
+          accountFilter={accountFilter}
+          onAccountFilterChange={setAccountFilter}
+          page={studentsPage}
+          pageSize={studentsPageSize}
+          totalItems={studentsMeta.total}
+          totalPages={studentsMeta.pages}
+          startIndex={studentsStartIndex}
+          endIndex={studentsEndIndex}
+          onPageChange={setStudentsPage}
+          onPageSizeChange={setStudentsPageSize}
+          viewOpen={viewOpen}
+          viewStudent={viewStudent}
+          viewLoading={viewLoading}
+          onViewStudent={handleViewStudent}
+          onCloseView={handleCloseView}
+          onFetchStudentForEdit={handleFetchStudentForEdit}
           onAddStudent={handleAddStudent}
           onUpdateStudent={handleUpdateStudent}
           onDeleteStudent={handleDeleteStudent}
@@ -218,7 +619,6 @@ export default function BatchDetailsPage() {
         onClose={modal.close}
         item={modal.selectedItem}
         onSubmit={handleSaveBatch}
-        existingCourseIds={existingCourseIds}
       />
     </motion.div>
   )

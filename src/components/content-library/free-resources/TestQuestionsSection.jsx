@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
 import {
   DndContext,
@@ -17,14 +17,30 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Eye, Upload } from 'lucide-react'
+import { Eye, Loader2, Upload } from 'lucide-react'
+import { toast } from '@/utils/toast'
+import {
+  createMockTestQuestion,
+  deleteMockTestQuestion,
+  duplicateMockTestQuestion,
+  fetchMockTestQuestions,
+  updateMockTestQuestion,
+} from '../../../api/freeResourcesAPI'
 import SectionBar from '../../courses/SectionBar'
+import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import { QUESTION_LIST_CHUNK } from '../../../utils/freeResourceFormConstants'
+import {
+  getMockTestApiErrorMessage,
+  mapMockTestQuestionApiToUi,
+  mapMockTestQuestionUiToApi,
+  normalizeMockTestQuestionsResponse,
+} from '../../../utils/freeResourceApiHelpers'
 import {
   createEmptyFreeResourceQuestion,
   isFreeResourceQuestionComplete,
   parseQuestionCount,
   resizeFreeResourceQuestions,
+  validateFreeResourceQuestion,
 } from '../../../utils/freeResourceFormUtils'
 import FormFieldError from './FormFieldError'
 import QuestionCard from './QuestionCard'
@@ -55,17 +71,50 @@ export default function TestQuestionsSection({
   light = false,
   previewTitle = '',
   disabled = false,
+  mockTestId = null,
+  questionsLoading = false,
+  onQuestionsRefresh,
 }) {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [listWindow, setListWindow] = useState(QUESTION_LIST_CHUNK)
+  const [loadingQuestions, setLoadingQuestions] = useState(false)
+  const [questionActionId, setQuestionActionId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
+  const apiMode = Boolean(mockTestId)
   const numberRaw = watch('numberOfQuestions')
   const questions = watch('questions') || []
   const questionCount = parseQuestionCount(numberRaw)
 
   const { fields, replace, move } = useFieldArray({ control, name: 'questions' })
+
+  const loadQuestions = useCallback(async () => {
+    if (!mockTestId) return
+
+    setLoadingQuestions(true)
+    try {
+      const data = await fetchMockTestQuestions(mockTestId)
+      const mapped = normalizeMockTestQuestionsResponse(data)
+      replace(mapped)
+      setValue('questions', mapped, { shouldDirty: false })
+      setValue('numberOfQuestions', String(mapped.length), { shouldDirty: false })
+      setListWindow(Math.max(QUESTION_LIST_CHUNK, mapped.length))
+      onQuestionsRefresh?.()
+    } catch (error) {
+      toast.error(getMockTestApiErrorMessage(error, 'Failed to load questions.'))
+    } finally {
+      setLoadingQuestions(false)
+    }
+  }, [mockTestId, replace, setValue, onQuestionsRefresh])
+
+  useEffect(() => {
+    if (!mockTestId) return undefined
+    loadQuestions()
+    return undefined
+  }, [mockTestId, loadQuestions])
 
   const completedCount = useMemo(
     () => questions.filter((q) => isFreeResourceQuestionComplete(q, { light })).length,
@@ -74,6 +123,7 @@ export default function TestQuestionsSection({
 
   const visibleCount = Math.min(fields.length, listWindow)
   const visibleFields = fields.slice(0, visibleCount)
+  const sectionBusy = disabled || loadingQuestions || questionsLoading || Boolean(questionActionId)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -81,6 +131,7 @@ export default function TestQuestionsSection({
   )
 
   const handleDragEnd = (event) => {
+    if (apiMode) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = fields.findIndex((f) => f.id === active.id)
@@ -105,10 +156,7 @@ export default function TestQuestionsSection({
 
   const handleImport = (imported) => {
     const count = Math.max(questionCount, imported.length)
-    const merged = resizeFreeResourceQuestions(
-      [...questions, ...imported],
-      count,
-    )
+    const merged = resizeFreeResourceQuestions([...questions, ...imported], count)
     const byNo = new Map()
     merged.forEach((q, i) => byNo.set(i + 1, { ...q, questionNo: i + 1 }))
     const next = [...byNo.values()]
@@ -117,25 +165,105 @@ export default function TestQuestionsSection({
     setListWindow(Math.max(QUESTION_LIST_CHUNK, next.length))
   }
 
-  const duplicateAt = (index) => {
-    const copy = {
-      ...questions[index],
-      id: `frq-dup-${questions[index].id}-${fields.length}`,
-      saved: false,
+  const saveQuestionAt = async (index) => {
+    const q = questions[index]
+    if (!q) return
+
+    const validationErrors = validateFreeResourceQuestion(q, index, { light })
+    delete validationErrors._slot
+    if (Object.keys(validationErrors).length) {
+      toast.error('Please complete the question before saving.')
+      return
     }
-    const next = [...questions]
-    next.splice(index + 1, 0, copy)
-    const renumbered = next.map((q, i) => ({ ...q, questionNo: i + 1 }))
-    setValue('questions', renumbered, { shouldDirty: true })
-    setValue('numberOfQuestions', String(renumbered.length), { shouldDirty: true })
-    replace(renumbered)
+
+    if (!apiMode) {
+      updateQuestionAt(index, { ...q, saved: true })
+      return
+    }
+
+    const actionKey = q.apiId || q.id || `new-${index}`
+    setQuestionActionId(actionKey)
+    try {
+      const payload = mapMockTestQuestionUiToApi(q, index)
+      if (q.apiId) {
+        await updateMockTestQuestion(mockTestId, q.apiId, payload)
+        toast.success('Question updated successfully.')
+      } else {
+        const response = await createMockTestQuestion(mockTestId, payload)
+        const saved = mapMockTestQuestionApiToUi(response?.data ?? response)
+        updateQuestionAt(index, { ...saved, saved: true })
+        toast.success('Question saved successfully.')
+      }
+      await loadQuestions()
+    } catch (error) {
+      toast.error(getMockTestApiErrorMessage(error, 'Failed to save question.'))
+    } finally {
+      setQuestionActionId(null)
+    }
+  }
+
+  const duplicateAt = async (index) => {
+    const q = questions[index]
+    if (!q) return
+
+    if (!apiMode || !q.apiId) {
+      const copy = {
+        ...questions[index],
+        id: `frq-dup-${questions[index].id}-${fields.length}`,
+        apiId: null,
+        saved: false,
+      }
+      const next = [...questions]
+      next.splice(index + 1, 0, copy)
+      const renumbered = next.map((item, i) => ({ ...item, questionNo: i + 1 }))
+      setValue('questions', renumbered, { shouldDirty: true })
+      setValue('numberOfQuestions', String(renumbered.length), { shouldDirty: true })
+      replace(renumbered)
+      return
+    }
+
+    setQuestionActionId(q.apiId)
+    try {
+      await duplicateMockTestQuestion(mockTestId, q.apiId)
+      toast.success('Question duplicated successfully.')
+      await loadQuestions()
+    } catch (error) {
+      toast.error(getMockTestApiErrorMessage(error, 'Failed to duplicate question.'))
+    } finally {
+      setQuestionActionId(null)
+    }
   }
 
   const deleteAt = (index) => {
-    const next = questions.filter((_, i) => i !== index).map((q, i) => ({ ...q, questionNo: i + 1 }))
-    setValue('questions', next, { shouldDirty: true })
-    setValue('numberOfQuestions', String(next.length), { shouldDirty: true })
-    replace(next)
+    const q = questions[index]
+    if (!q) return
+
+    if (!apiMode || !q.apiId) {
+      const next = questions
+        .filter((_, i) => i !== index)
+        .map((item, i) => ({ ...item, questionNo: i + 1 }))
+      setValue('questions', next, { shouldDirty: true })
+      setValue('numberOfQuestions', String(next.length), { shouldDirty: true })
+      replace(next)
+      return
+    }
+
+    setDeleteTarget({ index, questionId: q.apiId, label: `Question ${index + 1}` })
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget?.questionId || !mockTestId) return
+    setDeleteLoading(true)
+    try {
+      await deleteMockTestQuestion(mockTestId, deleteTarget.questionId)
+      toast.success('Question deleted successfully.')
+      setDeleteTarget(null)
+      await loadQuestions()
+    } catch (error) {
+      toast.error(getMockTestApiErrorMessage(error, 'Failed to delete question.'))
+    } finally {
+      setDeleteLoading(false)
+    }
   }
 
   const resetAt = (index) => {
@@ -152,7 +280,8 @@ export default function TestQuestionsSection({
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-bold text-[#246392] shadow-sm hover:bg-[#f0f9ff]"
+              disabled={sectionBusy}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-bold text-[#246392] shadow-sm hover:bg-[#f0f9ff] disabled:opacity-60"
             >
               <Eye className="h-4 w-4" />
               Preview Mock Test
@@ -161,13 +290,21 @@ export default function TestQuestionsSection({
           <button
             type="button"
             onClick={() => setBulkOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#5eb8f5] to-[#2b78a5] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_14px_rgba(43,120,165,0.35)] transition hover:brightness-105"
+            disabled={sectionBusy || (apiMode && !mockTestId)}
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#5eb8f5] to-[#2b78a5] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_14px_rgba(43,120,165,0.35)] transition hover:brightness-105 disabled:opacity-60"
           >
             <Upload className="h-4 w-4" />
             Bulk Upload Questions
           </button>
         </div>
       </div>
+
+      {loadingQuestions || questionsLoading ? (
+        <p className="flex items-center gap-2 text-sm text-[#246392]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading questions…
+        </p>
+      ) : null}
 
       {questionCount > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -189,6 +326,10 @@ export default function TestQuestionsSection({
               <AnimatePresence initial={false}>
                 {visibleFields.map((field, index) => {
                   const q = questions[index] || field
+                  const actionKey = q.apiId || q.id || `new-${index}`
+                  const cardDisabled =
+                    sectionBusy && questionActionId != null && questionActionId !== actionKey
+
                   return (
                     <SortableQuestion key={field.id} id={field.id}>
                       {({ dragHandleProps }) => (
@@ -208,14 +349,12 @@ export default function TestQuestionsSection({
                               setExpandedId((prev) => (prev === field.id ? null : field.id))
                             }
                             onChange={(next) => updateQuestionAt(index, next)}
-                            onSave={() =>
-                              updateQuestionAt(index, { ...q, saved: true })
-                            }
+                            onSave={() => saveQuestionAt(index)}
                             onReset={() => resetAt(index)}
                             onDelete={() => deleteAt(index)}
                             onDuplicate={() => duplicateAt(index)}
-                            dragHandleProps={dragHandleProps}
-                            disabled={disabled}
+                            dragHandleProps={apiMode ? null : dragHandleProps}
+                            disabled={cardDisabled}
                           />
                         </motion.div>
                       )}
@@ -228,7 +367,9 @@ export default function TestQuestionsSection({
         </DndContext>
       ) : (
         <div className="rounded-xl border border-dashed border-[#cfe8f7] bg-[#fafcff] px-6 py-10 text-center text-sm text-[#246392]">
-          Enter number of questions above to generate question cards.
+          {apiMode && !loadingQuestions
+            ? 'No questions yet. Add questions below or use bulk upload.'
+            : 'Enter number of questions above to generate question cards.'}
         </div>
       )}
 
@@ -246,6 +387,8 @@ export default function TestQuestionsSection({
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         onImport={handleImport}
+        mockTestId={mockTestId}
+        onUploadComplete={loadQuestions}
       />
 
       <FreeResourcePreviewModal
@@ -253,6 +396,17 @@ export default function TestQuestionsSection({
         onClose={() => setPreviewOpen(false)}
         title={previewTitle}
         questions={questions}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete question?"
+        message={`Delete ${deleteTarget?.label || 'this question'}? This cannot be undone.`}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!deleteLoading) setDeleteTarget(null)
+        }}
+        loading={deleteLoading}
       />
     </div>
   )

@@ -83,7 +83,7 @@ export async function deleteLiveClass(liveClassId) {
   }
 }
 
-export { getBatchesDropdown } from './batchesAPI'
+export { getBatchesDropdown, postBatchesDropdown } from './batchesAPI'
 
 export async function getCentersDropdown({ signal } = {}) {
   try {

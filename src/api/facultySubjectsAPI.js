@@ -115,3 +115,15 @@ export async function getSubjectsDropdown({ signal } = {}) {
     throwApiError(error)
   }
 }
+
+/** GET /api/faculty-subjects/dropdown — batch subject picker */
+export async function getFacultySubjectsDropdown({ signal } = {}) {
+  try {
+    const response = await axiosInstance.get(`${BASE}/dropdown`, { signal })
+    const body = response.data
+    return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    throwApiError(error)
+  }
+}

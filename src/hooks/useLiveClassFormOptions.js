@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getBatchesDropdown } from '../api/batchesAPI'
+import { postBatchesDropdown } from '../api/batchesAPI'
 import {
   getCentersDropdown,
   getClassroomsDropdown,
 } from '../api/liveClassesHttpAPI'
+import { isMongoObjectId } from '../utils/facultySubjectHelpers'
 import {
   normalizeBatchesDropdownResponse,
   normalizeCentersDropdownResponse,
@@ -12,6 +13,7 @@ import {
 
 export function useLiveClassFormOptions({
   centerId,
+  facultySubjectId,
   enabled = true,
 } = {}) {
   const [batches, setBatches] = useState([])
@@ -22,22 +24,34 @@ export function useLiveClassFormOptions({
   const [loadingClassrooms, setLoadingClassrooms] = useState(false)
   const batchesRequestRef = useRef(0)
 
-  const loadBatches = useCallback(async () => {
-    const requestId = ++batchesRequestRef.current
-    setLoadingBatches(true)
-    try {
-      const data = await getBatchesDropdown()
-      if (requestId !== batchesRequestRef.current) return
-      setBatches(normalizeBatchesDropdownResponse(data))
-    } catch {
-      if (requestId !== batchesRequestRef.current) return
-      setBatches([])
-    } finally {
-      if (requestId === batchesRequestRef.current) {
-        setLoadingBatches(false)
+  const loadBatches = useCallback(
+    async (selectedCenterId, subjectId, { signal } = {}) => {
+      const requestId = ++batchesRequestRef.current
+      if (!selectedCenterId || !subjectId || !isMongoObjectId(subjectId)) {
+        if (requestId === batchesRequestRef.current) setBatches([])
+        return
       }
-    }
-  }, [])
+
+      setLoadingBatches(true)
+      try {
+        const data = await postBatchesDropdown({
+          facultySubjectId: subjectId,
+          centerId: selectedCenterId,
+          signal,
+        })
+        if (requestId !== batchesRequestRef.current) return
+        setBatches(normalizeBatchesDropdownResponse(data))
+      } catch {
+        if (requestId !== batchesRequestRef.current) return
+        setBatches([])
+      } finally {
+        if (requestId === batchesRequestRef.current) {
+          setLoadingBatches(false)
+        }
+      }
+    },
+    [],
+  )
 
   const loadCenters = useCallback(async ({ signal } = {}) => {
     setLoadingCenters(true)
@@ -69,14 +83,18 @@ export function useLiveClassFormOptions({
 
   useEffect(() => {
     if (!enabled) {
+      setBatches([])
       setLoadingBatches(false)
       return undefined
     }
-    loadBatches()
+
+    const controller = new AbortController()
+    loadBatches(centerId, facultySubjectId, { signal: controller.signal })
     return () => {
+      controller.abort()
       batchesRequestRef.current += 1
     }
-  }, [enabled, loadBatches])
+  }, [enabled, centerId, facultySubjectId, loadBatches])
 
   useEffect(() => {
     if (!enabled) return undefined
@@ -99,7 +117,7 @@ export function useLiveClassFormOptions({
     loadingBatches,
     loadingCenters,
     loadingClassrooms,
-    reloadBatches: loadBatches,
+    reloadBatches: () => loadBatches(centerId, facultySubjectId),
     reloadClassrooms: () => loadClassrooms(centerId),
   }
 }

@@ -32,6 +32,11 @@ export const DEFAULT_FEE_DETAILS = {
   offlinePaymentBulletsText: '',
 }
 
+function feeFieldToInput(value) {
+  if (value == null || value === '') return ''
+  return String(value)
+}
+
 export function normalizeAcademicFeeDetails(fee = {}) {
   const onlinePaymentBullets = normalizePaymentBullets(
     fee.onlinePaymentBullets ?? parsePaymentBullets(fee.onlinePaymentBulletsText),
@@ -41,9 +46,13 @@ export function normalizeAcademicFeeDetails(fee = {}) {
   )
   return {
     currency: fee.currency || 'INR',
-    discountFee: fee.discountFee ?? '',
-    onlinePaymentAmount: fee.onlinePaymentAmount ?? '',
-    offlinePaymentAmount: fee.offlinePaymentAmount ?? '',
+    discountFee: feeFieldToInput(fee.discountFee ?? fee.discountAmount),
+    onlinePaymentAmount: feeFieldToInput(
+      fee.onlinePaymentAmount ?? fee.onlineAmount,
+    ),
+    offlinePaymentAmount: feeFieldToInput(
+      fee.offlinePaymentAmount ?? fee.offlineAmount,
+    ),
     onlinePaymentBullets,
     offlinePaymentBullets,
     onlinePaymentBulletsText:

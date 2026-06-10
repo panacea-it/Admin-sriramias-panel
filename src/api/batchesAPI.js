@@ -3,7 +3,7 @@ import { getApiErrorMessage, throwApiError } from '../utils/apiError'
 import { isFrontendOnly } from '../config/appMode'
 import {
   buildCreateBatchFormData,
-  buildUpdateBatchJsonPayload,
+  buildUpdateBatchFormData,
   logBatchApiDev,
   mapBatchFromApi,
   mapBatchListStatusParam,
@@ -49,6 +49,24 @@ export async function getBatchesDropdown({ facultySubjectId, signal } = {}) {
       params.facultySubjectId = facultySubjectId
     }
     const response = await axiosInstance.get('/batches/dropdown', { params, signal })
+    return response.data
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    throwApiError(error)
+  }
+}
+
+/** POST /api/batches/dropdown — batches for a faculty subject scoped to a center. */
+export async function postBatchesDropdown({ facultySubjectId, centerId, signal } = {}) {
+  try {
+    const response = await axiosInstance.post(
+      '/batches/dropdown',
+      {
+        facultySubjectId: String(facultySubjectId || '').trim(),
+        centerId: String(centerId || '').trim(),
+      },
+      { signal },
+    )
     return response.data
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
@@ -143,6 +161,7 @@ export async function fetchBatchById(batchId, { signal } = {}) {
     logBatchApiDev('fetchBatchById response', response.data)
     return mapBatchFromApi(unwrapBatchDoc(response.data))
   } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
     throw mapBatchApiError(error, 'Failed to load batch')
   }
 }
@@ -159,21 +178,26 @@ export async function fetchBatchQuickView(batchId, { signal } = {}) {
     logBatchApiDev('fetchBatchQuickView response', response.data)
     return mapBatchFromApi(unwrapBatchDoc(response.data))
   } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
     throw mapBatchApiError(error, 'Failed to load batch')
   }
 }
 
-/** PUT /api/batches/:batchId */
+/** PUT /api/batches/:batchId — multipart/form-data */
 export async function updateBatch(batchId, form) {
   if (isFrontendOnly) {
     throw new Error('Batch API is disabled in frontend-only mode')
   }
 
-  const payload = buildUpdateBatchJsonPayload(form)
-  logBatchApiDev('updateBatch request', { batchId, payload })
+  const formData = await buildUpdateBatchFormData(form)
+  logBatchApiDev('updateBatch request', { batchId })
+  logFormDataKeys(formData, 'updateBatch payload keys')
 
   try {
-    const response = await axiosInstance.put(`/batches/${batchId}`, payload, { skipAuthRedirect: true })
+    const response = await axiosInstance.put(`/batches/${batchId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      skipAuthRedirect: true,
+    })
     logBatchApiDev('updateBatch response', response.data)
     const mapped = mapBatchFromApi(unwrapBatchDoc(response.data))
     if (!mapped) throw new Error('Invalid batch response from server')
@@ -203,22 +227,25 @@ export async function updateBatchStatus(batchId, status) {
   }
 }
 
-/** POST /api/batches/:batchId/duplicate */
-export async function duplicateBatch(batchId, { batchName, status, includeStudents } = {}) {
+/** POST /api/batches/:batchId/duplicate — multipart/form-data */
+export async function duplicateBatch(batchId, form, { includeStudents } = {}) {
   if (isFrontendOnly) {
     throw new Error('Batch API is disabled in frontend-only mode')
   }
 
-  const payload = {
-    batchName: String(batchName || '').trim(),
+  const formData = await buildCreateBatchFormData(form)
+  if (includeStudents === true) {
+    formData.append('includeStudents', 'true')
+  } else if (includeStudents === false) {
+    formData.append('includeStudents', 'false')
   }
-  if (status) payload.status = mapBatchStatusToApi(status)
-  if (includeStudents === false) payload.includeStudents = false
 
-  logBatchApiDev('duplicateBatch request', { batchId, payload })
+  logBatchApiDev('duplicateBatch request', { batchId })
+  logFormDataKeys(formData, 'duplicateBatch payload keys')
 
   try {
-    const response = await axiosInstance.post(`/batches/${batchId}/duplicate`, payload, {
+    const response = await axiosInstance.post(`/batches/${batchId}/duplicate`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
       skipAuthRedirect: true,
     })
     logBatchApiDev('duplicateBatch response', response.data)
@@ -227,6 +254,23 @@ export async function duplicateBatch(batchId, { batchName, status, includeStuden
     return mapped
   } catch (error) {
     throw mapBatchApiError(error, 'Failed to duplicate batch')
+  }
+}
+
+/** GET /api/admin/admin-access/mentors/dropdown */
+export async function fetchMentorsDropdown({ signal } = {}) {
+  if (isFrontendOnly) return []
+
+  try {
+    const response = await axiosInstance.get('/admin/admin-access/mentors/dropdown', {
+      signal,
+      skipAuthRedirect: true,
+    })
+    const body = response.data
+    return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    throw mapBatchApiError(error, 'Failed to load mentors')
   }
 }
 

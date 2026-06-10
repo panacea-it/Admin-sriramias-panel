@@ -10,6 +10,15 @@ export default function DynamicFormRenderer({
   watch,
   setValue,
   errors,
+  previousYearDropdowns = null,
+  mockTestDropdowns = null,
+  mockTestId = null,
+  questionsLoading = false,
+  onQuestionsRefresh,
+  studyMaterialDropdowns = null,
+  studyMaterialFileRequired = true,
+  ncertBookFileRequired = true,
+  previousYearFileRequired = true,
 }) {
   const showMock = category === FREE_RESOURCE_CATEGORY.MOCK_TEST
 
@@ -29,6 +38,12 @@ export default function DynamicFormRenderer({
             errors={errors}
             setValue={setValue}
             watch={watch}
+            previousYearDropdowns={previousYearDropdowns}
+            mockTestDropdowns={mockTestDropdowns}
+            studyMaterialDropdowns={studyMaterialDropdowns}
+            studyMaterialFileRequired={studyMaterialFileRequired}
+            ncertBookFileRequired={ncertBookFileRequired}
+            previousYearFileRequired={previousYearFileRequired}
           />
         </motion.div>
       </AnimatePresence>
@@ -39,6 +54,9 @@ export default function DynamicFormRenderer({
           watch={watch}
           setValue={setValue}
           errors={errors}
+          mockTestId={mockTestId}
+          questionsLoading={questionsLoading}
+          onQuestionsRefresh={onQuestionsRefresh}
         />
       ) : null}
 

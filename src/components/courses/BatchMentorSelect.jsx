@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Loader2 } from 'lucide-react'
 import SearchableSelect from '../categories/SearchableSelect'
 import { CourseFormField } from './CourseFormField'
 import { useMentorEmployees } from '../../hooks/useMentorEmployees'
@@ -15,23 +16,24 @@ const mentorTriggerClass = cn(
 )
 
 export default function BatchMentorSelect({ form, setForm, error, onClearError, className }) {
-  const { options: mentorOptions } = useMentorEmployees()
+  const { options: mentorOptions, loading } = useMentorEmployees({ enabled: true })
 
   const options = useMemo(() => {
-    const email = form.mentorEmail?.toLowerCase()
-    if (!email || mentorOptions.some((o) => o.value === email)) return mentorOptions
+    const mentorId = String(form.mentorId || '').trim()
+    if (!mentorId || mentorOptions.some((o) => o.value === mentorId)) return mentorOptions
     const fallbackLabel = form.mentorName
       ? formatMentorOptionLabel(
           { name: form.mentorName, employeeId: form.mentorEmployeeId },
           form.mentorRoleLabel,
         )
-      : email
+      : mentorId
     return [
       {
-        value: email,
+        value: mentorId,
         label: fallbackLabel,
         employee: {
-          email,
+          _id: mentorId,
+          email: form.mentorEmail,
           name: form.mentorName,
           employeeId: form.mentorEmployeeId,
         },
@@ -42,10 +44,10 @@ export default function BatchMentorSelect({ form, setForm, error, onClearError, 
     ]
   }, [mentorOptions, form])
 
-  const selectedValue = form.mentorEmail || ''
+  const selectedValue = form.mentorId || ''
 
-  const handleChange = (email) => {
-    const option = options.find((o) => o.value === email)
+  const handleChange = (mentorId) => {
+    const option = options.find((o) => o.value === mentorId)
     setForm((f) => ({
       ...f,
       ...mentorFieldsFromOption(option),
@@ -54,24 +56,30 @@ export default function BatchMentorSelect({ form, setForm, error, onClearError, 
   }
 
   const emptyMessage = useMemo(() => {
+    if (loading) return 'Loading mentors…'
     if (options.length === 0) {
       return 'No active mentors — assign a mentor role in Admin Management'
     }
     return 'No mentors match your search'
-  }, [options.length])
+  }, [loading, options.length])
 
   return (
     <CourseFormField label="Mentor" required className={className}>
-      <SearchableSelect
-        options={options}
-        value={selectedValue}
-        onChange={handleChange}
-        placeholder="Select mentor"
-        emptyMessage={emptyMessage}
-        disabled={options.length === 0}
-        error={error}
-        triggerClassName={mentorTriggerClass}
-      />
+      <div className="relative">
+        <SearchableSelect
+          options={options}
+          value={selectedValue}
+          onChange={handleChange}
+          placeholder={loading ? 'Loading mentors…' : 'Select mentor'}
+          emptyMessage={emptyMessage}
+          disabled={loading || options.length === 0}
+          error={error}
+          triggerClassName={mentorTriggerClass}
+        />
+        {loading && (
+          <Loader2 className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#55ace7]" />
+        )}
+      </div>
     </CourseFormField>
   )
 }

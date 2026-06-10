@@ -13,22 +13,36 @@ export function facultyIdFromTeacher(teacher = '') {
   return `fac-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
 }
 
-/** Map academics subject row → batch dropdown / storage shape */
+/** Map API dropdown or academics subject row → batch dropdown shape */
 export function mapFacultySubjectToBatchOption(subject) {
-  if (!subject?.id) return null
-  const subjectId = String(subject.id)
+  const subjectId = String(subject?._id || subject?.id || '').trim()
+  if (!subjectId) return null
   const subjectName = subject.subjectName || subject.subject || ''
-  const facultyName = String(subject.teacher || '').trim()
+  const facultyName = String(subject.teacherName || subject.teacher || '').trim()
   const status = subject.status || 'Active'
+  const subjectCode =
+    subject.facultySubjectId || formatFacultySubjectCode(subjectId)
   return {
     subjectId,
-    subjectCode: formatFacultySubjectCode(subjectId),
+    subjectCode,
     subjectName,
     facultyName,
     facultyId: subject.facultyId || facultyIdFromTeacher(facultyName),
     batchCompatibility: status !== 'In Active',
     status,
   }
+}
+
+export function mapApiFacultySubjectDropdownRows(rows = []) {
+  return rows
+    .map((row) => ({
+      id: row._id,
+      facultySubjectId: row.facultySubjectId,
+      subjectName: row.subjectName,
+      teacher: row.teacherName,
+      status: 'Active',
+    }))
+    .filter((row) => row.id)
 }
 
 export function formatBatchSubjectDropdownLabel(option) {

@@ -397,7 +397,9 @@ export function validateSubjectForm(
         Boolean(values.classTitle?.trim() || values.center?.trim() || values.date?.trim())))
 
   if (needsLiveClass) {
-    if (!values.batchId?.trim()) errors.batchId = 'Batch is required'
+    if (!normalizeBatchIds(values).length) {
+      errors.batchIds = 'Select at least one batch'
+    }
     if (!values.classTitle?.trim()) errors.classTitle = 'Class title is required'
     if (!values.centerId?.trim() && !values.center?.trim()) {
       errors.center = 'Center is required'

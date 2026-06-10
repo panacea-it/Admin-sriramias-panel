@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BookMarked, PlusCircle } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
@@ -18,6 +19,7 @@ import {
   createBatch,
   deleteBatch,
   duplicateBatch,
+  fetchBatchQuickView,
   updateBatch,
   updateBatchStatus as patchBatchStatus,
 } from '../../api/batchesAPI'
@@ -46,35 +48,33 @@ function resolveBatchDeleteId(batch) {
   return batch?.apiRow?.id ?? batch?.id
 }
 
-function rowMatchesSearch(row, q) {
-  if (!q) return true
-  const courseName = row.linkedCourseName || row.program || 'Course'
-  const batchLabel = row.batchName || row.name || 'Batch'
-  const displayName = `${courseName} - ${batchLabel}`
-  const trainerName = row.formData?.trainerName || row.trainerName || ''
-  return (
-    String(row.batchId || '').toLowerCase().includes(q) ||
-    displayName.toLowerCase().includes(q) ||
-    courseName.toLowerCase().includes(q) ||
-    batchLabel.toLowerCase().includes(q) ||
-    trainerName.toLowerCase().includes(q)
-  )
-}
-
 export default function BatchesPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const restored = location.state?.listState
 
-  const { sourceRows, loading, error: listError, loadBatches, apiBatches, existingCourseIds } =
-    useBatchesData()
-  const { getStudentCount } = useBatchManagementContext()
-  const { logBatchActivity } = useBatchAudit()
-
   const [search, setSearch] = useState(restored?.search ?? '')
   const [statusFilter, setStatusFilter] = useState(restored?.statusFilter ?? 'all')
   const [tablePage, setTablePage] = useState(restored?.page ?? 1)
   const [tablePageSize, setTablePageSize] = useState(restored?.pageSize ?? 10)
+
+  const debouncedSearch = useDebouncedValue(search, 500)
+
+  const {
+    sourceRows,
+    loading,
+    error: listError,
+    loadBatches,
+    apiBatches,
+    meta,
+  } = useBatchesData({
+    page: tablePage,
+    limit: tablePageSize,
+    search: debouncedSearch,
+    status: statusFilter,
+  })
+  const { getStudentCount } = useBatchManagementContext()
+  const { logBatchActivity } = useBatchAudit()
 
   const modal = useEditModal()
   const [viewItem, setViewItem] = useState(null)
@@ -96,26 +96,26 @@ export default function BatchesPage() {
     }
   }, [listError])
 
-  const filteredRows = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    return sourceRows
-      .map((row) => {
+  const displayRows = useMemo(
+    () =>
+      sourceRows.map((row) => {
         const override = optimisticStatus[String(row.id)]
         return override != null ? { ...row, status: override } : row
-      })
-      .filter((row) => {
-        const matchSearch = rowMatchesSearch(row, q)
-        const matchStatus = statusFilter === 'all' || row.status === statusFilter
-        return matchSearch && matchStatus
-      })
-  }, [sourceRows, search, statusFilter, optimisticStatus])
+      }),
+    [sourceRows, optimisticStatus],
+  )
+
+  const resolveStudentTotal = useCallback(
+    (row) => row.totalStudents ?? row.studentCount ?? getStudentCount(row),
+    [getStudentCount],
+  )
 
   const tableBatches = useMemo(
     () =>
-      filteredRows.map((row) =>
-        mapBatchRowToTableFormat(row, [], getStudentCount(row)),
+      displayRows.map((row) =>
+        mapBatchRowToTableFormat(row, [], resolveStudentTotal(row)),
       ),
-    [filteredRows, getStudentCount],
+    [displayRows, resolveStudentTotal],
   )
 
   const listState = useMemo(
@@ -152,10 +152,7 @@ export default function BatchesPage() {
     if (isEdit && id != null) {
       await updateBatch(id, form)
     } else if (isDuplicate && duplicateFromId) {
-      const created = await duplicateBatch(duplicateFromId, {
-        batchName: form.batchName,
-        status: form.status || 'Active',
-      })
+      const created = await duplicateBatch(duplicateFromId, form)
       const source = apiBatches.find((b) => b.id === duplicateFromId)
       logBatchActivity(created?.id, {
         type: BATCH_AUDIT_TYPES.DUPLICATED,
@@ -221,9 +218,22 @@ export default function BatchesPage() {
     [apiBatches, modal],
   )
 
-  const handleQuickView = useCallback((tableBatch) => {
+  const [viewLoading, setViewLoading] = useState(false)
+
+  const handleQuickView = useCallback(async (tableBatch) => {
     const row = tableBatch.apiRow ?? tableBatch
+    const batchId = row?.id ?? tableBatch.id
+    if (!batchId) return
     setViewItem(row)
+    setViewLoading(true)
+    try {
+      const quickView = await fetchBatchQuickView(batchId)
+      if (quickView) setViewItem({ ...quickView, id: quickView.id || row?.id || batchId })
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to load batch quick view'))
+    } finally {
+      setViewLoading(false)
+    }
   }, [])
 
   const handleDelete = async () => {
@@ -243,14 +253,12 @@ export default function BatchesPage() {
         message: 'Batch deleted',
       })
 
-      const remainingCount = filteredRows.filter(
-        (row) => String(row.id) !== String(deleteConfirm.id),
-      ).length
-      const maxPage = Math.max(1, Math.ceil(remainingCount / tablePageSize) || 1)
+      const remainingTotal = Math.max(0, (meta.total || tableBatches.length) - 1)
+      const maxPage = Math.max(1, Math.ceil(remainingTotal / tablePageSize) || 1)
       if (tablePage > maxPage) setTablePage(maxPage)
 
       await loadBatches({ silent: true })
-      toast.success('Batch deleted')
+      toast.success('Batch Deleted Successfully')
       setDeleteConfirm(null)
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete batch'))
@@ -323,6 +331,8 @@ export default function BatchesPage() {
             listState={listState}
             page={tablePage}
             pageSize={tablePageSize}
+            totalItems={meta.total || tableBatches.length}
+            serverPaginated
             onPageChange={setTablePage}
             onPageSizeChange={(size) => {
               setTablePageSize(size)
@@ -330,7 +340,7 @@ export default function BatchesPage() {
             }}
             onEditBatch={handleEditBatch}
             onQuickViewBatch={handleQuickView}
-            resetDeps={[search, statusFilter]}
+            resetDeps={[debouncedSearch, statusFilter]}
             onStatusChange={handleStatusChange}
             statusUpdatingIds={statusUpdatingIds}
             onDuplicate={handleDuplicateBatch}
@@ -348,13 +358,13 @@ export default function BatchesPage() {
         item={modal.selectedItem}
         duplicateSource={modal.duplicateSource}
         onSubmit={handleSaveBatch}
-        existingCourseIds={existingCourseIds}
       />
 
       <ViewBatchModal
         open={Boolean(viewItem)}
         onClose={() => setViewItem(null)}
         item={viewItem}
+        loading={viewLoading}
       />
 
       <BatchConfirmDialog

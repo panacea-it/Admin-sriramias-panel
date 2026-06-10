@@ -146,21 +146,6 @@ export function validateFreeResourceForm(values, { isEdit = false } = {}) {
       require('topic')
       require('duration')
       require('totalMarks')
-      require('numberOfQuestions', 'Enter number of questions')
-      {
-        const count = parseQuestionCount(values.numberOfQuestions)
-        if (count < 1) errors.numberOfQuestions = 'Enter at least 1 question'
-        const questions = resizeFreeResourceQuestions(values.questions || [], count)
-        const incomplete = []
-        questions.forEach((q, i) => {
-          if (!isFreeResourceQuestionComplete(q)) incomplete.push(i + 1)
-        })
-        if (incomplete.length) {
-          errors.questions = `Complete questions: ${incomplete.slice(0, 10).join(', ')}${
-            incomplete.length > 10 ? '…' : ''
-          }`
-        }
-      }
       break
     case FREE_RESOURCE_CATEGORY.STUDY_MATERIAL:
       require('mainsCategory', 'Select mains category')

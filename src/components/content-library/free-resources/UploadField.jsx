@@ -22,6 +22,7 @@ export default function UploadField({
   icon = 'pdf',
   className,
   error: externalError,
+  bypassValidation = false,
 }) {
   const inputRef = useRef(null)
   const [error, setError] = useState(null)
@@ -30,11 +31,13 @@ export default function UploadField({
   const handleChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const result = await validateUploadFile(file, profile)
-    if (!result.valid) {
-      setError(result.message)
-      e.target.value = ''
-      return
+    if (!bypassValidation) {
+      const result = await validateUploadFile(file, profile)
+      if (!result.valid) {
+        setError(result.message)
+        e.target.value = ''
+        return
+      }
     }
     setError(null)
     onFileNameChange?.(file.name, file)

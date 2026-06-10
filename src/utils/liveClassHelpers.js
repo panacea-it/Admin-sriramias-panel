@@ -209,13 +209,59 @@ export function mapRecurrenceApiToForm(recurrence, scheduledDate = '') {
   return { enabled: true, recurring: true, recurrence: formRecurrence }
 }
 
+export function resolveBatchIdsFromForm(form = {}) {
+  if (Array.isArray(form.batchIds) && form.batchIds.length) {
+    return [...new Set(form.batchIds.map((id) => String(id || '').trim()).filter(Boolean))]
+  }
+  const single = String(form.batchId || '').trim()
+  return single ? [single] : []
+}
+
+export function normalizeLiveClassesListResponse(data) {
+  const list = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data?.liveClasses)
+        ? data.liveClasses
+        : Array.isArray(data)
+          ? data
+          : []
+
+  return (Array.isArray(list) ? list : [])
+    .map((row) => mapApiLiveClassToLocalRow(row))
+    .filter(Boolean)
+}
+
+export function mapApiLiveClassToFolderItem(apiRow, existingItem = null) {
+  const local =
+    apiRow?.id && apiRow?.classTitle != null && !apiRow?._id
+      ? apiRow
+      : mapApiLiveClassToLocalRow(apiRow)
+  if (!local) return null
+
+  const publishStatus = String(local.publishStatus || 'DRAFT').toUpperCase()
+  return {
+    id: existingItem?.id || `item-${local.id}`,
+    itemType: 'LIVE_CLASS',
+    title: local.classTitle || 'Untitled',
+    linkedExistingFormId: local.id,
+    status: publishStatus === 'PUBLISHED' ? 'published' : 'draft',
+    lastUpdated: local.modifiedAt || local.createdAt || new Date().toISOString(),
+    data: local,
+    batchIds: local.batchIds || (local.batchId ? [local.batchId] : []),
+    batchId: local.batchId || local.batchIds?.[0] || '',
+  }
+}
+
 export function buildLiveClassApiPayload(form, meta = {}) {
   const startTime = `${pad2(parseInt(form.timeHrs, 10) || 0)}:${pad2(parseInt(form.timeMin, 10) || 0)}:${pad2(parseInt(form.timeSec, 10) || 0)}`
+  const batchIds = resolveBatchIdsFromForm(form)
 
   const payload = {
     facultySubjectId: String(meta.facultySubjectId || '').trim(),
     folderId: String(meta.folderId || '').trim(),
-    batchId: String(form.batchId || '').trim(),
+    batchIds,
     centerId: String(form.centerId || '').trim(),
     classroomId: String(form.classroomId || '').trim(),
     classTitle: String(form.classTitle || '').trim(),
@@ -250,7 +296,7 @@ export function validateLiveClassApiPayload(payload) {
   else if (!isMongoObjectId(payload.folderId)) {
     errors.push('Folder id is invalid — recreate the folder under Live Class')
   }
-  if (!payload.batchId) errors.push('Batch is required')
+  if (!payload.batchIds?.length) errors.push('Batch is required')
   if (!payload.centerId) errors.push('Center is required')
   if (!payload.classroomId) errors.push('Classroom is required')
   if (!payload.classTitle) errors.push('Class title is required')
@@ -282,7 +328,27 @@ export function mapApiLiveClassToLocalRow(data) {
     id,
     apiId: id,
     classTitle: String(row.classTitle || '').trim(),
-    batchId: String(row.batchId || row.batch?._id || row.batch?.id || ''),
+    batchIds: Array.isArray(row.batchIds)
+      ? row.batchIds.map((id) => String(id)).filter(Boolean)
+      : row.batchId
+        ? [String(row.batchId)]
+        : row.batch?._id || row.batch?.id
+          ? [String(row.batch._id ?? row.batch.id)]
+          : [],
+    batchId: String(
+      row.batchId ||
+        row.batchIds?.[0] ||
+        row.batch?._id ||
+        row.batch?.id ||
+        '',
+    ),
+    batchName: String(
+      row.batchName ||
+        (Array.isArray(row.batches) ? row.batches.map((b) => b.batchName || b.name).filter(Boolean).join(', ') : '') ||
+        row.batch?.batchName ||
+        row.batch?.name ||
+        '',
+    ),
     centerId: String(row.centerId || row.center?._id || row.center?.id || ''),
     center: centerLabel,
     classroomId: String(row.classroomId || row.classroom?._id || row.classroom?.id || ''),
@@ -320,6 +386,7 @@ export function mapApiLiveClassToFormValues(data, subject = null) {
 
   return {
     batchId: local.batchId,
+    batchIds: local.batchIds?.length ? local.batchIds : local.batchId ? [local.batchId] : [],
     centerId: local.centerId,
     center: local.center,
     classroomId: local.classroomId,

@@ -70,6 +70,10 @@ export function enrichBatchRow(row, index = 0) {
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,
     mergedIntoName: row.mergedIntoName ?? fd.mergedIntoName ?? null,
+    totalStudents: row.totalStudents ?? row.studentCount ?? fd.totalStudents,
+    mentorId: row.mentorId || fd.mentorId || '',
+    mentorName: row.mentorName || fd.mentorName || '',
+    students: row.students || [],
   }
 }
 

@@ -26,13 +26,16 @@ import {
   createLiveClass,
   deleteLiveClass,
   duplicateLiveClass,
+  getLiveClasses,
   updateLiveClass,
   updateLiveClassPublishStatus,
 } from '../../api/liveClassesHttpAPI'
 import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
 import {
   buildLiveClassApiPayload,
+  mapApiLiveClassToFolderItem,
   mapApiLiveClassToLocalRow,
+  normalizeLiveClassesListResponse,
   resolveFacultySubjectApiId,
   resolveFolderApiId,
   resolveLiveClassApiId,
@@ -87,6 +90,7 @@ export default function SubjectContentManagementPage() {
   const [deleteFolderTarget, setDeleteFolderTarget] = useState(null)
   const [deleteItemTarget, setDeleteItemTarget] = useState(null)
   const [initialSelectionDone, setInitialSelectionDone] = useState(false)
+  const [folderListLoading, setFolderListLoading] = useState(false)
 
   const categories = content?.categories || []
   const categoryChips = normalizeCategories(
@@ -135,6 +139,57 @@ export default function SubjectContentManagementPage() {
     },
     [updateFolderItems],
   )
+
+  const syncFolderLiveClassesFromApi = useCallback(
+    async (categoryId, folder) => {
+      if (!categoryId || !folder || activeCategory?.categoryType !== 'LIVE_CLASS') return
+
+      const folderApiId = resolveFolderApiId(folder)
+      if (!folderApiId || !facultySubjectApiId) return
+
+      setFolderListLoading(true)
+      try {
+        const response = await getLiveClasses({
+          facultySubjectId: facultySubjectApiId,
+          folderId: folderApiId,
+        })
+        const apiRows = normalizeLiveClassesListResponse(response)
+        const existingItems = folder.items || []
+        const existingByLinkedId = new Map(
+          existingItems.map((item) => [String(item.linkedExistingFormId), item]),
+        )
+
+        const nextItems = apiRows
+          .map((row) =>
+            mapApiLiveClassToFolderItem(
+              row,
+              existingByLinkedId.get(String(row.id)),
+            ),
+          )
+          .filter(Boolean)
+
+        mutateFolderItems(categoryId, folder.id, () => nextItems)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to load live classes'))
+      } finally {
+        setFolderListLoading(false)
+      }
+    },
+    [activeCategory?.categoryType, facultySubjectApiId, mutateFolderItems],
+  )
+
+  useEffect(() => {
+    if (!selectedCategoryId || !activeFolder || activeCategory?.categoryType !== 'LIVE_CLASS') {
+      return
+    }
+    syncFolderLiveClassesFromApi(selectedCategoryId, activeFolder)
+  }, [
+    selectedCategoryId,
+    activeFolder?.id,
+    activeCategory?.categoryType,
+    facultySubjectApiId,
+    syncFolderLiveClassesFromApi,
+  ])
 
   const handleAddFolder = async () => {
     if (!newFolderName.trim() || !selectedCategoryId || !activeCategory) {
@@ -244,7 +299,14 @@ export default function SubjectContentManagementPage() {
       setPanelMode('list')
     }
     setDeleteItemTarget(null)
-    toast.success('Entry deleted')
+    if (contentType === 'live') {
+      toast.success('Live Class Deleted Successfully')
+      if (selectedCategoryId && activeFolder) {
+        await syncFolderLiveClassesFromApi(selectedCategoryId, activeFolder)
+      }
+    } else {
+      toast.success('Entry deleted')
+    }
   }
 
   const handlePublishItemQuick = async (item) => {
@@ -264,7 +326,7 @@ export default function SubjectContentManagementPage() {
     mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
       items.map((i) => (i.id === item.id ? { ...i, status: 'published' } : i)),
     )
-    toast.success('Published')
+    toast.success('Live Class Published Successfully')
   }
 
   const handleDuplicateItem = async (row) => {
@@ -322,7 +384,8 @@ export default function SubjectContentManagementPage() {
       ...mergedSubject,
       liveClasses: [...(mergedSubject?.liveClasses || []), copy],
     })
-    toast.success('Class duplicated')
+    toast.success('Live Class Duplicated Successfully')
+    await syncFolderLiveClassesFromApi(selectedCategoryId, activeFolder)
   }
 
   const handleSaveItem = async ({
@@ -416,6 +479,10 @@ export default function SubjectContentManagementPage() {
     setSelectedItemId(item.id)
     setAddingNewItem(false)
     setPanelMode('list')
+
+    if (contentType === 'live') {
+      await syncFolderLiveClassesFromApi(selectedCategoryId, activeFolder)
+    }
   }
 
   if (!subject && !loading && !subjectDetailLoading) {
@@ -525,6 +592,7 @@ export default function SubjectContentManagementPage() {
             <SubjectContentFormPanel
               subject={mergedSubject || subject}
               facultySubjectId={facultySubjectApiId}
+              listLoading={folderListLoading}
               subjects={subjects}
               category={activeCategory}
               folder={activeFolder}
@@ -564,8 +632,16 @@ export default function SubjectContentManagementPage() {
 
       <ConfirmDeleteDialog
         open={Boolean(deleteItemTarget)}
-        title="Delete entry?"
-        message="This will permanently remove this content entry."
+        title={
+          activeCategory?.categoryType === 'LIVE_CLASS'
+            ? 'Delete live class?'
+            : 'Delete entry?'
+        }
+        message={
+          activeCategory?.categoryType === 'LIVE_CLASS'
+            ? 'Are you sure you want to delete this Live Class?'
+            : 'This will permanently remove this content entry.'
+        }
         onConfirm={confirmDeleteItem}
         onCancel={() => setDeleteItemTarget(null)}
       />

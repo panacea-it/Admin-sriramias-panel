@@ -57,7 +57,7 @@ export function enrichFolderItems(subject, items = [], categoryType) {
         date: parseDateForDisplay(payload.date),
         time: formatTime12(payload.startTime || payload.scheduledTime),
         faculty: subject?.teacher || payload.teacher || '—',
-        batch: payload.batchId || subject?.batch || '—',
+        batch: payload.batchName || payload.batch || payload.batchId || subject?.batch || '—',
         center: payload.center || '—',
         classroom: payload.classroom || payload.classRoom || '—',
         liveStatus: payload.status || 'Active',

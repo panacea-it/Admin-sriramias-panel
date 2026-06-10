@@ -1,14 +1,17 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GraduationCap, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CourseFormField } from './CourseFormField'
 import FacultySubjectSearchSelect from './FacultySubjectSearchSelect'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
+import { getFacultySubjectsDropdown } from '../../api/facultySubjectsAPI'
+import { isFrontendOnly } from '../../config/appMode'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
 import {
   enrichLinkedSubjectsWithFaculty,
   formatBatchSubjectDropdownLabel,
   linkedSubjectFromFacultyRow,
+  mapApiFacultySubjectDropdownRows,
 } from '../../utils/facultySubjectBatch'
 import { normalizeLinkedSubjects } from '../../utils/batchHelpers'
 import { cn } from '../../utils/cn'
@@ -42,18 +45,36 @@ function SubjectChip({ link, onRemove }) {
   )
 }
 
-/** Multi-select faculty subjects for Add/Edit Batch — synced with Academics → Faculty Subjects */
+/** Multi-select faculty subjects for Add/Edit Batch — synced with faculty-subjects API */
 export default function BatchSubjectDetailsSection({ form, setForm }) {
-  const { subjects } = useAcademicsSubjects()
+  const { subjects: localSubjects } = useAcademicsSubjects()
+  const [apiSubjects, setApiSubjects] = useState([])
+  const [loading, setLoading] = useState(!isFrontendOnly)
+
+  useEffect(() => {
+    if (isFrontendOnly) return undefined
+    const ac = new AbortController()
+    setLoading(true)
+    getFacultySubjectsDropdown({ signal: ac.signal })
+      .then((rows) => setApiSubjects(mapApiFacultySubjectDropdownRows(rows)))
+      .catch(() => setApiSubjects([]))
+      .finally(() => setLoading(false))
+    return () => ac.abort()
+  }, [])
+
+  const catalogSubjects = useMemo(() => {
+    if (!isFrontendOnly && apiSubjects.length) return apiSubjects
+    return localSubjects
+  }, [apiSubjects, localSubjects])
 
   const activeSubjects = useMemo(
-    () => subjects.filter((s) => s.status !== 'In Active'),
-    [subjects],
+    () => catalogSubjects.filter((s) => s.status !== 'In Active'),
+    [catalogSubjects],
   )
 
   const linkedSubjects = useMemo(
-    () => enrichLinkedSubjectsWithFaculty(normalizeLinkedSubjects(form), subjects),
-    [form, subjects],
+    () => enrichLinkedSubjectsWithFaculty(normalizeLinkedSubjects(form), catalogSubjects),
+    [form, catalogSubjects],
   )
 
   const selectedIds = useMemo(
@@ -62,19 +83,23 @@ export default function BatchSubjectDetailsSection({ form, setForm }) {
   )
 
   const availableSubjects = useMemo(
-    () => activeSubjects.filter((s) => !selectedIds.has(String(s.id))),
+    () => activeSubjects.filter((s) => !selectedIds.has(String(s.id || s._id))),
     [activeSubjects, selectedIds],
   )
 
   const addSubject = (option) => {
     if (!option?.subjectId || selectedIds.has(String(option.subjectId))) return
-    const row = activeSubjects.find((s) => String(s.id) === String(option.subjectId))
-    const link = row ? linkedSubjectFromFacultyRow(row) : {
-      subjectId: String(option.subjectId),
-      subjectName: option.subjectName || '',
-      facultyId: option.facultyId || '',
-      facultyName: option.facultyName || '',
-    }
+    const row = activeSubjects.find(
+      (s) => String(s.id || s._id) === String(option.subjectId),
+    )
+    const link = row
+      ? linkedSubjectFromFacultyRow(row)
+      : {
+          subjectId: String(option.subjectId),
+          subjectName: option.subjectName || '',
+          facultyId: option.facultyId || '',
+          facultyName: option.facultyName || '',
+        }
     if (!link) return
     setForm((f) => ({
       ...f,
@@ -105,14 +130,16 @@ export default function BatchSubjectDetailsSection({ form, setForm }) {
       <CourseFormField label={`Add ${facultySubjectLabels.singular}`}>
         <FacultySubjectSearchSelect
           subjects={availableSubjects}
-          loading={false}
-          disabled={availableSubjects.length === 0}
+          loading={loading}
+          disabled={loading || availableSubjects.length === 0}
           placeholder={
-            availableSubjects.length
-              ? 'Search by subject ID, name, or faculty…'
-              : activeSubjects.length
-                ? 'All available subjects already added'
-                : `No ${facultySubjectLabels.plural.toLowerCase()} yet — create them under Academics`
+            loading
+              ? 'Loading faculty subjects…'
+              : availableSubjects.length
+                ? 'Search by subject ID, name, or faculty…'
+                : activeSubjects.length
+                  ? 'All available subjects already added'
+                  : `No ${facultySubjectLabels.plural.toLowerCase()} yet — create them under Academics`
           }
           onSelect={addSubject}
         />

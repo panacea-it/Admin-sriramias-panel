@@ -137,6 +137,7 @@ export default function BatchDetailsSection({
           onChange={({ file, previewUrl, fileName }) => {
             setForm((f) => ({
               ...f,
+              bannerFile: file || null,
               bannerPreview: previewUrl,
               bannerFileName: fileName,
               bannerUrl: previewUrl,
@@ -156,9 +157,10 @@ export default function BatchDetailsSection({
           fileSize={form.brochureFileSize}
           error={errors.brochureUrl}
           onUploadingChange={onBrochureUploadingChange}
-          onChange={({ brochureUrl, fileName, fileSize }) => {
+          onChange={({ file, brochureUrl, fileName, fileSize }) => {
             setForm((f) => ({
               ...f,
+              brochureFile: file || null,
               brochureUrl,
               brochureFileName: fileName,
               brochureFileSize: fileSize,

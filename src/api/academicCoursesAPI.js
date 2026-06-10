@@ -19,13 +19,19 @@ function mapLocalToOptions(rows) {
     .sort((a, b) => a.courseName.localeCompare(b.courseName))
 }
 
+function formatCourseOptionLabel(courseName, courseId) {
+  const name = String(courseName || '').trim()
+  const code = String(courseId || '').trim()
+  return code ? `${name} - ${code}` : name
+}
+
 function mapApiToOptions(rows) {
   return (rows || [])
     .map((r) => ({
       _id: r._id,
-      courseId: r.courseId,
+      courseId: r.courseId || '',
       courseName: r.courseName,
-      label: `${r.courseName} - ${r.courseId}`,
+      label: formatCourseOptionLabel(r.courseName, r.courseId),
     }))
     .sort((a, b) => a.courseName.localeCompare(b.courseName))
 }
@@ -36,6 +42,16 @@ export async function fetchAcademicCourseOptions({ signal } = {}) {
     await delay(80)
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     return mapLocalToOptions(loadAcademicCourses())
+  }
+
+  try {
+    const { default: api } = await import('./axiosInstance')
+    const res = await api.get('/courses/dropdown', { signal })
+    const body = res.data
+    const list = Array.isArray(body) ? body : body?.data ?? []
+    if (list.length) return mapApiToOptions(list)
+  } catch {
+    /* fallback to catalog */
   }
 
   try {

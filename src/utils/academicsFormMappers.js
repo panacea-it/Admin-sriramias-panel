@@ -112,6 +112,7 @@ export function createEmptyFreeResourceForm() {
     className: '',
     bookName: '',
     bookFileName: '',
+    bookFile: null,
 
     // Previous Year Question Papers
     examCategory: '',
@@ -119,6 +120,7 @@ export function createEmptyFreeResourceForm() {
     year: '',
     paperName: '',
     questionPaperFileName: '',
+    questionPaperFile: null,
 
     // Free Mock Test
     mockTestTitle: '',
@@ -133,6 +135,7 @@ export function createEmptyFreeResourceForm() {
     mainsCategory: '',
     studyMaterialName: '',
     studyMaterialFileName: '',
+    studyMaterialFile: null,
 
     // Free Mock Tests — question cards
     questions: [],
@@ -202,12 +205,20 @@ export function freeResourceFormToRow(form, existing) {
 
   const displayName = displayFromCategory()
   const category = normalizeFreeResourceCategory(form.category || existing?.category)
+  const apiResourceId = form?.apiResourceId ?? existing?.apiResourceId ?? existing?.id
   return {
-    id: existing?.id ?? Date.now(),
+    id: existing?.id ?? form?.apiResourceId ?? Date.now(),
     name: displayName,
     category,
     status: form.status || existing?.status || 'Active',
-    formData: { ...form, category },
+    apiResourceId: form?.apiResourceId ?? existing?.apiResourceId,
+    isApiNcertBook:
+      category === FREE_RESOURCE_CATEGORY.NCERT &&
+      Boolean(form?.apiResourceId ?? existing?.isApiNcertBook ?? existing?.apiResourceId),
+    isApiPreviousYearPaper:
+      category === FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR &&
+      Boolean(form?.apiResourceId ?? existing?.isApiPreviousYearPaper ?? existing?.apiResourceId),
+    formData: { ...form, category, apiResourceId },
   }
 }
 

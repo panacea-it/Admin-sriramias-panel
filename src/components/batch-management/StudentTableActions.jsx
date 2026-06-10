@@ -1,5 +1,6 @@
 import { ArrowRightLeft, Eye, Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { isStudentEnrollmentActive } from './studentStatusDisplay'
 
 function ActionBtn({ label, onClick, className, children }) {
   return (
@@ -26,7 +27,7 @@ export default function StudentTableActions({
   onDelete,
   onToggleStatus,
 }) {
-  const isActive = status === 'Active'
+  const isActive = isStudentEnrollmentActive(status)
 
   return (
     <div className="flex items-center justify-end gap-1">

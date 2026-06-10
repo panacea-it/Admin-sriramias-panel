@@ -61,7 +61,7 @@ function ReadOnlyBlock({ title, children }) {
   )
 }
 
-export default function ViewBatchModal({ open, onClose, item }) {
+export default function ViewBatchModal({ open, onClose, item, loading = false }) {
   if (!open || !item) return null
 
   const form = item.formData || {}
@@ -122,7 +122,12 @@ export default function ViewBatchModal({ open, onClose, item }) {
           </button>
         </header>
 
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto bg-[#f0f4f8] p-5 sm:p-6">
+        <div className="relative max-h-[70vh] space-y-5 overflow-y-auto bg-[#f0f4f8] p-5 sm:p-6">
+          {loading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
+            </div>
+          )}
           <div className="rounded-xl bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:p-6">
             <h3 className="mb-4 border-b border-[#eef2fc] pb-2 text-sm font-bold uppercase tracking-wide text-[#246392]">
               Batch Details

@@ -15,7 +15,11 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useLiveClassFormOptions } from '../../hooks/useLiveClassFormOptions'
 import { useBatchesData } from '../../hooks/useBatchesData'
 import { getLiveClassById } from '../../api/liveClassesHttpAPI'
-import { mapApiLiveClassToFormValues } from '../../utils/liveClassHelpers'
+import {
+  mapApiLiveClassToFormValues,
+  mapApiLiveClassToLocalRow,
+  resolveLiveClassApiId,
+} from '../../utils/liveClassHelpers'
 import {
   createRecurrenceFromSubjectForm,
   flattenSubjectsLiveClassesForConflicts,
@@ -42,12 +46,14 @@ import { cn } from '../../utils/cn'
 export default function SubjectContentFormPanel({
   subject,
   subjects = [],
+  facultySubjectId = '',
   category,
   folder,
   item,
   items = [],
   facultyName,
   saving,
+  listLoading = false,
   onSaveItem,
   panelMode = 'list',
   onPanelModeChange,
@@ -104,6 +110,7 @@ export default function SubjectContentFormPanel({
     loadingClassrooms,
   } = useLiveClassFormOptions({
     centerId: watchedCenterId,
+    facultySubjectId,
     enabled: contentType === 'live',
   })
   const { sourceRows: fallbackBatches, loading: fallbackBatchesLoading } = useBatchesData({
@@ -289,8 +296,14 @@ export default function SubjectContentFormPanel({
         recordingData,
       })
       onPanelModeChange?.('list')
-      if (publish) toast.success('Published successfully')
-      else toast.success('Saved successfully')
+      if (contentType === 'live') {
+        if (publish) toast.success('Live Class Published Successfully')
+        else toast.success(item ? 'Live Class Updated Successfully' : 'Live Class Created Successfully')
+      } else if (publish) {
+        toast.success('Published successfully')
+      } else {
+        toast.success('Saved successfully')
+      }
     } catch (err) {
       toast.error(err?.message || 'Failed to save')
     } finally {
@@ -411,12 +424,42 @@ export default function SubjectContentFormPanel({
                 {addItemLabelForCategory(category.categoryType)}
               </button>
             </div>
+            {listLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-[#55ace7]" />
+              </div>
+            ) : (
             <FolderContentList
               categoryType={category.categoryType}
               rows={enrichedRows}
               activeItemId={item?.id}
-              onView={(row) => {
-                onPreviewRow?.(row)
+              onView={async (row) => {
+                let preview = row
+                if (contentType === 'live') {
+                  const apiId = resolveLiveClassApiId(row.payload || {})
+                  if (apiId) {
+                    try {
+                      const data = await getLiveClassById(apiId)
+                      const mapped = mapApiLiveClassToLocalRow(data)
+                      if (mapped) {
+                        preview = {
+                          ...row,
+                          payload: mapped,
+                          classTitle: mapped.classTitle,
+                          date: parseDateForDisplay(mapped.date),
+                          time: mapped.startTime || mapped.scheduledTime,
+                          center: mapped.center,
+                          classroom: mapped.classroom || mapped.classRoom,
+                          liveStatus: mapped.status,
+                        }
+                      }
+                    } catch (err) {
+                      toast.error(err?.message || 'Failed to load live class details')
+                      return
+                    }
+                  }
+                }
+                onPreviewRow?.(preview)
                 onPanelModeChange?.('preview')
               }}
               onEdit={(row) => {
@@ -445,6 +488,7 @@ export default function SubjectContentFormPanel({
                 onPanelModeChange?.('preview')
               }}
             />
+            )}
           </div>
         )}
 
@@ -480,8 +524,11 @@ export default function SubjectContentFormPanel({
               centersLoading={loadingCenters}
               classroomOptions={classrooms}
               classroomsLoading={loadingClassrooms}
-              onCenterChange={(centerId) => {
-                setValue('centerId', centerId, { shouldValidate: true })
+              onCenterChange={() => {
+                setValue('batchId', '', { shouldValidate: true })
+                setValue('batchIds', [], { shouldValidate: true })
+                setValue('classroomId', '', { shouldValidate: true })
+                setValue('classRoom', '', { shouldValidate: true })
               }}
               recurring={recurring}
               onRecurringToggle={(enabled) => {

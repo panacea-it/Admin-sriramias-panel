@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, cwd(), '')
   const apiTarget =
     normalizeApiHost(env.VITE_API_BASE_URL) ||
+    normalizeApiHost(env.VITE_API_URL) ||
     normalizeApiHost(env.VITE_BASE_URL) ||
     'https://new-sriramias.onrender.com'
 

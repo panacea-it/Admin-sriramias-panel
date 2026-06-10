@@ -1,18 +1,26 @@
 import { useRef, useState } from 'react'
 import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react'
 import { toast } from '@/utils/toast'
+import {
+  fetchMockTestBulkTemplate,
+  uploadMockTestQuestions,
+} from '../../../api/freeResourcesAPI'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import { UploadFieldHint } from '../../common/UploadFieldHint'
 import { BULK_QUESTION_ACCEPT } from '../../../utils/freeResourceFormConstants'
 import { parseFreeResourceBulkFile } from '../../../utils/freeResourceFormUtils'
-import { validateUploadFileSync } from '../../../utils/uploadValidation'
+import {
+  getMockTestApiErrorMessage,
+  triggerMockTestBulkTemplateDownload,
+  validateMockTestBulkFile,
+} from '../../../utils/freeResourceApiHelpers'
 
 const SAMPLE_CSV = `Question No,Question,Option 1,Option 2,Option 3,Option 4,Correct Answer,Explanation,Marks
 1,Sample question?,A,B,C,D,1,Optional explanation,1
 `
 
-function downloadTemplate() {
+function downloadLocalTemplate() {
   const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -22,16 +30,31 @@ function downloadTemplate() {
   URL.revokeObjectURL(url)
 }
 
-export default function FreeResourceBulkUploadModal({ open, onClose, onImport }) {
+export default function FreeResourceBulkUploadModal({
+  open,
+  onClose,
+  onImport,
+  mockTestId = null,
+  onUploadComplete,
+}) {
   const inputRef = useRef(null)
   const [fileName, setFileName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [replaceExisting, setReplaceExisting] = useState(false)
   const [result, setResult] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
+
+  const apiMode = Boolean(mockTestId)
 
   const reset = () => {
     setFileName('')
     setResult(null)
     setLoading(false)
+    setUploadProgress(0)
+    setReplaceExisting(false)
+    setSelectedFile(null)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -40,19 +63,41 @@ export default function FreeResourceBulkUploadModal({ open, onClose, onImport })
     onClose()
   }
 
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true)
+    try {
+      const response = await fetchMockTestBulkTemplate()
+      triggerMockTestBulkTemplateDownload(response)
+      toast.success('Template downloaded successfully.')
+    } catch (error) {
+      if (apiMode) {
+        toast.error(getMockTestApiErrorMessage(error, 'Failed to download template.'))
+      } else {
+        downloadLocalTemplate()
+      }
+    } finally {
+      setDownloadingTemplate(false)
+    }
+  }
+
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const check = validateUploadFileSync(file, 'EXCEL_BULK')
-    if (!check.valid && !file.name.toLowerCase().endsWith('.json')) {
-      const jsonCheck = validateUploadFileSync(file, 'CSV_METADATA')
-      if (!jsonCheck.valid) {
-        toast.error(check.message || jsonCheck.message)
-        return
-      }
+
+    const check = validateMockTestBulkFile(file)
+    if (!check.valid) {
+      toast.error(check.message)
+      return
     }
 
     setFileName(file.name)
+    setSelectedFile(file)
+
+    if (apiMode) {
+      setResult(null)
+      return
+    }
+
     setLoading(true)
     try {
       const parsed = await parseFreeResourceBulkFile(file)
@@ -62,6 +107,33 @@ export default function FreeResourceBulkUploadModal({ open, onClose, onImport })
       setResult(null)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleApiUpload = async () => {
+    if (!selectedFile || !mockTestId) {
+      toast.error('Select a CSV or XLSX file to upload.')
+      return
+    }
+
+    setLoading(true)
+    setUploadProgress(0)
+    try {
+      await uploadMockTestQuestions(mockTestId, selectedFile, {
+        replace: replaceExisting,
+        onUploadProgress: (event) => {
+          if (!event.total) return
+          setUploadProgress(Math.round((event.loaded / event.total) * 100))
+        },
+      })
+      toast.success('Questions uploaded successfully.')
+      await onUploadComplete?.()
+      handleClose()
+    } catch (error) {
+      toast.error(getMockTestApiErrorMessage(error, 'Failed to upload questions.'))
+    } finally {
+      setLoading(false)
+      setUploadProgress(0)
     }
   }
 
@@ -83,36 +155,63 @@ export default function FreeResourceBulkUploadModal({ open, onClose, onImport })
         <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
           <button
             type="button"
-            onClick={downloadTemplate}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff]"
+            onClick={handleDownloadTemplate}
+            disabled={downloadingTemplate}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff] disabled:opacity-60"
           >
-            <Download className="h-4 w-4" />
+            {downloadingTemplate ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
             Download Sample Template
           </button>
+
+          {apiMode ? (
+            <label className="flex items-center gap-2 text-sm text-[#246392]">
+              <input
+                type="checkbox"
+                checked={replaceExisting}
+                onChange={(e) => setReplaceExisting(e.target.checked)}
+                className="h-4 w-4 rounded border-[#55ace7]/40 text-[#246392]"
+              />
+              Replace all existing questions
+            </label>
+          ) : null}
 
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#55ace7]/45 bg-white px-6 py-10 text-center transition hover:border-[#55ace7] hover:bg-[#fafcff]">
             <Upload className="h-8 w-8 text-[#55ace7]" />
             <span className="text-sm font-semibold text-[#246392]">
-              {fileName || 'Upload Excel, CSV, or JSON'}
+              {fileName || 'Upload CSV or XLSX'}
             </span>
             <UploadFieldHint profile="EXCEL_BULK" className="text-xs text-gray-500" />
             <input
               ref={inputRef}
               type="file"
-              accept={BULK_QUESTION_ACCEPT}
+              accept={apiMode ? '.csv,.xlsx,.xls' : BULK_QUESTION_ACCEPT}
               className="sr-only"
               onChange={handleFile}
             />
           </label>
 
           {loading ? (
-            <p className="flex items-center justify-center gap-2 text-sm text-[#246392]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Parsing file…
-            </p>
+            <div className="space-y-2">
+              <p className="flex items-center justify-center gap-2 text-sm text-[#246392]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {apiMode ? `Uploading… ${uploadProgress}%` : 'Parsing file…'}
+              </p>
+              {apiMode && uploadProgress > 0 ? (
+                <div className="h-2 overflow-hidden rounded-full bg-[#eef2fc]">
+                  <div
+                    className="h-full rounded-full bg-[#55ace7] transition-all"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
-          {result ? (
+          {!apiMode && result ? (
             <div className="space-y-3 rounded-xl border border-[#eef2fc] bg-white p-4 shadow-sm">
               <p className="text-sm font-bold text-[#111]">
                 Success: {result.success?.length || 0} · Failed: {result.failed?.length || 0}
@@ -144,17 +243,21 @@ export default function FreeResourceBulkUploadModal({ open, onClose, onImport })
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-slate-200/80 px-6 py-2.5 text-sm font-bold text-slate-700"
+              disabled={loading}
+              className="rounded-full bg-slate-200/80 px-6 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-60"
             >
               Cancel
             </button>
             <button
               type="button"
-              disabled={!result?.success?.length || loading}
-              onClick={handleImport}
+              disabled={
+                loading ||
+                (apiMode ? !selectedFile : !result?.success?.length)
+              }
+              onClick={apiMode ? handleApiUpload : handleImport}
               className="rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-8 py-2.5 text-sm font-bold text-white shadow disabled:opacity-50"
             >
-              Import
+              {apiMode ? 'Upload' : 'Import'}
             </button>
           </div>
         </div>
