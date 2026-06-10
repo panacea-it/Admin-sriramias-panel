@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 import { useRef, useState } from 'react'
 import { AlarmClock, TicketPercent } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { couponToForm } from '../../utils/couponsStorage'
+=======
+import { useState } from 'react'
+import { AlarmClock, TicketPercent } from 'lucide-react'
+import { toast } from '@/utils/toast'
+import { cn } from '../../utils/cn'
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import SectionBar from '../courses/SectionBar'
@@ -79,6 +86,7 @@ function EligibilityOption({ id, name, label, checked, onChange, children }) {
   )
 }
 
+<<<<<<< HEAD
 export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon = null }) {
   const [form, setForm] = useState(emptyForm)
   const editingRef = useRef(editingCoupon)
@@ -94,6 +102,10 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
       setForm({ ...emptyForm })
     }
   })
+=======
+export default function AddCouponModal({ open, onClose, onSubmit }) {
+  const [form, setForm] = useState(emptyForm)
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -117,7 +129,11 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
       toast.error('Please fill value and validity dates')
       return
     }
+<<<<<<< HEAD
     if (!form.backgroundImage?.trim() && !(isEdit && editingRef.current?.backgroundImage)) {
+=======
+    if (!form.backgroundImage) {
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       toast.error('Background image is required')
       return
     }
@@ -125,6 +141,7 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
       toast.error('Select a student for specific eligibility')
       return
     }
+<<<<<<< HEAD
     onSubmit?.(form, editingRef.current)
     toast.success(isEdit ? 'Coupon updated successfully' : 'Coupon created successfully')
     handleClose()
@@ -134,11 +151,24 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
 
   return (
     <Modal open={open} onClose={handleClose} size="full" title={modalTitle}>
+=======
+    onSubmit?.(form)
+    toast.success('Coupon created successfully')
+    handleClose()
+  }
+
+  return (
+    <Modal open={open} onClose={handleClose} size="full" title="Add Coupon">
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
+<<<<<<< HEAD
         <ModalPanelHeader title={isEdit ? 'Edit Coupon' : 'Coupon'} icon={TicketPercent} />
+=======
+        <ModalPanelHeader title="Coupon" onBack={handleClose} icon={TicketPercent} />
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 
         <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
           <SectionBar title="Coupon Details" />
@@ -268,7 +298,11 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
               type="submit"
               className="min-w-[140px] rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-10 py-3 text-base font-bold text-white shadow-[0_6px_18px_rgba(5,25,45,0.4)] transition hover:brightness-110"
             >
+<<<<<<< HEAD
               {isEdit ? 'Update Coupon' : 'Save'}
+=======
+              Save
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
             </button>
           </div>
         </div>

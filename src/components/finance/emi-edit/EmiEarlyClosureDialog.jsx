@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 import { useEffect, useState } from 'react'
 import { Lock, Upload, X } from 'lucide-react'
+=======
+import { useState } from 'react'
+import { Lock, Upload } from 'lucide-react'
+import Modal from '../../ui/Modal'
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 import { formatINR } from '../../../utils/financeFilters'
 import { readProofFile } from '../../../utils/emiEditModel'
 
@@ -13,6 +19,7 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
   const [proofName, setProofName] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+<<<<<<< HEAD
   useEffect(() => {
     if (!open) return
     setAmount('')
@@ -24,6 +31,8 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
 
   if (!open) return null
 
+=======
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const displayAmount = amount || String(pendingBalance || 0)
 
   const handleProof = async (e) => {
@@ -33,15 +42,23 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
       const data = await readProofFile(file)
       setProof(data)
       setProofName(data.proofFileName)
+<<<<<<< HEAD
     } catch {
+=======
+    } catch (err) {
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       setProof(null)
       setProofName('')
     }
   }
 
   const handleSubmit = async (e) => {
+<<<<<<< HEAD
     e?.preventDefault?.()
     if (submitting) return
+=======
+    e.preventDefault()
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     setSubmitting(true)
     try {
       await onConfirm?.({
@@ -58,6 +75,7 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
   }
 
   return (
+<<<<<<< HEAD
     <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <button
         type="button"
@@ -70,6 +88,11 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
 
       <div className="space-y-4 p-5">
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 pr-12 text-sm text-amber-900">
+=======
+    <Modal open={open} onClose={onClose} size="md" title="Close EMI early">
+      <form onSubmit={handleSubmit} className="space-y-4 p-5">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
           <p className="flex items-center gap-2 font-bold">
             <Lock className="h-4 w-4" />
             Early closure
@@ -110,9 +133,13 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
           <Upload className="h-4 w-4" />
           Upload final payment proof
           <input type="file" accept="image/*,.pdf" className="sr-only" onChange={handleProof} />
+<<<<<<< HEAD
           {proofName && (
             <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
           )}
+=======
+          {proofName && <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>}
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         </label>
 
         <div className="flex justify-end gap-2 pt-2">
@@ -124,15 +151,24 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, o
             Cancel
           </button>
           <button
+<<<<<<< HEAD
             type="button"
             onClick={handleSubmit}
+=======
+            type="submit"
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
             disabled={submitting}
             className="h-10 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
           >
             Close EMI & generate receipt
           </button>
         </div>
+<<<<<<< HEAD
       </div>
     </div>
+=======
+      </form>
+    </Modal>
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   )
 }

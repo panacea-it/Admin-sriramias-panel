@@ -1,28 +1,60 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+<<<<<<< HEAD
 import { CalendarClock, Plus } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import ProofViewerModal from './ProofViewerModal'
 import EmiEditSummaryCard from './emi-edit/EmiEditSummaryCard'
 import EmiEditInstallmentTable from './emi-edit/EmiEditInstallmentTable'
+=======
+import { CalendarClock, History, Plus, Scissors, GitMerge } from 'lucide-react'
+import Modal from '../ui/Modal'
+import ModalPanelHeader from '../courses/ModalPanelHeader'
+import ProofViewerModal from './ProofViewerModal'
+import ReceiptPreview from './ReceiptPreview'
+import EmiInstallmentCollectDialog from './offline-payment/EmiInstallmentCollectDialog'
+import EmiInstallmentEditDialog from './offline-payment/EmiInstallmentEditDialog'
+import EmiEditSummaryCard from './emi-edit/EmiEditSummaryCard'
+import EmiEditInstallmentTable from './emi-edit/EmiEditInstallmentTable'
+import EmiEditHistoryDrawer from './emi-edit/EmiEditHistoryDrawer'
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 import EmiEarlyClosureDialog from './emi-edit/EmiEarlyClosureDialog'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import {
   addMonthsToDate,
   computeCurrentPlanAnalytics,
+<<<<<<< HEAD
   getEmiMonthLabel,
+=======
+  generateEmiSchedule,
+  getEmiMonthLabel,
+  installmentNetAmount,
+  installmentPaidAmount,
+  installmentRemaining,
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 } from '../../utils/emiSchedule'
 import {
   appendPlanHistory,
   appendRowHistory,
   applyEarlyClosureToPlan,
+<<<<<<< HEAD
   deriveInstallmentStatus,
   downloadProof,
+=======
+  buildEmiReceiptPayment,
+  canDeleteInstallment,
+  downloadProof,
+  mergeInstallmentWithNext,
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   normalizeEmiPlan,
   normalizeInstallment,
   readProofFile,
   recalcPlanFromInstallments,
+<<<<<<< HEAD
+=======
+  splitInstallmentAt,
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   validateEmiEditPlan,
 } from '../../utils/emiEditModel'
 import { toast } from '../../utils/toast'
@@ -46,7 +78,17 @@ function emptyInstallment(no, plan) {
 export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, saving = false }) {
   const [plan, setPlan] = useState(null)
   const [installments, setInstallments] = useState([])
+<<<<<<< HEAD
   const [proofView, setProofView] = useState(null)
+=======
+  const [editingRow, setEditingRow] = useState(null)
+  const [collectRow, setCollectRow] = useState(null)
+  const [advancedEditRow, setAdvancedEditRow] = useState(null)
+  const [proofView, setProofView] = useState(null)
+  const [receiptView, setReceiptView] = useState(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [rowHistoryFocus, setRowHistoryFocus] = useState(null)
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const [closureOpen, setClosureOpen] = useState(false)
   const [proofUploadIndex, setProofUploadIndex] = useState(null)
   const proofInputRef = useRef(null)
@@ -59,7 +101,16 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
     const normalized = normalizeEmiPlan(planRef.current)
     setPlan(normalized)
     setInstallments(normalized?.installments ? [...normalized.installments] : [])
+<<<<<<< HEAD
     setProofView(null)
+=======
+    setEditingRow(null)
+    setCollectRow(null)
+    setAdvancedEditRow(null)
+    setProofView(null)
+    setReceiptView(null)
+    setRowHistoryFocus(null)
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   })
 
   const analytics = useMemo(
@@ -74,6 +125,20 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
     return recalcPlanFromInstallments(plan, installments)
   }, [plan, installments])
 
+<<<<<<< HEAD
+=======
+  const allInstallmentHistory = useMemo(() => {
+    const rows = installments.flatMap((r) =>
+      (r.paymentHistory || []).map((h) => ({ ...h, installmentNo: r.installmentNo })),
+    )
+    if (rowHistoryFocus != null) {
+      const row = installments[rowHistoryFocus]
+      return (row?.paymentHistory || []).map((h) => ({ ...h, installmentNo: row.installmentNo }))
+    }
+    return rows
+  }, [installments, rowHistoryFocus])
+
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const updateInstallments = useCallback((updater) => {
     setInstallments((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
@@ -93,15 +158,93 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
           next.emiDate = value
           next.emiMonth = getEmiMonthLabel(value)
         }
+<<<<<<< HEAD
         if (['emiAmount', 'paidAmount', 'lateFee', 'discount', 'customCharge'].includes(key)) {
           next[key] = value === '' ? '' : Number(value)
           next.status = deriveInstallmentStatus(next)
+=======
+        if (key === 'emiAmount' || key === 'paidAmount') {
+          next[key] = value === '' ? '' : Number(value)
+        }
+        if (key === 'paidAmount' || key === 'status') {
+          const due = installmentNetAmount(next)
+          const paid = Number(next.paidAmount) || 0
+          if (paid > 0 && paid < due - 0.5) next.status = 'Partial'
+          else if (paid >= due - 0.5 && paid > 0) next.status = 'Paid'
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         }
         return next
       }),
     )
   }
 
+<<<<<<< HEAD
+=======
+  const handleSaveRow = (index) => {
+    const row = installments[index]
+    updateInstallments((rows) =>
+      rows.map((r, i) =>
+        i === index
+          ? appendRowHistory(normalizeInstallment(r, i), 'Installment row saved')
+          : r,
+      ),
+    )
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(p?.planHistory, `Updated installment #${row.installmentNo}`),
+    }))
+    setEditingRow(null)
+    toast.success(`Installment #${row.installmentNo} saved`)
+  }
+
+  const handleCollect = (updatedRow) => {
+    const idx = installments.findIndex((r) => r.installmentNo === updatedRow.installmentNo)
+    if (idx < 0) return
+    updateInstallments((rows) => rows.map((r, i) => (i === idx ? normalizeInstallment(updatedRow, i) : r)))
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(
+        p?.planHistory,
+        `Collected payment on EMI #${updatedRow.installmentNo}`,
+      ),
+    }))
+    toast.success('Payment recorded')
+  }
+
+  const handleAdvancedSave = (updatedRow) => {
+    const idx = installments.findIndex((r) => r.installmentNo === updatedRow.installmentNo)
+    if (idx < 0) return
+    let rows = installments.map((r, i) =>
+      i === idx
+        ? appendRowHistory(normalizeInstallment(updatedRow, i), 'Advanced installment edit saved')
+        : r,
+    )
+    if (updatedRow.rebalanceRemaining) {
+      const paidSum = rows.reduce((s, r) => s + installmentPaidAmount(r), 0)
+      const principal = Math.max(0, (plan?.totalFees || 0) - paidSum)
+      const openCount = rows.filter((r) => !['Paid', 'Partial', 'Closed'].includes(r.status)).length
+      const { installments: regen } = generateEmiSchedule({
+        installmentCount: Math.max(1, openCount),
+        pendingBalance: principal,
+        startDate: rows.find((r) => !['Paid', 'Closed'].includes(r.status))?.dueDate || rows[0]?.dueDate,
+      })
+      let gi = 0
+      rows = rows.map((r) => {
+        if (['Paid', 'Partial', 'Closed'].includes(r.status)) return r
+        const g = regen[gi]
+        gi += 1
+        return g ? { ...r, emiAmount: g.emiAmount, emiMonth: g.emiMonth } : r
+      })
+    }
+    updateInstallments(rows)
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(p?.planHistory, `Advanced edit on EMI #${updatedRow.installmentNo}`),
+    }))
+    toast.success('Installment updated')
+  }
+
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const handleAddInstallment = () => {
     updateInstallments((rows) => [...rows, emptyInstallment(rows.length + 1, { installments: rows })])
     setPlan((p) => ({
@@ -110,6 +253,50 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
     }))
   }
 
+<<<<<<< HEAD
+=======
+  const handleDelete = (index) => {
+    const row = installments[index]
+    if (!canDeleteInstallment(row)) {
+      toast.error('Cannot delete paid or partial installments')
+      return
+    }
+    updateInstallments((rows) =>
+      rows.filter((_, i) => i !== index).map((r, i) => ({ ...r, installmentNo: i + 1, emiNo: i + 1 })),
+    )
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(p?.planHistory, `Deleted installment #${row.installmentNo}`),
+    }))
+  }
+
+  const handleSplit = () => {
+    if (editingRow == null) {
+      toast.message('Select a row and click Edit, or use advanced edit')
+      return
+    }
+    updateInstallments((rows) => splitInstallmentAt(rows, editingRow))
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(p?.planHistory, 'Split installment'),
+    }))
+    setEditingRow(null)
+  }
+
+  const handleMerge = () => {
+    if (editingRow == null || editingRow >= installments.length - 1) {
+      toast.error('Select an unpaid row (not the last) to merge with next')
+      return
+    }
+    updateInstallments((rows) => mergeInstallmentWithNext(rows, editingRow))
+    setPlan((p) => ({
+      ...p,
+      planHistory: appendPlanHistory(p?.planHistory, 'Merged installments'),
+    }))
+    setEditingRow(null)
+  }
+
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const handleProofFile = async (e) => {
     const file = e.target.files?.[0]
     const index = proofUploadIndex
@@ -134,6 +321,29 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
     }
   }
 
+<<<<<<< HEAD
+=======
+  const handleGenerateReceipt = (index) => {
+    const row = installments[index]
+    const receiptNumber = row.receiptNumber || `RCP-EMI-${plan?.id}-${row.installmentNo}`
+    updateInstallments((rows) =>
+      rows.map((r, i) =>
+        i === index
+          ? appendRowHistory(
+              {
+                ...r,
+                receiptNumber,
+                collectedBy: r.collectedBy || 'Finance Admin',
+              },
+              `Generated receipt ${receiptNumber}`,
+            )
+          : r,
+      ),
+    )
+    toast.success('Receipt generated')
+  }
+
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const handleEarlyClosure = async ({ amount, remarks, proofFileName, proofUrl, proofDataUrl }) => {
     const { plan: closedPlan, installments: closedRows } = applyEarlyClosureToPlan(
       plan,
@@ -183,6 +393,10 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
     const normalized = normalizeEmiPlan(planRef.current)
     setPlan(normalized)
     setInstallments(normalized?.installments ? [...normalized.installments] : [])
+<<<<<<< HEAD
+=======
+    setEditingRow(null)
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     toast.message('Changes reset')
   }
 
@@ -197,6 +411,10 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
         >
           <ModalPanelHeader
             title="Edit EMI Installments"
+<<<<<<< HEAD
+=======
+            onBack={onClose}
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
             icon={CalendarClock}
             iconClassName="text-[#246392]"
           />
@@ -217,12 +435,17 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
               {!planClosed && (displayPlan?.pendingAmount ?? 0) > 0 && (
                 <button
                   type="button"
+<<<<<<< HEAD
                   onClick={() => setClosureOpen((open) => !open)}
+=======
+                  onClick={() => setClosureOpen(true)}
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
                 >
                   Close EMI Early
                 </button>
               )}
+<<<<<<< HEAD
             </div>
 
             <EmiEarlyClosureDialog
@@ -236,6 +459,49 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
               installments={installments}
               planClosed={planClosed}
               onFieldChange={onFieldChange}
+=======
+              <button
+                type="button"
+                onClick={handleSplit}
+                disabled={planClosed}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#444] hover:bg-slate-50 disabled:opacity-50"
+              >
+                <Scissors className="h-3.5 w-3.5" />
+                Split selected
+              </button>
+              <button
+                type="button"
+                onClick={handleMerge}
+                disabled={planClosed}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#444] hover:bg-slate-50 disabled:opacity-50"
+              >
+                <GitMerge className="h-3.5 w-3.5" />
+                Merge with next
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRowHistoryFocus(null)
+                  setHistoryOpen(true)
+                }}
+                className="ml-auto inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-[#246392] hover:bg-[#eef6fc]"
+              >
+                <History className="h-4 w-4" />
+                EMI History
+              </button>
+            </div>
+
+            <EmiEditInstallmentTable
+              installments={installments}
+              planClosed={planClosed}
+              editingRow={editingRow}
+              onStartEdit={(index) => setEditingRow(index)}
+              onAdvancedEdit={(index) => setAdvancedEditRow(installments[index])}
+              onCancelEdit={() => setEditingRow(null)}
+              onSaveRow={handleSaveRow}
+              onFieldChange={onFieldChange}
+              onCollect={(index) => setCollectRow(installments[index])}
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
               onUploadProof={(index) => {
                 setProofUploadIndex(index)
                 proofInputRef.current?.click()
@@ -244,12 +510,28 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
               onDownloadProof={(index) => {
                 if (!downloadProof(installments[index])) toast.error('No proof file to download')
               }}
+<<<<<<< HEAD
             />
 
             <p className="text-xs text-[#686868]">
               Student-submitted payment details appear automatically when available. Otherwise,
               enter payment mode, receipt, UTR, proof, paid amount, and date directly in the table.
               Balance and status update automatically from the paid amount.
+=======
+              onViewReceipt={(index) => setReceiptView(buildEmiReceiptPayment(plan, installments[index]))}
+              onGenerateReceipt={handleGenerateReceipt}
+              onViewHistory={(index) => {
+                setRowHistoryFocus(index)
+                setHistoryOpen(true)
+              }}
+              onDelete={handleDelete}
+            />
+
+            <p className="text-xs text-[#686868]">
+              Tip: Click <strong>Edit</strong> on a row for inline changes, or use{' '}
+              <strong>Collect payment</strong> for partial/offline collections with proof. Advanced
+              fees (late fee, discount) open from the pencil → customize dialog.
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
             </p>
           </div>
 
@@ -296,6 +578,26 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
         onChange={handleProofFile}
       />
 
+<<<<<<< HEAD
+=======
+      <EmiInstallmentCollectDialog
+        open={!!collectRow}
+        row={collectRow}
+        onClose={() => setCollectRow(null)}
+        onCollect={handleCollect}
+      />
+
+      <EmiInstallmentEditDialog
+        open={!!advancedEditRow}
+        row={advancedEditRow}
+        onClose={() => setAdvancedEditRow(null)}
+        onSave={(row) => {
+          handleAdvancedSave(row)
+          setAdvancedEditRow(null)
+        }}
+      />
+
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       <ProofViewerModal
         open={!!proofView}
         onClose={() => setProofView(null)}
@@ -306,6 +608,40 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
         notes={proofView?.remarks}
       />
 
+<<<<<<< HEAD
+=======
+      <Modal
+        open={!!receiptView}
+        onClose={() => setReceiptView(null)}
+        size="lg"
+        title="EMI receipt"
+      >
+        <div className="max-h-[80vh] overflow-y-auto p-4">
+          <ReceiptPreview
+            payment={receiptView}
+            onPrint={() => window.print()}
+            onDownload={() => toast.success('Receipt download started')}
+          />
+        </div>
+      </Modal>
+
+      <EmiEditHistoryDrawer
+        open={historyOpen}
+        onClose={() => {
+          setHistoryOpen(false)
+          setRowHistoryFocus(null)
+        }}
+        planHistory={plan?.planHistory}
+        installmentHistory={allInstallmentHistory}
+      />
+
+      <EmiEarlyClosureDialog
+        open={closureOpen}
+        onClose={() => setClosureOpen(false)}
+        pendingBalance={displayPlan?.pendingAmount ?? 0}
+        onConfirm={handleEarlyClosure}
+      />
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     </>
   )
 }

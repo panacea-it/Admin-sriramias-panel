@@ -179,6 +179,10 @@ export default function UserFormModal({
         <ModalPanelHeader
           title={modalTitle}
           subtitle={subtitle}
+<<<<<<< HEAD
+=======
+          onClose={onClose}
+>>>>>>> 4185d49110002a815987530cf3361644412d6bfa
           icon={UserPlus}
           iconClassName="text-[#246392]"
         />
