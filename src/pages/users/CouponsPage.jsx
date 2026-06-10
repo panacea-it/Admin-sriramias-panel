@@ -1,16 +1,10 @@
-<<<<<<< HEAD
 import { useCallback, useMemo, useState } from 'react'
 import { Layers, Star } from 'lucide-react'
-=======
-import { useMemo, useState } from 'react'
-import { Edit3, Layers, Star, Trash2 } from 'lucide-react'
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CouponFilterToolbar from '../../components/coupons/CouponFilterToolbar'
 import AddCouponModal from '../../components/coupons/AddCouponModal'
-<<<<<<< HEAD
 import CouponTableActions from '../../components/coupons/CouponTableActions'
 import CouponsBulkActionsBar from '../../components/coupons/CouponsBulkActionsBar'
 import ConfirmCouponDeleteModal from '../../components/coupons/ConfirmCouponDeleteModal'
@@ -28,25 +22,10 @@ import {
 
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState(() => loadCoupons())
-=======
-import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
-import { INITIAL_COUPONS } from '../../data/couponsData'
-
-function formatDateInput(iso) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  if (!y) return iso
-  return `${d}/${m}/${y}`
-}
-
-export default function CouponsPage() {
-  const [coupons, setCoupons] = useState(INITIAL_COUPONS)
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
-<<<<<<< HEAD
   const [editingCoupon, setEditingCoupon] = useState(null)
   const [viewingCoupon, setViewingCoupon] = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
@@ -62,8 +41,6 @@ export default function CouponsPage() {
   const refresh = useCallback(() => {
     setCoupons(loadCoupons())
   }, [])
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -78,7 +55,6 @@ export default function CouponsPage() {
     })
   }, [coupons, search, typeFilter, statusFilter])
 
-<<<<<<< HEAD
   const selectedActiveCount = useMemo(
     () => coupons.filter((c) => selectedIds.includes(c.id) && c.status === 'Active').length,
     [coupons, selectedIds],
@@ -187,26 +163,6 @@ export default function CouponsPage() {
       setDeleteLoading(false)
       setActionCouponId(null)
     }
-=======
-  const handleAdd = (form) => {
-    setCoupons((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.couponName,
-        type: form.type,
-        redemptions: 0,
-        expiresOn: formatDateInput(form.validTill),
-        status: 'Active',
-        topPerforming: false,
-      },
-    ])
-  }
-
-  const handleDelete = (id) => {
-    setCoupons((prev) => prev.filter((c) => c.id !== id))
-    toast.success('Coupon deleted')
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   }
 
   const columns = [
@@ -216,24 +172,12 @@ export default function CouponsPage() {
       headerClassName: 'pl-6 sm:pl-10',
       cellClassName: 'pl-6 sm:pl-10',
       render: (row) => (
-<<<<<<< HEAD
         <span className="flex items-center gap-1.5 truncate font-medium">
           {row.topPerforming && (
             <Star className="h-4 w-4 shrink-0 fill-[#69df66] text-[#69df66]" strokeWidth={0} />
           )}
           {row.name}
         </span>
-=======
-        <div className="flex items-center gap-3 sm:gap-4">
-          <span className="h-6 w-6 shrink-0 rounded bg-[#cbeeff]" />
-          <span className="flex items-center gap-1.5 truncate font-medium">
-            {row.topPerforming && (
-              <Star className="h-4 w-4 shrink-0 fill-[#69df66] text-[#69df66]" strokeWidth={0} />
-            )}
-            {row.name}
-          </span>
-        </div>
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       ),
     },
     { key: 'type', label: 'Type' },
@@ -252,7 +196,6 @@ export default function CouponsPage() {
       key: 'actions',
       label: 'Action',
       render: (row) => (
-<<<<<<< HEAD
         <CouponTableActions
           row={row}
           disabled={actionCouponId === row.id && (statusLoading || deleteLoading)}
@@ -264,25 +207,6 @@ export default function CouponsPage() {
           onStatusToggle={() => setStatusTarget(row)}
           onDelete={() => setDeleteTarget(row)}
         />
-=======
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#686868] hover:text-[#246392]"
-          >
-            <Edit3 className="h-4 w-4" strokeWidth={2.35} />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDelete(row.id)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#c96565] hover:text-[#b94b4b]"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-            Delete
-          </button>
-        </div>
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       ),
     },
   ]
@@ -296,7 +220,6 @@ export default function CouponsPage() {
           title="Coupons"
           className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
         >
-<<<<<<< HEAD
           <BannerButton
             onClick={() => {
               setEditingCoupon(null)
@@ -305,9 +228,6 @@ export default function CouponsPage() {
           >
             Add Coupon
           </BannerButton>
-=======
-          <BannerButton onClick={() => setAddOpen(true)}>Add Coupon</BannerButton>
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         </PageBanner>
 
         <CouponFilterToolbar
@@ -319,7 +239,6 @@ export default function CouponsPage() {
           onStatusChange={(e) => setStatusFilter(e.target.value)}
         />
 
-<<<<<<< HEAD
         {selectedIds.length > 0 && (
           <CouponsBulkActionsBar
             count={selectedIds.length}
@@ -329,23 +248,17 @@ export default function CouponsPage() {
           />
         )}
 
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         <PaginatedFigmaTable
           columns={columns}
           data={filtered}
           emptyMessage="No coupons match your filters."
           itemLabel="coupons"
           resetDeps={[search, typeFilter, statusFilter]}
-<<<<<<< HEAD
           selection={selection}
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
           rowClassName="hover:bg-slate-50/90"
         />
       </section>
 
-<<<<<<< HEAD
       <AddCouponModal
         open={addOpen}
         onClose={() => {
@@ -389,9 +302,6 @@ export default function CouponsPage() {
         }}
         onConfirm={confirmDelete}
       />
-=======
-      <AddCouponModal open={addOpen} onClose={() => setAddOpen(false)} onSubmit={handleAdd} />
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     </div>
   )
 }

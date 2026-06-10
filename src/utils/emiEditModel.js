@@ -10,7 +10,6 @@ import {
 const PROOF_REQUIRED_MODES = ['Cash', 'Cheque', 'DD']
 const UTR_REQUIRED_MODES = ['UPI', 'Bank Transfer', 'POS Machine', 'Card']
 
-<<<<<<< HEAD
 function applyStudentSubmission(raw) {
   const sub = raw?.studentSubmission
   if (!sub || typeof sub !== 'object') return { ...raw }
@@ -69,30 +68,10 @@ export function normalizeInstallment(raw, index = 0) {
     installmentNo: no,
     emiNo: no,
     emiMonth: source.emiMonth || getEmiMonthLabel(dueDate),
-=======
-export function normalizeInstallment(raw, index = 0) {
-  const no = raw.installmentNo ?? raw.emiNo ?? index + 1
-  const dueDate = raw.dueDate || raw.emiDate || ''
-  const emiAmount = Number(raw.emiAmount) || 0
-  let paidAmount = Number(raw.paidAmount)
-  if (Number.isNaN(paidAmount)) {
-    if (raw.status === 'Paid') paidAmount = emiAmount
-    else if (raw.status === 'Partial') paidAmount = Math.min(emiAmount, Number(raw.partialPaid) || 0)
-    else paidAmount = 0
-  }
-  const receiptNumber =
-    raw.receiptNumber || (typeof raw.receipt === 'string' ? raw.receipt : '') || ''
-
-  return {
-    installmentNo: no,
-    emiNo: no,
-    emiMonth: raw.emiMonth || getEmiMonthLabel(dueDate),
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     dueDate,
     emiDate: dueDate,
     emiAmount,
     paidAmount,
-<<<<<<< HEAD
     lateFee: Number(source.lateFee) || 0,
     discount: Number(source.discount) || 0,
     customCharge: Number(source.customCharge) || 0,
@@ -115,24 +94,6 @@ export function normalizeInstallment(raw, index = 0) {
   return {
     ...base,
     status: deriveInstallmentStatus({ ...base, status: source.status }),
-=======
-    lateFee: Number(raw.lateFee) || 0,
-    discount: Number(raw.discount) || 0,
-    customCharge: Number(raw.customCharge) || 0,
-    status: raw.status || 'Due',
-    paymentMode: raw.paymentMode || '',
-    paymentType: raw.paymentType || 'Offline',
-    receiptNumber,
-    referenceNumber: raw.referenceNumber || raw.utrNumber || '',
-    utrNumber: raw.utrNumber || raw.referenceNumber || '',
-    paidDate: raw.paidDate || '',
-    remarks: raw.remarks || '',
-    proofFileName: raw.proofFileName || null,
-    proofUrl: raw.proofUrl || null,
-    proofDataUrl: raw.proofDataUrl || null,
-    collectedBy: raw.collectedBy || '',
-    paymentHistory: Array.isArray(raw.paymentHistory) ? [...raw.paymentHistory] : [],
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   }
 }
 

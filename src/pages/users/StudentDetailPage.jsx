@@ -216,11 +216,7 @@ function CoursesTab({ enrollments, studentProfile, payments, orders }) {
     { key: 'courseName', label: 'Course', render: (r) => <span className="font-medium">{r.courseName}</span> },
     { key: 'batchName', label: 'Batch' },
     { key: 'batchId', label: 'Batch ID', render: (r) => <span className="font-mono text-xs">{r.batchId}</span> },
-<<<<<<< HEAD
     { key: 'trainerName', label: 'Mentor' },
-=======
-    { key: 'trainerName', label: 'Trainer' },
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     {
       key: 'dates',
       label: 'Start – End',
@@ -231,15 +227,11 @@ function CoursesTab({ enrollments, studentProfile, payments, orders }) {
       ),
     },
     { key: 'enrollmentId', label: 'Enrollment ID', render: (r) => <span className="font-mono text-xs">{r.enrollmentId}</span> },
-<<<<<<< HEAD
     {
       key: 'batchStatus',
       label: 'Batch Status',
       render: (r) => <StatusBadge status={r.batchStatus} />,
     },
-=======
-    { key: 'batchStatus', label: 'Batch Status' },
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     { key: 'progress', label: 'Progress', render: (r) => `${r.progress ?? 0}%` },
     {
       key: 'modeOfPayment',

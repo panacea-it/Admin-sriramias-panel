@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-<<<<<<< HEAD
 import { PlusCircle, Users } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
@@ -10,18 +9,10 @@ import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsers
 import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
 import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
-=======
-import { Eye, PlusCircle, Users } from 'lucide-react'
-import PageBanner from '../../components/figma/PageBanner'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import EditButton from '../../components/common/EditButton'
-import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 import UserFormModal from '../../components/manage-users/UserFormModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
 import { StatusBadge } from '../../components/academics/AcademicsUi'
 import { useCenters } from '../../contexts/CentersContext'
-<<<<<<< HEAD
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { DEFAULT_CENTER_NAMES, roleLabel } from '../../data/manageUsersConfig'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
@@ -30,24 +21,6 @@ import {
   loadManageUsers,
   updateManageUser,
 } from '../../utils/manageUsersStorage'
-=======
-import { DEFAULT_CENTER_NAMES, roleLabel } from '../../data/manageUsersConfig'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { loadManageUsers } from '../../utils/manageUsersStorage'
-
-function UserAvatar({ user }) {
-  if (user.profileImage) {
-    return (
-      <img
-        src={user.profileImage}
-        alt=""
-        className="h-8 w-8 shrink-0 rounded-full border border-[#eef2fc] object-cover"
-      />
-    )
-  }
-  return <span className="h-8 w-8 shrink-0 rounded-full bg-[#cbeeff]" />
-}
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 
 export default function ManageUsersPage() {
   const navigate = useNavigate()
@@ -60,7 +33,6 @@ export default function ManageUsersPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [viewingUser, setViewingUser] = useState(null)
-<<<<<<< HEAD
   const [statusTarget, setStatusTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
@@ -68,8 +40,6 @@ export default function ManageUsersPage() {
   const [actionUserId, setActionUserId] = useState(null)
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
 
   const centerOptions = useMemo(() => {
     const fromCenters = activeCenters
@@ -112,7 +82,6 @@ export default function ManageUsersPage() {
     })
   }, [users, search, roleFilter, centerFilter, statusFilter])
 
-<<<<<<< HEAD
   const selectedActiveCount = useMemo(
     () => users.filter((u) => selectedIds.includes(u.id) && u.status === 'Active').length,
     [users, selectedIds],
@@ -160,8 +129,6 @@ export default function ManageUsersPage() {
     clearSelection()
   }
 
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const openCreate = () => {
     setEditingUser(null)
     setFormOpen(true)
@@ -178,7 +145,6 @@ export default function ManageUsersPage() {
 
   const isStudent = (row) => row.role === 'student'
 
-<<<<<<< HEAD
   const handleView = (row) => {
     try {
       if (isStudent(row)) {
@@ -253,8 +219,6 @@ export default function ManageUsersPage() {
     }
   }
 
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
   const handleResetFilters = () => {
     setSearch('')
     setRoleFilter('all')
@@ -270,20 +234,10 @@ export default function ManageUsersPage() {
       cellClassName: 'pl-6 sm:pl-10',
       render: (row) => {
         const inner = (
-<<<<<<< HEAD
           <div className="min-w-0">
             <p className="truncate font-medium text-[#111]">{row.fullName}</p>
             <p className="font-mono text-xs text-[#686868]">{row.userId}</p>
           </div>
-=======
-          <>
-            <UserAvatar user={row} />
-            <div className="min-w-0">
-              <p className="truncate font-medium text-[#111]">{row.fullName}</p>
-              <p className="font-mono text-xs text-[#686868]">{row.userId}</p>
-            </div>
-          </>
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         )
         if (isStudent(row)) {
           return (
@@ -341,7 +295,6 @@ export default function ManageUsersPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-<<<<<<< HEAD
         <ManageUsersTableActions
           row={row}
           disabled={actionUserId === row.id && (statusLoading || deleteLoading)}
@@ -350,19 +303,6 @@ export default function ManageUsersPage() {
           onStatusToggle={() => handleStatusToggleRequest(row)}
           onDelete={() => setDeleteTarget(row)}
         />
-=======
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => (isStudent(row) ? openStudent360(row) : setViewingUser(row))}
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#686868] transition hover:text-[#246392]"
-          >
-            <Eye className="h-4 w-4" />
-            View
-          </button>
-          <EditButton onClick={() => openEdit(row)} />
-        </div>
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       ),
     },
   ]
@@ -404,7 +344,6 @@ export default function ManageUsersPage() {
           </button>
         </div>
 
-<<<<<<< HEAD
         {selectedIds.length > 0 && (
           <ManageUsersBulkActionsBar
             count={selectedIds.length}
@@ -414,18 +353,13 @@ export default function ManageUsersPage() {
           />
         )}
 
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
         <PaginatedFigmaTable
           columns={columns}
           data={filtered}
           emptyMessage="No users match your search or filters."
           itemLabel="users"
           resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-<<<<<<< HEAD
           selection={selection}
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
           rowClassName="hover:bg-slate-50/90"
         />
       </section>
@@ -446,7 +380,6 @@ export default function ManageUsersPage() {
         onClose={() => setViewingUser(null)}
         user={viewingUser}
       />
-<<<<<<< HEAD
 
       <ConfirmManageUserStatusModal
         open={Boolean(statusTarget)}
@@ -467,8 +400,6 @@ export default function ManageUsersPage() {
         }}
         onConfirm={confirmDelete}
       />
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
     </div>
   )
 }

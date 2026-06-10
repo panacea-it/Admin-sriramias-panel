@@ -773,7 +773,6 @@ export const MOCK_EMI_PLANS = [
         paidAmount: 0,
         status: 'Due',
         paymentHistory: [],
-<<<<<<< HEAD
         submittedBy: 'student',
         studentSubmission: {
           paymentMode: 'UPI',
@@ -784,8 +783,6 @@ export const MOCK_EMI_PLANS = [
           remarks: 'Submitted via student portal — partial payment',
           submittedAt: daysAgo(1),
         },
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
       },
       {
         emiNo: 4,

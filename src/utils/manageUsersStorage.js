@@ -176,7 +176,6 @@ export function findManageUserById(id) {
     null
   )
 }
-<<<<<<< HEAD
 
 export function deleteManageUser(id) {
   const list = loadManageUsers()
@@ -185,5 +184,3 @@ export function deleteManageUser(id) {
   saveManageUsers(next)
   return { ok: true }
 }
-=======
->>>>>>> 4185d49110002a815987530cf3361644412d6bfa
