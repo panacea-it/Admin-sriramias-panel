@@ -1,5 +1,6 @@
 import { pad2 } from './classroomTime'
 import { isMongoObjectId } from './facultySubjectHelpers'
+import { extractCategoryContentItems } from './facultySubjectCategoryContentHelpers'
 
 const UI_TO_API_WEEKDAY = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const API_TO_UI_WEEKDAY = Object.fromEntries(UI_TO_API_WEEKDAY.map((d, i) => [d, i]))
@@ -218,15 +219,12 @@ export function resolveBatchIdsFromForm(form = {}) {
 }
 
 export function normalizeLiveClassesListResponse(data) {
-  const list = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data?.items)
-      ? data.items
-      : Array.isArray(data?.liveClasses)
-        ? data.liveClasses
-        : Array.isArray(data)
-          ? data
-          : []
+  const fromContent = extractCategoryContentItems(data)
+  const list = fromContent.length
+    ? fromContent
+    : Array.isArray(data?.liveClasses)
+      ? data.liveClasses
+      : []
 
   return (Array.isArray(list) ? list : [])
     .map((row) => mapApiLiveClassToLocalRow(row))
@@ -343,8 +341,14 @@ export function mapApiLiveClassToLocalRow(data) {
         '',
     ),
     batchName: String(
-      row.batchName ||
-        (Array.isArray(row.batches) ? row.batches.map((b) => b.batchName || b.name).filter(Boolean).join(', ') : '') ||
+      row.batchNamesLabel ||
+        (Array.isArray(row.batchDocs)
+          ? row.batchDocs.map((b) => b.batchName).filter(Boolean).join(', ')
+          : '') ||
+        row.batchName ||
+        (Array.isArray(row.batches)
+          ? row.batches.map((b) => b.batchName || b.name).filter(Boolean).join(', ')
+          : '') ||
         row.batch?.batchName ||
         row.batch?.name ||
         '',

@@ -51,17 +51,15 @@ export function createCachedRequest({ ttlMs = 60_000, maxEntries = 32 } = {}) {
     const pending = inFlight.get(cacheKey)
     if (pending) return pending
 
-    const promise = Promise.resolve()
-      .then(requestFn)
-      .then((data) => {
+    const promise = (async () => {
+      try {
+        const data = await requestFn()
         setCached(key, data)
-        inFlight.delete(cacheKey)
         return data
-      })
-      .catch((error) => {
+      } finally {
         inFlight.delete(cacheKey)
-        throw error
-      })
+      }
+    })()
 
     inFlight.set(cacheKey, promise)
     return promise

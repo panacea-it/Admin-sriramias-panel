@@ -25,6 +25,7 @@ export default function BatchMultiSearchSelect({
   error,
   required = false,
   placeholder = 'Search and select batches…',
+  emptyHint = 'No active batches — create under Batch Management',
   className,
 }) {
   const listboxId = useId()
@@ -153,7 +154,7 @@ export default function BatchMultiSearchSelect({
               Loading batches…
             </span>
           ) : empty ? (
-            <span className="text-[#7a8a9a]">No active batches — create under Batch Management</span>
+            <span className="text-[#7a8a9a]">{emptyHint}</span>
           ) : selectedIds.length === 0 ? (
             <span className="text-[#7a8a9a]">{placeholder}</span>
           ) : (

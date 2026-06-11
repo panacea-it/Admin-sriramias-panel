@@ -1,12 +1,14 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Layers } from 'lucide-react'
 import SubjectHeader from '../../components/subjects/SubjectHeader'
-import SubjectFilters from '../../components/subjects/SubjectFilters'
+import SubjectListingToolbar from '../../components/subjects/SubjectListingToolbar'
 import SubjectTable from '../../components/subjects/SubjectTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
 import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjectModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
+import SubjectBulkToolbar from '../../components/subjects/SubjectBulkToolbar'
+import SubjectBulkConfirmDialog from '../../components/subjects/SubjectBulkConfirmDialog'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { useFacultySubjectsManagement } from '../../hooks/useFacultySubjectsManagement'
 import { clearFacultySubjectFormOptionsCache } from '../../hooks/useFacultySubjectFormOptions'
@@ -20,16 +22,15 @@ import {
 import {
   buildFacultySubjectApiPayload,
   mapApiFacultySubjectToFormRow,
-  mapApiFacultySubjectToRow,
 } from '../../utils/facultySubjectHelpers'
 import {
   removeFacultySubjectFromLocalStorage,
   syncSingleFacultySubjectToLocal,
 } from '../../utils/facultySubjectSync'
 import { mapUiStatusToApi } from '../../utils/programHelpers'
+import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
-import { cn } from '../../utils/cn'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
 
 export default function SubjectsPage() {
@@ -44,9 +45,12 @@ export default function SubjectsPage() {
     setStatusFilter,
     controlledPagination,
     refreshSubjects,
+    retrySubjects,
     patchSubjectLocally,
     removeSubjectLocally,
   } = useFacultySubjectsManagement()
+
+  const rateLimitRetryCountRef = useRef(0)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('add')
@@ -56,15 +60,75 @@ export default function SubjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState(null)
   const [viewItem, setViewItem] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
+  const [teacherFilter, setTeacherFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+
+  const teacherOptions = useMemo(() => {
+    const teachers = [...new Set(subjects.map((s) => s.teacher).filter(Boolean))].sort()
+    return [
+      { value: 'all', label: 'All Teachers' },
+      ...teachers.map((t) => ({ value: t, label: t })),
+    ]
+  }, [subjects])
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set()
+    subjects.forEach((s) => {
+      normalizeCategories(s.categories ?? s.category).forEach((c) => set.add(c))
+    })
+    return [
+      { value: 'all', label: 'All Categories' },
+      ...[...set].sort().map((c) => ({ value: c, label: c })),
+    ]
+  }, [subjects])
+
+  const filteredSubjects = useMemo(() => {
+    return subjects.filter((row) => {
+      if (teacherFilter !== 'all' && row.teacher !== teacherFilter) return false
+      if (categoryFilter !== 'all') {
+        const cats = normalizeCategories(row.categories ?? row.category)
+        if (!cats.includes(categoryFilter)) return false
+      }
+      return true
+    })
+  }, [subjects, teacherFilter, categoryFilter])
+
+  const hasClientFilters = teacherFilter !== 'all' || categoryFilter !== 'all'
+  const hasActiveFilters =
+    hasClientFilters || statusFilter !== 'all' || Boolean(search.trim())
 
   const showEmpty =
-    !loading && !loadError && subjects.length === 0 && !search.trim() && statusFilter === 'all'
+    !loading &&
+    !loadError &&
+    subjects.length === 0 &&
+    !search.trim() &&
+    statusFilter === 'all' &&
+    !hasClientFilters
   const showNoResults =
-    !loading && !loadError && subjects.length === 0 && !showEmpty
+    !loading && !loadError && filteredSubjects.length === 0 && !showEmpty
   const showLoadError = !loading && Boolean(loadError) && subjects.length === 0
+
+  useEffect(() => {
+    if (subjects.length > 0) {
+      rateLimitRetryCountRef.current = 0
+    }
+  }, [subjects.length])
+
+  useEffect(() => {
+    if (!loadError || loading || subjects.length > 0) return undefined
+    if (!loadError.toLowerCase().includes('too many requests')) return undefined
+    if (rateLimitRetryCountRef.current >= 2) return undefined
+    rateLimitRetryCountRef.current += 1
+    const timer = window.setTimeout(() => {
+      retrySubjects()
+    }, 5000)
+    return () => window.clearTimeout(timer)
+  }, [loadError, loading, subjects.length, retrySubjects])
 
   const openCreate = () => {
     setActiveSubject(null)
@@ -77,42 +141,18 @@ export default function SubjectsPage() {
     return mapApiFacultySubjectToFormRow(data)
   }, [])
 
-  const openContentManagement = async (row) => {
-    try {
-      const detail = await loadSubjectDetail(row)
-      if (detail) syncSingleFacultySubjectToLocal(detail)
-      navigate(`/academics/subjects/${encodeURIComponent(row.id)}/content`)
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
-    }
+  const openContentManagement = (row) => {
+    syncSingleFacultySubjectToLocal(row)
+    navigate(`/academics/subjects/${encodeURIComponent(row.id)}/content`)
   }
 
-  const handleView = async (row) => {
+  const handleView = (row) => {
     setViewItem(row)
-    setViewLoading(true)
-    try {
-      const data = await getFacultySubjectById(row.id)
-      const detail = mapApiFacultySubjectToRow(data)
-      if (detail) {
-        syncSingleFacultySubjectToLocal(data)
-        setViewItem(detail)
-      }
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
-      setViewItem(null)
-    } finally {
-      setViewLoading(false)
-    }
+    setViewLoading(false)
   }
 
-  const handleViewList = async (row) => {
-    try {
-      const detail = await loadSubjectDetail(row)
-      if (detail) syncSingleFacultySubjectToLocal(detail)
-      navigate(`/academics/subjects/${row.id}`)
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
-    }
+  const handleViewList = (row) => {
+    navigate(`/academics/subjects/${encodeURIComponent(row.id)}`)
   }
 
   const openEdit = async (row) => {
@@ -187,9 +227,105 @@ export default function SubjectsPage() {
   }
 
   const toggleSelect = (id) => {
+    const sid = String(id)
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid],
     )
+  }
+
+  const toggleSelectPage = (pageIds, select) => {
+    const ids = pageIds.map(String)
+    setSelectedIds((prev) => {
+      if (select) {
+        const merged = new Set([...prev, ...ids])
+        return [...merged]
+      }
+      const pageSet = new Set(ids)
+      return prev.filter((id) => !pageSet.has(id))
+    })
+  }
+
+  const getSelectedSubjects = () => {
+    const idSet = new Set(selectedIds.map(String))
+    return subjects.filter((s) => idSet.has(String(s.id)))
+  }
+
+  const handleBulkDeleteRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete', count: selectedIds.length })
+  }
+
+  const handleBulkDisableRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'disable', count: selectedIds.length })
+  }
+
+  const handleBulkEnableRequest = async () => {
+    const targets = getSelectedSubjects()
+    if (!targets.length) return
+    setBulkActionLoading(true)
+    try {
+      for (const row of targets) {
+        const previousStatus = row.status
+        patchSubjectLocally(row.id, { status: 'Active' })
+        try {
+          await updateFacultySubjectStatus(row.id, mapUiStatusToApi('Active'))
+          syncSingleFacultySubjectToLocal({ ...row, status: mapUiStatusToApi('Active') })
+        } catch (error) {
+          patchSubjectLocally(row.id, { status: previousStatus })
+          throw error
+        }
+      }
+      setSelectedIds([])
+      toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} enabled`)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Bulk enable failed'))
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirm || !selectedIds.length) return
+    const targets = getSelectedSubjects()
+    if (!targets.length) {
+      setBulkConfirm(null)
+      return
+    }
+
+    setBulkActionLoading(true)
+    try {
+      if (bulkConfirm.type === 'delete') {
+        for (const row of targets) {
+          const targetId = String(row.id)
+          await deleteFacultySubject(targetId)
+          removeSubjectLocally(targetId)
+          removeFacultySubjectFromLocalStorage(targetId)
+        }
+        setSelectedIds([])
+        toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} deleted`)
+        await refreshSubjects()
+      } else if (bulkConfirm.type === 'disable') {
+        for (const row of targets) {
+          const previousStatus = row.status
+          patchSubjectLocally(row.id, { status: 'In Active' })
+          try {
+            await updateFacultySubjectStatus(row.id, mapUiStatusToApi('In Active'))
+            syncSingleFacultySubjectToLocal({ ...row, status: mapUiStatusToApi('In Active') })
+          } catch (error) {
+            patchSubjectLocally(row.id, { status: previousStatus })
+            throw error
+          }
+        }
+        setSelectedIds([])
+        toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} disabled`)
+      }
+      setBulkConfirm(null)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Bulk action failed'))
+    } finally {
+      setBulkActionLoading(false)
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -213,6 +349,8 @@ export default function SubjectsPage() {
   const clearFilters = () => {
     setSearch('')
     setStatusFilter('all')
+    setTeacherFilter('all')
+    setCategoryFilter('all')
   }
 
   return (
@@ -226,15 +364,25 @@ export default function SubjectsPage() {
           iconClassName="text-[#246392]"
         />
 
-        <SubjectFilters
+        <SubjectListingToolbar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
+          onClearSearch={() => setSearch('')}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
+          teacher={teacherFilter}
+          onTeacherChange={(e) => setTeacherFilter(e.target.value)}
+          teacherOptions={teacherOptions}
+          category={categoryFilter}
+          onCategoryChange={(e) => setCategoryFilter(e.target.value)}
+          categoryOptions={categoryOptions}
+          onClearFilters={clearFilters}
+          hasActiveFilters={hasActiveFilters}
         />
 
         {showLoadError ? (
           <SubjectEmptyState
+            enhanced
             title="Could not load faculty subjects"
             description={loadError}
             actionLabel="Try again"
@@ -242,26 +390,36 @@ export default function SubjectsPage() {
           />
         ) : showEmpty ? (
           <SubjectEmptyState
-            description={`Create your first subject using the ${facultySubjectLabels.add} button above.`}
+            enhanced
+            title="No Subjects Available"
+            description="Create your first subject to get started."
+            primaryActionLabel={facultySubjectLabels.add}
+            onPrimaryAction={openCreate}
           />
         ) : showNoResults ? (
           <SubjectEmptyState
+            enhanced
+            title="No matching subjects"
             description="No subjects match your search or filter. Try adjusting your criteria."
             actionLabel="Clear filters"
             onAction={clearFilters}
           />
         ) : (
-          <div
-            className={cn(
-              'overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80',
-            )}
-          >
+          <div className="space-y-4">
+            <SubjectBulkToolbar
+              selectedCount={selectedIds.length}
+              onEnable={handleBulkEnableRequest}
+              onDisable={handleBulkDisableRequest}
+              onDelete={handleBulkDeleteRequest}
+              onClearSelection={() => setSelectedIds([])}
+            />
             <SubjectTable
-              data={subjects}
+              data={filteredSubjects}
               search={search}
               statusFilter={statusFilter}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
+              onToggleSelectPage={toggleSelectPage}
               onAddRow={openContentManagement}
               onView={handleView}
               onViewList={handleViewList}
@@ -299,6 +457,15 @@ export default function SubjectsPage() {
         subjects={subjects}
         onSubmit={handleSubjectModalSubmit}
         detailLoading={editDetailLoading || formSubmitting}
+      />
+
+      <SubjectBulkConfirmDialog
+        open={Boolean(bulkConfirm)}
+        type={bulkConfirm?.type}
+        count={bulkConfirm?.count || 0}
+        loading={bulkActionLoading}
+        onConfirm={confirmBulkAction}
+        onCancel={() => setBulkConfirm(null)}
       />
 
       <ConfirmDeleteDialog

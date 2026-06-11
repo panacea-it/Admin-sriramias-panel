@@ -1,70 +1,161 @@
-import { Eye, Pencil, Trash2, Upload, Copy, Play, Download, FileText, BarChart3 } from 'lucide-react'
+import { useMemo } from 'react'
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  Upload,
+  Copy,
+  Play,
+  Download,
+  FileText,
+  BarChart3,
+} from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { contentTypeFromCategoryType, CATEGORY_TYPES } from '../../utils/facultySubjectHierarchy'
+import ContentEmptyState from './ContentEmptyState'
+import ContentBulkToolbar from './ContentBulkToolbar'
 
-function ActionLink({ label, onClick, className, icon: Icon }) {
+function IconActionButton({ icon: Icon, label, onClick, variant = 'default', className }) {
+  const variants = {
+    default: 'text-slate-600 hover:bg-slate-100 hover:text-[#246392]',
+    view: 'text-[#246392] hover:bg-[#eef2fc] hover:text-[#1a3a5c]',
+    edit: 'text-[#686868] hover:bg-slate-100 hover:text-[#1a3a5c]',
+    delete: 'text-[#c96565] hover:bg-red-50 hover:text-[#b91c1c]',
+    success: 'text-emerald-700 hover:bg-emerald-50',
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
+      title={label}
+      aria-label={label}
       className={cn(
-        'inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium transition hover:opacity-80',
+        'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150',
+        'hover:scale-105 active:scale-95',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40 focus-visible:ring-offset-1',
+        variants[variant] || variants.default,
         className,
       )}
     >
-      {Icon && <Icon className="h-3.5 w-3.5" />}
-      {label}
+      <Icon className="h-4 w-4" strokeWidth={2} />
     </button>
   )
 }
 
-function TableShell({ columns, rows, emptyMessage }) {
-  if (!rows.length) {
-    return <p className="py-6 text-center text-sm text-slate-500">{emptyMessage}</p>
-  }
+function RowActions({ children }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
-        <thead>
-          <tr className="bg-[#1a3a5c] text-left text-xs font-semibold uppercase tracking-wide text-white">
-            {columns.map((col) => (
-              <th key={col.key} className="px-3 py-2.5 font-semibold">
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => (
-            <tr
-              key={row.id}
-              className={cn(
-                'border-b border-slate-100 transition',
-                idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]',
-                row.active && 'ring-1 ring-inset ring-[#55ace7]/40',
-              )}
-            >
-              {columns.map((col) => (
-                <td key={col.key} className="px-3 py-2.5 text-slate-700">
-                  {col.render(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <div className="flex items-center justify-end gap-0.5">{children}</div>
   )
 }
 
-function LiveActions({ row, onView, onEdit, onDelete, onPublish, onDuplicate }) {
+function CheckboxCell({ checked, onChange, label }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <ActionLink label="View" onClick={() => onView(row)} className="text-[#246392]" icon={Eye} />
-      <ActionLink label="Edit" onClick={() => onEdit(row)} className="text-[#686868]" icon={Pencil} />
-      <ActionLink label="Delete" onClick={() => onDelete(row)} className="text-[#c96565]" icon={Trash2} />
-      <ActionLink label="Publish" onClick={() => onPublish(row)} className="text-emerald-700" icon={Upload} />
-      <ActionLink label="Duplicate" onClick={() => onDuplicate(row)} className="text-slate-600" icon={Copy} />
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={label}
+      className="h-4 w-4 cursor-pointer rounded border-[#55ace7]/40 text-[#246392] transition focus:ring-2 focus:ring-[#55ace7]/40 focus:ring-offset-1"
+    />
+  )
+}
+
+function PremiumTable({
+  columns,
+  rows,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  allSelected,
+  someSelected,
+  onBulkDelete,
+  onBulkDisable,
+  onBulkEnable,
+  showEnableDisable = true,
+  emptyState,
+  activeItemId,
+}) {
+  const hasRows = rows.length > 0
+  const selectedCount = selectedIds.length
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
+      <ContentBulkToolbar
+        selectedCount={selectedCount}
+        onDelete={onBulkDelete}
+        onDisable={onBulkDisable}
+        onEnable={onBulkEnable}
+        showEnableDisable={showEnableDisable}
+      />
+
+      {!hasRows ? (
+        emptyState
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gradient-to-r from-[#55ace7] to-[#246392] text-left text-xs font-semibold uppercase tracking-wide text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)]">
+                <th className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
+                  <CheckboxCell
+                    checked={allSelected}
+                    onChange={onToggleSelectAll}
+                    label="Select all rows"
+                  />
+                </th>
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    className={cn(
+                      'whitespace-nowrap px-4 py-3.5 font-semibold',
+                      col.headerClassName,
+                    )}
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => {
+                const isSelected = selectedIds.includes(String(row.id))
+                const isActive = row.id === activeItemId
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-b border-slate-100/90 text-sm transition-colors duration-150',
+                      idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50',
+                      'hover:bg-[#f0f7ff]',
+                      isSelected && 'bg-[#eef2fc]/80',
+                      isActive && 'ring-1 ring-inset ring-[#55ace7]/30',
+                    )}
+                  >
+                    <td className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
+                      <CheckboxCell
+                        checked={isSelected}
+                        onChange={() => onToggleSelect(String(row.id))}
+                        label={`Select row ${row.id}`}
+                      />
+                    </td>
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={cn(
+                          'px-4 py-3.5 align-middle text-slate-700',
+                          col.cellClassName,
+                        )}
+                      >
+                        {col.render(row)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -73,6 +164,7 @@ export default function FolderContentList({
   categoryType,
   rows = [],
   activeItemId,
+  loading = false,
   onView,
   onEdit,
   onDelete,
@@ -83,8 +175,43 @@ export default function FolderContentList({
   onPreviewPdf,
   onStartTest,
   onEvaluate,
+  onAdd,
+  selectedIds = [],
+  onToggleSelect,
+  onToggleSelectAll,
+  onBulkDelete,
+  onBulkDisable,
+  onBulkEnable,
 }) {
   const contentType = contentTypeFromCategoryType(categoryType)
+  const rowIds = useMemo(() => rows.map((r) => String(r.id)), [rows])
+  const allSelected = rowIds.length > 0 && rowIds.every((id) => selectedIds.includes(id))
+  const someSelected = rowIds.some((id) => selectedIds.includes(id))
+
+  const tableRows = rows.map((r) => ({ ...r, active: r.id === activeItemId }))
+
+  const emptyState = (
+    <ContentEmptyState categoryType={categoryType} onAdd={onAdd} className="border-0 shadow-none" />
+  )
+
+  if (loading) {
+    return null
+  }
+
+  const sharedProps = {
+    rows: tableRows,
+    selectedIds,
+    onToggleSelect,
+    onToggleSelectAll,
+    allSelected,
+    someSelected,
+    onBulkDelete,
+    onBulkDisable,
+    onBulkEnable,
+    showEnableDisable: true,
+    emptyState,
+    activeItemId,
+  }
 
   if (contentType === 'live') {
     const columns = [
@@ -93,13 +220,9 @@ export default function FolderContentList({
         label: 'Class Title',
         render: (r) => <span className="font-semibold text-[#111]">{r.classTitle}</span>,
       },
-      { key: 'date', label: 'Date', render: (r) => r.date },
-      { key: 'time', label: 'Time', render: (r) => r.time },
-      {
-        key: 'faculty',
-        label: 'Faculty',
-        render: (r) => r.faculty,
-      },
+      { key: 'date', label: 'Date', render: (r) => <span className="text-slate-600">{r.date}</span> },
+      { key: 'time', label: 'Time', render: (r) => <span className="text-slate-600">{r.time}</span> },
+      { key: 'faculty', label: 'Faculty', render: (r) => r.faculty },
       { key: 'batch', label: 'Batch', render: (r) => r.batch },
       { key: 'center', label: 'Center', render: (r) => r.center },
       { key: 'classroom', label: 'Classroom', render: (r) => r.classroom },
@@ -109,7 +232,7 @@ export default function FolderContentList({
         render: (r) => (
           <span
             className={cn(
-              'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold text-white',
+              'inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-sm',
               r.liveStatus === 'Active' ? 'bg-[#69df66]' : 'bg-[#efb36d]',
             )}
           >
@@ -120,25 +243,20 @@ export default function FolderContentList({
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'text-right pr-5 sm:pr-6',
+        cellClassName: 'pr-5 sm:pr-6',
         render: (r) => (
-          <LiveActions
-            row={r}
-            onView={onView}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onPublish={onPublish}
-            onDuplicate={onDuplicate}
-          />
+          <RowActions>
+            <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
+            <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
+            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
+            <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
+            <IconActionButton icon={Copy} label="Duplicate" onClick={() => onDuplicate(r)} />
+          </RowActions>
         ),
       },
     ]
-    return (
-      <TableShell
-        columns={columns}
-        rows={rows.map((r) => ({ ...r, active: r.id === activeItemId }))}
-        emptyMessage="No classes yet. Click + Add Class to create one."
-      />
-    )
+    return <PremiumTable columns={columns} {...sharedProps} />
   }
 
   if (contentType === 'recording') {
@@ -146,37 +264,36 @@ export default function FolderContentList({
       {
         key: 'title',
         label: 'Video Title',
-        render: (r) => <span className="font-semibold">{r.videoTitle}</span>,
+        render: (r) => <span className="font-semibold text-[#111]">{r.videoTitle}</span>,
       },
       { key: 'duration', label: 'Duration', render: (r) => r.duration },
       {
         key: 'status',
         label: 'Status',
         render: (r) => (
-          <span className="font-medium text-[#246392]">{r.visibility || r.status}</span>
+          <span className="inline-flex rounded-lg bg-[#eef2fc] px-2.5 py-1 text-xs font-semibold text-[#246392]">
+            {r.visibility || r.status}
+          </span>
         ),
       },
       { key: 'views', label: 'Views', render: (r) => r.views },
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'text-right pr-5 sm:pr-6',
+        cellClassName: 'pr-5 sm:pr-6',
         render: (r) => (
-          <div className="flex flex-wrap gap-2">
-            <ActionLink label="Play" onClick={() => onPlay(r)} className="text-[#246392]" icon={Play} />
-            <ActionLink label="Edit" onClick={() => onEdit(r)} className="text-[#686868]" icon={Pencil} />
-            <ActionLink label="Delete" onClick={() => onDelete(r)} className="text-[#c96565]" icon={Trash2} />
-            <ActionLink label="Publish" onClick={() => onPublish(r)} className="text-emerald-700" icon={Upload} />
-          </div>
+          <RowActions>
+            <IconActionButton icon={Play} label="Play" onClick={() => onPlay(r)} variant="view" />
+            <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
+            <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
+            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
+            <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
+          </RowActions>
         ),
       },
     ]
-    return (
-      <TableShell
-        columns={columns}
-        rows={rows.map((r) => ({ ...r, active: r.id === activeItemId }))}
-        emptyMessage="No recordings yet. Click + Add Recording to upload."
-      />
-    )
+    return <PremiumTable columns={columns} {...sharedProps} />
   }
 
   if (contentType === 'test') {
@@ -184,33 +301,37 @@ export default function FolderContentList({
       {
         key: 'name',
         label: 'Test Name',
-        render: (r) => <span className="font-semibold">{r.testName}</span>,
+        render: (r) => <span className="font-semibold text-[#111]">{r.testName}</span>,
       },
       { key: 'questions', label: 'Questions', render: (r) => r.questions },
       { key: 'duration', label: 'Duration', render: (r) => r.duration },
-      { key: 'status', label: 'Status', render: (r) => r.status },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (r) => (
+          <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+            {r.status}
+          </span>
+        ),
+      },
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'text-right pr-5 sm:pr-6',
+        cellClassName: 'pr-5 sm:pr-6',
         render: (r) => (
-          <div className="flex flex-wrap gap-2">
-            <ActionLink label="Start Test" onClick={() => onStartTest(r)} className="text-[#246392]" icon={Play} />
-            <ActionLink label="Edit" onClick={() => onEdit(r)} className="text-[#686868]" icon={Pencil} />
-            <ActionLink label="Delete" onClick={() => onDelete(r)} className="text-[#c96565]" icon={Trash2} />
-            <ActionLink label="Publish" onClick={() => onPublish(r)} className="text-emerald-700" icon={Upload} />
-            <ActionLink label="Preview" onClick={() => onView(r)} className="text-slate-600" icon={Eye} />
-            <ActionLink label="Results" onClick={() => onView(r)} className="text-slate-600" icon={BarChart3} />
-          </div>
+          <RowActions>
+            <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
+            <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
+            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
+            <IconActionButton icon={Play} label="Start Test" onClick={() => onStartTest(r)} />
+            <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
+            <IconActionButton icon={BarChart3} label="Results" onClick={() => onView(r)} />
+          </RowActions>
         ),
       },
     ]
-    return (
-      <TableShell
-        columns={columns}
-        rows={rows.map((r) => ({ ...r, active: r.id === activeItemId }))}
-        emptyMessage="No tests yet. Click + Add Test Series to configure."
-      />
-    )
+    return <PremiumTable columns={columns} {...sharedProps} />
   }
 
   if (categoryType === CATEGORY_TYPES.MAINS_ANSWER_WRITING) {
@@ -218,31 +339,35 @@ export default function FolderContentList({
       {
         key: 'title',
         label: 'Assignment Title',
-        render: (r) => <span className="font-semibold">{r.assignmentTitle}</span>,
+        render: (r) => <span className="font-semibold text-[#111]">{r.assignmentTitle}</span>,
       },
       { key: 'due', label: 'Due Date', render: (r) => r.dueDate },
-      { key: 'status', label: 'Status', render: (r) => r.status },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (r) => (
+          <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+            {r.status}
+          </span>
+        ),
+      },
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'text-right pr-5 sm:pr-6',
+        cellClassName: 'pr-5 sm:pr-6',
         render: (r) => (
-          <div className="flex flex-wrap gap-2">
-            <ActionLink label="View" onClick={() => onView(r)} className="text-[#246392]" icon={Eye} />
-            <ActionLink label="Edit" onClick={() => onEdit(r)} className="text-[#686868]" icon={Pencil} />
-            <ActionLink label="Delete" onClick={() => onDelete(r)} className="text-[#c96565]" icon={Trash2} />
-            <ActionLink label="Publish" onClick={() => onPublish(r)} className="text-emerald-700" icon={Upload} />
-            <ActionLink label="Evaluate" onClick={() => onEvaluate(r)} className="text-slate-600" icon={BarChart3} />
-          </div>
+          <RowActions>
+            <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
+            <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
+            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
+            <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
+            <IconActionButton icon={BarChart3} label="Evaluate" onClick={() => onEvaluate(r)} />
+          </RowActions>
         ),
       },
     ]
-    return (
-      <TableShell
-        columns={columns}
-        rows={rows.map((r) => ({ ...r, active: r.id === activeItemId }))}
-        emptyMessage="No assignments yet. Click + Add Assignment."
-      />
-    )
+    return <PremiumTable columns={columns} {...sharedProps} />
   }
 
   if (contentType === 'pdf') {
@@ -251,7 +376,7 @@ export default function FolderContentList({
         key: 'name',
         label: 'PDF Name',
         render: (r) => (
-          <span className="inline-flex items-center gap-2 font-semibold">
+          <span className="inline-flex items-center gap-2 font-semibold text-[#111]">
             <FileText className="h-4 w-4 text-red-500" />
             {r.pdfName}
           </span>
@@ -262,23 +387,19 @@ export default function FolderContentList({
       {
         key: 'actions',
         label: 'Actions',
+        headerClassName: 'text-right pr-5 sm:pr-6',
+        cellClassName: 'pr-5 sm:pr-6',
         render: (r) => (
-          <div className="flex flex-wrap gap-2">
-            <ActionLink label="Preview" onClick={() => onPreviewPdf(r)} className="text-[#246392]" icon={Eye} />
-            <ActionLink label="Download" onClick={() => onDownload(r)} className="text-slate-600" icon={Download} />
-            <ActionLink label="Edit" onClick={() => onEdit(r)} className="text-[#686868]" icon={Pencil} />
-            <ActionLink label="Delete" onClick={() => onDelete(r)} className="text-[#c96565]" icon={Trash2} />
-          </div>
+          <RowActions>
+            <IconActionButton icon={Eye} label="View" onClick={() => onPreviewPdf(r)} variant="view" />
+            <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
+            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
+            <IconActionButton icon={Download} label="Download" onClick={() => onDownload(r)} />
+          </RowActions>
         ),
       },
     ]
-    return (
-      <TableShell
-        columns={columns}
-        rows={rows.map((r) => ({ ...r, active: r.id === activeItemId }))}
-        emptyMessage="No PDFs yet. Click + Add PDF to upload."
-      />
-    )
+    return <PremiumTable columns={columns} {...sharedProps} showEnableDisable={false} />
   }
 
   return null

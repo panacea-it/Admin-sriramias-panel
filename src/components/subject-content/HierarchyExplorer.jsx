@@ -293,13 +293,13 @@ export default function HierarchyExplorer({
         )}
 
         <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#55ace7]/70" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search topics..."
-            className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-xs focus:border-[#55ace7] focus:outline-none"
+            className="w-full rounded-xl border border-slate-200/80 bg-slate-50/80 py-2.5 pl-9 pr-4 text-sm text-[#1a3a5c] shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#55ace7] focus:bg-white focus:ring-2 focus:ring-[#55ace7]/20"
           />
         </div>
       </div>

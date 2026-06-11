@@ -47,6 +47,7 @@ export default function RecurringScheduleSection({
   teacher = '',
   subjectId = '',
   actorName = 'Admin',
+  hideRepeatEveryUnlessCustom = false,
 }) {
   const rule = recurrence
     ? {
@@ -78,6 +79,29 @@ export default function RecurringScheduleSection({
   }, [enabled, dates, lessons, anchorTime, teacher, subjectId, excludeLessonIds])
 
   const patch = (updates) => onRecurrenceChange({ ...rule, ...updates })
+
+  const repeatType = rule.repeatType || 'weekly'
+  const isCustomRepeat = repeatType === 'custom'
+  const customRepeatEveryValue =
+    rule.repeatEvery === '' || rule.repeatEvery == null ? 0 : Number(rule.repeatEvery)
+
+  const handleRepeatTypeChange = (nextType) => {
+    if (nextType === 'custom' && repeatType !== 'custom') {
+      patch({ repeatType: nextType, repeatEvery: 0 })
+      return
+    }
+    patch({ repeatType: nextType })
+  }
+
+  const handleCustomRepeatEveryChange = (e) => {
+    const raw = e.target.value
+    if (raw === '') {
+      patch({ repeatEvery: 0 })
+      return
+    }
+    const parsed = Number(raw)
+    patch({ repeatEvery: Number.isFinite(parsed) ? parsed : 0 })
+  }
 
   const toggleWeekday = (value) => {
     const current = rule.weekdays || []
@@ -123,7 +147,12 @@ export default function RecurringScheduleSection({
               </span>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div
+              className={cn(
+                'grid gap-4 sm:grid-cols-2',
+                hideRepeatEveryUnlessCustom ? 'lg:grid-cols-3' : 'lg:grid-cols-4',
+              )}
+            >
               <CourseFormField label="Recurring start date" required>
                 <CourseInput
                   type="date"
@@ -138,19 +167,21 @@ export default function RecurringScheduleSection({
                   onChange={(e) => patch({ endDate: e.target.value })}
                 />
               </CourseFormField>
-              <CourseFormField label="Repeat every">
-                <CourseInput
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={rule.repeatEvery ?? 1}
-                  onChange={(e) => patch({ repeatEvery: Number(e.target.value) || 1 })}
-                />
-              </CourseFormField>
+              {!hideRepeatEveryUnlessCustom && (
+                <CourseFormField label="Repeat every">
+                  <CourseInput
+                    type="number"
+                    min={1}
+                    max={52}
+                    value={rule.repeatEvery ?? 1}
+                    onChange={(e) => patch({ repeatEvery: Number(e.target.value) || 1 })}
+                  />
+                </CourseFormField>
+              )}
               <CourseFormField label="Repeat type">
                 <CourseSelect
-                  value={rule.repeatType || 'weekly'}
-                  onChange={(e) => patch({ repeatType: e.target.value })}
+                  value={repeatType}
+                  onChange={(e) => handleRepeatTypeChange(e.target.value)}
                 >
                   {REPEAT_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -161,7 +192,38 @@ export default function RecurringScheduleSection({
               </CourseFormField>
             </div>
 
-            {rule.repeatType === 'weekly' && (
+            {hideRepeatEveryUnlessCustom && (
+              <AnimatePresence initial={false}>
+                {isCustomRepeat && (
+                  <motion.div
+                    key="repeat-every-custom"
+                    initial={{ opacity: 0, height: 0, y: -6 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -6 }}
+                    transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <CourseFormField label="Repeat every">
+                        <CourseInput
+                          type="number"
+                          min={0}
+                          max={52}
+                          value={customRepeatEveryValue}
+                          onChange={handleCustomRepeatEveryChange}
+                        />
+                      </CourseFormField>
+                      <p className="flex items-end pb-2.5 text-sm font-medium text-[#686868]">
+                        Custom every {customRepeatEveryValue} day
+                        {customRepeatEveryValue === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+
+            {repeatType === 'weekly' && (
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#686868]">
                   Repeat on weekdays
@@ -179,7 +241,7 @@ export default function RecurringScheduleSection({
               </div>
             )}
 
-            {rule.repeatType === 'monthly' && (
+            {repeatType === 'monthly' && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <CourseFormField label="Monthly pattern">
                   <CourseSelect

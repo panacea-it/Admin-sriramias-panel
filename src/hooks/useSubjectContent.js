@@ -1,25 +1,65 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createContentFolder,
   deleteContentFolder,
   getContentFolders,
   updateContentFolder,
 } from '../api/facultySubjectFoldersAPI'
-import { getApiErrorMessage } from '../utils/apiError'
 import { buildSystemCategoriesFromSubject } from '../utils/facultySubjectHierarchy'
 import {
   mapCategoryTypeToApi,
   normalizeCreatedFolderResponse,
   normalizeFoldersListResponse,
 } from '../utils/facultySubjectFolderHelpers'
-import { generateContentId } from '../utils/facultySubjectContentStorage'
-import { isMongoObjectId } from '../utils/facultySubjectHelpers'
+import { isMongoObjectId, mapApiCategoriesToUi } from '../utils/facultySubjectHelpers'
+import {
+  generateContentId,
+  loadSubjectContent,
+  saveSubjectContent,
+} from '../utils/facultySubjectContentStorage'
+
+function buildSubjectForCategories(subjectMeta) {
+  if (!subjectMeta) return subjectMeta
+  return {
+    ...subjectMeta,
+    categories: mapApiCategoriesToUi(subjectMeta.categories),
+  }
+}
+
+function buildContentSnapshot(subjectId, subjectMeta, categories) {
+  return {
+    subjectId: String(subjectId),
+    subjectName: subjectMeta?.subjectName || '',
+    categoryIds: mapApiCategoriesToUi(subjectMeta?.categories),
+    facultyName: subjectMeta?.teacher || '',
+    categories,
+  }
+}
+
+function resolveStoredFolders(storedContent, categoryType) {
+  return (
+    storedContent?.categories?.find((c) => c.categoryType === categoryType)?.folders || []
+  )
+}
+
+function mergeFolderLists(apiFolders, storedFolders, preservedFolders) {
+  if (apiFolders?.length) return apiFolders
+  if (storedFolders?.length) return storedFolders
+  return preservedFolders || []
+}
 
 export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId } = {}) {
-  const [content, setContent] = useState(null)
+  const [content, setContent] = useState(() => {
+    if (!subjectId) return null
+    const stored = loadSubjectContent(subjectId, subjectMeta)
+    return stored?.categories?.length ? stored : null
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const abortRef = useRef(null)
+  const contentRef = useRef(null)
+
+  contentRef.current = content
 
   const resolvedFacultySubjectId = isMongoObjectId(facultySubjectApiId)
     ? String(facultySubjectApiId)
@@ -27,12 +67,19 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
       ? String(subjectId)
       : ''
 
+  const subjectLoadKey = useMemo(() => {
+    const cats = mapApiCategoriesToUi(subjectMeta?.categories)
+    return `${resolvedFacultySubjectId}:${JSON.stringify([...cats].sort())}`
+  }, [resolvedFacultySubjectId, subjectMeta?.categories])
+
   const loadFoldersForCategory = useCallback(
-    async (categoryType, { signal } = {}) => {
+    async (categoryType, { signal, bypassCache = false } = {}) => {
       if (!resolvedFacultySubjectId || !categoryType) return []
-      const data = await getContentFolders(resolvedFacultySubjectId, mapCategoryTypeToApi(categoryType), {
-        signal,
-      })
+      const data = await getContentFolders(
+        resolvedFacultySubjectId,
+        mapCategoryTypeToApi(categoryType),
+        { signal, bypassCache },
+      )
       return normalizeFoldersListResponse(data)
     },
     [resolvedFacultySubjectId],
@@ -45,82 +92,107 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
     const controller = new AbortController()
     abortRef.current = controller
 
-    setLoading(true)
-    try {
-      const baseCategories = buildSystemCategoriesFromSubject(subjectMeta)
+    const subjectForCategories = buildSubjectForCategories(subjectMeta)
+    const baseCategories = buildSystemCategoriesFromSubject(subjectForCategories)
+    const storedContent = loadSubjectContent(subjectId, subjectForCategories)
+    const existingContent =
+      contentRef.current?.subjectId === String(subjectId) ? contentRef.current : storedContent
+    const showInitialLoading = !existingContent?.categories?.some((c) => c.folders?.length)
 
+    if (showInitialLoading) setLoading(true)
+
+    try {
       if (!resolvedFacultySubjectId) {
-        setContent({
-          subjectId: String(subjectId),
-          subjectName: subjectMeta?.subjectName || '',
-          categoryIds: subjectMeta?.categories || [],
-          facultyName: subjectMeta?.teacher || '',
-          categories: baseCategories,
-        })
+        if (controller.signal.aborted) return
+        setContent(buildContentSnapshot(subjectId, subjectMeta, baseCategories))
         return
       }
 
       const categories = await Promise.all(
         baseCategories.map(async (cat) => {
+          if (controller.signal.aborted) return { ...cat, folders: [] }
+          const preserved =
+            existingContent?.categories?.find((c) => c.id === cat.id)?.folders || []
+          const storedFolders = resolveStoredFolders(storedContent, cat.categoryType)
           try {
             const folders = await loadFoldersForCategory(cat.categoryType, {
               signal: controller.signal,
             })
-            return { ...cat, folders }
+            return {
+              ...cat,
+              folders: mergeFolderLists(folders, storedFolders, preserved),
+            }
           } catch (error) {
             if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
-            if (import.meta.env.DEV) console.warn(`Folders load failed for ${cat.categoryType}`, error)
-            return { ...cat, folders: [] }
+            if (import.meta.env.DEV) {
+              console.warn(`Folders load failed for ${cat.categoryType}`, error)
+            }
+            return { ...cat, folders: mergeFolderLists([], storedFolders, preserved) }
           }
         }),
       )
 
       if (controller.signal.aborted) return
 
-      setContent({
-        subjectId: String(subjectId),
-        subjectName: subjectMeta?.subjectName || '',
-        categoryIds: subjectMeta?.categories || [],
-        facultyName: subjectMeta?.teacher || '',
-        categories,
-      })
+      const snapshot = buildContentSnapshot(subjectId, subjectMeta, categories)
+      setContent(snapshot)
+      try {
+        saveSubjectContent(snapshot, subjectForCategories)
+      } catch {
+        /* ignore storage failures */
+      }
     } catch (error) {
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
       if (import.meta.env.DEV) console.error(error)
-      setContent({
-        subjectId: String(subjectId),
-        subjectName: subjectMeta?.subjectName || '',
-        categoryIds: subjectMeta?.categories || [],
-        facultyName: subjectMeta?.teacher || '',
-        categories: buildSystemCategoriesFromSubject(subjectMeta),
+      const fallbackCategories = buildSystemCategoriesFromSubject(subjectForCategories)
+      const mergedCategories = fallbackCategories.map((cat) => {
+        const preserved =
+          contentRef.current?.categories?.find((c) => c.id === cat.id)?.folders ||
+          resolveStoredFolders(storedContent, cat.categoryType)
+        return { ...cat, folders: preserved }
       })
+      const snapshot = buildContentSnapshot(subjectId, subjectMeta, mergedCategories)
+      setContent(snapshot)
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
   }, [subjectId, subjectMeta, resolvedFacultySubjectId, loadFoldersForCategory])
 
   useEffect(() => {
+    if (!subjectLoadKey && !subjectId) return undefined
     load()
     return () => abortRef.current?.abort()
-  }, [load])
+  }, [subjectLoadKey, subjectId, load])
 
   const reloadCategoryFolders = useCallback(
     async (categoryId) => {
       if (!content || !resolvedFacultySubjectId) return
       const cat = content.categories.find((c) => c.id === categoryId)
       if (!cat) return
-      const folders = await loadFoldersForCategory(cat.categoryType)
+      const folders = await loadFoldersForCategory(cat.categoryType, { bypassCache: true })
       setContent((prev) => {
         if (!prev) return prev
-        return {
+        const storedFolders = resolveStoredFolders(loadSubjectContent(subjectId, subjectMeta), cat.categoryType)
+        const merged = mergeFolderLists(
+          folders,
+          storedFolders,
+          prev.categories.find((c) => c.id === categoryId)?.folders,
+        )
+        const next = {
           ...prev,
           categories: prev.categories.map((c) =>
-            c.id === categoryId ? { ...c, folders } : c,
+            c.id === categoryId ? { ...c, folders: merged } : c,
           ),
         }
+        try {
+          saveSubjectContent(next, subjectMeta)
+        } catch {
+          /* ignore */
+        }
+        return next
       })
     },
-    [content, resolvedFacultySubjectId, loadFoldersForCategory],
+    [content, resolvedFacultySubjectId, loadFoldersForCategory, subjectId, subjectMeta],
   )
 
   const createFolder = useCallback(

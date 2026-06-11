@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Layers } from 'lucide-react'
 import SubjectHeader from '../../components/subjects/SubjectHeader'
-import SubjectFilters from '../../components/subjects/SubjectFilters'
+import LiveClassListingToolbar from '../../components/subjects/LiveClassListingToolbar'
 import TopicTable from '../../components/subjects/TopicTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
@@ -17,7 +17,6 @@ import { buildLiveClassesFromRecurrence } from '../../utils/academicsSubjectsRec
 import { syncSubjectLiveClassesToModule } from '../../utils/subjectModuleSync'
 import { formatSubjectViewTitle } from '../../utils/academicsSubjectsStorage'
 import { toast } from '../../utils/toast'
-import { cn } from '../../utils/cn'
 
 export default function SubjectViewListPage() {
   const { id } = useParams()
@@ -172,6 +171,24 @@ export default function SubjectViewListPage() {
     )
   }
 
+  const toggleSelectPage = (pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (select) {
+        const merged = new Set([...prev, ...pageIds])
+        return [...merged]
+      }
+      return prev.filter((id) => !pageIds.includes(id))
+    })
+  }
+
+  const hasActiveFilters = statusFilter !== 'all' || categoryFilter !== 'all' || search.trim() !== ''
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setCategoryFilter('all')
+  }
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || deleteLoading || !subject) return
     const targetId = String(deleteTarget.id)
@@ -213,39 +230,41 @@ export default function SubjectViewListPage() {
           iconClassName="text-[#246392]"
         />
 
-        <SubjectFilters
+        <LiveClassListingToolbar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
+          onClearSearch={() => setSearch('')}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           category={categoryFilter}
           onCategoryChange={(e) => setCategoryFilter(e.target.value)}
           showCategoryFilter
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
         />
 
         {filtered.length === 0 && liveClasses.length === 0 ? (
           <SubjectEmptyState
-            title="No Live Classes"
-            description="Add a live class for this subject using the Add button above."
+            enhanced
+            title="No Live Classes Found"
+            description="Schedule your first live class for this subject to get started."
+            primaryActionLabel="Add Live Class"
+            onPrimaryAction={openCreate}
           />
         ) : (
-          <div
-            className={cn(
-              'overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80',
-            )}
-          >
-            <TopicTable
-              data={filtered}
-              search={search}
-              statusFilter={statusFilter}
-              categoryFilter={categoryFilter}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-              onEdit={openEdit}
-              onDelete={handleDeleteRequest}
-              onStatusChange={handleLiveClassStatusChange}
-            />
-          </div>
+          <TopicTable
+            data={filtered}
+            search={search}
+            statusFilter={statusFilter}
+            categoryFilter={categoryFilter}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectPage={toggleSelectPage}
+            onEdit={openEdit}
+            onDelete={handleDeleteRequest}
+            onStatusChange={handleLiveClassStatusChange}
+            emptyMessage="No live classes match your search or filters."
+          />
         )}
 
         <div className="flex justify-start">

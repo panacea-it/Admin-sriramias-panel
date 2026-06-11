@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { useForm } from 'react-hook-form'
 import { BookOpen } from 'lucide-react'
+import ModalCloseButton from './ModalCloseButton'
 import { toast } from '@/utils/toast'
 import SubjectModalShell from './SubjectModalShell'
 import SubjectCourseDetailsSection from './SubjectCourseDetailsSection'
@@ -215,13 +216,7 @@ export default function SubjectModal({
               </div>
               <h2 className="text-lg font-bold text-white sm:text-xl">{title}</h2>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm font-semibold text-white underline-offset-2 transition hover:underline"
-            >
-              Go Back
-            </button>
+            <ModalCloseButton onClick={onClose} aria-label="Close modal" />
           </div>
         </div>
 

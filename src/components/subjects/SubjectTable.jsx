@@ -1,8 +1,9 @@
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
-import SubjectStatusToggle from './SubjectStatusToggle'
-import { SubjectRowActions } from './ActionButtons'
-import TableValueChips from './TableValueChips'
+import SubjectListingStatus from './SubjectListingStatus'
+import SubjectRowActionsMenu, { tableActionsCellClass } from './SubjectRowActionsMenu'
+import SubjectChipPopover from './SubjectChipPopover'
+import AdminTooltip from './AdminTooltip'
 import {
   deriveLiveStatus,
   deriveRecordingStatus,
@@ -12,18 +13,11 @@ import {
 import { normalizeTestSeriesBlock } from '../../utils/batchTestSeriesForm'
 import { parseDateForDisplay } from '../../utils/academicsSubjectsStorage'
 
-function IdCell({ id, displayId, selected, onToggleSelect }) {
+function SecondaryCell({ children, title }) {
   return (
-    <div className="flex items-center gap-3">
-      <input
-        type="checkbox"
-        checked={Boolean(selected)}
-        onChange={() => onToggleSelect?.(String(id))}
-        aria-label={`Select subject ${displayId || id}`}
-        className="h-4 w-4 shrink-0 cursor-pointer rounded border-[#55ace7]/40 text-[#246392] focus:ring-[#55ace7]/50"
-      />
-      <span className="font-mono text-sm font-semibold text-[#111]">{displayId || id}</span>
-    </div>
+    <span className="text-xs text-slate-600" title={title}>
+      {children}
+    </span>
   )
 }
 
@@ -39,6 +33,7 @@ export default function SubjectTable({
   statusFilter,
   selectedIds = [],
   onToggleSelect,
+  onToggleSelectPage,
   emptyMessage = `No ${facultySubjectLabels.plural.toLowerCase()} found.`,
   loading = false,
   controlledPagination,
@@ -48,94 +43,38 @@ export default function SubjectTable({
     {
       key: 'id',
       label: 'ID',
+      headerClassName: 'w-[88px]',
+      cellClassName: 'w-[88px]',
       render: (row) => (
-        <IdCell
-          id={row.id}
-          displayId={row.displayId || row.facultySubjectId}
-          selected={selectedIds.includes(String(row.id))}
-          onToggleSelect={onToggleSelect}
-        />
+        <AdminTooltip label={`Subject ID: ${row.displayId || row.facultySubjectId || row.id}`}>
+          <span className="font-mono text-xs font-bold tracking-tight text-[#1a3a5c]">
+            {row.displayId || row.facultySubjectId || row.id}
+          </span>
+        </AdminTooltip>
       ),
     },
     {
       key: 'subjectName',
       label: facultySubjectLabels.singular,
+      headerClassName: 'min-w-[140px]',
       render: (row) => (
-        <span className="font-semibold text-[#111]">{row.subjectName}</span>
+        <span className="text-sm font-bold text-[#111]">{row.subjectName}</span>
       ),
     },
     {
       key: 'teacher',
       label: 'Teacher',
-      render: (row) => <span className="text-sm text-[#444]">{row.teacher || '—'}</span>,
-    },
-    {
-      key: 'topics',
-      label: 'Topics',
+      headerClassName: 'min-w-[120px]',
       render: (row) => (
-        <TableValueChips
-          values={Array.isArray(row.topics) ? row.topics : row.topic ? [row.topic] : []}
-        />
+        <SecondaryCell title={row.teacher}>{row.teacher || '—'}</SecondaryCell>
       ),
-    },
-    {
-      key: 'categories',
-      label: 'Categories',
-      render: (row) => (
-        <TableValueChips values={normalizeCategories(row.categories ?? row.category)} />
-      ),
-    },
-    {
-      key: 'liveStatus',
-      label: 'Live Class Status',
-      render: (row) => (
-        <span className="text-sm text-[#444]">{deriveLiveStatus(row)}</span>
-      ),
-    },
-    {
-      key: 'recordingStatus',
-      label: 'Recording Status',
-      render: (row) => (
-        <span className="text-sm text-[#444]">{deriveRecordingStatus(row)}</span>
-      ),
-    },
-    {
-      key: 'testSeriesStatus',
-      label: 'Test Series Status',
-      render: (row) => (
-        <span className="text-sm text-[#444]">{deriveTestSeriesStatus(row)}</span>
-      ),
-    },
-    {
-      key: 'totalQuestions',
-      label: 'Total Questions',
-      render: (row) => {
-        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
-        const count = ts?.questions?.length ?? 0
-        return <span className="text-sm font-medium text-[#444]">{count || '—'}</span>
-      },
-    },
-    {
-      key: 'scheduledDate',
-      label: 'Scheduled Date',
-      render: (row) => {
-        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
-        const date = ts?.schedule?.date || ts?.scheduleDate
-        const time = ts?.schedule?.time || ts?.scheduleTime
-        if (!date) return <span className="text-sm text-[#444]">—</span>
-        return (
-          <span className="text-sm text-[#444]">
-            {parseDateForDisplay(date)}
-            {time ? ` · ${time}` : ''}
-          </span>
-        )
-      },
     },
     {
       key: 'status',
       label: 'Status',
+      headerClassName: 'min-w-[130px]',
       render: (row) => (
-        <SubjectStatusToggle
+        <SubjectListingStatus
           status={row.status}
           disabled={statusChangingId === row.id}
           onChange={(next) => onStatusChange?.(row, next)}
@@ -143,23 +82,111 @@ export default function SubjectTable({
       ),
     },
     {
+      key: 'topics',
+      label: 'Topics',
+      headerClassName: 'min-w-[150px] hidden lg:table-cell',
+      cellClassName: 'hidden lg:table-cell',
+      render: (row) => (
+        <SubjectChipPopover
+          values={Array.isArray(row.topics) ? row.topics : row.topic ? [row.topic] : []}
+          tooltipLabel="All topics"
+        />
+      ),
+    },
+    {
+      key: 'categories',
+      label: 'Categories',
+      headerClassName: 'min-w-[150px] hidden md:table-cell',
+      cellClassName: 'hidden md:table-cell',
+      render: (row) => (
+        <SubjectChipPopover
+          values={normalizeCategories(row.categories ?? row.category)}
+          tooltipLabel="All categories"
+        />
+      ),
+    },
+    {
+      key: 'liveStatus',
+      label: 'Live',
+      headerClassName: 'hidden xl:table-cell w-[90px]',
+      cellClassName: 'hidden xl:table-cell',
+      render: (row) => (
+        <SecondaryCell>{deriveLiveStatus(row)}</SecondaryCell>
+      ),
+    },
+    {
+      key: 'recordingStatus',
+      label: 'Recording',
+      headerClassName: 'hidden xl:table-cell w-[90px]',
+      cellClassName: 'hidden xl:table-cell',
+      render: (row) => (
+        <SecondaryCell>{deriveRecordingStatus(row)}</SecondaryCell>
+      ),
+    },
+    {
+      key: 'testSeriesStatus',
+      label: 'Test',
+      headerClassName: 'hidden 2xl:table-cell w-[100px]',
+      cellClassName: 'hidden 2xl:table-cell',
+      render: (row) => (
+        <SecondaryCell>{deriveTestSeriesStatus(row)}</SecondaryCell>
+      ),
+    },
+    {
+      key: 'totalQuestions',
+      label: 'Questions',
+      headerClassName: 'hidden 2xl:table-cell w-[88px] text-center',
+      cellClassName: 'hidden 2xl:table-cell text-center',
+      render: (row) => {
+        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
+        const count = ts?.questions?.length ?? 0
+        return <SecondaryCell>{count || '—'}</SecondaryCell>
+      },
+    },
+    {
+      key: 'scheduledDate',
+      label: 'Scheduled',
+      headerClassName: 'hidden 2xl:table-cell min-w-[120px]',
+      cellClassName: 'hidden 2xl:table-cell',
+      render: (row) => {
+        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
+        const date = ts?.schedule?.date || ts?.scheduleDate
+        const time = ts?.schedule?.time || ts?.scheduleTime
+        if (!date) return <SecondaryCell>—</SecondaryCell>
+        return (
+          <SecondaryCell>
+            {parseDateForDisplay(date)}
+            {time ? ` · ${time}` : ''}
+          </SecondaryCell>
+        )
+      },
+    },
+    {
       key: 'actions',
       label: 'Actions',
-      headerClassName: 'whitespace-nowrap text-center',
-      cellClassName: 'align-middle whitespace-nowrap',
+      headerClassName: 'text-right',
+      cellClassName: tableActionsCellClass,
       render: (row) => (
-        <div className="flex justify-center py-1">
-          <SubjectRowActions
-            onAdd={() => onAddRow(row)}
-            onView={() => onView?.(row)}
-            onViewList={() => onViewList(row)}
-            onEdit={() => onEdit(row)}
-            onDelete={() => onDelete(row)}
-          />
-        </div>
+        <SubjectRowActionsMenu
+          onView={() => onView?.(row)}
+          onEdit={() => onEdit(row)}
+          onAdd={() => onAddRow(row)}
+          onViewList={() => onViewList(row)}
+          onDelete={() => onDelete(row)}
+        />
       ),
     },
   ]
+
+  const selection =
+    onToggleSelect && onToggleSelectPage
+      ? {
+          selectedIds,
+          onToggle: onToggleSelect,
+          onTogglePage: onToggleSelectPage,
+          getRowId: (row) => String(row.id),
+        }
+      : undefined
 
   return (
     <PaginatedFigmaTable
@@ -168,9 +195,19 @@ export default function SubjectTable({
       emptyMessage={emptyMessage}
       itemLabel="subjects"
       resetDeps={[search, statusFilter]}
-      rowClassName="transition-colors hover:bg-[#f8fbff]"
+      rowClassName="cursor-default transition-colors duration-200 hover:bg-[#eef6fc]/80"
       loading={loading}
       controlledPagination={controlledPagination}
+      selection={selection}
+      density="compact"
+      zebraStriping
+      stickyHeader
+      stickyLastColumn
+      animateRows
+      skeletonRowCount={8}
+      tableMinWidth={960}
+      className="overflow-hidden rounded-xl border border-slate-100/80 shadow-[0_4px_20px_rgba(15,23,42,0.06)]"
+      tableClassName="rounded-xl"
     />
   )
 }

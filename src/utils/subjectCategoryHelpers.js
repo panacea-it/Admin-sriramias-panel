@@ -9,8 +9,22 @@ const LEGACY_CATEGORY_ALIASES = {
   'Test Series': TEST_SERIES_CATEGORY,
 }
 
+/** API enum values from GET /faculty-subjects → UI labels used in content explorer */
+const API_CATEGORY_LABELS = {
+  LIVE_CLASS: LIVE_CATEGORY,
+  RECORDING: RECORDED_CATEGORY,
+  RECORDED_CLASS: RECORDED_CATEGORY,
+  PRELIMS_TEST: TEST_SERIES_CATEGORY,
+  TEST_SERIES: TEST_SERIES_CATEGORY,
+  PDF: PDF_CATEGORY,
+  MAINS_ANSWER_WRITING: MAINS_ANSWER_WRITING_CATEGORY,
+}
+
 export function canonicalCategory(value) {
   const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+  const upper = trimmed.toUpperCase()
+  if (API_CATEGORY_LABELS[upper]) return API_CATEGORY_LABELS[upper]
   return LEGACY_CATEGORY_ALIASES[trimmed] || trimmed
 }
 

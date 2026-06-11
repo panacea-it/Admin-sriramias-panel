@@ -255,13 +255,21 @@ export function buildFacultySubjectApiPayload(form) {
 
 export function normalizeFacultySubjectsListResponse(data, { page = 1, limit = 10 } = {}) {
   const payload =
-    data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
+    data?.data != null && typeof data.data === 'object' && !Array.isArray(data.data)
+      ? data.data
+      : data
+
   const itemsRaw = Array.isArray(data?.data)
     ? data.data
-    : payload?.items ??
-      payload?.results ??
-      payload?.subjects ??
-      (Array.isArray(payload) ? payload : [])
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.facultySubjects ??
+        payload?.subjects ??
+        payload?.items ??
+        payload?.results ??
+        data?.facultySubjects ??
+        data?.subjects ??
+        (Array.isArray(payload) ? payload : [])
 
   const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
     .map((row) => {
@@ -273,12 +281,22 @@ export function normalizeFacultySubjectsListResponse(data, { page = 1, limit = 1
     })
     .filter(Boolean)
 
-  const total = data?.total ?? payload?.total ?? items.length
+  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
+  const total =
+    pagination.total ??
+    payload?.total ??
+    data?.total ??
+    payload?.totalCount ??
+    data?.totalCount ??
+    payload?.count ??
+    data?.count ??
+    items.length
   const totalPages =
-    data?.totalPages ??
+    pagination.totalPages ??
     payload?.totalPages ??
+    data?.totalPages ??
     Math.max(1, Math.ceil(total / limit) || 1)
-  const currentPage = data?.page ?? payload?.page ?? page
+  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
 
   return {
     items,

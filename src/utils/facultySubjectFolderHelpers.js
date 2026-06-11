@@ -41,7 +41,7 @@ function normalizeFolderItem(item) {
 
 export function normalizeFolderFromApi(row) {
   if (!row || typeof row !== 'object') return null
-  const id = String(row._id ?? row.id ?? '').trim()
+  const id = String(row._id ?? row.id ?? row.folderId ?? '').trim()
   if (!id) return null
   return {
     id,
@@ -59,13 +59,24 @@ export function normalizeFolderFromApi(row) {
 }
 
 export function normalizeFoldersListResponse(data) {
+  const payload =
+    data?.data != null && typeof data.data === 'object' && !Array.isArray(data.data)
+      ? data.data
+      : data
+
   const list = Array.isArray(data?.data)
     ? data.data
-    : Array.isArray(data?.items)
-      ? data.items
-      : Array.isArray(data)
-        ? data
-        : []
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.folders ??
+        payload?.contentFolders ??
+        payload?.items ??
+        payload?.results ??
+        payload?.rows ??
+        payload?.list ??
+        data?.folders ??
+        data?.contentFolders ??
+        (Array.isArray(payload) ? payload : Array.isArray(data) ? data : [])
 
   return (Array.isArray(list) ? list : [])
     .map(normalizeFolderFromApi)

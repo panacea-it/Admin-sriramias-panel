@@ -1,11 +1,21 @@
 import axiosInstance from './axiosInstance'
-import { throwApiError } from '../utils/apiError'
+import { isRateLimitError, throwApiError } from '../utils/apiError'
+import { createCachedRequest } from '../utils/apiRequestCache'
 import {
   DEFAULT_FACULTY_SUBJECT_CATEGORIES,
   normalizeFacultySubjectCategoriesResponse,
 } from '../utils/facultySubjectHelpers'
 
 const BASE = '/faculty-subjects'
+const facultySubjectDetailCache = createCachedRequest({ ttlMs: 120_000 })
+
+export function clearFacultySubjectDetailCache(facultySubjectId) {
+  if (facultySubjectId == null || facultySubjectId === '') {
+    facultySubjectDetailCache.clear()
+    return
+  }
+  facultySubjectDetailCache.clear(String(facultySubjectId))
+}
 
 export async function getFacultySubjects(params = {}, { signal } = {}) {
   try {
@@ -18,15 +28,30 @@ export async function getFacultySubjects(params = {}, { signal } = {}) {
   }
 }
 
-export async function getFacultySubjectById(facultySubjectId, { signal } = {}) {
+export async function getFacultySubjectById(
+  facultySubjectId,
+  { signal, bypassCache = false } = {},
+) {
+  const id = String(facultySubjectId || '').trim()
+  if (!id) {
+    throw Object.assign(new Error('Faculty subject id is required'), { status: 400 })
+  }
+
   try {
-    const response = await axiosInstance.get(
-      `${BASE}/${encodeURIComponent(facultySubjectId)}`,
-      { signal },
+    return await facultySubjectDetailCache.fetch(
+      id,
+      async () => {
+        const response = await axiosInstance.get(`${BASE}/${encodeURIComponent(id)}`, { signal })
+        return response.data
+      },
+      { bypass: bypassCache },
     )
-    return response.data
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    if (isRateLimitError(error)) {
+      const stale = facultySubjectDetailCache.getCached(id)
+      if (stale !== undefined) return stale
+    }
     if (error?.response) throw error
     throwApiError(error)
   }
@@ -48,6 +73,7 @@ export async function updateFacultySubject(facultySubjectId, payload) {
       `${BASE}/${encodeURIComponent(facultySubjectId)}`,
       payload,
     )
+    clearFacultySubjectDetailCache(facultySubjectId)
     return response.data
   } catch (error) {
     if (error?.response) throw error
@@ -61,6 +87,7 @@ export async function updateFacultySubjectStatus(facultySubjectId, status) {
       `${BASE}/status/${encodeURIComponent(facultySubjectId)}`,
       { status },
     )
+    clearFacultySubjectDetailCache(facultySubjectId)
     return response.data
   } catch (error) {
     if (error?.response) throw error
@@ -73,6 +100,7 @@ export async function deleteFacultySubject(facultySubjectId) {
     const response = await axiosInstance.delete(
       `${BASE}/${encodeURIComponent(facultySubjectId)}`,
     )
+    clearFacultySubjectDetailCache(facultySubjectId)
     return response.data
   } catch (error) {
     if (error?.response) throw error

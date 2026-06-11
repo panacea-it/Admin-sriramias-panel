@@ -5,13 +5,32 @@ import { createCachedRequest } from '../utils/apiRequestCache'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getFacultySubjects } from '../api/facultySubjectsAPI'
 import {
+  isMongoObjectId,
   mapFacultySubjectStatusFilterToApi,
   normalizeFacultySubjectsListResponse,
 } from '../utils/facultySubjectHelpers'
+import { loadAcademicsSubjects } from '../utils/academicsSubjectsStorage'
 import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
 
 const DEFAULT_PAGE_SIZE = 10
 const facultySubjectsListCache = createCachedRequest({ ttlMs: 60_000 })
+
+function loadSyncedLocalSubjects() {
+  try {
+    return loadAcademicsSubjects().filter((row) => isMongoObjectId(row?.id))
+  } catch {
+    return []
+  }
+}
+
+function getInitialListState() {
+  const local = loadSyncedLocalSubjects()
+  return {
+    subjects: local,
+    totalItems: local.length,
+    totalPages: Math.max(1, Math.ceil(local.length / DEFAULT_PAGE_SIZE) || 1),
+  }
+}
 
 function buildListParams({ page, pageSize, debouncedSearch, statusFilter }) {
   const params = { page, limit: pageSize }
@@ -26,48 +45,106 @@ export function clearFacultySubjectsListCache() {
   facultySubjectsListCache.clear()
 }
 
-async function fetchFacultySubjectsList(params, { bypassCache = false } = {}) {
-  return facultySubjectsListCache.fetch(
-    params,
-    async () => getFacultySubjects(params),
-    { bypass: bypassCache },
-  )
+async function fetchFacultySubjectsList(params, { bypassCache = false, signal } = {}) {
+  try {
+    return await facultySubjectsListCache.fetch(
+      params,
+      async () => getFacultySubjects(params, { signal }),
+      { bypass: bypassCache },
+    )
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    if (isRateLimitError(error)) {
+      const stale = facultySubjectsListCache.getCached(params)
+      if (stale !== undefined) return stale
+    }
+    throw error
+  }
 }
 
+const INITIAL_LIST_STATE = getInitialListState()
+
 export function useFacultySubjectsManagement() {
-  const [subjects, setSubjects] = useState([])
+  const [subjects, setSubjects] = useState(INITIAL_LIST_STATE.subjects)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(INITIAL_LIST_STATE.totalItems)
+  const [totalPages, setTotalPages] = useState(INITIAL_LIST_STATE.totalPages)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(search, 500)
   const [loadError, setLoadError] = useState(null)
   const lastErrorToastAt = useRef(0)
+  const loadSeqRef = useRef(0)
+  const abortRef = useRef(null)
+  const lastRequestKeyRef = useRef('')
+
+  const applyLocalFallback = useCallback(() => {
+    const local = loadSyncedLocalSubjects()
+    if (!local.length) return false
+    setSubjects(local)
+    setTotalItems(local.length)
+    setTotalPages(Math.max(1, Math.ceil(local.length / pageSize)))
+    setLoadError(null)
+    return true
+  }, [pageSize])
 
   const loadSubjects = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({ page, pageSize, debouncedSearch, statusFilter })
+      const requestKey = JSON.stringify(params)
+
+      if (!bypassCache && requestKey === lastRequestKeyRef.current) {
+        const cached = facultySubjectsListCache.getCached(params)
+        if (cached !== undefined) {
+          const normalized = normalizeFacultySubjectsListResponse(cached, {
+            page,
+            limit: pageSize,
+          })
+          setSubjects(normalized.items)
+          setTotalItems(normalized.total)
+          setTotalPages(normalized.totalPages)
+          setLoadError(null)
+          setLoading(false)
+          return
+        }
+      }
+
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      const seq = ++loadSeqRef.current
+      lastRequestKeyRef.current = requestKey
+
       setLoading(true)
       setLoadError(null)
 
       try {
-        const data = await fetchFacultySubjectsList(params, { bypassCache })
-        if (ignoreFlag?.()) return
+        const data = await fetchFacultySubjectsList(params, {
+          bypassCache,
+          signal: controller.signal,
+        })
+        if (ignoreFlag?.() || seq !== loadSeqRef.current || controller.signal.aborted) return
 
         const normalized = normalizeFacultySubjectsListResponse(data, {
           page,
           limit: pageSize,
         })
+        if (!normalized.items.length && normalized.total > 0 && applyLocalFallback()) {
+          return
+        }
         setSubjects(normalized.items)
         setTotalItems(normalized.total)
         setTotalPages(normalized.totalPages)
-        syncFacultySubjectsToLocalStorage(normalized.items)
+        if (normalized.items.length) {
+          syncFacultySubjectsToLocalStorage(normalized.items)
+        }
         setLoadError(null)
       } catch (error) {
-        if (ignoreFlag?.()) return
+        if (ignoreFlag?.() || seq !== loadSeqRef.current || controller.signal.aborted) return
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
+
         if (import.meta.env.DEV) console.error(error)
 
         const message = getApiErrorMessage(error, 'Failed to load faculty subjects')
@@ -79,18 +156,20 @@ export function useFacultySubjectsManagement() {
           toast.error(message)
         }
 
-        if (!isRateLimitError(error)) {
+        if (isRateLimitError(error)) {
+          applyLocalFallback()
+        } else {
           setSubjects([])
           setTotalItems(0)
           setTotalPages(1)
         }
       } finally {
-        if (!ignoreFlag?.()) {
+        if (!ignoreFlag?.() && seq === loadSeqRef.current) {
           setLoading(false)
         }
       }
     },
-    [page, pageSize, debouncedSearch, statusFilter],
+    [page, pageSize, debouncedSearch, statusFilter, applyLocalFallback],
   )
 
   useEffect(() => {
@@ -98,6 +177,7 @@ export function useFacultySubjectsManagement() {
     loadSubjects({ ignoreFlag: () => ignore })
     return () => {
       ignore = true
+      abortRef.current?.abort()
     }
   }, [loadSubjects])
 
@@ -136,7 +216,12 @@ export function useFacultySubjectsManagement() {
 
   const refreshSubjects = useCallback(async () => {
     clearFacultySubjectsListCache()
+    lastRequestKeyRef.current = ''
     await loadSubjects({ bypassCache: true })
+  }, [loadSubjects])
+
+  const retrySubjects = useCallback(async () => {
+    await loadSubjects({ bypassCache: false })
   }, [loadSubjects])
 
   const patchSubjectLocally = useCallback((subjectId, patch) => {
@@ -165,6 +250,7 @@ export function useFacultySubjectsManagement() {
     pagination,
     controlledPagination,
     refreshSubjects,
+    retrySubjects,
     patchSubjectLocally,
     removeSubjectLocally,
   }

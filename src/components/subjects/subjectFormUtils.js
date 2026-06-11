@@ -82,6 +82,7 @@ export const EMPTY_SUBJECT_FORM = {
   recordingVisibility: 'Published',
   recordingDownloadable: false,
   recordingTags: '',
+  recordingFile: null,
   pdfTitle: '',
   pdfFileName: '',
   pdfDescription: '',
@@ -364,6 +365,7 @@ export function validateSubjectForm(
     allSubjects = [],
     subjectId = '',
     excludeLessonIds = [],
+    hasExistingRecordingFile = false,
   } = {},
 ) {
   const errors = {}
@@ -461,7 +463,8 @@ export function validateSubjectForm(
     if (!values.recordingTeacher?.trim()) {
       errors.recordingTeacher = 'Teacher is required'
     }
-    if (!values.recordingVideoFileName?.trim()) {
+    const hasRecordingFile = values.recordingFile instanceof File
+    if (!hasRecordingFile && !hasExistingRecordingFile) {
       errors.recordingVideoFileName = 'Upload a recording video'
     }
   }
