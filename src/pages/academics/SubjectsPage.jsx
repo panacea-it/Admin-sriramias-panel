@@ -6,6 +6,7 @@ import SubjectListingToolbar from '../../components/subjects/SubjectListingToolb
 import SubjectTable from '../../components/subjects/SubjectTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
 import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjectModal'
+import FacultySubjectViewListModal from '../../components/subjects/FacultySubjectViewListModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
 import SubjectBulkToolbar from '../../components/subjects/SubjectBulkToolbar'
 import SubjectBulkConfirmDialog from '../../components/subjects/SubjectBulkConfirmDialog'
@@ -22,6 +23,7 @@ import {
 import {
   buildFacultySubjectApiPayload,
   mapApiFacultySubjectToFormRow,
+  matchesFacultySubjectSearch,
 } from '../../utils/facultySubjectHelpers'
 import {
   removeFacultySubjectFromLocalStorage,
@@ -43,7 +45,6 @@ export default function SubjectsPage() {
     setSearch,
     statusFilter,
     setStatusFilter,
-    controlledPagination,
     refreshSubjects,
     retrySubjects,
     patchSubjectLocally,
@@ -65,6 +66,7 @@ export default function SubjectsPage() {
   const [statusChangingId, setStatusChangingId] = useState(null)
   const [viewItem, setViewItem] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
+  const [viewListItem, setViewListItem] = useState(null)
   const [teacherFilter, setTeacherFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
@@ -89,14 +91,16 @@ export default function SubjectsPage() {
 
   const filteredSubjects = useMemo(() => {
     return subjects.filter((row) => {
+      if (statusFilter !== 'all' && row.status !== statusFilter) return false
       if (teacherFilter !== 'all' && row.teacher !== teacherFilter) return false
       if (categoryFilter !== 'all') {
         const cats = normalizeCategories(row.categories ?? row.category)
         if (!cats.includes(categoryFilter)) return false
       }
+      if (!matchesFacultySubjectSearch(row, search)) return false
       return true
     })
-  }, [subjects, teacherFilter, categoryFilter])
+  }, [subjects, statusFilter, teacherFilter, categoryFilter, search])
 
   const hasClientFilters = teacherFilter !== 'all' || categoryFilter !== 'all'
   const hasActiveFilters =
@@ -146,13 +150,24 @@ export default function SubjectsPage() {
     navigate(`/academics/subjects/${encodeURIComponent(row.id)}/content`)
   }
 
-  const handleView = (row) => {
+  const handleView = async (row) => {
     setViewItem(row)
-    setViewLoading(false)
+    setViewLoading(true)
+    try {
+      const detail = await loadSubjectDetail(row)
+      if (detail) {
+        setViewItem(detail)
+        syncSingleFacultySubjectToLocal(detail)
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
+    } finally {
+      setViewLoading(false)
+    }
   }
 
   const handleViewList = (row) => {
-    navigate(`/academics/subjects/${encodeURIComponent(row.id)}`)
+    setViewListItem(row)
   }
 
   const openEdit = async (row) => {
@@ -427,12 +442,17 @@ export default function SubjectsPage() {
               onDelete={(row) => setDeleteTarget(row)}
               onStatusChange={handleStatusChange}
               loading={loading}
-              controlledPagination={controlledPagination}
               statusChangingId={statusChangingId}
             />
           </div>
         )}
       </section>
+
+      <FacultySubjectViewListModal
+        open={Boolean(viewListItem)}
+        onClose={() => setViewListItem(null)}
+        subjectRow={viewListItem}
+      />
 
       <ViewFacultySubjectModal
         open={Boolean(viewItem) || viewLoading}

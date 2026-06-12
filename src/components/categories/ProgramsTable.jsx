@@ -1,7 +1,14 @@
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { cn } from '../../utils/cn'
 
-export default function ProgramsTable({ columns, data, resetDeps, emptyMessage, loading = false }) {
+export default function ProgramsTable({
+  columns,
+  data,
+  resetDeps,
+  emptyMessage,
+  loading = false,
+  selection,
+}) {
   return (
     <div className="overflow-hidden rounded-2xl bg-[#f0f2f5]/60 p-2 sm:p-3">
       <PaginatedFigmaTable
@@ -11,6 +18,7 @@ export default function ProgramsTable({ columns, data, resetDeps, emptyMessage, 
         emptyMessage={emptyMessage}
         itemLabel="programs"
         resetDeps={resetDeps}
+        selection={selection}
         density="comfortable"
         rowClassName={cn(
           'bg-white shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition-shadow duration-200',

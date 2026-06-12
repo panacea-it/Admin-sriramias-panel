@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PlusCircle } from 'lucide-react'
-import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
 import CategoryStatusBadge from '../../../../components/categories/CategoryStatusBadge'
-import CategoryTableActions from '../../../../components/categories/CategoryTableActions'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryFormModal from '../../../../components/categories/ExamCategoryFormModal'
 import ViewExamCategoryModal from '../../../../components/categories/ViewExamCategoryModal'
 import ConfirmExamCategoryStatusModal from '../../../../components/categories/ConfirmExamCategoryStatusModal'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
+import ExamCategoryBulkActionsBar from '../../../../components/categories/ExamCategoryBulkActionsBar'
+import ExamCategoryTableActions from '../../../../components/categories/ExamCategoryTableActions'
 import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamCategoryManagement } from '../../../../hooks/useExamCategoryManagement'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
-import { useProgramsByCenter } from '../../../../hooks/useProgramsByCenter'
+import { useTableRowSelection } from '../../../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { toast } from '../../../../utils/toast'
+import { cn } from '../../../../utils/cn'
 import {
   buildExamCategoryApiPayload,
   mapApiExamCategoryToLocal,
@@ -42,22 +42,10 @@ function hasCategoryFormFields(row) {
   return Boolean(row?.centerId && row?.programId && row?.name)
 }
 
-function AddButton({ onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
-    >
-      <PlusCircle className="h-4 w-4" />
-      {children}
-    </button>
-  )
-}
-
-export default function ExamCategorySection({ section, Icon }) {
+export default function ExamCategorySection({ section }) {
   const {
     categories,
+    totalCategories,
     loading,
     search,
     setSearch,
@@ -65,20 +53,15 @@ export default function ExamCategorySection({ section, Icon }) {
     setStatusFilter,
     centerFilter,
     setCenterFilter,
-    programFilter,
-    setProgramFilter,
     refreshCategories,
     patchCategoryLocally,
     removeCategoryLocally,
   } = useExamCategoryManagement()
 
   const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
-  const filterCenterId = centerFilter === 'all' ? '' : centerFilter
-  const { programOptions: filterProgramOptions, loading: filterProgramsLoading } =
-    useProgramsByCenter(filterCenterId)
 
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
-  const [selectedIds, setSelectedIds] = useState([])
+  const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
   const [viewItem, setViewItem] = useState(null)
   const [editDetail, setEditDetail] = useState(null)
   const [editDetailLoading, setEditDetailLoading] = useState(false)
@@ -87,6 +70,7 @@ export default function ExamCategorySection({ section, Icon }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
 
   const centreOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
@@ -95,14 +79,15 @@ export default function ExamCategorySection({ section, Icon }) {
 
   const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
 
-  const programFilterOptions = useMemo(() => {
-    const base = [{ value: 'all', label: 'All Programs' }]
-    if (centerFilter === 'all') return base
-    return [
-      ...base,
-      ...filterProgramOptions.map((o) => ({ value: o.value, label: o.label })),
-    ]
-  }, [centerFilter, filterProgramOptions])
+  const categoriesById = useMemo(
+    () => new Map(categories.map((row) => [String(row.id), row])),
+    [categories],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => categoriesById.get(String(id))?.status === 'Active').length,
+    [selectedIds, categoriesById],
+  )
 
   const loadCategoryDetail = useCallback(async (row) => {
     const data = await getExamCategoryById(row.id)
@@ -165,12 +150,49 @@ export default function ExamCategorySection({ section, Icon }) {
   )
 
   const confirmDelete = useCallback(async () => {
+    if (deleteTarget?.ids?.length) {
+      setDeleteLoading(true)
+      let successCount = 0
+      let failCount = 0
+
+      for (const id of deleteTarget.ids) {
+        try {
+          await deleteExamCategory(id)
+          removeCategoryLocally(id)
+          successCount += 1
+        } catch (error) {
+          failCount += 1
+          if (import.meta.env.DEV) {
+            console.error(error)
+          }
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? 'Category deleted' : `${successCount} categories deleted`,
+        )
+      }
+      if (failCount > 0) {
+        toast.error(
+          failCount === 1
+            ? 'Failed to delete 1 category'
+            : `Failed to delete ${failCount} categories`,
+        )
+      }
+
+      setDeleteTarget(null)
+      clearSelection()
+      setDeleteLoading(false)
+      return
+    }
+
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
       await deleteExamCategory(deleteTarget.id)
       removeCategoryLocally(deleteTarget.id)
-      setSelectedIds((prev) => prev.filter((sid) => sid !== deleteTarget.id))
+      clearSelection()
       toast.success('Category deleted')
       setDeleteTarget(null)
     } catch (error) {
@@ -178,7 +200,7 @@ export default function ExamCategorySection({ section, Icon }) {
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeCategoryLocally])
+  }, [deleteTarget, removeCategoryLocally, clearSelection])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -202,40 +224,38 @@ export default function ExamCategorySection({ section, Icon }) {
     }
   }, [statusTarget, patchCategoryLocally])
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === categories.length) {
-      setSelectedIds([])
-    } else {
-      setSelectedIds(categories.map((r) => r.id))
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => categoriesById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkDisableLoading(true)
+    const apiStatus = mapUiStatusToApi('In Active')
+
+    try {
+      await Promise.all(ids.map((id) => updateExamCategoryStatus(id, apiStatus)))
+      ids.forEach((id) => patchCategoryLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} categories disabled` : 'Category disabled')
+      clearSelection()
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected categories'))
+      await refreshCategories()
+    } finally {
+      setBulkDisableLoading(false)
     }
-  }
+  }, [selectedIds, categoriesById, patchCategoryLocally, clearSelection, refreshCategories])
 
   const columns = useMemo(
     () => [
       {
-        key: 'select',
-        label: '',
-        headerClassName: 'w-12 pl-6 sm:pl-8',
-        cellClassName: 'pl-6 sm:pl-8',
-        render: (row) => (
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(row.id)}
-            onChange={() => {
-              setSelectedIds((prev) =>
-                prev.includes(row.id) ? prev.filter((x) => x !== row.id) : [...prev, row.id],
-              )
-            }}
-            className="h-4 w-4 rounded accent-[#246392]"
-            aria-label={`Select ${row.name}`}
-          />
-        ),
-      },
-      {
         key: 'categoryId',
         label: 'Category ID',
+        headerClassName: 'min-w-[7.5rem] whitespace-nowrap',
+        cellClassName: 'min-w-[7.5rem] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="font-mono text-sm font-medium text-[#111]">
+          <span className="font-mono text-sm font-semibold text-[#111]">
             {row.categoryId || row.id}
           </span>
         ),
@@ -243,27 +263,46 @@ export default function ExamCategorySection({ section, Icon }) {
       {
         key: 'name',
         label: 'Category Name',
-        render: (row) => <span className="font-semibold text-[#111]">{row.name}</span>,
+        headerClassName: 'min-w-[10rem]',
+        cellClassName: 'min-w-[10rem] max-w-[220px] align-middle',
+        render: (row) => (
+          <span className="block truncate font-semibold text-[#111]" title={row.name}>
+            {row.name}
+          </span>
+        ),
       },
       {
         key: 'program',
         label: 'Program Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
-          <span className="text-sm font-medium text-[#444]">{row.program || '—'}</span>
+          <span className="block truncate text-sm font-medium text-[#444]" title={row.program}>
+            {row.program || '—'}
+          </span>
         ),
       },
       {
         key: 'centerName',
         label: 'Centre Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
-          <span className="text-sm font-medium text-[#1a3a5c]">{row.centerName || '—'}</span>
+          <span
+            className="block truncate text-sm font-medium text-[#1a3a5c]"
+            title={row.centerName}
+          >
+            {row.centerName || '—'}
+          </span>
         ),
       },
       {
         key: 'createdAt',
         label: 'Created On',
+        headerClassName: 'min-w-[9rem] whitespace-nowrap',
+        cellClassName: 'min-w-[9rem] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="whitespace-nowrap text-sm">
+          <span className="text-sm font-medium text-[#686868]">
             {formatCategoryDateTime(row.createdAt)}
           </span>
         ),
@@ -271,37 +310,44 @@ export default function ExamCategorySection({ section, Icon }) {
       {
         key: 'status',
         label: 'Status',
+        headerClassName: 'min-w-[6.5rem] whitespace-nowrap',
+        cellClassName: 'min-w-[6.5rem] align-middle',
         render: (row) => <CategoryStatusBadge status={row.status} />,
       },
       {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: 'min-w-[11rem] text-right',
-        cellClassName: 'min-w-[11rem] text-right',
+        headerClassName: 'min-w-[220px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[220px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => (
-          <CategoryTableActions
-            status={row.status}
+          <ExamCategoryTableActions
+            row={row}
             onView={() => handleView(row)}
             onEdit={() => handleEditOpen(row)}
             onDelete={() => setDeleteTarget(row)}
-            onToggleStatus={() => setStatusTarget(row)}
+            onStatusToggle={() => setStatusTarget(row)}
           />
         ),
       },
     ],
-    [selectedIds, handleView, handleEditOpen],
+    [handleView, handleEditOpen],
   )
 
-  const showEmpty = !loading && categories.length === 0 && !search && statusFilter === 'all' && centerFilter === 'all' && programFilter === 'all'
+  const hasActiveFilters = Boolean(search.trim()) || statusFilter !== 'all' || centerFilter !== 'all'
+  const showEmpty = !loading && totalCategories === 0 && !hasActiveFilters
   const showNoResults = !loading && categories.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
     setStatusFilter('all')
     setCenterFilter('all')
-    setProgramFilter('all')
   }
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected exam categories? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this category'}"? This action cannot be undone.`
 
   return (
     <AnimatePresence mode="wait">
@@ -313,80 +359,77 @@ export default function ExamCategorySection({ section, Icon }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={Icon} hideTitle>
-          <AddButton onClick={openCreate}>{section.addLabel}</AddButton>
-        </CategoryPageHeader>
+        <h1 className="text-xl font-bold tracking-tight text-[#111] sm:text-2xl">Exam Categories</h1>
 
-        <CategoryFilterBar
-          search={search}
-          onSearchChange={(e) => setSearch(e.target.value)}
-          searchPlaceholder={section.searchPlaceholder}
-          status={statusFilter}
-          onStatusChange={(e) => setStatusFilter(e.target.value)}
-          statusOptions={STATUS_FILTER_OPTIONS}
-          centerFilter={centerFilter}
-          onCenterFilterChange={(e) => {
-            setCenterFilter(e.target.value)
-            setProgramFilter('all')
-          }}
-          centerOptions={centreOptions}
-        />
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <CategoryFilterBar
+            search={search}
+            onSearchChange={(e) => setSearch(e.target.value)}
+            searchPlaceholder={section.searchPlaceholder}
+            status={statusFilter}
+            onStatusChange={(e) => setStatusFilter(e.target.value)}
+            statusOptions={STATUS_FILTER_OPTIONS}
+            centerFilter={centerFilter}
+            onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+            centerOptions={centreOptions}
+          />
 
-        <div className="flex justify-end">
-          <select
-            value={programFilter}
-            onChange={(e) => setProgramFilter(e.target.value)}
-            disabled={centerFilter === 'all' || filterProgramsLoading}
-            className="h-10 rounded-lg bg-[#55ace7] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4a9ad4] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {programFilterOptions.map((o) => (
-              <option key={o.value} value={o.value} className="text-[#222]">
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {selectedIds.length > 0 && (
+            <ExamCategoryBulkActionsBar
+              className="mt-4"
+              count={selectedIds.length}
+              disableCount={disableableCount}
+              onDisable={handleBulkDisable}
+              onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+            />
+          )}
+
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            {loading ? (
+              <div className="p-4">
+                <ExamCategoryTableSkeleton />
+              </div>
+            ) : showEmpty ? (
+              <div className="p-4 sm:p-6">
+                <CategoryEmptyState
+                  title={section.emptyTitle}
+                  description={section.emptyDescription}
+                  ctaLabel={section.emptyCta}
+                  onCta={openCreate}
+                />
+              </div>
+            ) : showNoResults ? (
+              <div className="p-4 sm:p-6">
+                <CategoryEmptyState
+                  title="No matching records"
+                  description="Try adjusting your search or filters."
+                  ctaLabel="Clear filters"
+                  onCta={clearFilters}
+                />
+              </div>
+            ) : (
+              <PaginatedFigmaTable
+                columns={columns}
+                data={categories}
+                itemLabel="exam categories"
+                resetDeps={[search, statusFilter, centerFilter]}
+                selection={selection}
+                density="comfortable"
+                loading={bulkDisableLoading}
+                rowClassName="hover:bg-[#eef6fc]/70"
+                tableClassName="rounded-none border-0 shadow-none"
+                tableMinWidth={960}
+                paginationClassName={cn(
+                  '[&>div:last-child]:items-center',
+                  '[&_nav]:items-center',
+                  '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
+                  '[&_form_input]:h-9 [&_form_input]:leading-none',
+                  '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
+                )}
+              />
+            )}
+          </div>
         </div>
-
-        {!loading && categories.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-[#686868]">
-            <input
-              type="checkbox"
-              checked={selectedIds.length === categories.length && categories.length > 0}
-              onChange={toggleSelectAll}
-              className="h-4 w-4 rounded accent-[#246392]"
-            />
-            <span>Select all on this page</span>
-          </div>
-        )}
-
-        {loading ? (
-          <ExamCategoryTableSkeleton />
-        ) : showEmpty ? (
-          <CategoryEmptyState
-            title={section.emptyTitle}
-            description={section.emptyDescription}
-            ctaLabel={section.emptyCta}
-            onCta={openCreate}
-          />
-        ) : showNoResults ? (
-          <CategoryEmptyState
-            title="No matching records"
-            description="Try adjusting your search or filters."
-            ctaLabel="Clear filters"
-            onCta={clearFilters}
-          />
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={categories}
-              itemLabel={section.bannerTitle.toLowerCase()}
-              resetDeps={[search, statusFilter, centerFilter, programFilter]}
-              rowClassName="transition-colors hover:bg-[#f8fbff]"
-              tableClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
-            />
-          </div>
-        )}
 
         <ExamCategoryFormModal
           open={isOpen}
@@ -416,8 +459,8 @@ export default function ExamCategorySection({ section, Icon }) {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete exam category?"
-          message={`Are you sure you want to delete "${deleteTarget?.name || 'this category'}"? This action cannot be undone.`}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected categories?' : 'Delete exam category?'}
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}

@@ -8,7 +8,19 @@ import {
 } from '../utils/currentAffairsApiHelpers'
 import { fetchAllCurrentAffairs } from '../services/currentAffairsService'
 
-function buildListParams({ debouncedSearch, categoryFilter, statusFilter }) {
+function applyClientFilters(items, { categoryFilter, resourceFilter }) {
+  return items.filter((row) => {
+    if (categoryFilter && categoryFilter !== 'all' && row.category !== categoryFilter) {
+      return false
+    }
+    if (resourceFilter && resourceFilter !== 'all' && row.category !== resourceFilter) {
+      return false
+    }
+    return true
+  })
+}
+
+function buildListParams({ debouncedSearch, categoryFilter, resourceFilter, statusFilter }) {
   const params = {}
 
   const search = debouncedSearch.trim()
@@ -16,8 +28,17 @@ function buildListParams({ debouncedSearch, categoryFilter, statusFilter }) {
     params.search = search
   }
 
-  if (categoryFilter && categoryFilter !== 'all') {
-    params.category = mapUiCategoryToApi(categoryFilter)
+  const typeFilter =
+    resourceFilter && resourceFilter !== 'all'
+      ? resourceFilter
+      : categoryFilter && categoryFilter !== 'all'
+        ? categoryFilter
+        : null
+
+  if (typeFilter) {
+    const apiCategory = mapUiCategoryToApi(typeFilter)
+    params.category = apiCategory
+    params.resource = apiCategory
   }
 
   const status = mapUiStatusFilterToApi(statusFilter)
@@ -34,6 +55,7 @@ export function useCurrentAffairs() {
   const [loadError, setLoadError] = useState(null)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [resourceFilter, setResourceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const debouncedSearch = useDebouncedValue(search, 500)
 
@@ -41,9 +63,14 @@ export function useCurrentAffairs() {
     setLoading(true)
     setLoadError(null)
     try {
-      const params = buildListParams({ debouncedSearch, categoryFilter, statusFilter })
+      const params = buildListParams({
+        debouncedSearch,
+        categoryFilter,
+        resourceFilter,
+        statusFilter,
+      })
       const rows = await fetchAllCurrentAffairs(params)
-      setItems(rows)
+      setItems(applyClientFilters(rows, { categoryFilter, resourceFilter }))
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('[Current Affairs] Failed to load list:', error)
@@ -55,7 +82,7 @@ export function useCurrentAffairs() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, categoryFilter, statusFilter])
+  }, [debouncedSearch, categoryFilter, resourceFilter, statusFilter])
 
   useEffect(() => {
     fetchItems()
@@ -80,6 +107,8 @@ export function useCurrentAffairs() {
     setSearch,
     categoryFilter,
     setCategoryFilter,
+    resourceFilter,
+    setResourceFilter,
     statusFilter,
     setStatusFilter,
     refreshItems: fetchItems,

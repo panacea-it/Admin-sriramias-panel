@@ -132,7 +132,6 @@ export function validateFreeResourceForm(values, { isEdit = false } = {}) {
       require('bookFileName', 'Upload book PDF')
       break
     case FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR:
-      require('examCategory')
       require('paperType')
       require('year')
       require('paperName')

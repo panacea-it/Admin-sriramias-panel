@@ -403,3 +403,17 @@ export function normalizeFacultySubjectCreateFormResponse(data) {
     selectedSubject: selectedSubject?.value ? selectedSubject : null,
   }
 }
+
+/** Case-insensitive partial match for Faculty Subjects listing search. */
+export function matchesFacultySubjectSearch(row, rawQuery) {
+  const q = String(rawQuery || '').trim().toLowerCase()
+  if (!q) return true
+  const fields = [
+    row?.subjectName,
+    row?.teacher,
+    row?.displayId,
+    row?.facultySubjectId,
+    row?.id,
+  ]
+  return fields.some((value) => value != null && String(value).toLowerCase().includes(q))
+}

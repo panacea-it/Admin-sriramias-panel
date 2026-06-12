@@ -41,7 +41,7 @@ export default function BatchDetailsInfoCard({ batch, onEdit }) {
 
       <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <InfoItem label="Course">{batch.courseName}</InfoItem>
-        <InfoItem label="Faculty / Trainer">{batch.trainerName}</InfoItem>
+        <InfoItem label="Mentor Name">{batch.mentorName || batch.trainerName}</InfoItem>
         <InfoItem label="Start Date">{formatBatchDate(batch.startDate)}</InfoItem>
         <InfoItem label="End Date">{formatBatchDate(batch.endDate)}</InfoItem>
         <InfoItem label="Total Students">{batch.totalStudents}</InfoItem>

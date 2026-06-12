@@ -15,8 +15,14 @@ import { cn } from '../../utils/cn'
 const ONLINE_SAMPLES = Array.from({ length: 8 }, (_, i) => `Online payment bullet point ${i + 1}`)
 const OFFLINE_SAMPLES = Array.from({ length: 8 }, (_, i) => `Offline payment bullet point ${i + 1}`)
 
+function fieldError(errors, key) {
+  return errors?.[key] ? (
+    <p className="text-xs font-medium text-red-600">{errors[key]}</p>
+  ) : null
+}
+
 /** Fee Details — Add/Edit Batch (content only; wrapped by BatchFormCard in modal) */
-export default function BatchFeeDetailsSection({ form, setForm }) {
+export default function BatchFeeDetailsSection({ form, setForm, errors = {} }) {
   const fee = form.feeDetails || {}
 
   const updateFee = (key, value) => {
@@ -34,7 +40,7 @@ export default function BatchFeeDetailsSection({ form, setForm }) {
   return (
     <div className="space-y-8">
       <div className={cn(batchFormGrid, 'gap-5')}>
-        <CourseFormField label="Currency">
+        <CourseFormField label="Currency" required>
           <CourseSelect
             value={fee.currency || 'INR'}
             onChange={(e) => updateFee('currency', e.target.value)}
@@ -57,7 +63,7 @@ export default function BatchFeeDetailsSection({ form, setForm }) {
           />
         </CourseFormField>
 
-        <CourseFormField label="Online Payment Amount">
+        <CourseFormField label="Online Payment Amount" required>
           <CourseInput
             type="number"
             min={0}
@@ -65,9 +71,10 @@ export default function BatchFeeDetailsSection({ form, setForm }) {
             onChange={(e) => updateFee('onlinePaymentAmount', e.target.value)}
             placeholder="Enter online payment amount"
           />
+          {fieldError(errors, 'onlinePaymentAmount')}
         </CourseFormField>
 
-        <CourseFormField label="Offline Payment Amount">
+        <CourseFormField label="Offline Payment Amount" required>
           <CourseInput
             type="number"
             min={0}
@@ -75,45 +82,52 @@ export default function BatchFeeDetailsSection({ form, setForm }) {
             onChange={(e) => updateFee('offlinePaymentAmount', e.target.value)}
             placeholder="Enter offline payment amount"
           />
+          {fieldError(errors, 'offlinePaymentAmount')}
         </CourseFormField>
       </div>
 
       <div className="space-y-8 border-t border-[#eef2fc] pt-8">
-        <PaymentBulletsField
-          label="Online Payment – Bullet Points"
-          placeholder="Add bullet points for online payment"
-          helperText="Add at least 5 to 8 bullet points — one per line."
-          sampleItems={ONLINE_SAMPLES}
-          value={onlineText}
-          onChange={(text) => {
-            setForm((f) => ({
-              ...f,
-              feeDetails: {
-                ...f.feeDetails,
-                onlinePaymentBulletsText: text,
-                onlinePaymentBullets: parsePaymentBullets(text),
-              },
-            }))
-          }}
-        />
+        <div>
+          <PaymentBulletsField
+            label="Online Payment – Bullet Points"
+            placeholder="Add bullet points for online payment"
+            helperText="Add at least one bullet point — one per line."
+            sampleItems={ONLINE_SAMPLES}
+            value={onlineText}
+            onChange={(text) => {
+              setForm((f) => ({
+                ...f,
+                feeDetails: {
+                  ...f.feeDetails,
+                  onlinePaymentBulletsText: text,
+                  onlinePaymentBullets: parsePaymentBullets(text),
+                },
+              }))
+            }}
+          />
+          {fieldError(errors, 'onlinePaymentBullets')}
+        </div>
 
-        <PaymentBulletsField
-          label="Offline Payment – Bullet Points"
-          placeholder="Add bullet points for offline payment"
-          helperText="Add at least 5 to 8 bullet points — one per line."
-          sampleItems={OFFLINE_SAMPLES}
-          value={offlineText}
-          onChange={(text) => {
-            setForm((f) => ({
-              ...f,
-              feeDetails: {
-                ...f.feeDetails,
-                offlinePaymentBulletsText: text,
-                offlinePaymentBullets: parsePaymentBullets(text),
-              },
-            }))
-          }}
-        />
+        <div>
+          <PaymentBulletsField
+            label="Offline Payment – Bullet Points"
+            placeholder="Add bullet points for offline payment"
+            helperText="Add at least one bullet point — one per line."
+            sampleItems={OFFLINE_SAMPLES}
+            value={offlineText}
+            onChange={(text) => {
+              setForm((f) => ({
+                ...f,
+                feeDetails: {
+                  ...f.feeDetails,
+                  offlinePaymentBulletsText: text,
+                  offlinePaymentBullets: parsePaymentBullets(text),
+                },
+              }))
+            }}
+          />
+          {fieldError(errors, 'offlinePaymentBullets')}
+        </div>
       </div>
     </div>
   )

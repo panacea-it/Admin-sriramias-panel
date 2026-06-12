@@ -3,7 +3,6 @@ import { validateUploadFileSync } from './uploadValidation'
 import { getFileExtension } from './batchQuestionBulkUpload'
 import {
   generateQuestionsFromRange,
-  parseSectionRange,
   validateCurrentAffairsQuestion,
 } from './currentAffairsQuestions'
 
@@ -91,14 +90,9 @@ export function validateCurrentAffairsForm(form, { isEdit = false } = {}) {
   }
 
   if (isDailyPracticeCategory(category)) {
-    const range = parseSectionRange(form.sectionFrom, form.sectionTo)
-    Object.assign(errors, range.fieldErrors)
-
     const questions = form.questions || []
     if (!questions.length) {
-      errors.questions = 'Generate questions using the From and To range'
-    } else if (range.valid && questions.length !== range.count) {
-      errors.questions = `Expected ${range.count} questions for range ${range.from}–${range.to}`
+      errors.questions = 'Upload questions using Bulk Upload Questions'
     } else {
       questions.forEach((q, i) => {
         Object.assign(errors, validateCurrentAffairsQuestion(q, i))

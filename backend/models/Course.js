@@ -9,7 +9,8 @@ const courseSchema = new mongoose.Schema(
       trim: true,
       maxlength: [300, 'Name cannot exceed 300 characters'],
     },
-    batchId: { type: String, trim: true, default: '' },
+    batchId: { type: String, trim: true, default: '', unique: true, sparse: true },
+    batchCode: { type: String, trim: true, default: '', unique: true, sparse: true },
     batchName: { type: String, trim: true, default: '' },
     /** Catalog course id from Categories → Courses */
     courseId: { type: String, trim: true, default: '' },

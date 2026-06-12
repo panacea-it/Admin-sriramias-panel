@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Download, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
-import ModalPanelHeader from '../courses/ModalPanelHeader'
+import CurrentAffairsModalHeader from './CurrentAffairsModalHeader'
 import { UploadFieldHint } from '../common/UploadFieldHint'
 import { CURRENT_AFFAIRS_BULK_ACCEPT } from '../../constants/currentAffairsForm'
 import { bulkRowToCurrentAffairsQuestion } from '../../utils/currentAffairsQuestions'
@@ -152,9 +152,14 @@ export default function CurrentAffairsBulkUploadModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} size="lg" title="Bulk Upload Questions">
+    <Modal open={open} onClose={handleClose} size="lg" title="Bulk Upload Questions" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-[#f7f7f7] shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
-        <ModalPanelHeader title="Bulk Upload Questions" onBack={handleClose} icon={FileSpreadsheet} />
+        <CurrentAffairsModalHeader
+          title="Bulk Upload Questions"
+          onClose={handleClose}
+          icon={FileSpreadsheet}
+          iconClassName="text-[#246392]"
+        />
 
         <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
           <button

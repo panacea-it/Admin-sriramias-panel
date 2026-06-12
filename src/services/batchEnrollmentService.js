@@ -105,6 +105,18 @@ export async function getBatchStudents(batchId, params = {}, { signal } = {}) {
       data: error?.response?.data,
       message: error?.message,
     })
+    const status = error?.response?.status
+    if (status === 404 || status === 502 || status === 503) {
+      return {
+        students: [],
+        meta: {
+          total: 0,
+          page: query.page,
+          pages: 1,
+          limit: query.limit,
+        },
+      }
+    }
     throw mapEnrollmentApiError(error, 'Failed to load students')
   }
 }

@@ -3,6 +3,7 @@
 import {
   DEFAULT_FEE_DETAILS,
   normalizeAcademicFeeDetails,
+  parsePaymentBullets,
   serializeAcademicFeeDetails,
 } from './feeDetailsForm'
 import { normalizeLinkedSubjects } from './batchHelpers'
@@ -29,8 +30,30 @@ export function serializeBatchContent(form) {
   }
 }
 
-export function validateBatchFee() {
-  return {}
+export function validateBatchFee(form = {}) {
+  const errors = {}
+  const fee = form.feeDetails || {}
+
+  if (!String(fee.onlinePaymentAmount ?? '').trim()) {
+    errors.onlinePaymentAmount = 'Online payment amount is required'
+  }
+  if (!String(fee.offlinePaymentAmount ?? '').trim()) {
+    errors.offlinePaymentAmount = 'Offline payment amount is required'
+  }
+
+  const onlineBullets =
+    fee.onlinePaymentBullets ?? parsePaymentBullets(fee.onlinePaymentBulletsText)
+  if (!onlineBullets.length) {
+    errors.onlinePaymentBullets = 'Online payment bullet points are required'
+  }
+
+  const offlineBullets =
+    fee.offlinePaymentBullets ?? parsePaymentBullets(fee.offlinePaymentBulletsText)
+  if (!offlineBullets.length) {
+    errors.offlinePaymentBullets = 'Offline payment bullet points are required'
+  }
+
+  return errors
 }
 
 /** @deprecated Use validateBatchFee */
@@ -39,6 +62,7 @@ export const validateBatchSubjectAndFee = validateBatchFee
 export function createEmptyBatchForm() {
   return {
     batchId: '',
+    batchCode: '',
     batchName: '',
     mentorId: '',
     mentorEmail: '',
@@ -77,6 +101,7 @@ export function batchRowToDuplicateForm(row) {
   return {
     ...base,
     batchId: '',
+    batchCode: '',
     batchName,
   }
 }
@@ -87,6 +112,7 @@ export function batchRowToForm(row) {
   return {
     ...createEmptyBatchForm(),
     batchId: row.batchId || fd.batchId || '',
+    batchCode: row.batchCode || fd.batchCode || row.batchId || fd.batchId || '',
     batchName: row.batchName || row.name || fd.batchName || '',
     mentorId: row.mentorId || fd.mentorId || '',
     mentorEmail: row.mentorEmail || fd.mentorEmail || '',

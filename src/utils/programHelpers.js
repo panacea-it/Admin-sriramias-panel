@@ -19,6 +19,17 @@ export function mapProgramStatusFilterToApi(statusFilter) {
   return undefined
 }
 
+/** Client-side search by program ID or name (case-insensitive, partial match). */
+export function matchesProgramSearch(row, query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return true
+
+  const programId = String(row.programId || '').toLowerCase()
+  const name = String(row.name || '').toLowerCase()
+
+  return programId.includes(q) || name.includes(q)
+}
+
 export function buildProgramApiPayload(form) {
   return {
     programName: String(form.name || '').trim(),

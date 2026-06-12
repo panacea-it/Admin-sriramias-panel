@@ -1,31 +1,88 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusCircle, Users } from 'lucide-react'
+import { Plus, Users } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import PageBanner from '../../components/figma/PageBanner'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
 import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsersBulkActionsBar'
+import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
 import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
 import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
 import UserFormModal from '../../components/manage-users/UserFormModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
-import { StatusBadge } from '../../components/academics/AcademicsUi'
-import { useCenters } from '../../contexts/CentersContext'
-import { useTableRowSelection } from '../../hooks/useTableRowSelection'
-import { DEFAULT_CENTER_NAMES, roleLabel } from '../../data/manageUsersConfig'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import {
-  deleteManageUser,
-  loadManageUsers,
-  updateManageUser,
-} from '../../utils/manageUsersStorage'
+  MANAGE_USERS_STATIC_CENTERS,
+  MANAGE_USERS_STATIC_DATA,
+  buildUserFromCreateForm,
+  formatManageUserJoinDate,
+} from '../../components/manage-users/manageUsersStaticData'
+import { useTableRowSelection } from '../../hooks/useTableRowSelection'
+import { roleLabel } from '../../data/manageUsersConfig'
+import { cn } from '../../utils/cn'
+
+const ROLE_BADGE_STYLES = {
+  student: 'bg-[#EEF5FF] text-[#1D72B8] ring-[#4CA6E8]/30',
+  admin: 'bg-violet-50 text-violet-700 ring-violet-200/60',
+  faculty: 'bg-emerald-50 text-emerald-700 ring-emerald-200/60',
+  counselor: 'bg-orange-50 text-orange-700 ring-orange-200/60',
+  employee: 'bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]',
+  support_staff: 'bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]',
+}
+
+function roleDisplayLabel(role) {
+  if (role === 'faculty') return 'Teacher'
+  if (role === 'counselor') return 'Parent'
+  return roleLabel(role)
+}
+
+function UserStatusBadge({ status }) {
+  const isActive = status === 'Active'
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
+        isActive
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/70'
+          : 'bg-red-50 text-[#D64B5F] ring-red-200/70',
+      )}
+    >
+      <span
+        className={cn(
+          'h-1.5 w-1.5 shrink-0 rounded-full',
+          isActive ? 'bg-emerald-500' : 'bg-[#D64B5F]',
+        )}
+        aria-hidden
+      />
+      {isActive ? 'Active' : 'Inactive'}
+    </span>
+  )
+}
+
+function UserRoleBadge({ role }) {
+  const style = ROLE_BADGE_STYLES[role] || ROLE_BADGE_STYLES.employee
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+        style,
+      )}
+    >
+      {roleDisplayLabel(role)}
+    </span>
+  )
+}
+
+function CenterPill({ label }) {
+  return (
+    <span className="inline-flex max-w-[180px] truncate rounded-md bg-[#F5F7FB] px-2.5 py-1 text-xs font-medium text-[#667085] ring-1 ring-inset ring-[#E7ECF5]">
+      {label}
+    </span>
+  )
+}
 
 export default function ManageUsersPage() {
   const navigate = useNavigate()
-  const { activeCenters } = useCenters()
-  const [users, setUsers] = useState(() => loadManageUsers())
+  const [users, setUsers] = useState(MANAGE_USERS_STATIC_DATA)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
@@ -41,23 +98,7 @@ export default function ManageUsersPage() {
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 
-  const centerOptions = useMemo(() => {
-    const fromCenters = activeCenters
-      .map((c) => c.city || c.centerName)
-      .filter(Boolean)
-    const merged = [...new Set([...fromCenters, ...DEFAULT_CENTER_NAMES])]
-    return merged.sort((a, b) => a.localeCompare(b))
-  }, [activeCenters])
-
-  const refresh = useCallback(() => {
-    setUsers(loadManageUsers())
-  }, [])
-
-  useEffect(() => {
-    const onUpdate = () => refresh()
-    window.addEventListener('manage-users-updated', onUpdate)
-    return () => window.removeEventListener('manage-users-updated', onUpdate)
-  }, [refresh])
+  const centerOptions = useMemo(() => [...MANAGE_USERS_STATIC_CENTERS], [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -73,7 +114,7 @@ export default function ManageUsersPage() {
         u.parentName,
         u.parentPhone,
         u.userId,
-        roleLabel(u.role),
+        roleDisplayLabel(u.role),
         u.assignedCenter,
       ]
         .join(' ')
@@ -93,18 +134,16 @@ export default function ManageUsersPage() {
     )
     if (!targets.length) return
 
-    let successCount = 0
-    for (const user of targets) {
-      const result = updateManageUser(user.id, { status: 'In Active' })
-      if (result.ok) successCount += 1
-    }
-
-    if (successCount > 0) {
-      toast.success(
-        successCount === 1 ? 'User disabled' : `${successCount} users disabled`,
-      )
-      refresh()
-    }
+    setUsers((prev) =>
+      prev.map((user) =>
+        selectedIds.includes(user.id) && user.status === 'Active'
+          ? { ...user, status: 'In Active' }
+          : user,
+      ),
+    )
+    toast.success(
+      targets.length === 1 ? 'User disabled' : `${targets.length} users disabled`,
+    )
     clearSelection()
   }
 
@@ -114,19 +153,23 @@ export default function ManageUsersPage() {
       return
     }
 
-    let successCount = 0
-    for (const id of selectedIds) {
-      const result = deleteManageUser(id)
-      if (result.ok) successCount += 1
-    }
-
-    if (successCount > 0) {
-      toast.success(
-        successCount === 1 ? 'User deleted' : `${successCount} users deleted`,
-      )
-      refresh()
-    }
+    setUsers((prev) => prev.filter((user) => !selectedIds.includes(user.id)))
+    toast.success(
+      selectedIds.length === 1 ? 'User deleted' : `${selectedIds.length} users deleted`,
+    )
     clearSelection()
+  }
+
+  const handleCreateUser = (formData) => {
+    const user = buildUserFromCreateForm(formData, { nextIndex: users.length + 1 })
+    setUsers((prev) => [user, ...prev])
+    toast.success('User added successfully')
+  }
+
+  const handleUpdateUser = (id, patch) => {
+    setUsers((prev) =>
+      prev.map((user) => (user.id === id ? { ...user, ...patch, email: patch.email?.toLowerCase?.() ?? user.email } : user)),
+    )
   }
 
   const openCreate = () => {
@@ -173,24 +216,15 @@ export default function ManageUsersPage() {
     setStatusLoading(true)
     setActionUserId(statusTarget.id)
 
-    try {
-      const result = updateManageUser(statusTarget.id, { status: nextStatus })
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to update user status')
-        return
-      }
-      toast.success(enabling ? 'User enabled successfully' : 'User disabled successfully')
-      setStatusTarget(null)
-      refresh()
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error('Failed to update user status')
-    } finally {
-      setStatusLoading(false)
-      setActionUserId(null)
-    }
+    setUsers((prev) =>
+      prev.map((user) =>
+        user.id === statusTarget.id ? { ...user, status: nextStatus } : user,
+      ),
+    )
+    toast.success(enabling ? 'User enabled successfully' : 'User disabled successfully')
+    setStatusTarget(null)
+    setStatusLoading(false)
+    setActionUserId(null)
   }
 
   const confirmDelete = async () => {
@@ -199,44 +233,26 @@ export default function ManageUsersPage() {
     setDeleteLoading(true)
     setActionUserId(deleteTarget.id)
 
-    try {
-      const result = deleteManageUser(deleteTarget.id)
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to delete user')
-        return
-      }
-      toast.success('User deleted successfully')
-      setDeleteTarget(null)
-      refresh()
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error('Failed to delete user')
-    } finally {
-      setDeleteLoading(false)
-      setActionUserId(null)
-    }
-  }
-
-  const handleResetFilters = () => {
-    setSearch('')
-    setRoleFilter('all')
-    setCenterFilter('all')
-    setStatusFilter('all')
+    setUsers((prev) => prev.filter((user) => user.id !== deleteTarget.id))
+    toast.success('User deleted successfully')
+    setDeleteTarget(null)
+    setDeleteLoading(false)
+    setActionUserId(null)
   }
 
   const columns = [
     {
       key: 'fullName',
       label: 'Full Name',
-      headerClassName: 'pl-6 sm:pl-10',
-      cellClassName: 'pl-6 sm:pl-10',
+      headerClassName: 'min-w-[220px]',
+      cellClassName: 'min-w-[220px]',
       render: (row) => {
         const inner = (
           <div className="min-w-0">
-            <p className="truncate font-medium text-[#111]">{row.fullName}</p>
-            <p className="font-mono text-xs text-[#686868]">{row.userId}</p>
+            <p className="truncate text-base font-semibold leading-snug text-[#14213D]">
+              {row.fullName}
+            </p>
+            <p className="mt-1 truncate text-xs font-medium text-[#667085]">{row.userId}</p>
           </div>
         )
         if (isStudent(row)) {
@@ -244,56 +260,78 @@ export default function ManageUsersPage() {
             <button
               type="button"
               onClick={() => openStudent360(row)}
-              className="flex min-w-0 cursor-pointer items-center gap-3 text-left hover:opacity-80"
+              className="min-w-0 text-left transition hover:opacity-80"
             >
               {inner}
             </button>
           )
         }
-        return <div className="flex min-w-0 items-center gap-3">{inner}</div>
+        return inner
       },
     },
     {
       key: 'email',
       label: 'Email',
-      render: (row) => <span className="truncate text-[#444]">{row.email}</span>,
-    },
-    {
-      key: 'phone',
-      label: 'Phone Number',
-      render: (row) => row.phone,
-    },
-    {
-      key: 'role',
-      label: 'Role',
+      headerClassName: 'min-w-[240px]',
+      cellClassName: 'min-w-[240px]',
       render: (row) => (
-        <span className="inline-flex rounded-md bg-[#eef6fc] px-2.5 py-1 text-xs font-semibold text-[#246392]">
-          {roleLabel(row.role)}
+        <span className="block truncate text-sm text-[#667085]" title={row.email}>
+          {row.email}
         </span>
       ),
     },
     {
+      key: 'phone',
+      label: 'Phone',
+      align: 'center',
+      headerClassName: 'min-w-[130px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => (
+        <span className="whitespace-nowrap text-sm font-medium text-[#14213D]">{row.phone}</span>
+      ),
+    },
+    {
+      key: 'role',
+      label: 'Role',
+      align: 'center',
+      headerClassName: 'min-w-[110px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <UserRoleBadge role={row.role} />,
+    },
+    {
       key: 'assignedCenter',
-      label: 'Assigned Center',
-      render: (row) => row.assignedCenter || '—',
+      label: 'Center',
+      align: 'center',
+      headerClassName: 'min-w-[140px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <CenterPill label={row.assignedCenter} />,
     },
     {
       key: 'status',
       label: 'Status',
-      render: (row) => <StatusBadge status={row.status} />,
+      align: 'center',
+      headerClassName: 'min-w-[110px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <UserStatusBadge status={row.status} />,
     },
     {
       key: 'joinedAt',
-      label: 'Joined Date',
+      label: 'Joined',
+      align: 'center',
+      headerClassName: 'min-w-[120px] text-center',
+      cellClassName: 'text-center',
       render: (row) => (
-        <span className="whitespace-nowrap text-[#686868]">
-          {formatCategoryDateTime(row.joinedAt)}
+        <span className="whitespace-nowrap text-sm font-medium text-[#667085]">
+          {formatManageUserJoinDate(row.joinedAt)}
         </span>
       ),
     },
     {
       key: 'actions',
       label: 'Actions',
+      align: 'center',
+      headerClassName: 'min-w-[200px] text-center',
+      cellClassName: 'text-center',
       render: (row) => (
         <ManageUsersTableActions
           row={row}
@@ -308,40 +346,44 @@ export default function ManageUsersPage() {
   ]
 
   return (
-    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
-        <PageBanner icon={Users} title="List Users">
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex h-10 min-h-[38px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
-          >
-            <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-            Add User
-          </button>
-        </PageBanner>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <ManageUsersFilterToolbar
-              search={search}
-              onSearchChange={(e) => setSearch(e.target.value)}
-              roleFilter={roleFilter}
-              onRoleFilterChange={(e) => setRoleFilter(e.target.value)}
-              centerFilter={centerFilter}
-              onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
-              statusFilter={statusFilter}
-              onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
-              centerOptions={centerOptions}
-            />
+    <div className="figma-admin-section min-h-screen bg-[#F5F7FB] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
+      <section className="mx-auto max-w-screen-2xl space-y-6">
+        <div className="flex flex-col gap-5 rounded-2xl border border-[#E7ECF5] bg-white px-5 py-5 shadow-[0_8px_24px_rgba(7,19,63,0.06)] sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#EEF5FF] ring-1 ring-[#4CA6E8]/20">
+              <Users className="h-6 w-6 text-[#1D72B8]" strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight text-[#14213D] sm:text-2xl">
+                Users Management
+              </h1>
+              <p className="mt-1 text-sm text-[#667085]">
+                Manage users, permissions and assigned centers.
+              </p>
+            </div>
           </div>
           <button
             type="button"
-            onClick={handleResetFilters}
-            className="h-10 min-h-[38px] shrink-0 rounded-lg border border-[#55ace7]/25 bg-white px-4 text-sm font-semibold text-[#246392] shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:bg-[#eef2fc]"
+            onClick={openCreate}
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-[#1D72B8] to-[#07133F] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(29,114,184,0.35)] transition hover:shadow-[0_6px_20px_rgba(7,19,63,0.35)] active:scale-[0.98]"
           >
-            Reset
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            Add User
           </button>
+        </div>
+
+        <div className="rounded-2xl border border-[#E7ECF5] bg-white p-5 shadow-[0_8px_24px_rgba(7,19,63,0.05)] sm:p-6">
+          <ManageUsersFilterToolbar
+            search={search}
+            onSearchChange={(e) => setSearch(e.target.value)}
+            roleFilter={roleFilter}
+            onRoleFilterChange={(e) => setRoleFilter(e.target.value)}
+            centerFilter={centerFilter}
+            onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+            statusFilter={statusFilter}
+            onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+            centerOptions={centerOptions}
+          />
         </div>
 
         {selectedIds.length > 0 && (
@@ -353,14 +395,13 @@ export default function ManageUsersPage() {
           />
         )}
 
-        <PaginatedFigmaTable
+        <ManageUsersTable
           columns={columns}
           data={filtered}
           emptyMessage="No users match your search or filters."
           itemLabel="users"
           resetDeps={[search, roleFilter, centerFilter, statusFilter]}
           selection={selection}
-          rowClassName="hover:bg-slate-50/90"
         />
       </section>
 
@@ -370,7 +411,8 @@ export default function ManageUsersPage() {
           setFormOpen(false)
           setEditingUser(null)
         }}
-        onSuccess={refresh}
+        onCreate={handleCreateUser}
+        onUpdate={handleUpdateUser}
         editingUser={editingUser}
         centerOptions={centerOptions}
       />

@@ -10,7 +10,6 @@ import {
   CourseSelect,
 } from '../courses/CourseFormField'
 import { USER_ROLES, USER_STATUS_OPTIONS } from '../../data/manageUsersConfig'
-import { createManageUser, updateManageUser } from '../../utils/manageUsersStorage'
 import { cn } from '../../utils/cn'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
@@ -61,18 +60,19 @@ function userRowToForm(row) {
 export default function UserFormModal({
   open,
   onClose,
-  onSuccess,
+  onCreate,
+  onUpdate,
   editingUser = null,
   centerOptions = [],
 }) {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [uploadError, setUploadError] = useState(null)
-  const [saving, setSaving] = useState(false)
   const fileRef = useRef(null)
   const editingRef = useRef(editingUser)
   editingRef.current = editingUser
   const editKey = getModalEditKey(editingUser)
+  const isEdit = Boolean(editingUser)
 
   useInitOnModalOpen(open, editKey, () => {
     const row = editingRef.current
@@ -94,7 +94,7 @@ export default function UserFormModal({
     else if (!emailRe.test(form.email.trim())) next.email = 'Enter a valid email'
     if (!form.phone?.trim()) next.phone = 'Phone number is required'
     else if (!phoneRe.test(form.phone.trim())) next.phone = 'Enter a valid 10-digit mobile number'
-    if (!form.role) next.role = 'Role is required'
+    if (editingUser && !form.role) next.role = 'Role is required'
     if (!form.assignedCenter?.trim()) next.assignedCenter = 'Assigned center is required'
     if (form.parentPhone?.trim() && !phoneRe.test(form.parentPhone.trim())) {
       next.parentPhone = 'Enter a valid 10-digit parent mobile number'
@@ -120,14 +120,28 @@ export default function UserFormModal({
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     if (!validate()) {
       toast.error('Please fix the highlighted fields')
       return
     }
-    setSaving(true)
-    const payload = {
+
+    if (!isEdit) {
+      onCreate?.({
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        parentName: form.parentName.trim(),
+        parentPhone: form.parentPhone.trim(),
+        assignedCenter: form.assignedCenter.trim(),
+        status: form.status,
+      })
+      onClose()
+      return
+    }
+
+    onUpdate?.(editingUser.id, {
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
@@ -137,21 +151,10 @@ export default function UserFormModal({
       assignedCenter: form.assignedCenter.trim(),
       status: form.status,
       profileImage: form.profileImage,
-    }
-    const res = editingUser
-      ? updateManageUser(editingUser.id, payload)
-      : createManageUser(payload)
-    setSaving(false)
-    if (!res.ok) {
-      toast.error(res.reason || 'Failed to save user')
-      return
-    }
-    toast.success(editingUser ? 'User updated' : 'User created')
-    onSuccess?.()
+    })
+    toast.success('User updated')
     onClose()
   }
-
-  const isEdit = Boolean(editingUser)
   const modalTitle = isEdit ? 'Edit User' : 'Create User'
   const subtitle = isEdit
     ? `Update account for ${editingUser?.fullName || 'this user'}`
@@ -282,21 +285,27 @@ export default function UserFormModal({
 
             <FormSection
               title="Access & status"
-              description="Role, center assignment, and account state."
+              description={
+                isEdit
+                  ? 'Role, center assignment, and account state.'
+                  : 'Center assignment and account state.'
+              }
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="Role" required>
-                  <CourseSelect
-                    value={form.role}
-                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                  >
-                    {USER_ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </CourseSelect>
-                </CourseFormField>
+                {isEdit ? (
+                  <CourseFormField label="Role" required>
+                    <CourseSelect
+                      value={form.role}
+                      onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                    >
+                      {USER_ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </CourseSelect>
+                  </CourseFormField>
+                ) : null}
 
                 <CourseFormField label="Assigned Center" required>
                   <CourseSelect
@@ -333,59 +342,61 @@ export default function UserFormModal({
               </div>
             </FormSection>
 
-            <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
-              <div className="flex flex-col gap-4 rounded-xl border border-[#e5eaf2] bg-[#f8fbff] p-4 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className={cn(
-                    'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
-                    'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
-                  )}
-                >
-                  {form.profileImage ? (
-                    <img
-                      src={form.profileImage}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
-                  )}
-                </button>
-                <div className="min-w-0 flex-1 text-center sm:text-left">
+            {isEdit ? (
+              <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
+                <div className="flex flex-col gap-4 rounded-xl border border-[#e5eaf2] bg-[#f8fbff] p-4 sm:flex-row sm:items-center">
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
+                    className={cn(
+                      'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
+                      'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
+                    )}
                   >
-                    {form.profileImage ? 'Change photo' : 'Upload photo'}
+                    {form.profileImage ? (
+                      <img
+                        src={form.profileImage}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
+                    )}
                   </button>
-                  <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
-                  <p className="mt-1 text-[11px] leading-relaxed text-[#686868]">
-                    Max display size 96×96 px in user lists.
-                  </p>
-                  <UploadValidationMessage message={uploadError} />
-                  {form.profileImage ? (
+                  <div className="min-w-0 flex-1 text-center sm:text-left">
                     <button
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
-                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
+                      onClick={() => fileRef.current?.click()}
+                      className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
                     >
-                      <X className="h-3.5 w-3.5" />
-                      Remove image
+                      {form.profileImage ? 'Change photo' : 'Upload photo'}
                     </button>
-                  ) : null}
+                    <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
+                    <p className="mt-1 text-[11px] leading-relaxed text-[#686868]">
+                      Max display size 96×96 px in user lists.
+                    </p>
+                    <UploadValidationMessage message={uploadError} />
+                    {form.profileImage ? (
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
+                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Remove image
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleImage}
+                  />
                 </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleImage}
-                />
-              </div>
-            </FormSection>
+              </FormSection>
+            ) : null}
           </div>
         </div>
 
@@ -394,17 +405,15 @@ export default function UserFormModal({
             <button
               type="button"
               onClick={handleReset}
-              disabled={saving}
-              className="h-11 rounded-xl border border-[#55ace7]/30 bg-white px-6 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef6fc] disabled:opacity-60"
+              className="h-11 rounded-xl border border-[#55ace7]/30 bg-white px-6 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef6fc]"
             >
               Reset
             </button>
             <button
               type="submit"
-              disabled={saving}
-              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95 disabled:opacity-60"
+              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95"
             >
-              {saving ? 'Saving…' : isEdit ? 'Update User' : 'Create User'}
+              {isEdit ? 'Update User' : 'Create User'}
             </button>
           </div>
         </div>

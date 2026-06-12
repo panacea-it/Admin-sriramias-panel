@@ -64,7 +64,7 @@ function CheckboxCell({ checked, onChange, label }) {
 function PremiumTable({
   columns,
   rows,
-  selectedIds,
+  selectedIds = [],
   onToggleSelect,
   onToggleSelectAll,
   allSelected,
@@ -75,19 +75,22 @@ function PremiumTable({
   showEnableDisable = true,
   emptyState,
   activeItemId,
+  showSelection = false,
 }) {
   const hasRows = rows.length > 0
   const selectedCount = selectedIds.length
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
-      <ContentBulkToolbar
-        selectedCount={selectedCount}
-        onDelete={onBulkDelete}
-        onDisable={onBulkDisable}
-        onEnable={onBulkEnable}
-        showEnableDisable={showEnableDisable}
-      />
+      {showSelection && (
+        <ContentBulkToolbar
+          selectedCount={selectedCount}
+          onDelete={onBulkDelete}
+          onDisable={onBulkDisable}
+          onEnable={onBulkEnable}
+          showEnableDisable={showEnableDisable}
+        />
+      )}
 
       {!hasRows ? (
         emptyState
@@ -96,13 +99,15 @@ function PremiumTable({
           <table className="w-full min-w-[720px] border-collapse">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gradient-to-r from-[#55ace7] to-[#246392] text-left text-xs font-semibold uppercase tracking-wide text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)]">
-                <th className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
-                  <CheckboxCell
-                    checked={allSelected}
-                    onChange={onToggleSelectAll}
-                    label="Select all rows"
-                  />
-                </th>
+                {showSelection && (
+                  <th className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
+                    <CheckboxCell
+                      checked={allSelected}
+                      onChange={onToggleSelectAll}
+                      label="Select all rows"
+                    />
+                  </th>
+                )}
                 {columns.map((col) => (
                   <th
                     key={col.key}
@@ -127,17 +132,19 @@ function PremiumTable({
                       'border-b border-slate-100/90 text-sm transition-colors duration-150',
                       idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50',
                       'hover:bg-[#f0f7ff]',
-                      isSelected && 'bg-[#eef2fc]/80',
+                      showSelection && isSelected && 'bg-[#eef2fc]/80',
                       isActive && 'ring-1 ring-inset ring-[#55ace7]/30',
                     )}
                   >
-                    <td className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
-                      <CheckboxCell
-                        checked={isSelected}
-                        onChange={() => onToggleSelect(String(row.id))}
-                        label={`Select row ${row.id}`}
-                      />
-                    </td>
+                    {showSelection && (
+                      <td className="w-12 px-4 py-3.5 first:pl-5 sm:first:pl-6">
+                        <CheckboxCell
+                          checked={isSelected}
+                          onChange={() => onToggleSelect(String(row.id))}
+                          label={`Select row ${row.id}`}
+                        />
+                      </td>
+                    )}
                     {columns.map((col) => (
                       <td
                         key={col.key}
@@ -185,6 +192,7 @@ export default function FolderContentList({
 }) {
   const contentType = contentTypeFromCategoryType(categoryType)
   const rowIds = useMemo(() => rows.map((r) => String(r.id)), [rows])
+  const showSelection = Boolean(onToggleSelect && onToggleSelectAll)
   const allSelected = rowIds.length > 0 && rowIds.every((id) => selectedIds.includes(id))
   const someSelected = rowIds.some((id) => selectedIds.includes(id))
 
@@ -211,6 +219,7 @@ export default function FolderContentList({
     showEnableDisable: true,
     emptyState,
     activeItemId,
+    showSelection,
   }
 
   if (contentType === 'live') {

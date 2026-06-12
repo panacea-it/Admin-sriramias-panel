@@ -1,14 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Layers, Trash2 } from 'lucide-react'
-import EditButton from '../../components/common/EditButton'
+import { Layers } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import AddCurrentAffairsModal from '../../components/current-affairs/AddCurrentAffairsModal'
-import ModifyCurrentAffairsCategoryModal from '../../components/current-affairs/ModifyCurrentAffairsCategoryModal'
+import CurrentAffairsBulkActionsBar from '../../components/current-affairs/CurrentAffairsBulkActionsBar'
+import CurrentAffairsTableActions from '../../components/current-affairs/CurrentAffairsTableActions'
+import ViewCurrentAffairsModal from '../../components/current-affairs/ViewCurrentAffairsModal'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { BannerButton, ResourceNameCell, StatusBadge } from '../../components/academics/AcademicsUi'
+import { CURRENT_AFFAIRS_FORM_CATEGORIES } from '../../constants/currentAffairsForm'
 import { CURRENT_AFFAIRS_CATEGORIES } from '../../data/currentAffairsData'
 import { useEditModal } from '../../hooks/useEditModal'
 import { useCurrentAffairs } from '../../hooks/useCurrentAffairs'
@@ -18,7 +20,6 @@ import {
   deleteCurrentAffair,
   updateCurrentAffairStatus,
 } from '../../services/currentAffairsService'
-import { cn } from '../../utils/cn'
 
 function nextRowStatus(status) {
   return status === 'Active' ? 'In Active' : 'Active'
@@ -33,6 +34,8 @@ export default function CurrentAffairsPage() {
     setSearch,
     categoryFilter,
     setCategoryFilter,
+    resourceFilter,
+    setResourceFilter,
     statusFilter,
     setStatusFilter,
     refreshItems,
@@ -40,43 +43,39 @@ export default function CurrentAffairsPage() {
     patchItemLocally,
   } = useCurrentAffairs()
 
-  const [categories, setCategories] = useState(CURRENT_AFFAIRS_CATEGORIES)
   const modal = useEditModal()
-  const [categoryOpen, setCategoryOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
   const [statusLoadingId, setStatusLoadingId] = useState(null)
 
   const categoryOptions = useMemo(
     () => [
       { value: 'all', label: 'Category' },
-      ...categories.map((c) => ({ value: c.name, label: c.name })),
+      ...CURRENT_AFFAIRS_CATEGORIES.map((c) => ({ value: c.name, label: c.name })),
     ],
-    [categories],
+    [],
   )
 
-  const handleAddCategory = ({ name }) => {
-    setCategories((prev) => [...prev, { id: Date.now(), name, status: 'Active' }])
-  }
+  const resourceOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Resource' },
+      ...CURRENT_AFFAIRS_FORM_CATEGORIES.map((name) => ({ value: name, label: name })),
+    ],
+    [],
+  )
 
-  const handleUpdateCategory = ({ id, name, status }) => {
-    const prevCat = categories.find((c) => c.id === id)
-    if (!prevCat) return
-    const trimmed = String(name || '').trim()
-    if (!trimmed) {
-      toast.error('Category name is required')
-      return
-    }
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, name: trimmed, status: status || c.status } : c)),
-    )
-    toast.success('Category updated')
-  }
+  const itemsById = useMemo(
+    () => new Map(items.map((row) => [String(row.id), row])),
+    [items],
+  )
 
-  const handleDeleteCategory = (id) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id))
-  }
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => itemsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, itemsById],
+  )
 
   const handleToggleItemStatus = async (row) => {
     const nextStatus = nextRowStatus(row.status)
@@ -110,6 +109,26 @@ export default function CurrentAffairsPage() {
     },
     [removeItemsLocally],
   )
+
+  const handleBulkDisable = async () => {
+    const ids = selectedIds.filter((id) => itemsById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkDisableLoading(true)
+    try {
+      await Promise.all(ids.map((id) => updateCurrentAffairStatus(id, false)))
+      ids.forEach((id) => patchItemLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} entries disabled` : 'Current affairs entry disabled')
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[Current Affairs] Bulk disable failed:', error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected entries'))
+      await refreshItems()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return
@@ -168,19 +187,19 @@ export default function CurrentAffairsPage() {
     },
     {
       key: 'actions',
-      label: 'Action',
+      label: 'Actions',
+      align: 'right',
+      headerClassName: 'min-w-[220px] whitespace-nowrap pr-4 sm:pr-6',
+      cellClassName: 'min-w-[220px] whitespace-nowrap align-middle pr-4 sm:pr-6',
       render: (row) => (
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <EditButton onClick={() => modal.openEdit(row)} />
-          <button
-            type="button"
-            onClick={() => setDeleteTarget({ ids: [row.id], name: row.name })}
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#c96565] transition hover:text-[#b94b4b] sm:text-base"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-            Delete
-          </button>
-        </div>
+        <CurrentAffairsTableActions
+          row={row}
+          onView={() => setViewItem(row)}
+          onEdit={() => modal.openEdit(row)}
+          onStatusToggle={() => handleToggleItemStatus(row)}
+          onDelete={() => setDeleteTarget({ ids: [row.id], name: row.name })}
+          statusLoading={statusLoadingId === row.id}
+        />
       ),
     },
   ]
@@ -190,9 +209,15 @@ export default function CurrentAffairsPage() {
       ? `Delete ${deleteTarget.ids.length} selected current affairs entries? This cannot be undone.`
       : `Delete "${deleteTarget?.name || 'this entry'}"? This cannot be undone.`
 
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    categoryFilter !== 'all' ||
+    resourceFilter !== 'all' ||
+    statusFilter !== 'all'
+
   const emptyMessage = loadError
     ? 'Unable to load current affairs.'
-    : search.trim() || categoryFilter !== 'all' || statusFilter !== 'all'
+    : hasActiveFilters
       ? 'No current affairs match your filters.'
       : 'No current affairs found.'
 
@@ -219,7 +244,6 @@ export default function CurrentAffairsPage() {
           className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
         >
           <BannerButton onClick={modal.openCreate}>Add Current Affairs</BannerButton>
-          <BannerButton onClick={() => setCategoryOpen(true)}>Add Current Category</BannerButton>
         </PageBanner>
 
         <CourseFilterToolbar
@@ -228,47 +252,30 @@ export default function CurrentAffairsPage() {
           searchPlaceholder="Search Current Affairs"
           category={categoryFilter}
           onCategoryChange={(e) => setCategoryFilter(e.target.value)}
+          resource={resourceFilter}
+          onResourceChange={(e) => setResourceFilter(e.target.value)}
+          resourceOptions={resourceOptions}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           categoryOptions={categoryOptions}
         />
 
-        {selectedIds.length > 0 && (
-          <div
-            className={cn(
-              'flex flex-wrap items-center gap-3 rounded-xl border border-[#55ace7]/20 bg-white px-4 py-3',
-              'shadow-[0_2px_8px_rgba(15,23,42,0.06)]',
-            )}
-          >
-            <span className="text-sm font-semibold text-[#246392]">
-              {selectedIds.length} selected
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedIds([])}
-              className="text-sm font-medium text-[#686868] underline-offset-2 hover:underline"
-            >
-              Clear selection
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
-              className="ml-auto inline-flex items-center gap-2 rounded-lg bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b91c1c]"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete selected
-            </button>
-          </div>
-        )}
+        <CurrentAffairsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        />
 
         <PaginatedFigmaTable
           columns={columns}
           data={items}
-          loading={loading}
+          loading={loading || bulkDisableLoading}
           emptyMessage={emptyMessage}
           emptyState={emptyState}
           itemLabel="entries"
-          resetDeps={[search, categoryFilter, statusFilter]}
+          resetDeps={[search, categoryFilter, resourceFilter, statusFilter]}
           rowClassName="hover:bg-slate-50/90"
           selection={{
             selectedIds,
@@ -285,13 +292,10 @@ export default function CurrentAffairsPage() {
         onSuccess={refreshItems}
       />
 
-      <ModifyCurrentAffairsCategoryModal
-        open={categoryOpen}
-        onClose={() => setCategoryOpen(false)}
-        categories={categories}
-        onAddCategory={handleAddCategory}
-        onUpdateCategory={handleUpdateCategory}
-        onDeleteCategory={handleDeleteCategory}
+      <ViewCurrentAffairsModal
+        open={Boolean(viewItem)}
+        item={viewItem}
+        onClose={() => setViewItem(null)}
       />
 
       <ConfirmDeleteDialog

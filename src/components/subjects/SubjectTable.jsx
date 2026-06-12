@@ -4,14 +4,7 @@ import SubjectListingStatus from './SubjectListingStatus'
 import SubjectRowActionsMenu, { tableActionsCellClass } from './SubjectRowActionsMenu'
 import SubjectChipPopover from './SubjectChipPopover'
 import AdminTooltip from './AdminTooltip'
-import {
-  deriveLiveStatus,
-  deriveRecordingStatus,
-  deriveTestSeriesStatus,
-  normalizeCategories,
-} from '../../utils/subjectCategoryHelpers'
-import { normalizeTestSeriesBlock } from '../../utils/batchTestSeriesForm'
-import { parseDateForDisplay } from '../../utils/academicsSubjectsStorage'
+import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
 
 function SecondaryCell({ children, title }) {
   return (
@@ -106,62 +99,6 @@ export default function SubjectTable({
       ),
     },
     {
-      key: 'liveStatus',
-      label: 'Live',
-      headerClassName: 'hidden xl:table-cell w-[90px]',
-      cellClassName: 'hidden xl:table-cell',
-      render: (row) => (
-        <SecondaryCell>{deriveLiveStatus(row)}</SecondaryCell>
-      ),
-    },
-    {
-      key: 'recordingStatus',
-      label: 'Recording',
-      headerClassName: 'hidden xl:table-cell w-[90px]',
-      cellClassName: 'hidden xl:table-cell',
-      render: (row) => (
-        <SecondaryCell>{deriveRecordingStatus(row)}</SecondaryCell>
-      ),
-    },
-    {
-      key: 'testSeriesStatus',
-      label: 'Test',
-      headerClassName: 'hidden 2xl:table-cell w-[100px]',
-      cellClassName: 'hidden 2xl:table-cell',
-      render: (row) => (
-        <SecondaryCell>{deriveTestSeriesStatus(row)}</SecondaryCell>
-      ),
-    },
-    {
-      key: 'totalQuestions',
-      label: 'Questions',
-      headerClassName: 'hidden 2xl:table-cell w-[88px] text-center',
-      cellClassName: 'hidden 2xl:table-cell text-center',
-      render: (row) => {
-        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
-        const count = ts?.questions?.length ?? 0
-        return <SecondaryCell>{count || '—'}</SecondaryCell>
-      },
-    },
-    {
-      key: 'scheduledDate',
-      label: 'Scheduled',
-      headerClassName: 'hidden 2xl:table-cell min-w-[120px]',
-      cellClassName: 'hidden 2xl:table-cell',
-      render: (row) => {
-        const ts = row.testSeries ? normalizeTestSeriesBlock(row.testSeries) : null
-        const date = ts?.schedule?.date || ts?.scheduleDate
-        const time = ts?.schedule?.time || ts?.scheduleTime
-        if (!date) return <SecondaryCell>—</SecondaryCell>
-        return (
-          <SecondaryCell>
-            {parseDateForDisplay(date)}
-            {time ? ` · ${time}` : ''}
-          </SecondaryCell>
-        )
-      },
-    },
-    {
       key: 'actions',
       label: 'Actions',
       headerClassName: 'text-right',
@@ -205,7 +142,7 @@ export default function SubjectTable({
       stickyLastColumn
       animateRows
       skeletonRowCount={8}
-      tableMinWidth={960}
+      tableMinWidth={760}
       className="overflow-hidden rounded-xl border border-slate-100/80 shadow-[0_4px_20px_rgba(15,23,42,0.06)]"
       tableClassName="rounded-xl"
     />

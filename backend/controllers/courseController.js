@@ -20,8 +20,11 @@ function buildListQuery(query) {
       { courseName: regex },
       { batchName: regex },
       { batchId: regex },
+      { batchCode: regex },
       { courseId: regex },
       { linkedCourseName: regex },
+      { mentorName: regex },
+      { trainerName: regex },
       { category: regex },
       { center: regex },
     ]
@@ -47,6 +50,7 @@ function pickBatchFields(body = {}) {
   return {
     courseName: batchName,
     batchId: body.batchId?.trim() || '',
+    batchCode: body.batchCode?.trim() || body.batchId?.trim() || '',
     batchName,
     courseId: body.courseId?.trim() || '',
     academicCourseId: body.academicCourseId?.trim() || '',

@@ -1,12 +1,5 @@
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partial', 'Overdue']
-const BATCH_STATUSES = [
-  'Active',
-  'Upcoming',
-  'Inactive',
-  'Completed',
-  'Archived',
-  'Cancelled',
-]
+const BATCH_STATUSES = ['Active', 'Inactive']
 const STUDENT_STATUSES = ['Active', 'In Active']
 
 function makeStudent(

@@ -1,7 +1,33 @@
 import { INITIAL_BATCHES } from '../data/batchManagementData'
 import { formatBatchSubjectDropdownLabel } from './facultySubjectBatch'
-import { DEFAULT_BATCH_CAPACITY } from './batchOperations'
+import { DEFAULT_BATCH_CAPACITY, normalizeBatchUiStatus } from './batchOperations'
 import { resolveMentorDisplayName } from './mentorEmployees'
+import { isMongoObjectId } from './facultySubjectHelpers'
+
+/** Case-insensitive search across batch list fields. */
+export function matchesBatchSearch(row = {}, query = '') {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return true
+  const mentorLabel = resolveMentorDisplayName(row)
+  const courseName = row.linkedCourseName || row.courseName || ''
+  const batchLabel = row.batchName || row.name || ''
+  const displayName = courseName && batchLabel ? `${courseName} - ${batchLabel}` : batchLabel
+  const haystack = [
+    row.batchId,
+    row.batchCode,
+    row.batchName,
+    row.name,
+    row.courseName,
+    row.linkedCourseName,
+    displayName,
+    row.mentorName,
+    row.trainerName,
+    mentorLabel,
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .filter(Boolean)
+  return haystack.some((value) => value.includes(q))
+}
 
 export function nextBatchId(rows = []) {
   const max = rows.reduce((m, row) => {
@@ -47,11 +73,53 @@ export function normalizeLinkedSubjects(form = {}) {
     })
 }
 
+export function findBatchRow(rows, batchIdParam) {
+  if (!batchIdParam) return null
+  const decoded = decodeURIComponent(String(batchIdParam))
+  return (
+    rows.find((r) => {
+      const id = String(r.id ?? '')
+      const batchId = String(r.batchId ?? '')
+      const batchCode = String(r.batchCode ?? r.formData?.batchCode ?? '')
+      const courseId = String(r.courseId ?? '')
+      return (
+        id === decoded ||
+        batchId === decoded ||
+        batchCode === decoded ||
+        courseId === decoded
+      )
+    }) ?? null
+  )
+}
+
+/** Resolve Mongo _id for batch API calls from a route param or batch row. */
+export function resolveBatchMongoId(batchOrRouteParam, rows = []) {
+  if (batchOrRouteParam == null || batchOrRouteParam === '') return ''
+
+  if (typeof batchOrRouteParam === 'object') {
+    const mongoId = batchOrRouteParam.id ?? batchOrRouteParam._id
+    if (isMongoObjectId(mongoId)) return String(mongoId).trim()
+    const code = batchOrRouteParam.batchId || batchOrRouteParam.batchCode
+    if (code) return resolveBatchMongoId(code, rows)
+    return ''
+  }
+
+  const param = decodeURIComponent(String(batchOrRouteParam)).trim()
+  if (!param) return ''
+  if (isMongoObjectId(param)) return param
+
+  const row = findBatchRow(rows, param)
+  if (row?.id && isMongoObjectId(row.id)) return String(row.id).trim()
+
+  return ''
+}
+
 export function enrichBatchRow(row, index = 0) {
   const fd = row.formData || {}
   return {
     ...row,
     batchId: row.batchId || fd.batchId || `BAT${String(index + 1).padStart(3, '0')}`,
+    batchCode: row.batchCode || fd.batchCode || '',
     batchName: row.batchName || fd.batchName || row.name || '',
     courseId: row.courseId || fd.courseId || '—',
     courseName: row.courseName || row.linkedCourseName || fd.courseName,
@@ -73,6 +141,7 @@ export function enrichBatchRow(row, index = 0) {
     totalStudents: row.totalStudents ?? row.studentCount ?? fd.totalStudents,
     mentorId: row.mentorId || fd.mentorId || '',
     mentorName: row.mentorName || fd.mentorName || '',
+    status: normalizeBatchUiStatus(row.status || fd.status || 'Active'),
     students: row.students || [],
   }
 }
@@ -110,10 +179,11 @@ export function mapBatchRowToTableFormat(row, students = [], totalStudentsOverri
     courseName,
     batchLabel,
     displayName: `${courseName} - ${batchLabel}`,
+    mentorName: resolveMentorDisplayName(row),
     trainerName: resolveMentorDisplayName(row),
     startDate: row.batchStartFrom || row.commencement || fd.batchStartFrom || '',
     endDate: row.batchEndTo || fd.batchEndTo || '',
-    status: row.status || 'Active',
+    status: normalizeBatchUiStatus(row.status || fd.status || 'Active'),
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,
     mergedIntoName: row.mergedIntoName ?? fd.mergedIntoName ?? null,

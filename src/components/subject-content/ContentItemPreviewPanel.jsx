@@ -9,30 +9,46 @@ import {
   viewBrochurePdf,
 } from '../../utils/batchBrochure'
 
-export default function ContentItemPreviewPanel({ category, row, onClose }) {
+export default function ContentItemPreviewPanel({ category, row, onClose, embedded = false }) {
   if (!row) return null
   const contentType = contentTypeFromCategoryType(category?.categoryType)
   const payload = row.payload
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6">
-      <div className="mb-4 flex items-start justify-between gap-2">
-        <h3 className="text-lg font-bold text-[#1a3a5c]">Preview</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
-          aria-label="Close preview"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
+    <div
+      className={
+        embedded
+          ? 'rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6'
+          : 'rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6'
+      }
+    >
+      {!embedded && (
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <h3 className="text-lg font-bold text-[#1a3a5c]">Preview</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+            aria-label="Close preview"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
 
       {contentType === 'live' && payload && (
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-semibold text-slate-500">Class Title</dt>
+            <dt className="text-xs font-semibold text-slate-500">Title</dt>
             <dd className="font-medium">{payload.classTitle}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-slate-500">Faculty</dt>
+            <dd>{row.faculty || payload.teacher || payload.facultyName || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-slate-500">Subject</dt>
+            <dd>{payload.subjectName || payload.subjectLabel || '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-slate-500">Date</dt>
@@ -40,20 +56,30 @@ export default function ContentItemPreviewPanel({ category, row, onClose }) {
           </div>
           <div>
             <dt className="text-xs font-semibold text-slate-500">Time</dt>
-            <dd>{payload.startTime || payload.scheduledTime}</dd>
+            <dd>{payload.startTime || payload.scheduledTime || row.time || '—'}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold text-slate-500">Center</dt>
-            <dd>{payload.center}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold text-slate-500">Classroom</dt>
-            <dd>{payload.classroom || payload.classRoom}</dd>
+            <dt className="text-xs font-semibold text-slate-500">Duration</dt>
+            <dd>{payload.duration || row.duration || '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-slate-500">Status</dt>
-            <dd>{payload.status}</dd>
+            <dd>{payload.status || row.liveStatus || '—'}</dd>
           </div>
+          <div>
+            <dt className="text-xs font-semibold text-slate-500">Center</dt>
+            <dd>{payload.center || row.center || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-slate-500">Classroom</dt>
+            <dd>{payload.classroom || payload.classRoom || row.classroom || '—'}</dd>
+          </div>
+          {payload.description ? (
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-semibold text-slate-500">Description</dt>
+              <dd className="whitespace-pre-wrap">{payload.description}</dd>
+            </div>
+          ) : null}
           {payload.meetingUrl && (
             <div className="sm:col-span-2">
               <dt className="text-xs font-semibold text-slate-500">Meeting URL</dt>

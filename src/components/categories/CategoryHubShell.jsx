@@ -1,14 +1,17 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../../utils/cn'
-import { CATEGORY_HUB_TABS } from '../../constants/categoryHubSections'
+import { CATEGORY_HUB_TABS, getTabIdFromPath } from '../../constants/categoryHubSections'
 
 export default function CategoryHubShell({ children }) {
   const location = useLocation()
   const useOutlet = !children
+  const activeTab = getTabIdFromPath(location.pathname)
+  const hideHubNav = activeTab === 'programs' || activeTab === 'exam-category'
 
   return (
     <div className="figma-admin-section min-h-full bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
       <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+        {!hideHubNav ? (
         <nav
           className="sticky top-0 z-20 -mx-1 flex flex-wrap gap-2 rounded-2xl border border-white/60 bg-white/80 p-2 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-md sm:gap-2.5 sm:p-2.5"
           aria-label="Category sections"
@@ -39,6 +42,7 @@ export default function CategoryHubShell({ children }) {
             )
           })}
         </nav>
+        ) : null}
 
         {useOutlet ? <Outlet /> : children}
       </section>

@@ -4,6 +4,7 @@ import { CourseFormField, CourseInput, CourseSelect, CourseTextarea } from '../.
 import {
   FREE_RESOURCE_CATEGORY,
   BULK_QUESTION_ACCEPT,
+  MAINS_CATEGORY_OPTIONS,
 } from '../../../utils/freeResourceFormConstants'
 import {
   validateNcertBookPdf,
@@ -109,54 +110,18 @@ export default function ResourceCategoryRenderer({
 
     case FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR: {
       const dropdowns = previousYearDropdowns ?? {
-        examCategoryOptions: [],
         paperTypeOptions: [],
         yearOptions: [],
         loading: false,
         error: null,
         retry: () => {},
       }
-      const examOptions = dropdowns.examCategoryOptions
       const paperOptions = dropdowns.paperTypeOptions
       const yearOpts = dropdowns.yearOptions
       const dropdownsLoading = dropdowns.loading
 
       return (
         <Grid>
-          <CourseFormField label="Exam Category" required>
-            <div className="relative">
-              <CourseSelect
-                {...register('examCategory')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
-              >
-                <option value="">
-                  {dropdownsLoading ? 'Loading exam categories…' : 'Choose exam'}
-                </option>
-                {examOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CourseSelect>
-              {dropdownsLoading ? (
-                <Loader2
-                  className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
-            {dropdowns.error && !dropdownsLoading && examOptions.length === 0 ? (
-              <button
-                type="button"
-                onClick={dropdowns.retry}
-                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
-              >
-                Retry loading options
-              </button>
-            ) : null}
-            <FormFieldError message={errors.examCategory?.message} />
-          </CourseFormField>
           <CourseFormField label="Paper Type" required>
             <div className="relative">
               <CourseSelect
@@ -380,49 +345,22 @@ export default function ResourceCategoryRenderer({
     }
 
     case FREE_RESOURCE_CATEGORY.STUDY_MATERIAL: {
-      const dropdowns = studyMaterialDropdowns ?? {
-        categoryOptions: [],
-        loading: false,
-        error: null,
-        retry: () => {},
-      }
-      const categoryOpts = dropdowns.categoryOptions
-      const dropdownsLoading = dropdowns.loading
+      const categoryOpts = MAINS_CATEGORY_OPTIONS.map((option) => ({
+        value: option,
+        label: option,
+      }))
 
       return (
         <Grid>
-          <CourseFormField label="Mains Category" required>
-            <div className="relative">
-              <CourseSelect
-                {...register('mainsCategory')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
-              >
-                <option value="">
-                  {dropdownsLoading ? 'Loading categories…' : 'Choose category'}
+          <CourseFormField label="Main Category" required>
+            <CourseSelect {...register('mainsCategory')}>
+              <option value="">Choose category</option>
+              {categoryOpts.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
-                {categoryOpts.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CourseSelect>
-              {dropdownsLoading ? (
-                <Loader2
-                  className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
-            {dropdowns.error && !dropdownsLoading && categoryOpts.length === 0 ? (
-              <button
-                type="button"
-                onClick={dropdowns.retry}
-                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
-              >
-                Retry loading options
-              </button>
-            ) : null}
+              ))}
+            </CourseSelect>
             <FormFieldError message={errors.mainsCategory?.message} />
           </CourseFormField>
           <CourseFormField label="Study Material Name" required className="sm:col-span-2">

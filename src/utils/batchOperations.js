@@ -2,7 +2,29 @@ import { BATCH_STATUSES } from '../data/batchManagementData'
 
 export const DEFAULT_BATCH_CAPACITY = 50
 
-export const NON_TRANSFER_TARGET_STATUSES = ['Archived', 'Completed', 'Cancelled']
+/** Only Active and Inactive are exposed in Batch Manager UI. */
+export const BATCH_UI_STATUSES = BATCH_STATUSES
+
+const INACTIVE_API_STATUSES = new Set([
+  'INACTIVE',
+  'IN_ACTIVE',
+  'DISABLED',
+  'ARCHIVED',
+  'CANCELLED',
+  'COMPLETED',
+])
+
+/** Map any backend/legacy status to Active or Inactive for display and forms. */
+export function normalizeBatchUiStatus(status) {
+  const upper = String(status || 'ACTIVE')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+  if (INACTIVE_API_STATUSES.has(upper)) return 'Inactive'
+  return 'Active'
+}
+
+export const NON_TRANSFER_TARGET_STATUSES = ['Inactive']
 
 export function getBatchCapacity(row) {
   const fd = row?.formData || {}
@@ -26,6 +48,30 @@ export function isBatchNameTaken(name, batches, excludeId) {
     const label = (b.batchName || b.name || '').trim().toLowerCase()
     const display = `${b.linkedCourseName || b.courseName || ''} - ${label}`.toLowerCase()
     return label === normalized || display === normalized
+  })
+}
+
+export function isBatchCodeTaken(code, batches, excludeId) {
+  const normalized = String(code || '').trim().toLowerCase()
+  if (!normalized) return false
+  return batches.some((b) => {
+    if (excludeId != null && String(b.id) === String(excludeId)) return false
+    const existing = String(
+      b.batchCode || b.formData?.batchCode || b.batchId || b.formData?.batchId || '',
+    )
+      .trim()
+      .toLowerCase()
+    return existing === normalized
+  })
+}
+
+export function isBatchIdTaken(batchId, batches, excludeId) {
+  const normalized = String(batchId || '').trim().toLowerCase()
+  if (!normalized) return false
+  return batches.some((b) => {
+    if (excludeId != null && String(b.id) === String(excludeId)) return false
+    const existing = String(b.batchId || b.formData?.batchId || '').trim().toLowerCase()
+    return existing === normalized
   })
 }
 
@@ -62,6 +108,7 @@ export function extractFacultyOptions(apiRow) {
 export function batchStatusFilterOptions() {
   return [
     { value: 'all', label: 'All Statuses' },
-    ...BATCH_STATUSES.map((s) => ({ value: s, label: s })),
+    { value: 'Active', label: 'Active' },
+    { value: 'Inactive', label: 'Inactive' },
   ]
 }

@@ -354,7 +354,7 @@ export default function CategorySectionPage() {
   }
 
   if (isExamCategory) {
-    return <ExamCategorySection section={section} Icon={Icon} />
+    return <ExamCategorySection section={section} />
   }
 
   if (isExamSubCategory) {

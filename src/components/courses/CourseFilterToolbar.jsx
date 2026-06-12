@@ -29,6 +29,10 @@ export default function CourseFilterToolbar({
   searchPlaceholder = 'Search...',
   category,
   onCategoryChange,
+  resource,
+  onResourceChange,
+  resourceOptions,
+  resourceAriaLabel = 'Resource',
   center,
   onCenterChange,
   centerOptions,
@@ -65,6 +69,14 @@ export default function CourseFilterToolbar({
             value={category}
             onChange={onCategoryChange}
             options={categoryOptions}
+          />
+        )}
+        {resourceOptions && resourceOptions.length > 0 && (
+          <FilterSelect
+            label={resourceAriaLabel}
+            value={resource}
+            onChange={onResourceChange}
+            options={resourceOptions}
           />
         )}
         {centerOptions && centerOptions.length > 0 && (

@@ -114,9 +114,6 @@ function validateNcertBookFields(values, { isEdit = false } = {}) {
 
 function validatePreviousYearPaperFields(values, { isEdit = false } = {}) {
   const errors = {}
-  if (!String(values.examCategory || '').trim()) {
-    errors.examCategory = 'Exam category is required'
-  }
   if (!String(values.paperType || '').trim()) {
     errors.paperType = 'Paper type is required'
   }
@@ -179,7 +176,7 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
 function validateStudyMaterialFields(values, { isEdit = false } = {}) {
   const errors = {}
   if (!String(values.mainsCategory || '').trim()) {
-    errors.mainsCategory = 'Category is required'
+    errors.mainsCategory = 'Main category is required'
   }
   if (!String(values.studyMaterialName || '').trim()) {
     errors.studyMaterialName = 'Study material name is required'

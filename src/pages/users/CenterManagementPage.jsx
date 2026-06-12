@@ -5,7 +5,6 @@ import {
   Eye,
   Pencil,
   Plus,
-  Trash2,
 } from 'lucide-react'
 import ErrorState from '../../components/feedback/ErrorState'
 import { toast } from '@/utils/toast'
@@ -21,6 +20,7 @@ import { useCenters } from '../../contexts/CentersContext'
 import { useCenterManagement } from '../../hooks/useCenterManagement'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../utils/apiError'
+import { cn } from '../../utils/cn'
 import {
   buildUpdateCenterPayloadFromPatch,
   deleteCenter as deleteCenterApi,
@@ -34,7 +34,10 @@ const CENTER_STATUS_OPTIONS = [
   { value: 'disabled', label: 'Disabled' },
 ]
 
-function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
+const actionButtonClass =
+  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+
+function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
   return (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
       <button
@@ -42,9 +45,9 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
         onClick={onView}
         title="View"
         aria-label={`View ${row.centerName}`}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392] sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
       >
-        <Eye className="h-3.5 w-3.5" />
+        <Eye className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">View</span>
       </button>
       <button
@@ -52,9 +55,9 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
         onClick={onEdit}
         title="Edit"
         aria-label={`Edit ${row.centerName}`}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#246392] sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
       >
-        <Pencil className="h-3.5 w-3.5" />
+        <Pencil className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">Edit</span>
       </button>
       <button
@@ -62,20 +65,10 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
         onClick={onStatusToggle}
         title={row.status === 'active' ? 'Disable' : 'Enable'}
         aria-label={row.status === 'active' ? `Disable ${row.centerName}` : `Enable ${row.centerName}`}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-50 sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
+        className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
       >
-        <Ban className="h-3.5 w-3.5" />
+        <Ban className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">{row.status === 'active' ? 'Disable' : 'Enable'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="Delete"
-        aria-label={`Delete ${row.centerName}`}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition hover:bg-rose-50 sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Delete</span>
       </button>
     </div>
   )
@@ -300,7 +293,6 @@ export default function CenterManagementPage() {
         onView={() => setViewingId(row.centerId)}
         onEdit={() => openEdit(row)}
         onStatusToggle={() => handleStatusToggleRequest(row)}
-        onDelete={() => setDeleteTarget(row)}
       />
     ),
     [],

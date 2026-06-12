@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -188,6 +188,23 @@ export default function HierarchyExplorer({
   const [expandedIds, setExpandedIds] = useState(() => new Set())
   const [editingFolderId, setEditingFolderId] = useState(null)
   const [editValue, setEditValue] = useState('')
+
+  useEffect(() => {
+    if (!selectedCategoryId && !selectedFolderId) return
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      let changed = false
+      if (selectedCategoryId && !next.has(selectedCategoryId)) {
+        next.add(selectedCategoryId)
+        changed = true
+      }
+      if (selectedFolderId && !next.has(selectedFolderId)) {
+        next.add(selectedFolderId)
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [selectedCategoryId, selectedFolderId])
 
   const activeCategory = categories.find((c) => c.id === selectedCategoryId)
 

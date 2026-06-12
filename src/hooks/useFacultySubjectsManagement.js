@@ -2,17 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { createCachedRequest } from '../utils/apiRequestCache'
-import { useDebouncedValue } from './useDebouncedValue'
 import { getFacultySubjects } from '../api/facultySubjectsAPI'
 import {
   isMongoObjectId,
-  mapFacultySubjectStatusFilterToApi,
   normalizeFacultySubjectsListResponse,
 } from '../utils/facultySubjectHelpers'
 import { loadAcademicsSubjects } from '../utils/academicsSubjectsStorage'
 import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
 
 const DEFAULT_PAGE_SIZE = 10
+const LIST_FETCH_LIMIT = 100
 const facultySubjectsListCache = createCachedRequest({ ttlMs: 60_000 })
 
 function loadSyncedLocalSubjects() {
@@ -32,13 +31,8 @@ function getInitialListState() {
   }
 }
 
-function buildListParams({ page, pageSize, debouncedSearch, statusFilter }) {
-  const params = { page, limit: pageSize }
-  const trimmedSearch = debouncedSearch.trim()
-  if (trimmedSearch) params.search = trimmedSearch
-  const apiStatus = mapFacultySubjectStatusFilterToApi(statusFilter)
-  if (apiStatus) params.status = apiStatus
-  return params
+function buildListParams() {
+  return { page: 1, limit: LIST_FETCH_LIMIT }
 }
 
 export function clearFacultySubjectsListCache() {
@@ -73,7 +67,6 @@ export function useFacultySubjectsManagement() {
   const [totalPages, setTotalPages] = useState(INITIAL_LIST_STATE.totalPages)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
   const [loadError, setLoadError] = useState(null)
   const lastErrorToastAt = useRef(0)
   const loadSeqRef = useRef(0)
@@ -92,7 +85,7 @@ export function useFacultySubjectsManagement() {
 
   const loadSubjects = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({ page, pageSize, debouncedSearch, statusFilter })
+      const params = buildListParams()
       const requestKey = JSON.stringify(params)
 
       if (!bypassCache && requestKey === lastRequestKeyRef.current) {
@@ -169,7 +162,7 @@ export function useFacultySubjectsManagement() {
         }
       }
     },
-    [page, pageSize, debouncedSearch, statusFilter, applyLocalFallback],
+    [pageSize, applyLocalFallback],
   )
 
   useEffect(() => {
@@ -183,7 +176,7 @@ export function useFacultySubjectsManagement() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, pageSize])
+  }, [pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)

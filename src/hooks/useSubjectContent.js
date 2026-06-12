@@ -58,7 +58,9 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
   const [saving, setSaving] = useState(false)
   const abortRef = useRef(null)
   const contentRef = useRef(null)
+  const subjectMetaRef = useRef(subjectMeta)
 
+  subjectMetaRef.current = subjectMeta
   contentRef.current = content
 
   const resolvedFacultySubjectId = isMongoObjectId(facultySubjectApiId)
@@ -92,7 +94,7 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
     const controller = new AbortController()
     abortRef.current = controller
 
-    const subjectForCategories = buildSubjectForCategories(subjectMeta)
+    const subjectForCategories = buildSubjectForCategories(subjectMetaRef.current)
     const baseCategories = buildSystemCategoriesFromSubject(subjectForCategories)
     const storedContent = loadSubjectContent(subjectId, subjectForCategories)
     const existingContent =
@@ -104,7 +106,7 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
     try {
       if (!resolvedFacultySubjectId) {
         if (controller.signal.aborted) return
-        setContent(buildContentSnapshot(subjectId, subjectMeta, baseCategories))
+        setContent(buildContentSnapshot(subjectId, subjectMetaRef.current, baseCategories))
         return
       }
 
@@ -134,7 +136,7 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
 
       if (controller.signal.aborted) return
 
-      const snapshot = buildContentSnapshot(subjectId, subjectMeta, categories)
+      const snapshot = buildContentSnapshot(subjectId, subjectMetaRef.current, categories)
       setContent(snapshot)
       try {
         saveSubjectContent(snapshot, subjectForCategories)
@@ -151,15 +153,15 @@ export function useSubjectContent(subjectId, { subjectMeta, facultySubjectApiId 
           resolveStoredFolders(storedContent, cat.categoryType)
         return { ...cat, folders: preserved }
       })
-      const snapshot = buildContentSnapshot(subjectId, subjectMeta, mergedCategories)
+      const snapshot = buildContentSnapshot(subjectId, subjectMetaRef.current, mergedCategories)
       setContent(snapshot)
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
-  }, [subjectId, subjectMeta, resolvedFacultySubjectId, loadFoldersForCategory])
+  }, [subjectId, resolvedFacultySubjectId, loadFoldersForCategory])
 
   useEffect(() => {
-    if (!subjectLoadKey && !subjectId) return undefined
+    if (!subjectId) return undefined
     load()
     return () => abortRef.current?.abort()
   }, [subjectLoadKey, subjectId, load])

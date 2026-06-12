@@ -18,12 +18,7 @@ export default function CategoriesLayout() {
         <Route path="programs/edit/:id" element={<ProgramsPage />} />
         <Route
           path="exam-category"
-          element={
-            <ExamCategorySection
-              section={CATEGORY_HUB_SECTIONS['exam-category']}
-              Icon={CATEGORY_HUB_SECTIONS['exam-category'].icon}
-            />
-          }
+          element={<ExamCategorySection section={CATEGORY_HUB_SECTIONS['exam-category']} />}
         />
         <Route path="exam-sub-category" element={<CategorySectionPage />} />
         <Route path="courses" element={<CategoryCoursesSection />} />

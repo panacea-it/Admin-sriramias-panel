@@ -2,6 +2,8 @@ import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
 import courseRoutes from './routes/courseRoutes.js'
+import batchRoutes from './routes/batchRoutes.js'
+import batchEnrollmentRoutes from './routes/batchEnrollmentRoutes.js'
 import financeRoutes from './routes/financeRoutes.js'
 import salesAnalyticsRoutes from './routes/salesAnalyticsRoutes.js'
 import classroomRoutes from './routes/classroomRoutes.js'
@@ -84,6 +86,8 @@ app.get('/api/health', (req, res) => {
 })
 
 app.use('/api/courses', courseRoutes)
+app.use('/api/batches', batchRoutes)
+app.use('/api/batch-enrollments', batchEnrollmentRoutes)
 app.use('/api/finance', financeRoutes)
 app.use('/api/sales-analytics', salesAnalyticsRoutes)
 app.use('/api/classrooms', classroomRoutes)

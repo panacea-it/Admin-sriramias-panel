@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import BatchStatusBadge from './BatchStatusBadge'
-import { BATCH_STATUSES } from '../../data/batchManagementData'
+import { BATCH_UI_STATUSES, normalizeBatchUiStatus } from '../../utils/batchOperations'
 import { cn } from '../../utils/cn'
 
 export default function BatchStatusSelector({
@@ -11,6 +11,7 @@ export default function BatchStatusSelector({
   onStatusChange,
   disabled = false,
 }) {
+  const normalizedStatus = normalizeBatchUiStatus(status)
   const menuId = useId()
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
@@ -56,7 +57,7 @@ export default function BatchStatusSelector({
 
   const handleSelect = (next) => {
     setOpen(false)
-    if (next !== status) onStatusChange?.(next)
+    if (next !== normalizedStatus) onStatusChange?.(next)
   }
 
   return (
@@ -74,7 +75,7 @@ export default function BatchStatusSelector({
           aria-expanded={open}
           aria-controls={menuId}
         >
-          <BatchStatusBadge status={status} />
+          <BatchStatusBadge status={normalizedStatus} />
           {!disabled && (
             <ChevronDown
               className={cn(
@@ -100,14 +101,14 @@ export default function BatchStatusSelector({
               style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 140 }}
               className="min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
             >
-              {BATCH_STATUSES.map((s) => (
-                <li key={s} role="option" aria-selected={s === status}>
+              {BATCH_UI_STATUSES.map((s) => (
+                <li key={s} role="option" aria-selected={s === normalizedStatus}>
                   <button
                     type="button"
                     onClick={() => handleSelect(s)}
                     className={cn(
                       'flex w-full items-center px-3 py-2 text-left transition hover:bg-[#f0f7fc]',
-                      s === status && 'bg-[#eef6fc]',
+                      s === normalizedStatus && 'bg-[#eef6fc]',
                     )}
                   >
                     <BatchStatusBadge status={s} className="min-w-0 scale-90" />

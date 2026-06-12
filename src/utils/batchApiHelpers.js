@@ -1,40 +1,47 @@
 import { normalizeLinkedSubjects } from './batchHelpers'
 import { normalizeAcademicFeeDetails, serializeAcademicFeeDetails } from './feeDetailsForm'
 import { isMongoObjectId } from './facultySubjectHelpers'
+import { normalizeBatchUiStatus } from './batchOperations'
 
-const BATCH_STATUS_TO_API = {
-  Active: 'ACTIVE',
-  Upcoming: 'UPCOMING',
-  'In Active': 'INACTIVE',
-  Inactive: 'INACTIVE',
-  Completed: 'COMPLETED',
-  Archived: 'ARCHIVED',
-  Cancelled: 'CANCELLED',
+/** Extract a 24-char Mongo ObjectId from an API document field. */
+export function parseMongoIdFromField(raw) {
+  if (raw == null || raw === '') return ''
+  if (typeof raw === 'object' && raw.$oid) {
+    const oid = String(raw.$oid).trim()
+    return isMongoObjectId(oid) ? oid : ''
+  }
+  const str = String(raw).trim()
+  return isMongoObjectId(str) ? str : ''
 }
 
-const BATCH_STATUS_FROM_API = {
-  ACTIVE: 'Active',
-  UPCOMING: 'Upcoming',
-  INACTIVE: 'Inactive',
-  IN_ACTIVE: 'Inactive',
-  COMPLETED: 'Completed',
-  ARCHIVED: 'Archived',
-  CANCELLED: 'Cancelled',
+/** Prefer `_id`; only treat `id` as Mongo when it is a valid ObjectId (not BAT021). */
+export function resolveBatchDocumentId(doc = {}) {
+  if (!doc || typeof doc !== 'object') return ''
+  const candidates = [doc._id, doc.mongoId, doc.batchMongoId]
+  for (const raw of candidates) {
+    const parsed = parseMongoIdFromField(raw)
+    if (parsed) return parsed
+  }
+  return parseMongoIdFromField(doc.id)
+}
+
+export function unwrapCreateBatchDoc(body) {
+  if (!body || typeof body !== 'object') return null
+  const nested = body.data ?? body.batch ?? body.result ?? body.record
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    if (resolveBatchDocumentId(nested) || nested.batchId || nested.batchCode) return nested
+  }
+  if (resolveBatchDocumentId(body) || body.batchId || body.batchCode) return body
+  return null
 }
 
 export function mapBatchStatusToApi(status) {
-  const raw = String(status || 'Active').trim()
-  if (BATCH_STATUS_TO_API[raw]) return BATCH_STATUS_TO_API[raw]
-  const upper = raw.toUpperCase().replace(/\s+/g, '_')
-  return upper || 'ACTIVE'
+  const normalized = normalizeBatchUiStatus(status)
+  return normalized === 'Inactive' ? 'INACTIVE' : 'ACTIVE'
 }
 
 export function mapApiBatchStatusToUi(status) {
-  const upper = String(status || 'ACTIVE')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '_')
-  return BATCH_STATUS_FROM_API[upper] || 'Active'
+  return normalizeBatchUiStatus(status)
 }
 
 /** Parse labels like "6 Months", "1 Year", "12" into months for the API. */
@@ -84,6 +91,8 @@ async function resolveBrochureFile(form) {
 
 async function appendBatchFormFields(formData, form) {
   formData.append('batchName', String(form.batchName || '').trim())
+  const batchCode = String(form.batchCode || '').trim()
+  if (batchCode) formData.append('batchCode', batchCode)
   const mentorId = resolveMentorId(form)
   if (mentorId) formData.append('mentorId', mentorId)
   formData.append('courseId', resolveCourseId(form))
@@ -361,8 +370,10 @@ export function unwrapBatchEnrollmentsMeta(body, fallback = {}) {
 export function mapBatchFromApi(doc) {
   if (!doc) return null
 
-  const id = doc._id ?? doc.id
-  if (!id && !doc.batchId) return null
+  const mongoId = resolveBatchDocumentId(doc)
+  const fd = doc.formData || {}
+  const humanBatchId = String(doc.batchId || doc.batchCode || fd.batchId || fd.batchCode || '').trim()
+  if (!mongoId && !humanBatchId) return null
 
   const courseRef = doc.linkedCourse || doc.course || {}
   const fees =
@@ -414,7 +425,6 @@ export function mapBatchFromApi(doc) {
     doc.durationLabel ||
     doc.formData?.durationLabel ||
     (doc.durationInMonths ? `${doc.durationInMonths} Months` : '')
-  const fd = doc.formData || {}
   const mentor = doc.mentor && typeof doc.mentor === 'object' ? doc.mentor : null
   const mentorId = doc.mentorId || mentor?._id || fd.mentorId || ''
   const mentorName =
@@ -422,12 +432,12 @@ export function mapBatchFromApi(doc) {
   const mentorEmail =
     doc.mentorEmail || mentor?.officialEmail || mentor?.email || fd.mentorEmail || ''
   const apiStudents = mapApiEnrollmentStudents(doc.students)
-  const resolvedId = id || doc.batchId
 
   return {
-    id: resolvedId,
+    id: mongoId || humanBatchId,
     name: batchName,
-    batchId: doc.batchId || doc.batchCode || fd.batchId || '',
+    batchId: humanBatchId || mongoId,
+    batchCode: String(doc.batchCode || fd.batchCode || doc.batchId || fd.batchId || '').trim() || humanBatchId,
     batchName,
     courseId: courseCode || fd.courseId || '',
     academicCourseId: courseMongoId || fd.academicCourseId || '',

@@ -36,7 +36,7 @@ const STATUS_OPTIONS = [
 export default function ProgramsFilterBar({
   search,
   onSearchChange,
-  searchPlaceholder = 'Search by program name, ID, or centre...',
+  searchPlaceholder = 'Search by program name or ID...',
   centre,
   onCentreChange,
   centreOptions = [],

@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
-import { useDebouncedValue } from './useDebouncedValue'
 import { clearProgramsListCache, getPrograms } from '../services/programService'
 import {
   mapProgramStatusFilterToApi,
+  matchesProgramSearch,
   normalizeProgramsListResponse,
 } from '../utils/programHelpers'
 
-function buildListParams({ debouncedSearch, statusFilter, centreFilter }) {
-  const params = {
-    search: debouncedSearch.trim(),
-  }
+function buildListParams({ statusFilter, centreFilter }) {
+  const params = {}
 
   const apiStatus = mapProgramStatusFilterToApi(statusFilter)
   if (apiStatus) params.status = apiStatus
@@ -26,12 +24,11 @@ export function useProgramManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centreFilter, setCentreFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
   const lastErrorToastAt = useRef(0)
 
   const loadPrograms = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({ debouncedSearch, statusFilter, centreFilter })
+      const params = buildListParams({ statusFilter, centreFilter })
 
       setLoading(true)
       try {
@@ -63,7 +60,7 @@ export function useProgramManagement() {
         }
       }
     },
-    [debouncedSearch, statusFilter, centreFilter],
+    [statusFilter, centreFilter],
   )
 
   useEffect(() => {
@@ -83,6 +80,11 @@ export function useProgramManagement() {
     [programs],
   )
 
+  const filteredPrograms = useMemo(
+    () => enrichedPrograms.filter((row) => matchesProgramSearch(row, search)),
+    [enrichedPrograms, search],
+  )
+
   const refreshPrograms = useCallback(async () => {
     clearProgramsListCache()
     await loadPrograms({ bypassCache: true })
@@ -99,7 +101,8 @@ export function useProgramManagement() {
   }, [])
 
   return {
-    programs: enrichedPrograms,
+    programs: filteredPrograms,
+    totalPrograms: enrichedPrograms.length,
     loading,
     search,
     setSearch,
@@ -107,7 +110,6 @@ export function useProgramManagement() {
     setStatusFilter,
     centreFilter,
     setCentreFilter,
-    debouncedSearch,
     refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,

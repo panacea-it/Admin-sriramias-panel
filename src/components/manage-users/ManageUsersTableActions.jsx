@@ -1,13 +1,24 @@
 import { Ban, Circle, Eye, Pencil, Trash2 } from 'lucide-react'
+import { cn } from '../../utils/cn'
 
-const viewEditClassName =
-  'inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-[#5A6A85] transition hover:text-[#246392] disabled:cursor-not-allowed disabled:opacity-50'
-
-const statusClassName =
-  'inline-flex shrink-0 items-center gap-1.5 text-sm font-bold text-[#B25E09] transition hover:text-[#8F4A07] disabled:cursor-not-allowed disabled:opacity-50'
-
-const deleteClassName =
-  'inline-flex shrink-0 items-center gap-1.5 text-sm font-bold text-[#C00040] transition hover:text-[#9A0033] disabled:cursor-not-allowed disabled:opacity-50'
+function ActionButton({ title, ariaLabel, onClick, disabled, className, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      className={cn(
+        'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition',
+        'disabled:cursor-not-allowed disabled:opacity-40',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
 
 export default function ManageUsersTableActions({
   row,
@@ -20,55 +31,47 @@ export default function ManageUsersTableActions({
   const isActive = row.status === 'Active'
 
   return (
-    <div className="flex flex-nowrap items-center gap-4 whitespace-nowrap">
-      <button
-        type="button"
+    <div className="flex items-center justify-center gap-1.5">
+      <ActionButton
+        title="View"
+        ariaLabel={`View ${row.fullName}`}
         onClick={onView}
         disabled={disabled}
-        title="View"
-        aria-label={`View ${row.fullName}`}
-        className={viewEditClassName}
+        className="bg-[#EEF5FF] text-[#1D72B8] hover:bg-[#4CA6E8]/20 hover:text-[#07133F]"
       >
-        <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
-        View
-      </button>
-      <button
-        type="button"
+        <Eye className="h-4 w-4" strokeWidth={2} aria-hidden />
+      </ActionButton>
+      <ActionButton
+        title="Edit"
+        ariaLabel={`Edit ${row.fullName}`}
         onClick={onEdit}
         disabled={disabled}
-        title="Edit"
-        aria-label={`Edit ${row.fullName}`}
-        className={viewEditClassName}
+        className="bg-[#1D72B8]/10 text-[#1D72B8] hover:bg-[#1D72B8] hover:text-white"
       >
-        <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
-        Edit
-      </button>
-      <button
-        type="button"
+        <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden />
+      </ActionButton>
+      <ActionButton
+        title={isActive ? 'Disable' : 'Enable'}
+        ariaLabel={isActive ? `Disable ${row.fullName}` : `Enable ${row.fullName}`}
         onClick={onStatusToggle}
         disabled={disabled}
-        title={isActive ? 'Disable' : 'Enable'}
-        aria-label={isActive ? `Disable ${row.fullName}` : `Enable ${row.fullName}`}
-        className={statusClassName}
+        className="bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-700"
       >
         {isActive ? (
-          <Ban className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
+          <Ban className="h-4 w-4" strokeWidth={2} aria-hidden />
         ) : (
-          <Circle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
+          <Circle className="h-4 w-4" strokeWidth={2} aria-hidden />
         )}
-        {isActive ? 'Disable' : 'Enable'}
-      </button>
-      <button
-        type="button"
+      </ActionButton>
+      <ActionButton
+        title="Delete"
+        ariaLabel={`Delete ${row.fullName}`}
         onClick={onDelete}
         disabled={disabled}
-        title="Delete"
-        aria-label={`Delete ${row.fullName}`}
-        className={deleteClassName}
+        className="bg-[#D64B5F]/10 text-[#D64B5F] hover:bg-[#D64B5F] hover:text-white"
       >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
-        Delete
-      </button>
+        <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
+      </ActionButton>
     </div>
   )
 }

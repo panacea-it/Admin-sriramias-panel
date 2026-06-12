@@ -52,7 +52,7 @@ import FormModalSubmitBar from '../common/FormModalSubmitBar'
 
 import Modal from '../ui/Modal'
 
-import ModalPanelHeader from '../courses/ModalPanelHeader'
+import CurrentAffairsModalHeader from './CurrentAffairsModalHeader'
 
 import SectionBar from '../courses/SectionBar'
 
@@ -470,6 +470,8 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
       title={isEditMode ? 'Edit Current Affairs' : 'Add Current Affairs'}
 
+      showCloseButton={false}
+
     >
 
       <form
@@ -480,7 +482,7 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
       >
 
-        <ModalPanelHeader
+        <CurrentAffairsModalHeader
 
           title={isEditMode ? 'Edit Current Affairs' : 'Add Current Affairs'}
 
@@ -488,7 +490,7 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
           icon={Layers}
 
-          closeVariant="icon"
+          closeDisabled={isSubmitting}
 
         />
 
@@ -549,8 +551,6 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
                   errors={errors}
 
                   onPatch={handlePatch}
-
-                  resetKey={questionSectionKey}
 
                   currentAffairId={isEditMode ? editingId : null}
 

@@ -2,12 +2,14 @@ import {
   CourseDateInput,
   CourseFormField,
   CourseInput,
+  CourseSelect,
 } from './CourseFormField'
 import { batchFormGrid } from './batch-form/BatchFormCard'
 import BrochurePdfUpload from './BrochurePdfUpload'
 import BannerImageUpload from './BannerImageUpload'
 import CourseCatalogSelect from './CourseCatalogSelect'
 import BatchMentorSelect from './BatchMentorSelect'
+import { BATCH_STATUSES } from '../../data/batchManagementData'
 import { cn } from '../../utils/cn'
 
 export default function BatchDetailsSection({
@@ -17,6 +19,7 @@ export default function BatchDetailsSection({
   setErrors,
   excludeCourseIds = [],
   onBrochureUploadingChange,
+  isEditMode = false,
 }) {
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
@@ -50,6 +53,22 @@ export default function BatchDetailsSection({
           placeholder="e.g. UPSC Batch 1"
         />
         {fieldError('batchName')}
+      </CourseFormField>
+
+      <CourseFormField label="Batch Code" required className="sm:col-span-1 lg:col-span-1">
+        <CourseInput
+          value={form.batchCode}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, batchCode: e.target.value }))
+            clearError('batchCode')
+          }}
+          placeholder="e.g. UPSC-B01"
+          disabled={isEditMode}
+        />
+        {fieldError('batchCode')}
+        {isEditMode && (
+          <p className="mt-1 text-[11px] text-gray-500">Batch code cannot be changed after creation.</p>
+        )}
       </CourseFormField>
 
       <BatchMentorSelect
@@ -129,6 +148,23 @@ export default function BatchDetailsSection({
         {fieldError('batchEndTo')}
       </CourseFormField>
 
+      <CourseFormField label="Status" required>
+        <CourseSelect
+          value={form.status || 'Active'}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, status: e.target.value }))
+            clearError('status')
+          }}
+        >
+          {BATCH_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </CourseSelect>
+        {fieldError('status')}
+      </CourseFormField>
+
       <CourseFormField label="Banner Image" required className="sm:col-span-2 lg:col-span-3">
         <BannerImageUpload
           previewUrl={form.bannerPreview}
@@ -149,6 +185,7 @@ export default function BatchDetailsSection({
 
       <CourseFormField
         label="Batch Brochure"
+        required
         className="sm:col-span-2 lg:col-span-3"
       >
         <BrochurePdfUpload
@@ -169,8 +206,9 @@ export default function BatchDetailsSection({
           }}
         />
         <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
-          Upload batch brochure in PDF format
+          Upload batch brochure in PDF format (required)
         </p>
+        {fieldError('brochureUrl')}
       </CourseFormField>
     </div>
   )

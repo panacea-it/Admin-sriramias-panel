@@ -257,9 +257,6 @@ export default function SubjectViewListPage() {
             search={search}
             statusFilter={statusFilter}
             categoryFilter={categoryFilter}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleSelectPage={toggleSelectPage}
             onEdit={openEdit}
             onDelete={handleDeleteRequest}
             onStatusChange={handleLiveClassStatusChange}

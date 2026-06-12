@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => {
     normalizeApiHost(env.VITE_BASE_URL) ||
     'https://new-sriramias.onrender.com'
 
+  const localApiTarget =
+    normalizeApiHost(env.VITE_LOCAL_API_URL) ||
+    (apiTarget.includes('localhost') || apiTarget.includes('127.0.0.1')
+      ? apiTarget
+      : 'http://localhost:5000')
+
   const isHttpsTarget = apiTarget.startsWith('https://')
 
   if (mode === 'development') {
@@ -86,6 +92,28 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: {
+        '/api/batch-enrollments': {
+          target: localApiTarget,
+          changeOrigin: true,
+          secure: false,
+          configure: (proxy) => {
+            proxy.on('error', (err, req, res) => {
+              console.error(
+                `[vite proxy] ${req.method} ${req.url} → ${localApiTarget}: ${err.message}`,
+              )
+              if (res && !res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' })
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    message:
+                      'Batch enrollment API unavailable. Start the local backend with npm run dev:api.',
+                  }),
+                )
+              }
+            })
+          },
+        },
         '/api': {
           target: apiTarget,
           changeOrigin: true,

@@ -4,14 +4,22 @@ export default function ConfirmFreeResourceStatusModal({
   open,
   resourceName,
   enabling,
+  bulkCount = 0,
   loading,
   onCancel,
   onConfirm,
 }) {
-  const title = enabling ? 'Enable free resource?' : 'Disable free resource?'
-  const description = enabling
-    ? `"${resourceName}" will be marked active and visible to students.`
-    : `"${resourceName}" will be marked inactive and hidden until re-enabled.`
+  const isBulk = bulkCount > 0
+  const title = isBulk
+    ? 'Disable selected resources?'
+    : enabling
+      ? 'Enable free resource?'
+      : 'Disable free resource?'
+  const description = isBulk
+    ? `${bulkCount} selected ${bulkCount === 1 ? 'resource' : 'resources'} will be marked inactive and hidden until re-enabled.`
+    : enabling
+      ? `"${resourceName}" will be marked active and visible to students.`
+      : `"${resourceName}" will be marked inactive and hidden until re-enabled.`
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
@@ -39,7 +47,13 @@ export default function ConfirmFreeResourceStatusModal({
                 : 'rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
             }
           >
-            {loading ? 'Updating…' : enabling ? 'Enable resource' : 'Disable resource'}
+            {loading
+              ? 'Updating…'
+              : isBulk
+                ? 'Disable selected'
+                : enabling
+                  ? 'Enable resource'
+                  : 'Disable resource'}
           </button>
         </div>
       </div>

@@ -49,7 +49,7 @@ import { parseDateForDisplay } from '../../utils/academicsSubjectsStorage'
 import { generateContentId } from '../../utils/facultySubjectContentStorage'
 import { enrichFolderItems } from '../../utils/contentItemDisplay'
 import FolderContentList from './FolderContentList'
-import ContentItemPreviewPanel from './ContentItemPreviewPanel'
+import ContentItemPreviewModal from './ContentItemPreviewModal'
 import SubjectContentFormModal, { getContentModalTitle } from './SubjectContentFormModal'
 import FolderContentTableSkeleton from './FolderContentTableSkeleton'
 import { toast } from '../../utils/toast'
@@ -135,7 +135,7 @@ export default function SubjectContentFormPanel({
   } = useLiveClassFormOptions({
     centerId: watchedCenterId,
     facultySubjectId,
-    enabled: contentType === 'live',
+    enabled: contentType === 'live' && panelMode === 'form',
   })
   const {
     createFormDefaults,
@@ -172,7 +172,7 @@ export default function SubjectContentFormPanel({
         : fallbackBatchesLoading
 
   useEffect(() => {
-    if (!folder || !category) return
+    if (!folder || !category || panelMode !== 'form') return
     let cancelled = false
 
     const seedKey = `${folder.id}:${category.id}:${item?.id || 'new'}:${addingNew ? 'add' : 'edit'}`
@@ -317,8 +317,9 @@ export default function SubjectContentFormPanel({
     category?.id,
     item?.id,
     addingNew,
+    panelMode,
     contentType,
-    subject,
+    subject?.id,
     liveClassData,
     recordingData,
     reset,
@@ -362,8 +363,9 @@ export default function SubjectContentFormPanel({
   }, [
     contentType,
     addingNew,
+    panelMode,
     createFormDefaults,
-    subject,
+    subject?.id,
     setValue,
     getValues,
   ])
@@ -392,7 +394,6 @@ export default function SubjectContentFormPanel({
   )
 
   const showForm = panelMode === 'form' && Boolean(folder && category)
-  const showPreview = panelMode === 'preview' && previewRow
   const showList = panelMode === 'list' && Boolean(folder && category)
   const isEditing = showForm && Boolean(item) && !addingNew
   const modalTitle = category
@@ -604,12 +605,6 @@ export default function SubjectContentFormPanel({
                 rows={enrichedRows}
                 activeItemId={item?.id}
                 onAdd={openAddForm}
-                selectedIds={selectedRowIds}
-                onToggleSelect={onToggleRowSelect}
-                onToggleSelectAll={onToggleSelectAllRows}
-                onBulkDelete={onBulkDeleteRequest}
-                onBulkDisable={onBulkDisableRequest}
-                onBulkEnable={onBulkEnableRequest}
                 onView={async (row) => {
                 let preview = row
                 if (contentType === 'live') {
@@ -713,17 +708,14 @@ export default function SubjectContentFormPanel({
             )}
           </div>
         )}
-
-        {showPreview && (
-          <div className="mb-4">
-            <ContentItemPreviewPanel
-              category={category}
-              row={previewRow}
-              onClose={() => onPanelModeChange?.('list')}
-            />
-          </div>
-        )}
       </div>
+
+      <ContentItemPreviewModal
+        open={panelMode === 'preview' && Boolean(previewRow)}
+        onClose={() => onPanelModeChange?.('list')}
+        category={category}
+        row={previewRow}
+      />
 
       <SubjectContentFormModal
         open={showForm}

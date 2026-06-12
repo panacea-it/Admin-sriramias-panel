@@ -106,7 +106,6 @@ export default function SubjectContentManagementPage() {
   const [newFolderDescription, setNewFolderDescription] = useState('')
   const [deleteFolderTarget, setDeleteFolderTarget] = useState(null)
   const [deleteItemTarget, setDeleteItemTarget] = useState(null)
-  const [initialSelectionDone, setInitialSelectionDone] = useState(false)
   const [folderListLoading, setFolderListLoading] = useState(false)
   const [selectedRowIds, setSelectedRowIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
@@ -114,10 +113,16 @@ export default function SubjectContentManagementPage() {
   const folderSyncKeyRef = useRef('')
   const folderSyncAbortRef = useRef(null)
   const folderSyncInFlightRef = useRef(null)
+  const initialSelectionAppliedRef = useRef(false)
+  const seedMergedRef = useRef('')
 
-  const categories = content?.categories || []
-  const categoryChips = normalizeCategories(
-    content?.categoryIds?.length ? content.categoryIds : subject?.categories,
+  const categories = useMemo(() => content?.categories ?? [], [content?.categories])
+  const categoryChips = useMemo(
+    () =>
+      normalizeCategories(
+        content?.categoryIds?.length ? content.categoryIds : subject?.categories,
+      ),
+    [content?.categoryIds, subject?.categories],
   )
 
   const activeCategory = findCategoryById(categories, selectedCategoryId)
@@ -137,16 +142,20 @@ export default function SubjectContentManagementPage() {
 
   useEffect(() => {
     if (loading || !subject || !content?.categories?.length) return
+    const mergeKey = `${subject.id}:${content?.seedVersion ?? 0}`
+    if (seedMergedRef.current === mergeKey) return
     const merged = mergeSeedIntoSubject(subject, content)
     const seedLiveCount = merged.liveClasses?.length || 0
     const currentLiveCount = subject.liveClasses?.length || 0
     if (seedLiveCount > currentLiveCount) {
+      seedMergedRef.current = mergeKey
       upsertSubject(merged)
     }
-  }, [loading, subject?.id, content?.seedVersion])
+  }, [loading, subject, content?.seedVersion, content?.categories?.length, upsertSubject])
 
   useEffect(() => {
-    setInitialSelectionDone(false)
+    initialSelectionAppliedRef.current = false
+    seedMergedRef.current = ''
     setSelectedCategoryId(null)
     setSelectedFolderId(null)
     setSelectedItemId(null)
@@ -155,25 +164,7 @@ export default function SubjectContentManagementPage() {
   }, [subjectId])
 
   useEffect(() => {
-    if (loading || !categories.length) return
-
-    const current = findCategoryById(categories, selectedCategoryId)
-    if (current) {
-      if (
-        selectedFolderId &&
-        findFolderInCategory(current, selectedFolderId)
-      ) {
-        if (!initialSelectionDone) setInitialSelectionDone(true)
-        return
-      }
-      if (!selectedFolderId && current.folders?.[0]) {
-        setSelectedFolderId(current.folders[0].id)
-        setSelectedItemId(null)
-        setPanelMode('list')
-        if (!initialSelectionDone) setInitialSelectionDone(true)
-        return
-      }
-    }
+    if (loading || !categories.length || initialSelectionAppliedRef.current) return
 
     const preferred =
       categories.find((c) => c.categoryType === 'LIVE_CLASS') ||
@@ -182,13 +173,36 @@ export default function SubjectContentManagementPage() {
     if (!preferred) return
 
     const firstFolder = preferred.folders?.[0]
-    const firstItem = firstFolder?.items?.[0]
     setSelectedCategoryId(preferred.id)
     setSelectedFolderId(firstFolder?.id ?? null)
-    setSelectedItemId(firstItem?.id ?? null)
+    setSelectedItemId(null)
     setPanelMode('list')
-    setInitialSelectionDone(true)
-  }, [loading, categories, selectedCategoryId, selectedFolderId, initialSelectionDone])
+    initialSelectionAppliedRef.current = true
+  }, [loading, categories.length, subjectId])
+
+  useEffect(() => {
+    if (loading || !categories.length || !initialSelectionAppliedRef.current) return
+    if (!selectedCategoryId) return
+
+    const current = findCategoryById(categories, selectedCategoryId)
+    if (!current) {
+      const fallback =
+        categories.find((c) => c.categoryType === 'LIVE_CLASS') ||
+        categories.find((c) => c.categoryType === 'RECORDED_CLASS') ||
+        categories[0]
+      if (fallback && fallback.id !== selectedCategoryId) {
+        setSelectedCategoryId(fallback.id)
+        setSelectedFolderId(fallback.folders?.[0]?.id ?? null)
+        setSelectedItemId(null)
+      }
+      return
+    }
+
+    if (selectedFolderId && !findFolderInCategory(current, selectedFolderId)) {
+      setSelectedFolderId(current.folders?.[0]?.id ?? null)
+      setSelectedItemId(null)
+    }
+  }, [loading, categories, selectedCategoryId, selectedFolderId])
 
   const mutateFolderItems = useCallback(
     (categoryId, folderId, updater) => {
@@ -682,6 +696,46 @@ export default function SubjectContentManagementPage() {
     }
   }
 
+  const handleSelectCategory = useCallback(
+    (id) => {
+      const cat = categories.find((c) => c.id === id)
+      const firstFolder = cat?.folders?.[0]
+      folderSyncKeyRef.current = ''
+      setSelectedCategoryId(id)
+      setSelectedFolderId(firstFolder?.id ?? null)
+      setSelectedItemId(null)
+      setPanelMode('list')
+      setAddingNewItem(false)
+      setPreviewRow(null)
+      setMobileSidebarOpen(false)
+    },
+    [categories],
+  )
+
+  const handleSelectFolder = useCallback((folderId) => {
+    folderSyncKeyRef.current = ''
+    setSelectedFolderId(folderId)
+    setSelectedItemId(null)
+    setPanelMode('list')
+    setAddingNewItem(false)
+    setPreviewRow(null)
+    setMobileSidebarOpen(false)
+  }, [])
+
+  const handleSelectItem = useCallback((folderId, itemId) => {
+    setSelectedFolderId(folderId)
+    setSelectedItemId(itemId)
+    setPanelMode('list')
+    setAddingNewItem(false)
+    setPreviewRow(null)
+    setMobileSidebarOpen(false)
+  }, [])
+
+  const handlePanelModeChange = useCallback((mode) => {
+    setPanelMode(mode)
+    if (mode === 'list') setAddingNewItem(false)
+  }, [])
+
   const handleSaveItem = async ({
     values,
     contentType,
@@ -840,6 +894,8 @@ export default function SubjectContentManagementPage() {
     }
   }
 
+  const showPageLoading = (loading && !categories.length) || (subjectDetailLoading && !subject)
+
   if (!subject && !loading && !subjectDetailLoading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8">
@@ -872,7 +928,7 @@ export default function SubjectContentManagementPage() {
         </PageBanner>
       </div>
 
-      {loading || subjectDetailLoading ? (
+      {showPageLoading ? (
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6 lg:flex-row">
           <div className="hidden w-[300px] shrink-0 animate-pulse rounded-2xl bg-white shadow-sm lg:block">
             <div className="border-b border-slate-100 p-4">
@@ -912,33 +968,9 @@ export default function SubjectContentManagementPage() {
             selectedCategoryId={selectedCategoryId}
             selectedFolderId={selectedFolderId}
             selectedItemId={selectedItemId}
-            onSelectCategory={(id) => {
-              const cat = categories.find((c) => c.id === id)
-              const firstFolder = cat?.folders?.[0]
-              folderSyncKeyRef.current = ''
-              setSelectedCategoryId(id)
-              setSelectedFolderId(firstFolder?.id ?? null)
-              setSelectedItemId(null)
-              setPanelMode('list')
-              setAddingNewItem(false)
-              setPreviewRow(null)
-              setMobileSidebarOpen(false)
-            }}
-            onSelectFolder={(folderId) => {
-              setSelectedFolderId(folderId)
-              setSelectedItemId(null)
-              setPanelMode('list')
-              setAddingNewItem(false)
-              setPreviewRow(null)
-              setMobileSidebarOpen(false)
-            }}
-            onSelectItem={(folderId, itemId) => {
-              setSelectedFolderId(folderId)
-              setSelectedItemId(itemId)
-              setPanelMode('list')
-              setAddingNewItem(false)
-              setMobileSidebarOpen(false)
-            }}
+            onSelectCategory={handleSelectCategory}
+            onSelectFolder={handleSelectFolder}
+            onSelectItem={handleSelectItem}
             onRenameFolder={handleRenameFolder}
             onDeleteFolder={handleDeleteFolder}
             addingFolder={addingFolder}
@@ -977,10 +1009,7 @@ export default function SubjectContentManagementPage() {
               facultyName={facultyName}
               saving={saving}
               panelMode={panelMode}
-              onPanelModeChange={(mode) => {
-                setPanelMode(mode)
-                if (mode === 'list') setAddingNewItem(false)
-              }}
+              onPanelModeChange={handlePanelModeChange}
               previewRow={previewRow}
               onPreviewRow={setPreviewRow}
               addingNew={addingNewItem}
@@ -996,12 +1025,6 @@ export default function SubjectContentManagementPage() {
                 setSelectedItemId(null)
                 setAddingNewItem(true)
               }}
-              selectedRowIds={selectedRowIds}
-              onToggleRowSelect={handleToggleRowSelect}
-              onToggleSelectAllRows={handleToggleSelectAllRows}
-              onBulkDeleteRequest={handleBulkDeleteRequest}
-              onBulkDisableRequest={handleBulkDisableRequest}
-              onBulkEnableRequest={handleBulkEnableRequest}
             />
           </main>
         </div>

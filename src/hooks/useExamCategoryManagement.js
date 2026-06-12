@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage } from '../utils/apiError'
-import { useDebouncedValue } from './useDebouncedValue'
 import {
   clearExamCategoriesListCache,
   getExamCategories,
@@ -10,6 +9,7 @@ import {
   mapExamCategoryStatusFilterToApi,
   normalizeExamCategoriesListResponse,
 } from '../utils/examCategoryApiHelpers'
+import { matchesExamCategorySearch } from '../utils/examCategoryHelpers'
 
 function isRateLimited(error) {
   if (error?.response?.status === 429) return true
@@ -17,15 +17,12 @@ function isRateLimited(error) {
   return message.includes('too many requests')
 }
 
-function buildListParams({ debouncedSearch, statusFilter, centerFilter, programFilter }) {
-  const params = {
-    search: debouncedSearch.trim(),
-  }
+function buildListParams({ statusFilter, centerFilter }) {
+  const params = {}
 
   const apiStatus = mapExamCategoryStatusFilterToApi(statusFilter)
   if (apiStatus) params.status = apiStatus
   if (centerFilter !== 'all') params.center = centerFilter
-  if (programFilter !== 'all') params.program = programFilter
 
   return params
 }
@@ -36,17 +33,13 @@ export function useExamCategoryManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const [programFilter, setProgramFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
   const lastErrorToastAt = useRef(0)
 
   const loadCategories = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({
-        debouncedSearch,
         statusFilter,
         centerFilter,
-        programFilter,
       })
 
       setLoading(true)
@@ -73,7 +66,12 @@ export function useExamCategoryManagement() {
         }
       }
     },
-    [debouncedSearch, statusFilter, centerFilter, programFilter],
+    [statusFilter, centerFilter],
+  )
+
+  const filteredCategories = useMemo(
+    () => categories.filter((row) => matchesExamCategorySearch(row, search)),
+    [categories, search],
   )
 
   useEffect(() => {
@@ -100,7 +98,8 @@ export function useExamCategoryManagement() {
   }, [])
 
   return {
-    categories,
+    categories: filteredCategories,
+    totalCategories: categories.length,
     loading,
     search,
     setSearch,
@@ -108,8 +107,6 @@ export function useExamCategoryManagement() {
     setStatusFilter,
     centerFilter,
     setCenterFilter,
-    programFilter,
-    setProgramFilter,
     refreshCategories,
     patchCategoryLocally,
     removeCategoryLocally,

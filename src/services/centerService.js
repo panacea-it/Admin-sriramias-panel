@@ -43,18 +43,17 @@ export function buildUpdateCenterPayload(form) {
 }
 
 export function buildUpdateCenterPayloadFromPatch(patch) {
-  const assignedList = Array.isArray(patch.assignedAdmins)
-    ? patch.assignedAdmins
-    : String(patch.assignedAdmins || '')
-        .split(/[,;\n]/g)
-        .map((s) => s.trim())
-        .filter(Boolean)
+  const statusRaw = String(patch.status || 'ACTIVE').toUpperCase()
 
   return {
     centerName: String(patch.centerName || '').trim(),
+    centerCode: String(patch.centerCode || '').trim(),
     address: String(patch.address || '').trim(),
+    city: String(patch.city || '').trim(),
+    state: String(patch.state || '').trim(),
     contactNumber: String(patch.contactNumber || '').replace(/\D/g, ''),
-    assignedAdmins: assignedList.length > 0 ? assignedList.join(', ') : '',
+    email: String(patch.email || '').trim(),
+    status: statusRaw === 'DISABLED' ? 'DISABLED' : 'ACTIVE',
   }
 }
 

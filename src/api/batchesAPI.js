@@ -8,9 +8,12 @@ import {
   mapBatchFromApi,
   mapBatchListStatusParam,
   mapBatchStatusToApi,
+  resolveBatchDocumentId,
   unwrapBatchesListMeta,
   unwrapBatchesListResponse,
+  unwrapCreateBatchDoc,
 } from '../utils/batchApiHelpers'
+import { findBatchRow, resolveBatchMongoId } from '../utils/batchHelpers'
 import { isMongoObjectId } from '../utils/facultySubjectHelpers'
 
 function logFormDataKeys(formData, label) {
@@ -22,7 +25,16 @@ function buildBatchListQuery(params = {}) {
   const query = {}
   if (params.page != null) query.page = params.page
   if (params.limit != null) query.limit = params.limit
-  if (params.search?.trim()) query.search = params.search.trim()
+
+  const trimmed = params.search?.trim()
+  if (trimmed) {
+    query.search = trimmed
+    query.batchId = trimmed
+    query.batchName = trimmed
+    query.courseName = trimmed
+    query.mentorName = trimmed
+  }
+
   const apiStatus = mapBatchListStatusParam(params.status)
   if (apiStatus) query.status = apiStatus
   if (params.courseId?.trim()) query.courseId = params.courseId.trim()
@@ -33,12 +45,98 @@ function unwrapBatchDoc(body) {
   return body?.data ?? body?.batch ?? body
 }
 
-function mapBatchApiError(error, fallback) {
+function mapBatchApiError(error, fallback, { notFoundMessage } = {}) {
   const status = error?.response?.status
-  const message = getApiErrorMessage(error, fallback)
+  let message = getApiErrorMessage(error, fallback)
+  if (status === 404 && notFoundMessage) message = notFoundMessage
+  else if (status === 429) message = 'Too many requests. Please wait and try again.'
+  else if (status === 500) message = 'Server error. Please try again later.'
   const err = new Error(message, { cause: error })
   err.status = status
+  if (import.meta.env.DEV && error?.response?.data) {
+    err.debugDetail = error.response.data
+  }
   return err
+}
+
+/** After create, ensure row has a Mongo _id for subsequent API calls. */
+async function resolveCreatedBatchRow(mapped, form, { signal } = {}) {
+  if (!mapped) return null
+
+  const mongoId = resolveBatchDocumentId(mapped) || (isMongoObjectId(mapped.id) ? mapped.id : '')
+  if (mongoId) return { ...mapped, id: mongoId }
+
+  const lookupKey = String(
+    form?.batchCode || mapped.batchCode || mapped.batchId || form?.batchName || mapped.batchName || '',
+  ).trim()
+  if (!lookupKey) return mapped
+
+  try {
+    const { rows } = await fetchBatches({ search: lookupKey, page: 1, limit: 10 }, { signal })
+    const match =
+      rows.find(
+        (row) =>
+          (form?.batchCode && row.batchCode === form.batchCode) ||
+          (form?.batchName && row.batchName === form.batchName) ||
+          (mapped.batchId && row.batchId === mapped.batchId),
+      ) || rows[0]
+
+    const resolvedMongo = resolveBatchDocumentId(match) || (isMongoObjectId(match?.id) ? match.id : '')
+    if (resolvedMongo) {
+      return { ...mapped, ...match, id: resolvedMongo }
+    }
+  } catch (lookupErr) {
+    logBatchApiDev('resolveCreatedBatchRow lookup failed', lookupErr?.message)
+  }
+
+  return mapped
+}
+
+/** Resolve Mongo _id then fetch — avoids 500s when route uses human batch codes (e.g. BAT019). */
+export async function fetchBatchByIdResolved(batchIdOrCode, { rows = [], signal } = {}) {
+  if (isFrontendOnly) return null
+
+  const param = String(batchIdOrCode || '').trim()
+  if (!param) return null
+
+  const mongoId = resolveBatchMongoId(param, rows) || (isMongoObjectId(param) ? param : '')
+
+  if (mongoId) {
+    try {
+      return await fetchBatchById(mongoId, { signal })
+    } catch (error) {
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+      const cached = findBatchRow(rows, param)
+      if (cached && (error.status === 404 || error.status === 500)) {
+        return cached
+      }
+      if (error.status !== 404 && error.status !== 500) throw error
+    }
+  }
+
+  try {
+    const { rows: searchRows } = await fetchBatches(
+      { search: param, page: 1, limit: 20 },
+      { signal },
+    )
+    const match = findBatchRow(searchRows, param)
+    if (!match) return null
+    if (match.id && isMongoObjectId(match.id)) {
+      try {
+        return await fetchBatchById(match.id, { signal })
+      } catch (error) {
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+        if (error.status === 404 || error.status === 500) return match
+        throw error
+      }
+    }
+    return match
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    const cached = findBatchRow(rows, param)
+    if (cached) return cached
+    return null
+  }
 }
 
 /** GET /api/batches/dropdown — all batches, or linked only when facultySubjectId is set. */
@@ -136,11 +234,24 @@ export async function createBatch(form) {
 
     logBatchApiDev('createBatch response', response.data)
 
-    const doc = response.data?.data ?? response.data?.batch ?? response.data
-    const mapped = mapBatchFromApi(doc)
+    const doc = unwrapCreateBatchDoc(response.data)
+    let mapped = mapBatchFromApi(doc)
     if (!mapped) {
-      throw new Error('Invalid batch response from server')
+      throw new Error('Invalid batch response from server — missing batch identifiers')
     }
+
+    mapped = await resolveCreatedBatchRow(mapped, form)
+
+    const hasMongoId = resolveBatchDocumentId(mapped) || isMongoObjectId(mapped.id)
+    const hasHumanId = Boolean(mapped.batchId || mapped.batchCode)
+    if (!hasMongoId && !hasHumanId) {
+      throw new Error('Invalid batch response from server — missing batch identifiers')
+    }
+
+    if (hasMongoId) {
+      mapped = { ...mapped, id: resolveBatchDocumentId(mapped) || mapped.id }
+    }
+
     return mapped
   } catch (error) {
     logBatchApiDev('createBatch error', {
@@ -152,33 +263,49 @@ export async function createBatch(form) {
   }
 }
 
-/** GET /api/batches/:batchId */
+/** GET /api/batches/:batchId — accepts Mongo _id or human-readable batch id/code */
 export async function fetchBatchById(batchId, { signal } = {}) {
   if (isFrontendOnly) return null
 
+  const id = encodeURIComponent(String(batchId || '').trim())
+  if (!id) return null
+
   try {
-    const response = await axiosInstance.get(`/batches/${batchId}`, { signal, skipAuthRedirect: true })
+    const response = await axiosInstance.get(`/batches/${id}`, { signal, skipAuthRedirect: true })
     logBatchApiDev('fetchBatchById response', response.data)
     return mapBatchFromApi(unwrapBatchDoc(response.data))
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
-    throw mapBatchApiError(error, 'Failed to load batch')
+    throw mapBatchApiError(error, 'Failed to load batch', {
+      notFoundMessage: 'Unable to load batch details',
+    })
   }
 }
 
 /** GET /api/batches/:batchId/quick-view */
-export async function fetchBatchQuickView(batchId, { signal } = {}) {
+export async function fetchBatchQuickView(batchId, { rows = [], signal } = {}) {
   if (isFrontendOnly) return null
 
+  const mongoId =
+    resolveBatchMongoId(batchId, rows) ||
+    (isMongoObjectId(String(batchId || '')) ? String(batchId) : '')
+
+  if (!mongoId) {
+    return fetchBatchByIdResolved(batchId, { rows, signal })
+  }
+
   try {
-    const response = await axiosInstance.get(`/batches/${batchId}/quick-view`, {
-      signal,
-      skipAuthRedirect: true,
-    })
+    const response = await axiosInstance.get(
+      `/batches/${encodeURIComponent(mongoId)}/quick-view`,
+      { signal, skipAuthRedirect: true },
+    )
     logBatchApiDev('fetchBatchQuickView response', response.data)
     return mapBatchFromApi(unwrapBatchDoc(response.data))
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
+    if (error?.response?.status === 404 || error?.response?.status === 500) {
+      return fetchBatchByIdResolved(batchId, { rows, signal })
+    }
     throw mapBatchApiError(error, 'Failed to load batch')
   }
 }
@@ -274,17 +401,3 @@ export async function fetchMentorsDropdown({ signal } = {}) {
   }
 }
 
-/** DELETE /api/batches/:batchId */
-export async function deleteBatch(batchId) {
-  if (isFrontendOnly) {
-    throw new Error('Batch API is disabled in frontend-only mode')
-  }
-
-  logBatchApiDev('deleteBatch request', { batchId })
-
-  try {
-    await axiosInstance.delete(`/batches/${batchId}`, { skipAuthRedirect: true })
-  } catch (error) {
-    throw mapBatchApiError(error, 'Failed to delete batch')
-  }
-}

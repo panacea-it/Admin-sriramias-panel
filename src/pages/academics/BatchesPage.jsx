@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BookMarked, PlusCircle } from 'lucide-react'
@@ -7,17 +7,15 @@ import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import AddCourseModal from '../../components/courses/AddCourseModal'
 import BatchManagementTable from '../../components/batch-management/BatchManagementTable'
 import ViewBatchModal from '../../components/courses/ViewBatchModal'
-import BatchConfirmDialog from '../../components/batch-management/BatchConfirmDialog'
 import { useBatchManagementContext } from '../../contexts/BatchManagementContext'
 import { useEditModal } from '../../hooks/useEditModal'
 import { useBatchesData } from '../../hooks/useBatchesData'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
-import { mapBatchRowToTableFormat } from '../../utils/batchHelpers'
+import { mapBatchRowToTableFormat, resolveBatchMongoId } from '../../utils/batchHelpers'
 import { batchStatusFilterOptions } from '../../utils/batchOperations'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
 import {
   createBatch,
-  deleteBatch,
   duplicateBatch,
   fetchBatchQuickView,
   updateBatch,
@@ -25,6 +23,8 @@ import {
 } from '../../api/batchesAPI'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
+
+const DISABLED_STATUSES = new Set(['Inactive'])
 
 function BannerButton({ children, onClick, icon: Icon = PlusCircle, variant = 'primary' }) {
   const isPrimary = variant === 'primary'
@@ -44,10 +44,6 @@ function BannerButton({ children, onClick, icon: Icon = PlusCircle, variant = 'p
   )
 }
 
-function resolveBatchDeleteId(batch) {
-  return batch?.apiRow?.id ?? batch?.id
-}
-
 export default function BatchesPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -58,7 +54,7 @@ export default function BatchesPage() {
   const [tablePage, setTablePage] = useState(restored?.page ?? 1)
   const [tablePageSize, setTablePageSize] = useState(restored?.pageSize ?? 10)
 
-  const debouncedSearch = useDebouncedValue(search, 500)
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   const {
     sourceRows,
@@ -80,9 +76,6 @@ export default function BatchesPage() {
   const [viewItem, setViewItem] = useState(null)
   const [optimisticStatus, setOptimisticStatus] = useState({})
   const [statusUpdatingIds, setStatusUpdatingIds] = useState(() => new Set())
-  const [actionLoading, setActionLoading] = useState(false)
-
-  const [deleteConfirm, setDeleteConfirm] = useState(null)
 
   useEffect(() => {
     if (location.state?.listState) {
@@ -90,10 +83,13 @@ export default function BatchesPage() {
     }
   }, [navigate, location.pathname, location.state?.listState])
 
+  const lastErrorRef = useRef(null)
   useEffect(() => {
-    if (listError) {
+    if (listError && listError !== lastErrorRef.current) {
+      lastErrorRef.current = listError
       toast.error(listError)
     }
+    if (!listError) lastErrorRef.current = null
   }, [listError])
 
   const displayRows = useMemo(
@@ -132,7 +128,8 @@ export default function BatchesPage() {
     async (batch, nextStatus, { silent = false } = {}) => {
       const row = batch.apiRow ?? apiBatches.find((b) => b.id === batch.id)
       if (!row) return
-      await patchBatchStatus(row.id, nextStatus)
+      const mongoId = resolveBatchMongoId(row, apiBatches) || row.id
+      await patchBatchStatus(mongoId, nextStatus)
       logBatchActivity(row.id, {
         type: BATCH_AUDIT_TYPES.STATUS_CHANGED,
         message: `Status changed from ${batch.status} to ${nextStatus}`,
@@ -150,28 +147,41 @@ export default function BatchesPage() {
     }
 
     if (isEdit && id != null) {
-      await updateBatch(id, form)
+      const editId = resolveBatchMongoId(id, apiBatches) || id
+      await updateBatch(editId, form)
     } else if (isDuplicate && duplicateFromId) {
-      const created = await duplicateBatch(duplicateFromId, form)
-      const source = apiBatches.find((b) => b.id === duplicateFromId)
-      logBatchActivity(created?.id, {
+      const sourceId = resolveBatchMongoId(duplicateFromId, apiBatches) || duplicateFromId
+      const created = await duplicateBatch(sourceId, form)
+      const source = apiBatches.find(
+        (b) => String(b.id) === String(duplicateFromId) || String(b.id) === String(sourceId),
+      )
+      const createdMongoId = resolveBatchMongoId(created, apiBatches) || created?.id
+      logBatchActivity(createdMongoId, {
         type: BATCH_AUDIT_TYPES.DUPLICATED,
         message: source
           ? `Duplicated from ${source.batchName || source.name}`
           : 'Batch duplicated',
       })
-      logBatchActivity(duplicateFromId, {
+      logBatchActivity(sourceId, {
         type: BATCH_AUDIT_TYPES.DUPLICATED,
         message: `Cloned as "${form.batchName}"`,
       })
     } else {
       const created = await createBatch(form)
-      logBatchActivity(created?.id, {
+      const createdMongoId = resolveBatchMongoId(created, apiBatches) || created?.id
+      logBatchActivity(createdMongoId, {
         type: BATCH_AUDIT_TYPES.CREATED,
         message: `Batch "${form.batchName}" created`,
       })
     }
-    await loadBatches()
+
+    try {
+      await loadBatches({ silent: true })
+    } catch (loadErr) {
+      if (import.meta.env.DEV) {
+        console.error('[batches] list refresh failed after save', loadErr)
+      }
+    }
   }
 
   const handleEditBatch = useCallback(
@@ -210,6 +220,15 @@ export default function BatchesPage() {
     [updateBatchStatus],
   )
 
+  const handleStatusToggle = useCallback(
+    async (batch) => {
+      const isDisabled = DISABLED_STATUSES.has(batch.status)
+      const nextStatus = isDisabled ? 'Active' : 'Inactive'
+      await handleStatusChange(batch, nextStatus)
+    },
+    [handleStatusChange],
+  )
+
   const handleDuplicateBatch = useCallback(
     (tableBatch) => {
       const row = tableBatch.apiRow ?? apiBatches.find((b) => b.id === tableBatch.id)
@@ -227,45 +246,16 @@ export default function BatchesPage() {
     setViewItem(row)
     setViewLoading(true)
     try {
-      const quickView = await fetchBatchQuickView(batchId)
+      const quickView = await fetchBatchQuickView(batchId, { rows: apiBatches })
       if (quickView) setViewItem({ ...quickView, id: quickView.id || row?.id || batchId })
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to load batch quick view'))
+      if (!row?.batchName && !row?.name) {
+        toast.error(getApiErrorMessage(err, 'Failed to load batch quick view'))
+      }
     } finally {
       setViewLoading(false)
     }
-  }, [])
-
-  const handleDelete = async () => {
-    if (!deleteConfirm || actionLoading) return
-
-    const id = resolveBatchDeleteId(deleteConfirm)
-    if (!id) {
-      toast.error('Missing batch id')
-      return
-    }
-
-    setActionLoading(true)
-    try {
-      await deleteBatch(id)
-      logBatchActivity(id, {
-        type: BATCH_AUDIT_TYPES.DELETED,
-        message: 'Batch deleted',
-      })
-
-      const remainingTotal = Math.max(0, (meta.total || tableBatches.length) - 1)
-      const maxPage = Math.max(1, Math.ceil(remainingTotal / tablePageSize) || 1)
-      if (tablePage > maxPage) setTablePage(maxPage)
-
-      await loadBatches({ silent: true })
-      toast.success('Batch Deleted Successfully')
-      setDeleteConfirm(null)
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete batch'))
-    } finally {
-      setActionLoading(false)
-    }
-  }
+  }, [apiBatches])
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
@@ -287,7 +277,7 @@ export default function BatchesPage() {
             setSearch(e.target.value)
             setTablePage(1)
           }}
-          searchPlaceholder="Search batches..."
+          searchPlaceholder="Search by batch ID, name, course, or mentor..."
           status={statusFilter}
           onStatusChange={(e) => {
             setStatusFilter(e.target.value)
@@ -342,12 +332,9 @@ export default function BatchesPage() {
             onQuickViewBatch={handleQuickView}
             resetDeps={[debouncedSearch, statusFilter]}
             onStatusChange={handleStatusChange}
+            onStatusToggle={handleStatusToggle}
             statusUpdatingIds={statusUpdatingIds}
             onDuplicate={handleDuplicateBatch}
-            onDelete={(batch) => {
-              if (actionLoading) return
-              setDeleteConfirm(batch)
-            }}
           />
         )}
       </section>
@@ -357,6 +344,7 @@ export default function BatchesPage() {
         onClose={modal.close}
         item={modal.selectedItem}
         duplicateSource={modal.duplicateSource}
+        existingBatches={apiBatches}
         onSubmit={handleSaveBatch}
       />
 
@@ -366,25 +354,6 @@ export default function BatchesPage() {
         item={viewItem}
         loading={viewLoading}
       />
-
-      <BatchConfirmDialog
-        open={Boolean(deleteConfirm)}
-        title="Delete batch?"
-        message={
-          deleteConfirm
-            ? `Permanently delete "${deleteConfirm.displayName}"? This cannot be undone.`
-            : ''
-        }
-        confirmLabel="Delete"
-        variant="danger"
-        loading={actionLoading}
-        loadingLabel="Deleting…"
-        onClose={() => {
-          if (!actionLoading) setDeleteConfirm(null)
-        }}
-        onConfirm={handleDelete}
-      />
-
     </div>
   )
 }

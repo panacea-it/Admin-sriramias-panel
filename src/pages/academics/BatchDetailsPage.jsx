@@ -10,16 +10,17 @@ import AddCourseModal from '../../components/courses/AddCourseModal'
 import PageBanner from '../../components/figma/PageBanner'
 import { BATCHES_BASE } from '../../constants/batchNav'
 import { useEditModal } from '../../hooks/useEditModal'
-import {
-  findBatchRow,
-  resolveBatchMongoId,
-  useBatchesData,
-} from '../../hooks/useBatchesData'
+import { useBatchesData } from '../../hooks/useBatchesData'
 import { useBatchEnrollments } from '../../hooks/useBatchEnrollments'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
-import { enrichBatchRow, mapBatchRowToTableFormat } from '../../utils/batchHelpers'
+import {
+  enrichBatchRow,
+  findBatchRow,
+  mapBatchRowToTableFormat,
+  resolveBatchMongoId,
+} from '../../utils/batchHelpers'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
-import { createBatch, fetchBatchById, updateBatch } from '../../api/batchesAPI'
+import { createBatch, fetchBatchByIdResolved, updateBatch } from '../../api/batchesAPI'
 import {
   createEnrollment,
   deleteEnrollment,
@@ -51,7 +52,7 @@ const BREADCRUMB = [
 const ADD_STUDENT_FALLBACK = 'Unable to add student. Please try again.'
 
 function validateBatchApiContext({ selectedBatch, batchId, token, baseUrl }) {
-  if (!selectedBatch) return 'Batch not found'
+  if (!selectedBatch) return 'Unable to load batch details'
   if (!batchId) return 'Missing batch id'
   if (!token) return 'Authentication required'
   if (!baseUrl) return 'API base URL is not configured'
@@ -62,10 +63,16 @@ export default function BatchDetailsPage() {
   const { batchId: routeBatchId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const navBatchRow = location.state?.batchRow ?? null
   const modal = useEditModal()
-  const { sourceRows, loading: listLoading, loadBatches } =
-    useBatchesData({ page: 1, limit: 500 })
-  const [apiRow, setApiRow] = useState(null)
+  const { sourceRows, loading: listLoading, loadBatches } = useBatchesData({
+    page: 1,
+    limit: 500,
+    enabled: Boolean(routeBatchId),
+  })
+  const [apiRow, setApiRow] = useState(() =>
+    navBatchRow ? enrichBatchRow(navBatchRow) : null,
+  )
   const [detailLoading, setDetailLoading] = useState(true)
   const [detailError, setDetailError] = useState(null)
   const [addingStudent, setAddingStudent] = useState(false)
@@ -120,20 +127,24 @@ export default function BatchDetailsPage() {
     })
     if (validationError) return null
 
-    const refreshed = await fetchBatchById(mongoBatchId)
+    const refreshed = await fetchBatchByIdResolved(mongoBatchId || routeBatchId, {
+      rows: sourceRows,
+    })
     if (refreshed) setApiRow(enrichBatchRow(refreshed))
     return refreshed
-  }, [apiRow, selectedBatch, mongoBatchId])
+  }, [apiRow, selectedBatch, mongoBatchId, routeBatchId, sourceRows])
 
   useEffect(() => {
     if (!routeBatchId) return undefined
 
-    if (selectedBatch) setApiRow(selectedBatch)
+    const navCached =
+      navBatchRow && findBatchRow([enrichBatchRow(navBatchRow)], routeBatchId)
+        ? enrichBatchRow(navBatchRow)
+        : null
+    const listCached = findBatchRow(sourceRows, routeBatchId)
+    const cached = listCached || navCached
 
-    if (!mongoBatchId) {
-      if (!listLoading) setDetailLoading(false)
-      return undefined
-    }
+    if (cached) setApiRow(enrichBatchRow(cached))
 
     const requestId = ++fetchRequestRef.current
     const ac = new AbortController()
@@ -141,15 +152,31 @@ export default function BatchDetailsPage() {
     setDetailLoading(true)
     setDetailError(null)
 
-    fetchBatchById(mongoBatchId, { signal: ac.signal })
+    fetchBatchByIdResolved(routeBatchId, { rows: sourceRows, signal: ac.signal })
       .then((row) => {
         if (!active || requestId !== fetchRequestRef.current) return
-        if (row) setApiRow(enrichBatchRow(row))
+        if (row) {
+          setApiRow(enrichBatchRow(row))
+          setDetailError(null)
+          return
+        }
+        if (cached) {
+          setDetailError(null)
+          return
+        }
+        if (!listLoading) {
+          setApiRow(null)
+          setDetailError('Unable to load batch details')
+        }
       })
       .catch((err) => {
         if (!active || requestId !== fetchRequestRef.current) return
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
-        if (!selectedBatch) {
+        if (cached) {
+          setDetailError(null)
+          return
+        }
+        if (!listLoading) {
           setApiRow(null)
           setDetailError(getApiErrorMessage(err, 'Failed to load batch'))
         }
@@ -162,7 +189,7 @@ export default function BatchDetailsPage() {
       active = false
       ac.abort()
     }
-  }, [routeBatchId, mongoBatchId, listLoading, selectedBatch])
+  }, [routeBatchId, sourceRows, listLoading, navBatchRow])
 
   const batch = useMemo(() => {
     if (!apiRow) return null
@@ -521,17 +548,17 @@ export default function BatchDetailsPage() {
     [students, refetchStudentsAfterMutation, mergeEnrollmentUpdate],
   )
 
+  const shouldRedirect = !detailLoading && !listLoading && !batch
+
   useEffect(() => {
-    if (detailError) toast.error(detailError)
-  }, [detailError])
+    if (detailError && !shouldRedirect) toast.error(detailError)
+  }, [detailError, shouldRedirect])
 
   useEffect(() => {
     if (studentsError) toast.error(studentsError)
   }, [studentsError])
 
-  const pageLoading = listLoading && !apiRow
-  const shouldRedirect = !pageLoading && !detailLoading && !batch
-  const showSkeleton = pageLoading || !batch
+  const showSkeleton = (detailLoading || listLoading) && !batch
 
   const studentsStartIndex =
     studentsMeta.total === 0 ? 0 : (studentsMeta.page - 1) * studentsPageSize
@@ -621,6 +648,7 @@ export default function BatchDetailsPage() {
         open={modal.isOpen}
         onClose={modal.close}
         item={modal.selectedItem}
+        existingBatches={sourceRows}
         onSubmit={handleSaveBatch}
       />
     </motion.div>

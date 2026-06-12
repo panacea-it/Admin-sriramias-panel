@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchBatchById } from '../../api/batchesAPI'
-import { BookOpen, CreditCard, GraduationCap } from 'lucide-react'
+import { fetchBatchByIdResolved } from '../../api/batchesAPI'
+import { BookOpen, Copy, CreditCard, GraduationCap } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from './ModalPanelHeader'
@@ -15,13 +15,21 @@ import {
   createEmptyBatchForm,
   validateBatchFee,
 } from '../../utils/batchFormMappers'
+import {
+  isBatchCodeTaken,
+  isBatchIdTaken,
+  isBatchNameTaken,
+} from '../../utils/batchOperations'
 import { useModalForm } from '../../hooks/useModalForm'
+import { cn } from '../../utils/cn'
+
 /** Batch create/edit only — course marketing content lives in Categories → Courses */
 export default function AddCourseModal({
   open,
   onClose,
   item,
   duplicateSource = null,
+  existingBatches = [],
   onSubmit,
 }) {
   const isDuplicateMode = Boolean(duplicateSource)
@@ -44,6 +52,8 @@ export default function AddCourseModal({
   const [brochureUploading, setBrochureUploading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
 
+  const excludeId = isEditMode ? item?.id : null
+
   useEffect(() => {
     if (open) {
       setErrors({})
@@ -54,13 +64,14 @@ export default function AddCourseModal({
   useEffect(() => {
     if (!open) return undefined
 
-    const batchId = isEditMode ? item?.id : isDuplicateMode ? duplicateSource?.id : null
+    // Only edit mode needs a detail fetch — create/duplicate use list-row prefill.
+    const batchId = isEditMode ? item?.id : null
     if (!batchId) return undefined
 
     const ac = new AbortController()
     let active = true
     setDetailLoading(true)
-    fetchBatchById(batchId, { signal: ac.signal })
+    fetchBatchByIdResolved(batchId, { rows: existingBatches, signal: ac.signal })
       .then((row) => {
         if (!active || !row) return
         setForm(mapRowToForm(row))
@@ -77,13 +88,14 @@ export default function AddCourseModal({
       active = false
       ac.abort()
     }
-  }, [open, isEditMode, isDuplicateMode, item?.id, duplicateSource?.id, mapRowToForm, setForm])
+  }, [open, isEditMode, item?.id, mapRowToForm, setForm, existingBatches])
 
   const handleClose = () => onClose()
 
   const validateBatch = () => {
     const next = {}
     if (!form.batchName?.trim()) next.batchName = 'Batch name is required'
+    if (!form.batchCode?.trim()) next.batchCode = 'Batch code is required'
     if (!form.mentorId?.trim() && !form.mentorEmail?.trim()) {
       next.mentorEmail = 'Mentor is required'
     }
@@ -97,10 +109,30 @@ export default function AddCourseModal({
     else if (form.batchStartFrom && form.batchEndTo < form.batchStartFrom) {
       next.batchEndTo = 'End date cannot be before start date'
     }
-    if (!form.bannerPreview && !form.bannerFileName) {
+    if (!form.status?.trim()) next.status = 'Status is required'
+    if (!form.bannerPreview && !form.bannerFileName && !form.bannerFile) {
       next.bannerPreview = 'Banner image is required'
     }
+    if (!form.brochureUrl && !form.brochureFileName && !form.brochureFile) {
+      next.brochureUrl = 'Batch brochure is required'
+    }
     Object.assign(next, validateBatchFee(form))
+
+    if (form.batchName?.trim() && isBatchNameTaken(form.batchName, existingBatches, excludeId)) {
+      next.batchName = 'This Batch Name already exists.'
+    }
+    if (form.batchCode?.trim() && isBatchCodeTaken(form.batchCode, existingBatches, excludeId)) {
+      next.batchCode = 'This Batch Code already exists.'
+    }
+    if (
+      !isEditMode &&
+      !isDuplicateMode &&
+      form.batchId?.trim() &&
+      isBatchIdTaken(form.batchId, existingBatches, excludeId)
+    ) {
+      next.batchId = 'This Batch ID already exists.'
+    }
+
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -132,6 +164,9 @@ export default function AddCourseModal({
       }
       handleClose()
     } catch (err) {
+      if (import.meta.env.DEV && err?.debugDetail) {
+        console.error('[batches] save failed', err.debugDetail)
+      }
       toast.error(err.message || 'Failed to save batch')
     } finally {
       setSubmitting(false)
@@ -158,6 +193,23 @@ export default function AddCourseModal({
       >
         <ModalPanelHeader title={modalTitle} onClose={handleClose} closeVariant="icon" />
 
+        {isDuplicateMode && (
+          <div
+            className={cn(
+              'mx-4 mt-4 flex items-start gap-3 rounded-xl border border-[#55ace7]/25 bg-[#eef6fc] px-4 py-3 sm:mx-8',
+            )}
+          >
+            <Copy className="mt-0.5 h-4 w-4 shrink-0 text-[#246392]" />
+            <div>
+              <p className="text-sm font-semibold text-[#1a3a5c]">Duplicating batch</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-[#686868]">
+                Values are pre-filled from the source batch. Update the batch name and assign a
+                unique batch code before saving. A new batch ID will be generated automatically.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:#c5d9eb_transparent]"
         >
@@ -175,6 +227,7 @@ export default function AddCourseModal({
                 setErrors={setErrors}
                 onBrochureUploadingChange={setBrochureUploading}
                 excludeCourseIds={[]}
+                isEditMode={isEditMode}
               />
             </BatchFormCard>
 
@@ -206,7 +259,7 @@ export default function AddCourseModal({
             setErrors({})
             toast.message('Form reset')
           }}
-          createLabel="Create"
+          createLabel={isDuplicateMode ? 'Create Duplicate' : 'Create'}
           updateLabel="Update"
         />
       </form>

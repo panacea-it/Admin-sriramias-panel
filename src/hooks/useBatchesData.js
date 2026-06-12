@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchBatches } from '../api/batchesAPI'
-import { enrichBatchRow } from '../utils/batchHelpers'
+import {
+  enrichBatchRow,
+  findBatchRow,
+  matchesBatchSearch,
+  resolveBatchMongoId,
+} from '../utils/batchHelpers'
 import { getApiErrorMessage } from '../utils/apiError'
-import { isMongoObjectId } from '../utils/facultySubjectHelpers'
+
+export { findBatchRow, resolveBatchMongoId }
 
 export function useBatchesData({
   enabled = true,
@@ -22,39 +28,71 @@ export function useBatchesData({
   const [loading, setLoading] = useState(Boolean(enabled))
   const [error, setError] = useState(null)
   const requestIdRef = useRef(0)
+  const abortRef = useRef(null)
+
+  const trimmedSearch = String(search || '').trim()
 
   const loadBatches = useCallback(
     async ({ silent = false, page: pageOverride, limit: limitOverride } = {}) => {
       if (!enabled) return
+
+      abortRef.current?.abort()
+      const ac = new AbortController()
+      abortRef.current = ac
+
       const requestId = ++requestIdRef.current
       if (!silent) setLoading(true)
+
       try {
-        const { rows, meta: listMeta } = await fetchBatches({
-          page: pageOverride ?? page,
-          limit: limitOverride ?? limit,
-          search,
-          status,
-        })
+        const { rows, meta: listMeta } = await fetchBatches(
+          {
+            page: pageOverride ?? page,
+            limit: limitOverride ?? limit,
+            search: trimmedSearch,
+            status,
+          },
+          { signal: ac.signal },
+        )
+
         if (requestId !== requestIdRef.current) return
-        setApiBatches(rows.map((row, i) => enrichBatchRow(row, i)))
+
+        let enriched = rows.map((row, i) => enrichBatchRow(row, i))
+
+        if (trimmedSearch) {
+          enriched = enriched.filter((row) => matchesBatchSearch(row, trimmedSearch))
+        }
+
+        setApiBatches(enriched)
         setMeta(listMeta)
         setError(null)
       } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
         if (requestId !== requestIdRef.current) return
+
+        const statusCode = err?.status ?? err?.response?.status
+        let message = getApiErrorMessage(err, 'Failed to load batches')
+        if (statusCode === 429) {
+          message = 'Too many requests. Please wait a moment and try again.'
+        } else if (statusCode === 500) {
+          message = 'Server error while loading batches. Please try again.'
+        }
+
         setApiBatches([])
         setMeta({ total: 0, page: 1, limit, totalPages: 1, count: 0 })
-        setError(getApiErrorMessage(err, 'Failed to load batches'))
+        setError(message)
       } finally {
         if (requestId === requestIdRef.current && !silent) setLoading(false)
       }
     },
-    [enabled, page, limit, search, status],
+    [enabled, page, limit, trimmedSearch, status],
   )
 
   useEffect(() => {
     if (!enabled) return undefined
     void loadBatches()
-    return undefined
+    return () => {
+      abortRef.current?.abort()
+    }
   }, [enabled, loadBatches])
 
   const sourceRows = useMemo(() => apiBatches, [apiBatches])
@@ -73,39 +111,4 @@ export function useBatchesData({
     loadBatches,
     existingCourseIds,
   }
-}
-
-export function findBatchRow(rows, batchIdParam) {
-  if (!batchIdParam) return null
-  const decoded = decodeURIComponent(String(batchIdParam))
-  return (
-    rows.find((r) => {
-      const id = String(r.id ?? '')
-      const batchId = String(r.batchId ?? '')
-      const courseId = String(r.courseId ?? '')
-      return id === decoded || batchId === decoded || courseId === decoded
-    }) ?? null
-  )
-}
-
-/** Resolve Mongo _id for batch API calls from a route param or batch row. */
-export function resolveBatchMongoId(batchOrRouteParam, rows = []) {
-  if (batchOrRouteParam == null || batchOrRouteParam === '') return ''
-
-  if (typeof batchOrRouteParam === 'object') {
-    const mongoId = batchOrRouteParam.id ?? batchOrRouteParam._id
-    if (isMongoObjectId(mongoId)) return String(mongoId).trim()
-    const code = batchOrRouteParam.batchId
-    if (code) return resolveBatchMongoId(code, rows)
-    return ''
-  }
-
-  const param = decodeURIComponent(String(batchOrRouteParam)).trim()
-  if (!param) return ''
-  if (isMongoObjectId(param)) return param
-
-  const row = findBatchRow(rows, param)
-  if (row?.id && isMongoObjectId(row.id)) return String(row.id).trim()
-
-  return ''
 }

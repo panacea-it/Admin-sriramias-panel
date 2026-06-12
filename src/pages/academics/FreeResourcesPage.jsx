@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { Layers, Trash2 } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 import { toast } from '@/utils/toast'
 
@@ -15,6 +15,8 @@ import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import AddFreeResourceModal from '../../components/content-library/AddFreeResourceModal'
 
 import ConfirmFreeResourceStatusModal from '../../components/content-library/free-resources/ConfirmFreeResourceStatusModal'
+
+import FreeResourcesBulkActionsBar from '../../components/content-library/free-resources/FreeResourcesBulkActionsBar'
 
 import CategoryTableActions from '../../components/categories/CategoryTableActions'
 
@@ -46,7 +48,7 @@ import { freeResourceFormToRow } from '../../utils/academicsFormMappers'
 
 import { upsertListItem } from '../../utils/academicsCrud'
 
-import { FREE_RESOURCE_CATEGORY } from '../../utils/freeResourceFormConstants'
+import { FREE_RESOURCE_CATEGORY, FREE_RESOURCE_CATEGORY_LIST } from '../../utils/freeResourceFormConstants'
 
 import {
 
@@ -82,7 +84,11 @@ import {
 
 import { mapUiStatusToApi } from '../../utils/programHelpers'
 
-import { cn } from '../../utils/cn'
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Status' },
+  { value: 'Active', label: 'Active' },
+  { value: 'In Active', label: 'Inactive' },
+]
 
 
 
@@ -157,6 +163,8 @@ export default function FreeResourcesPage() {
   const [viewItem, setViewItem] = useState(null)
 
   const [statusTarget, setStatusTarget] = useState(null)
+
+  const [bulkDisableIds, setBulkDisableIds] = useState(null)
 
   const [statusLoading, setStatusLoading] = useState(false)
 
@@ -239,17 +247,11 @@ export default function FreeResourcesPage() {
 
 
   const categoryOptions = useMemo(
-
     () => [
-
       { value: 'all', label: 'Category' },
-
-      ...categories.map((c) => ({ value: c.name, label: c.name })),
-
+      ...FREE_RESOURCE_CATEGORY_LIST.map((name) => ({ value: name, label: name })),
     ],
-
-    [categories],
-
+    [],
   )
 
 
@@ -277,6 +279,13 @@ export default function FreeResourcesPage() {
     return map
 
   }, [apiItems, mockTestItems])
+
+
+
+  const resolveRowById = useCallback(
+    (id) => apiItemsById.get(id) || resources.find((row) => row.id === id),
+    [apiItemsById, resources],
+  )
 
 
 
@@ -323,6 +332,13 @@ export default function FreeResourcesPage() {
     })
 
   }, [combinedResources, search, categoryFilter, statusFilter])
+
+
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => resolveRowById(id)?.status === 'Active').length,
+    [selectedIds, resolveRowById],
+  )
 
 
 
@@ -490,6 +506,58 @@ export default function FreeResourcesPage() {
 
   const confirmStatusChange = useCallback(async () => {
 
+    if (bulkDisableIds?.length) {
+      setStatusLoading(true)
+      let successCount = 0
+      let refreshedApi = false
+      const localIdsToDisable = []
+
+      try {
+        await Promise.all(
+          bulkDisableIds.map(async (id) => {
+            const row = resolveRowById(id)
+            if (!row || row.status !== 'Active') return
+
+            const isApiRow = apiItemsById.has(id)
+            if (isApiRow) {
+              await updateFreeResourceStatus(id, mapUiStatusToApi('In Active'))
+              refreshedApi = true
+            } else {
+              localIdsToDisable.push(id)
+            }
+            successCount += 1
+          }),
+        )
+
+        if (localIdsToDisable.length) {
+          const idSet = new Set(localIdsToDisable)
+          setResources((prev) =>
+            prev.map((item) =>
+              idSet.has(item.id) ? { ...item, status: 'In Active' } : item,
+            ),
+          )
+        }
+
+        if (refreshedApi) await refreshAllFreeResources()
+
+        if (successCount > 0) {
+          toast.success(
+            successCount === 1
+              ? 'Resource disabled'
+              : `${successCount} resources disabled`,
+          )
+        }
+
+        setBulkDisableIds(null)
+        setSelectedIds([])
+      } catch (error) {
+        toast.error(getFreeResourceApiErrorMessage(error, 'Failed to update status'))
+      } finally {
+        setStatusLoading(false)
+      }
+      return
+    }
+
     if (!statusTarget) return
 
     const enabling = statusTarget.status !== 'Active'
@@ -536,7 +604,7 @@ export default function FreeResourcesPage() {
 
     }
 
-  }, [statusTarget, apiItemsById, refreshAllFreeResources])
+  }, [bulkDisableIds, statusTarget, apiItemsById, resolveRowById, refreshAllFreeResources])
 
 
 
@@ -669,63 +737,22 @@ export default function FreeResourcesPage() {
 
           categoryOptions={categoryOptions}
 
+          statusOptions={STATUS_FILTER_OPTIONS}
+
         />
 
 
 
-        {selectedIds.length > 0 && (
-
-          <div
-
-            className={cn(
-
-              'flex flex-wrap items-center gap-3 rounded-xl border border-[#55ace7]/20 bg-white px-4 py-3',
-
-              'shadow-[0_2px_8px_rgba(15,23,42,0.06)]',
-
-            )}
-
-          >
-
-            <span className="text-sm font-semibold text-[#246392]">
-
-              {selectedIds.length} selected
-
-            </span>
-
-            <button
-
-              type="button"
-
-              onClick={() => setSelectedIds([])}
-
-              className="text-sm font-medium text-[#686868] underline-offset-2 hover:underline"
-
-            >
-
-              Clear selection
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
-
-              className="ml-auto inline-flex items-center gap-2 rounded-lg bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b91c1c]"
-
-            >
-
-              <Trash2 className="h-4 w-4" />
-
-              Delete selected
-
-            </button>
-
-          </div>
-
-        )}
+        <FreeResourcesBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={() => {
+            const ids = selectedIds.filter((id) => resolveRowById(id)?.status === 'Active')
+            if (ids.length) setBulkDisableIds(ids)
+          }}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        />
 
 
 
@@ -801,15 +828,27 @@ export default function FreeResourcesPage() {
 
       <ConfirmFreeResourceStatusModal
 
-        open={Boolean(statusTarget)}
+        open={Boolean(statusTarget) || Boolean(bulkDisableIds?.length)}
 
         resourceName={statusTarget?.name || 'this resource'}
 
-        enabling={statusTarget?.status !== 'Active'}
+        enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'Active'}
+
+        bulkCount={bulkDisableIds?.length || 0}
 
         loading={statusLoading}
 
-        onCancel={() => !statusLoading && setStatusTarget(null)}
+        onCancel={() => {
+
+          if (!statusLoading) {
+
+            setStatusTarget(null)
+
+            setBulkDisableIds(null)
+
+          }
+
+        }}
 
         onConfirm={confirmStatusChange}
 

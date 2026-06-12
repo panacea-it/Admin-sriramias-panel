@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutGrid, Loader2, PlusCircle } from 'lucide-react'
+import { Loader2, PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
 import ProgramsFilterBar from '../../../components/categories/ProgramsFilterBar'
 import ProgramsTable from '../../../components/categories/ProgramsTable'
+import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryStatusBadge from '../../../components/categories/CategoryStatusBadge'
 import CategoryTableActions from '../../../components/categories/CategoryTableActions'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
@@ -33,8 +33,6 @@ import {
   updateProgramStatus,
 } from '../../../services/programService'
 
-const PROGRAMS_PATH = '/academics/categories/programs'
-
 function CreateButton({ onClick, disabled }) {
   return (
     <button
@@ -59,9 +57,18 @@ function ProgramsTableSkeleton() {
   )
 }
 
+function NoMatchesState() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#55ace7]/25 bg-white/80 px-6 py-16 text-center shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:py-20">
+      <h3 className="text-lg font-bold text-[#222] sm:text-xl">No matching programs</h3>
+      <p className="mt-2 max-w-sm text-sm font-medium text-[#686868]">
+        Try adjusting your search or filters.
+      </p>
+    </div>
+  )
+}
+
 export default function ProgramsPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
   const { activeCenters } = useCenters()
   const modal = useEditModal()
   const { options: centerDropdownOptions, loading: centresDropdownLoading } =
@@ -69,6 +76,7 @@ export default function ProgramsPage() {
 
   const {
     programs,
+    totalPrograms,
     loading,
     search,
     setSearch,
@@ -76,7 +84,6 @@ export default function ProgramsPage() {
     setStatusFilter,
     centreFilter,
     setCentreFilter,
-    debouncedSearch,
     refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,
@@ -91,6 +98,8 @@ export default function ProgramsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
 
   const centreRows = useMemo(
     () =>
@@ -119,18 +128,20 @@ export default function ProgramsPage() {
     [programs, activeCenters],
   )
 
-  const resetToProgramsList = useCallback(() => {
-    modal.close()
-    setViewProgram(null)
-    setEditProgram(null)
-    if (location.pathname !== PROGRAMS_PATH) {
-      navigate(PROGRAMS_PATH, { replace: true })
-    }
-  }, [location.pathname, modal, navigate])
+  const programsById = useMemo(
+    () => new Map(enrichedPrograms.map((row) => [String(row.id), row])),
+    [enrichedPrograms],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => programsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, programsById],
+  )
 
   const closeFormModal = useCallback(() => {
-    resetToProgramsList()
-  }, [resetToProgramsList])
+    modal.close()
+    setEditProgram(null)
+  }, [modal])
 
   const loadProgramDetail = useCallback(async (programId) => {
     const data = await getProgramById(programId)
@@ -149,6 +160,7 @@ export default function ProgramsPage() {
           console.error(error)
         }
         toast.error(getApiErrorMessage(error, 'Failed to load program details'))
+        setViewProgram(null)
       } finally {
         setViewLoading(false)
       }
@@ -158,9 +170,8 @@ export default function ProgramsPage() {
 
   const openEdit = useCallback(
     async (row) => {
-      navigate(`${PROGRAMS_PATH}/edit/${row.id}`)
-      modal.openEdit(row)
       setEditProgram(row)
+      modal.openEdit(row)
       setEditLoading(true)
       try {
         const detail = await loadProgramDetail(row.id)
@@ -173,13 +184,12 @@ export default function ProgramsPage() {
           console.error(error)
         }
         toast.error(getApiErrorMessage(error, 'Failed to load program for editing'))
-        modal.close()
-        setEditProgram(null)
+        closeFormModal()
       } finally {
         setEditLoading(false)
       }
     },
-    [loadProgramDetail, modal, navigate],
+    [closeFormModal, loadProgramDetail, modal],
   )
 
   const handleSave = async (form, { isEdit, id: editId }) => {
@@ -207,18 +217,19 @@ export default function ProgramsPage() {
   }
 
   const handleDelete = (row) => {
-    setDeleteTarget(row)
+    setDeleteTarget({ ids: [row.id], name: row.name })
   }
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget?.ids?.length) return
     setDeleteLoading(true)
-    const programId = deleteTarget.id
+    const ids = deleteTarget.ids
     try {
-      await deleteProgram(programId)
-      removeProgramLocally(programId)
+      await Promise.all(ids.map((id) => deleteProgram(id)))
+      ids.forEach((id) => removeProgramLocally(id))
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
-      toast.success('Program deleted')
+      toast.success(ids.length > 1 ? `${ids.length} programs deleted` : 'Program deleted')
       await refreshPrograms()
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -259,20 +270,50 @@ export default function ProgramsPage() {
     }
   }
 
+  const handleBulkDisable = async () => {
+    const ids = selectedIds.filter((id) => programsById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkDisableLoading(true)
+    const apiStatus = mapUiStatusToApi('In Active')
+
+    try {
+      await Promise.all(ids.map((id) => updateProgramStatus(id, apiStatus)))
+      ids.forEach((id) => patchProgramLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} programs disabled` : 'Program disabled')
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected programs'))
+      await refreshPrograms()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }
+
   const openCreate = () => {
     setEditProgram(null)
     modal.openCreate()
   }
 
-  const clearFilters = () => {
-    setSearch('')
-    setStatusFilter('all')
-    setCentreFilter('all')
-  }
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
+
+  const toggleSelectPage = useCallback((pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (!select) return prev.filter((id) => !pageIds.includes(id))
+      const merged = new Set([...prev, ...pageIds])
+      return [...merged]
+    })
+  }, [])
 
   const filters = useMemo(
-    () => ({ search: debouncedSearch, status: statusFilter, centre: centreFilter }),
-    [debouncedSearch, statusFilter, centreFilter],
+    () => ({ search, status: statusFilter, centre: centreFilter }),
+    [search, statusFilter, centreFilter],
   )
 
   const columns = [
@@ -346,8 +387,13 @@ export default function ProgramsPage() {
 
   const hasActiveFilters =
     Boolean(search.trim()) || statusFilter !== 'all' || centreFilter !== 'all'
-  const showEmpty = !loading && programs.length === 0 && !hasActiveFilters
-  const showNoMatches = !loading && programs.length === 0 && hasActiveFilters
+  const showEmpty = !loading && totalPrograms === 0 && !hasActiveFilters
+  const showNoMatches = !loading && enrichedPrograms.length === 0 && !showEmpty
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected programs? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this program'}"? This action cannot be undone.`
 
   return (
     <AnimatePresence mode="wait">
@@ -359,7 +405,7 @@ export default function ProgramsPage() {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={LayoutGrid} hideTitle>
+        <CategoryPageHeader title="Programs">
           <CreateButton onClick={openCreate} />
         </CategoryPageHeader>
 
@@ -371,6 +417,14 @@ export default function ProgramsPage() {
           centreOptions={centreFilterOptions}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
+        />
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
         />
 
         {loading && (
@@ -390,19 +444,19 @@ export default function ProgramsPage() {
             onCta={openCreate}
           />
         ) : showNoMatches ? (
-          <CategoryEmptyState
-            title="No matching programs"
-            description="Try adjusting search or centre filter."
-            ctaLabel="Clear filters"
-            onCta={clearFilters}
-          />
+          <NoMatchesState />
         ) : (
           <ProgramsTable
             columns={columns}
             data={enrichedPrograms}
-            loading={loading}
+            loading={loading || bulkDisableLoading}
             resetDeps={[filters]}
             emptyMessage="No programs match your filters."
+            selection={{
+              selectedIds,
+              onToggle: toggleSelect,
+              onTogglePage: toggleSelectPage,
+            }}
           />
         )}
 
@@ -419,10 +473,7 @@ export default function ProgramsPage() {
 
         <ViewProgramModal
           open={Boolean(viewProgram)}
-          onClose={() => {
-            setViewProgram(null)
-            resetToProgramsList()
-          }}
+          onClose={() => setViewProgram(null)}
           program={viewProgram}
           loading={viewLoading}
           centresCatalog={centreRows}
@@ -430,12 +481,8 @@ export default function ProgramsPage() {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete program?"
-          message={
-            deleteTarget
-              ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.`
-              : 'Are you sure you want to delete this program?'
-          }
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected programs?' : 'Delete program?'}
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}
