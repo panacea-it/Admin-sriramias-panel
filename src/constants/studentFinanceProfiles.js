@@ -51,7 +51,6 @@ export const PROFILE_NOTIFICATION_CHANNELS = ['In-app', 'Email', 'SMS', 'WhatsAp
 export const PROFILE_FINANCE_ACTIONS = [
   { id: 'add_payment', label: 'Add payment', perm: 'edit' },
   { id: 'receipt', label: 'Generate receipt', perm: 'receipts' },
-  { id: 'emi', label: 'Assign EMI', perm: 'emi' },
   { id: 'scholarship', label: 'Apply scholarship', perm: 'edit' },
   { id: 'discount', label: 'Add discount', perm: 'edit' },
   { id: 'refund', label: 'Process refund', perm: 'approve' },

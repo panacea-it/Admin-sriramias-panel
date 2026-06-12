@@ -12,10 +12,11 @@ import {
   MOCK_GST_SETTINGS,
   DEFAULT_EMI_MGMT_SETTINGS,
   buildFinanceDashboardPayload,
+  FINANCE_COURSES,
 } from '../data/financeMockData'
 import { generateLoanEmiSchedule } from '../utils/emiManagement'
 import { INITIAL_VERIFICATION_QUEUE } from '../data/financeVerificationData'
-import { FINANCE_DEFAULT_PAYMENT_MODE_SETTINGS } from '../constants/financeConstants'
+import { FINANCE_DEFAULT_PAYMENT_MODE_SETTINGS, FINANCE_BATCHES } from '../constants/financeConstants'
 import { enrichFinanceRows } from '../utils/financeRecordModel'
 import { enrichAllStudentProfiles } from '../utils/studentFinanceProfile'
 import {
@@ -315,6 +316,16 @@ function enrichOfflineList(rows, params = {}) {
 
   if (params.branch && params.branch !== 'all') {
     list = list.filter((r) => resolveBranchCode(r) === params.branch)
+  }
+  if (params.centerNames) {
+    const names = String(params.centerNames)
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean)
+    if (names.length) {
+      const nameSet = new Set(names)
+      list = list.filter((r) => nameSet.has(r.centerName))
+    }
   }
   if (params.paymentMode && params.paymentMode !== 'all') {
     list = list.filter((r) => r.paymentMode === params.paymentMode)
@@ -695,6 +706,55 @@ export async function uploadStudentFinanceDocument(studentId, payload) {
   )
 }
 
+export async function addStudentProfilePayment(studentId, payload) {
+  return tryApi(
+    () => api.post(`/finance/profiles/${studentId}/payments`, payload),
+    () => ({
+      id: `PAY-PROF-${Date.now()}`,
+      studentId,
+      amount: Number(payload.amount) || 0,
+      paymentMethod: payload.paymentMethod,
+      proofFileName: payload.proofFileName,
+      recordedAt: new Date().toISOString(),
+    }),
+  )
+}
+
+export async function applyStudentScholarship(studentId, payload) {
+  return tryApi(
+    () => api.post(`/finance/profiles/${studentId}/scholarship`, payload),
+    () => ({
+      studentId,
+      amount: Number(payload.amount) || 0,
+      appliedAt: new Date().toISOString(),
+    }),
+  )
+}
+
+export async function addStudentDiscount(studentId, payload) {
+  return tryApi(
+    () => api.post(`/finance/profiles/${studentId}/discount`, payload),
+    () => ({
+      studentId,
+      amount: Number(payload.amount) || 0,
+      appliedAt: new Date().toISOString(),
+    }),
+  )
+}
+
+export async function processStudentRefund(studentId, payload) {
+  return tryApi(
+    () => api.post(`/finance/profiles/${studentId}/refund`, payload),
+    () => ({
+      studentId,
+      amount: Number(payload.amount) || 0,
+      reason: payload.reason,
+      status: 'Requested',
+      requestedAt: new Date().toISOString(),
+    }),
+  )
+}
+
 export async function fetchPaymentAttemptLogs(params = {}) {
   return tryApi(
     () => api.get('/finance/attempts', { params }),
@@ -1054,6 +1114,8 @@ export async function sendPaymentReminder(payload) {
   return tryApi(
     () => api.post('/finance/reminders', payload),
     () => {
+      const course = FINANCE_COURSES.find((c) => c.id === payload.courseId)
+      const batch = FINANCE_BATCHES.find((b) => b.id === payload.batchId)
       const entry = {
         id: `COM-${Date.now()}`,
         studentId: payload.studentId,
@@ -1061,11 +1123,16 @@ export async function sendPaymentReminder(payload) {
         paymentReference: payload.paymentReference,
         recipient: payload.mobile || payload.email,
         type: 'Due Reminder',
-        channel: payload.channel || 'WhatsApp',
+        channel: payload.channel === 'all' ? 'Multi-channel' : (payload.channel || 'WhatsApp'),
         status: 'Queued',
         deliveryStatus: 'Pending',
         sentBy: payload.adminName || 'Finance Admin',
         timestamp: new Date().toISOString(),
+        centerName: payload.centerName !== 'all' ? payload.centerName : undefined,
+        courseId: course?.id,
+        courseName: course?.name,
+        batchId: batch?.id,
+        batchName: batch?.name,
         tracking: { sentAt: new Date().toISOString(), retryCount: 0 },
         auditTrail: [{ action: 'manual_send', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() }],
       }

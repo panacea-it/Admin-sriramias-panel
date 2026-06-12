@@ -3,8 +3,7 @@ import { FileText, Eye, Send } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import {
-  COMMUNICATION_TYPES,
-  COMMUNICATION_CHANNELS,
+  COMMUNICATION_CHANNEL_OPTIONS,
   TEMPLATE_DYNAMIC_VARIABLES,
 } from '../../../constants/paymentCommunicationConstants'
 import { applyTemplateVariables } from '../../../utils/paymentCommunicationTemplates'
@@ -13,8 +12,7 @@ export default function CommunicationTemplateDialog({ open, template, onClose, o
   const isEdit = !!template?.id
   const [form, setForm] = useState({
     name: '',
-    type: 'Due Reminder',
-    channel: 'Email',
+    channel: 'All channels',
     status: 'Active',
     subject: '',
     body: '',
@@ -24,8 +22,7 @@ export default function CommunicationTemplateDialog({ open, template, onClose, o
     if (open) {
       setForm({
         name: template?.name || '',
-        type: template?.type || 'Due Reminder',
-        channel: template?.channel || 'Email',
+        channel: template?.channel || 'All channels',
         status: template?.status || 'Active',
         subject: template?.subject || '',
         body: template?.body || '',
@@ -41,16 +38,21 @@ export default function CommunicationTemplateDialog({ open, template, onClose, o
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSave?.(form)
+    onSave?.({
+      ...form,
+      ...(isEdit && template?.type ? { type: template.type } : {}),
+    })
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="xl" title={isEdit ? 'Edit template' : 'Add template'}>
+    <Modal open={open} onClose={onClose} size="xl" title={isEdit ? 'Edit template' : 'Add template'} showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title={isEdit ? 'Edit communication template' : 'New communication template'}
           subtitle="Configure message content with dynamic variables"
           onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
           icon={FileText}
         />
         <form onSubmit={handleSubmit} className="grid gap-0 lg:grid-cols-2">
@@ -59,24 +61,14 @@ export default function CommunicationTemplateDialog({ open, template, onClose, o
               <span className="mb-1 block text-xs font-semibold text-[#686868]">Template name</span>
               <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputClass} required />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-[#686868]">Type</span>
-                <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
-                  {COMMUNICATION_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-[#686868]">Channel</span>
-                <select value={form.channel} onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))} className={inputClass}>
-                  {COMMUNICATION_CHANNELS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-[#686868]">Channel</span>
+              <select value={form.channel} onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))} className={inputClass}>
+                {COMMUNICATION_CHANNEL_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-[#686868]">Status</span>
               <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>

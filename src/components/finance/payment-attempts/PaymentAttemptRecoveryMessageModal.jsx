@@ -23,13 +23,15 @@ export default function PaymentAttemptRecoveryMessageModal({ open, row, onClose,
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Send recovery message">
+    <Modal open={open} onClose={onClose} size="md" title="Send recovery message" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title="Payment recovery workflow"
           subtitle={`${row.student} · ${row.mobile || row.email}`}
           onClose={onClose}
           icon={Send}
+          closeVariant="icon"
+          plainCloseIcon
         />
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <label className="block">

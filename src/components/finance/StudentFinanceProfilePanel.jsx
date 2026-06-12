@@ -5,11 +5,9 @@ import {
   CalendarClock,
   Receipt,
   MessageSquare,
-  ShieldCheck,
   History,
   Wallet,
   FileText,
-  BarChart3,
   Clock,
   Bell,
   Layers,
@@ -18,7 +16,13 @@ import {
   Percent,
   Ban,
 } from 'lucide-react'
-import FinanceSlideDrawer from './FinanceSlideDrawer'
+import FinanceSettingsPanelShell from './FinanceSettingsPanelShell'
+import {
+  ProfileAddPaymentModal,
+  ProfileApplyScholarshipModal,
+  ProfileAddDiscountModal,
+  ProfileProcessRefundModal,
+} from './student-profiles/ProfileFinanceActionModals'
 import FinanceStatusBadge from './FinanceStatusBadge'
 import FinanceConfirmDialog from './FinanceConfirmDialog'
 import ProfileSummaryOverview from './student-profiles/ProfileSummaryOverview'
@@ -28,7 +32,6 @@ import {
   ProfileLoanPanel,
   ProfileWalletPanel,
   ProfileDocumentsPanel,
-  ProfileAnalyticsPanel,
   ProfileTimelinePanel,
   ProfileRefundsPanel,
   ProfileNotificationsPanel,
@@ -38,10 +41,13 @@ import {
   fetchStudentFinanceProfileDetail,
   fetchPaymentReports,
   fetchEmiPlans,
-  fetchCommunicationLogs,
   creditStudentWallet,
   uploadStudentFinanceDocument,
   sendPaymentReminder,
+  addStudentProfilePayment,
+  applyStudentScholarship,
+  addStudentDiscount,
+  processStudentRefund,
 } from '../../api/financeAPI'
 import { enrichStudentFinanceProfile } from '../../utils/studentFinanceProfile'
 import { enrichFinanceRecord } from '../../utils/financeRecordModel'
@@ -51,7 +57,6 @@ import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
-import StudentCommunicationHistory from './communication/StudentCommunicationHistory'
 import StudentReceiptHistory from './receipt-center/StudentReceiptHistory'
 import { downloadReceiptHtml } from '../../utils/receiptCompletion'
 import { fetchGstSettings } from '../../api/financeAPI'
@@ -64,19 +69,15 @@ const TABS = [
   { id: 'wallet', label: 'Wallet', icon: Wallet },
   { id: 'loan', label: 'Loan & EMI', icon: CalendarClock },
   { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'activity', label: 'Activity', icon: Clock },
   { id: 'payments', label: 'Payments', icon: IndianRupee },
   { id: 'receipts', label: 'Receipts', icon: Receipt },
-  { id: 'communication', label: 'Communication History', icon: MessageSquare },
-  { id: 'verification', label: 'Verify', icon: ShieldCheck },
   { id: 'attempts', label: 'Attempts', icon: History },
 ]
 
 const ACTION_ICONS = {
   add_payment: Plus,
   receipt: Receipt,
-  emi: CalendarClock,
   scholarship: Percent,
   discount: Percent,
   refund: IndianRupee,
@@ -85,39 +86,33 @@ const ACTION_ICONS = {
   download: Download,
 }
 
+const FORM_ACTIONS = new Set(['add_payment', 'scholarship', 'discount', 'refund'])
+
 export default function StudentFinanceProfilePanel({ studentId, seed, onClose }) {
   const { goToFinance } = useFinanceOperations()
-  const { canEdit, canApprove, canReceipts, canManageEmi, canExport } = useFinancePermissions()
+  const { canEdit, canApprove, canReceipts, canExport } = useFinancePermissions()
   const [tab, setTab] = useState('overview')
   const [profile, setProfile] = useState(null)
   const [payments, setPayments] = useState([])
-  const [comms, setComms] = useState([])
   const [gstSettings, setGstSettings] = useState(null)
   const [loading, setLoading] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [actionForm, setActionForm] = useState(null)
+  const [actionSaving, setActionSaving] = useState(false)
 
   const load = useCallback(async () => {
     if (!studentId) return
     setLoading(true)
     try {
-      const [detail, allPay, emi, logs, gst] = await Promise.all([
+      const [detail, allPay, emi, gst] = await Promise.all([
         fetchStudentFinanceProfileDetail(studentId),
         fetchPaymentReports(),
         fetchEmiPlans(),
-        fetchCommunicationLogs(),
         fetchGstSettings(),
       ])
       setGstSettings(gst)
       const studentPayments = allPay.filter((p) => p.studentId === studentId).map(enrichFinanceRecord)
       setPayments(studentPayments)
-      setComms(
-        logs.filter(
-          (l) =>
-            l.recipient?.includes(seed?.mobile) ||
-            l.recipient?.includes(seed?.email) ||
-            l.studentId === studentId,
-        ),
-      )
       if (detail) {
         setProfile(detail)
       } else if (seed) {
@@ -156,11 +151,10 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
       if (a.perm === 'edit') return canEdit || canApprove
       if (a.perm === 'approve') return canApprove
       if (a.perm === 'receipts') return canReceipts
-      if (a.perm === 'emi') return canManageEmi
       if (a.perm === 'export') return canExport
       return true
     }).map((a) => ({ ...a, icon: ACTION_ICONS[a.id] }))
-  }, [canEdit, canApprove, canReceipts, canManageEmi, canExport])
+  }, [canEdit, canApprove, canReceipts, canExport])
 
   const handleWalletCredit = useCallback(
     async (payload) => {
@@ -200,20 +194,17 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
 
   const handleQuickAction = useCallback(
     (actionId) => {
-      const needsConfirm = ['refund', 'suspend', 'scholarship', 'discount'].includes(actionId)
-      if (needsConfirm) {
+      if (FORM_ACTIONS.has(actionId)) {
+        setActionForm(actionId)
+        return
+      }
+      if (actionId === 'suspend') {
         setConfirmAction(actionId)
         return
       }
       switch (actionId) {
-        case 'add_payment':
-          goToFinance('verification', { addOffline: '1', student: studentId })
-          break
         case 'receipt':
           goToFinance('receipts', { student: studentId })
-          break
-        case 'emi':
-          goToFinance('emi', { student: studentId })
           break
         case 'reminder':
           sendPaymentReminder({ mobile: profile?.mobile, email: profile?.email, studentId })
@@ -230,6 +221,79 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
     [goToFinance, studentId, profile],
   )
 
+  const closeActionForm = useCallback(() => {
+    if (actionSaving) return
+    setActionForm(null)
+  }, [actionSaving])
+
+  const handleAddPayment = useCallback(
+    async (payload) => {
+      setActionSaving(true)
+      try {
+        await addStudentProfilePayment(studentId, payload)
+        toast.success('Payment recorded')
+        setActionForm(null)
+        await load()
+      } catch {
+        toast.error('Failed to add payment')
+      } finally {
+        setActionSaving(false)
+      }
+    },
+    [studentId, load],
+  )
+
+  const handleApplyScholarship = useCallback(
+    async (payload) => {
+      setActionSaving(true)
+      try {
+        await applyStudentScholarship(studentId, payload)
+        toast.success('Scholarship applied')
+        setActionForm(null)
+        await load()
+      } catch {
+        toast.error('Failed to apply scholarship')
+      } finally {
+        setActionSaving(false)
+      }
+    },
+    [studentId, load],
+  )
+
+  const handleAddDiscount = useCallback(
+    async (payload) => {
+      setActionSaving(true)
+      try {
+        await addStudentDiscount(studentId, payload)
+        toast.success('Discount added')
+        setActionForm(null)
+        await load()
+      } catch {
+        toast.error('Failed to add discount')
+      } finally {
+        setActionSaving(false)
+      }
+    },
+    [studentId, load],
+  )
+
+  const handleProcessRefund = useCallback(
+    async (payload) => {
+      setActionSaving(true)
+      try {
+        await processStudentRefund(studentId, payload)
+        toast.success('Refund request submitted')
+        setActionForm(null)
+        await load()
+      } catch {
+        toast.error('Failed to process refund')
+      } finally {
+        setActionSaving(false)
+      }
+    },
+    [studentId, load],
+  )
+
   const onConfirmAction = useCallback(() => {
     toast.success(`${confirmAction} recorded (audit logged)`)
     setConfirmAction(null)
@@ -238,14 +302,18 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
   if (!studentId) return null
 
   return (
-    <FinanceSlideDrawer
+    <>
+    <FinanceSettingsPanelShell
       open={!!studentId}
       onClose={onClose}
       title={profile?.studentName || seed?.studentName || 'Student'}
       subtitle={`${studentId} · ${profile?.branch || profile?.branchMapped || '—'} · ${profile?.enrollmentSourceLabel || ''}`}
-      width="max-w-3xl"
+      icon={UserCircle}
+      size="xl"
+      className="sm:max-w-3xl"
+      zIndex={110}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 p-4 sm:p-5">
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Profile sections">
           {TABS.map((t) => (
             <button
@@ -292,8 +360,6 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
           <ProfileDocumentsPanel profile={profile} onUpload={handleDocumentUpload} canEdit={canEdit || canApprove} />
         )}
 
-        {!loading && profile && tab === 'analytics' && <ProfileAnalyticsPanel profile={profile} />}
-
         {!loading && profile && tab === 'activity' && (
           <>
             <ProfileTimelinePanel profile={profile} />
@@ -331,21 +397,6 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
           />
         )}
 
-        {tab === 'communication' && (
-          <StudentCommunicationHistory logs={comms} />
-        )}
-
-        {tab === 'verification' && (
-          <ul className="space-y-2">
-            {payments.map((p) => (
-              <li key={p.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                <span>{p.id}</span>
-                <FinanceStatusBadge status={p.verificationStatus} />
-              </li>
-            ))}
-          </ul>
-        )}
-
         {tab === 'attempts' && (
           <button
             type="button"
@@ -364,6 +415,36 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
         onConfirm={onConfirmAction}
         onCancel={() => setConfirmAction(null)}
       />
-    </FinanceSlideDrawer>
+    </FinanceSettingsPanelShell>
+
+    <ProfileAddPaymentModal
+      open={actionForm === 'add_payment'}
+      profile={profile}
+      onClose={closeActionForm}
+      onSubmit={handleAddPayment}
+      saving={actionSaving}
+    />
+    <ProfileApplyScholarshipModal
+      open={actionForm === 'scholarship'}
+      profile={profile}
+      onClose={closeActionForm}
+      onSubmit={handleApplyScholarship}
+      saving={actionSaving}
+    />
+    <ProfileAddDiscountModal
+      open={actionForm === 'discount'}
+      profile={profile}
+      onClose={closeActionForm}
+      onSubmit={handleAddDiscount}
+      saving={actionSaving}
+    />
+    <ProfileProcessRefundModal
+      open={actionForm === 'refund'}
+      profile={profile}
+      onClose={closeActionForm}
+      onSubmit={handleProcessRefund}
+      saving={actionSaving}
+    />
+    </>
   )
 }

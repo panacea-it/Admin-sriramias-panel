@@ -121,17 +121,18 @@ export default function EditReceiptDialog({ open, row, onClose, onSave, saving =
     setForm(formFromRow(rowRef.current))
   }
 
-  if (!open || !row) return null
+  if (!row) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title="Edit Receipt">
+    <Modal open={open} onClose={onClose} size="lg" title="Edit Receipt" showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
+        className="relative flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
           title="Edit Receipt"
-          onBack={onClose}
+          onClose={onClose}
+          closeVariant="icon"
           icon={Pencil}
           iconClassName="text-[#246392]"
         />

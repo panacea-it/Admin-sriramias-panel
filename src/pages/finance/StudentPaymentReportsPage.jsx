@@ -504,7 +504,7 @@ export default function StudentPaymentReportsPage() {
             <FinanceSearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search student, course, txn, receipt…"
+              placeholder="SEARCH STUDENT , COURSE "
               className="min-w-0 flex-1"
             />
             <FinanceMobileFilters

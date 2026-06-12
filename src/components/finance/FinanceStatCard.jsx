@@ -1,10 +1,20 @@
+import { Link } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 
-export default function FinanceStatCard({ label, value, sub, icon: Icon, accent = 'from-[#55ace7] to-[#246392]', className }) {
-  return (
+export default function FinanceStatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  accent = 'from-[#55ace7] to-[#246392]',
+  className,
+  to,
+}) {
+  const card = (
     <div
       className={cn(
         'group relative overflow-hidden rounded-xl bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.12)] sm:p-5',
+        to && 'cursor-pointer',
         className,
       )}
     >
@@ -23,4 +33,14 @@ export default function FinanceStatCard({ label, value, sub, icon: Icon, accent 
       </div>
     </div>
   )
+
+  if (to) {
+    return (
+      <Link to={to} className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#246392] focus-visible:ring-offset-2">
+        {card}
+      </Link>
+    )
+  }
+
+  return card
 }

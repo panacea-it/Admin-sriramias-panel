@@ -2,23 +2,25 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import FinanceStatusBadge from '../FinanceStatusBadge'
 import FinanceEmptyState from '../FinanceEmptyState'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import FinanceActionMenu from '../FinanceActionMenu'
+import FinanceTableRowActions from '../FinanceTableRowActions'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 
 export default function CommunicationTemplatesPanel({ templates = [], onAdd, onEdit, onDelete, canEdit }) {
   const columns = [
     { key: 'id', label: 'Template ID', render: (r) => <span className="font-mono text-xs">{r.id}</span> },
     { key: 'name', label: 'Template Name', render: (r) => <span className="font-medium">{r.name}</span> },
-    { key: 'type', label: 'Type' },
     { key: 'channel', label: 'Channel' },
     { key: 'status', label: 'Status', render: (r) => <FinanceStatusBadge status={r.status} /> },
     { key: 'lastModified', label: 'Last Modified', render: (r) => formatCategoryDateTime(r.lastModified) },
     {
       key: 'actions',
-      label: '',
+      label: 'Actions',
+      align: 'right',
+      headerClassName: 'text-right pr-6 sm:pr-8',
+      cellClassName: 'text-right pr-6 sm:pr-8',
       render: (row) =>
         canEdit ? (
-          <FinanceActionMenu
+          <FinanceTableRowActions
             actions={[
               { label: 'Edit', icon: Pencil, onClick: () => onEdit?.(row) },
               { label: 'Delete', icon: Trash2, onClick: () => onDelete?.(row), variant: 'danger' },

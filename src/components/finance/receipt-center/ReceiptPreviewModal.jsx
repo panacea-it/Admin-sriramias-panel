@@ -24,7 +24,7 @@ export default function ReceiptPreviewModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} size="full" title="Receipt preview">
+    <Modal open={open} onClose={handleClose} size="full" title="Receipt preview" showCloseButton={false}>
       <div className="relative flex max-h-[92vh] flex-col">
         <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">

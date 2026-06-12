@@ -5,6 +5,7 @@ import {
   LOAN_STATUSES,
   PAYMENT_BEHAVIOR_CATEGORIES,
 } from '../constants/studentFinanceProfiles'
+import { branchToCenterName, filterByFinanceCenters } from './financeCenterAggregation'
 
 const SOURCE_CYCLE = ['website', 'counselor', 'referral', 'offline_center']
 const PROVIDER_CYCLE = ['Institute EMI', 'Bajaj', 'Liquiloans', 'Propelld', 'Eduvanz']
@@ -498,6 +499,14 @@ export function buildProfileBasesFromPayments(payments) {
 export function enrichAllStudentProfiles(bases, payments, emiPlans) {
   const merged = dedupeProfileBases(bases.length ? bases : buildProfileBasesFromPayments(payments))
   return merged.map((b) => enrichStudentFinanceProfile(b, { payments, emiPlans }))
+}
+
+export function filterProfilesByFinanceCenters(profiles = [], centerFilter) {
+  return filterByFinanceCenters(
+    profiles,
+    centerFilter,
+    (row) => branchToCenterName(row.branch) || row.branchMapped || row.branch,
+  )
 }
 
 export function filterStudentProfiles(profiles, filters = {}) {

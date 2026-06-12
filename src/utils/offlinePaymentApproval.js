@@ -120,6 +120,13 @@ function mapLegacyStatus(status) {
   return status || 'Pending'
 }
 
+export function filterOfflineByFinanceCenters(rows = [], centerFilter) {
+  if (!centerFilter || centerFilter.isOverallView) return rows
+  const centerNames = new Set((centerFilter.selectedCenters || []).map((c) => c.centerName).filter(Boolean))
+  if (!centerNames.size) return rows
+  return rows.filter((row) => centerNames.has(row.centerName))
+}
+
 export function canApproveOfflineRow(row, access, { canApprove, canFinanceHeadApprove }) {
   if (!canApprove) return { ok: false, reason: 'Not permitted' }
   if (!access.canAct) return { ok: false, reason: access.message }

@@ -1,6 +1,39 @@
 /** Client-side finance dashboard aggregation by center */
 
+import {
+  FINANCE_OPERATION_CENTER_NAMES,
+  FINANCE_OPERATION_CENTERS,
+} from '../constants/financeConstants'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const FINANCE_CENTER_KEYS = ['delhi', 'hyderabad', 'pune']
+
+export function isFinanceOperationCenter(center) {
+  if (!center) return false
+  if (FINANCE_OPERATION_CENTER_NAMES.includes(center.centerName)) return true
+  const name = String(center.centerName || '').toLowerCase()
+  const city = String(center.city || '').toLowerCase()
+  return FINANCE_CENTER_KEYS.some((key) => name.includes(key) || city.includes(key))
+}
+
+export function filterFinanceOperationCenters(centers = []) {
+  const matched = centers.filter(isFinanceOperationCenter)
+  return FINANCE_OPERATION_CENTERS.map((seed) => {
+    const existing = matched.find(
+      (c) =>
+        c.centerName === seed.centerName ||
+        String(c.city || '').toLowerCase() === seed.city.toLowerCase(),
+    )
+    return existing || { ...seed, centerId: `ctr-${seed.centerCode.toLowerCase()}`, status: 'active' }
+  })
+}
+
+export function financeCenterCityLabel(center) {
+  const raw = center?.city || center?.centerName?.replace(/\s+Center$/i, '').trim() || center?.centerName || 'Centre'
+  if (String(raw).toLowerCase().includes('new delhi')) return 'Delhi'
+  return raw
+}
 
 export function branchToCenterName(branch) {
   const map = {
@@ -9,6 +42,21 @@ export function branchToCenterName(branch) {
     Patna: 'Hyderabad Center',
   }
   return map[branch] || branch || 'Delhi Center'
+}
+
+/** Filter rows by finance header centre selection (single / multi / all). */
+export function filterByFinanceCenters(rows = [], centerFilter, resolveCenterName = (row) => row.centerName) {
+  if (!centerFilter || centerFilter.isOverallView) return rows
+  const centerNames = new Set(
+    (centerFilter.selectedCenters || []).map((c) => c.centerName).filter(Boolean),
+  )
+  if (!centerNames.size) return rows
+  return rows.filter((row) => {
+    const resolved = resolveCenterName(row)
+    if (centerNames.has(resolved)) return true
+    const fromBranch = branchToCenterName(row.branch)
+    return fromBranch ? centerNames.has(fromBranch) : false
+  })
 }
 
 export function filterPaymentsByCenters(payments, centerIds, centerNameById) {
@@ -153,6 +201,52 @@ function daysSince(isoDate) {
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+export function buildTopPerformingCourses(payments = []) {
+  const courseMap = {}
+
+  payments.forEach((p) => {
+    const courseName = p.courseName || 'Other'
+    if (!courseMap[courseName]) {
+      courseMap[courseName] = {
+        course: courseName,
+        collection: 0,
+        revenueByStudent: {},
+        studentIds: new Set(),
+      }
+    }
+
+    const entry = courseMap[courseName]
+    entry.collection += p.amountPaid || 0
+
+    const studentKey = p.studentId || p.studentName || `${courseName}-${p.id || p.paymentId || ''}`
+    if (studentKey) entry.studentIds.add(studentKey)
+
+    const billedAmount = Number(p.totalFees ?? p.totalFee ?? p.courseFee ?? 0) || Number(p.amountPaid || 0)
+    if (studentKey) {
+      entry.revenueByStudent[studentKey] = Math.max(entry.revenueByStudent[studentKey] || 0, billedAmount)
+    }
+  })
+
+  const topCourses = Object.values(courseMap)
+    .map((entry) => {
+      const revenue = Object.values(entry.revenueByStudent).reduce((sum, value) => sum + value, 0)
+      return {
+        course: entry.course,
+        courseName: entry.course,
+        revenue,
+        collection: entry.collection,
+        studentCount: entry.studentIds.size,
+        enrolledStudents: entry.studentIds.size,
+      }
+    })
+    .sort((a, b) => b.collection - a.collection || b.revenue - a.revenue)
+
+  return {
+    topCourses,
+    topPerformingCourse: topCourses[0] || null,
+  }
+}
+
 /**
  * Extended analytics for Payment Dashboard widgets (mock-safe, client-side).
  */
@@ -188,23 +282,7 @@ export function buildExtendedDashboardAnalytics(payments, emiPlans = [], centers
     recovered: Math.max(0, Math.round(recoveredFromAttempts.length * (0.1 + i * 0.08))),
   }))
 
-  const courseAgg = {}
-  const courseStudents = {}
-  payments.forEach((p) => {
-    const key = p.courseName || 'Other'
-    courseAgg[key] = (courseAgg[key] || 0) + (p.amountPaid || 0)
-    if (!courseStudents[key]) courseStudents[key] = new Set()
-    courseStudents[key].add(p.studentId)
-  })
-  const topCourses = Object.entries(courseAgg)
-    .map(([course, revenue]) => ({
-      course,
-      revenue,
-      studentCount: courseStudents[course]?.size || 0,
-      growthPct: 8 + (course.length % 12),
-    }))
-    .sort((a, b) => b.revenue - a.revenue)
-  const topPerformingCourse = topCourses[0] || null
+  const { topCourses, topPerformingCourse } = buildTopPerformingCourses(payments)
 
   const todayMs = 24 * 60 * 60 * 1000
   const todayPayments = payments.filter((p) => {

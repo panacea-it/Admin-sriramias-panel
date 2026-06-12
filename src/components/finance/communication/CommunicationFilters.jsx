@@ -4,6 +4,15 @@ import { COMMUNICATION_TYPES, COMMUNICATION_CHANNELS, COMMUNICATION_STATUSES } f
 export default function CommunicationFilters({
   search,
   onSearchChange,
+  centerFilter = 'all',
+  onCenterChange = () => {},
+  centerOptions = [],
+  courseFilter = 'all',
+  onCourseChange = () => {},
+  courseOptions = [],
+  batchFilter = 'all',
+  onBatchChange = () => {},
+  batchOptions = [],
   channelFilter,
   onChannelChange,
   typeFilter,
@@ -30,6 +39,26 @@ export default function CommunicationFilters({
           placeholder="Search student, ID, reference…"
           className="sm:col-span-2"
         />
+        {centerOptions.length > 0 && (
+          <select value={centerFilter} onChange={(e) => onCenterChange(e.target.value)} className={selectClass} aria-label="Center">
+            <option value="all">All centres</option>
+            {centerOptions.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        )}
+        <select value={courseFilter} onChange={(e) => onCourseChange(e.target.value)} className={selectClass} aria-label="Course">
+          <option value="all">All courses</option>
+          {courseOptions.map((c) => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        <select value={batchFilter} onChange={(e) => onBatchChange(e.target.value)} className={selectClass} aria-label="Batch">
+          <option value="all">All batches</option>
+          {batchOptions.map((b) => (
+            <option key={b.value} value={b.value}>{b.label}</option>
+          ))}
+        </select>
         <select value={typeFilter} onChange={(e) => onTypeChange(e.target.value)} className={selectClass} aria-label="Communication type">
           <option value="all">All types</option>
           {COMMUNICATION_TYPES.map((t) => (

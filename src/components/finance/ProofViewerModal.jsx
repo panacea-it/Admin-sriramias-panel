@@ -134,7 +134,7 @@ export default function ProofViewerModal({
   return (
     <Modal open={open} onClose={onClose} size="lg" title={title} showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
-        <ModalPanelHeader title={title} onClose={onClose} closeVariant="icon" />
+        <ModalPanelHeader title={title} onClose={onClose} closeVariant="icon" plainCloseIcon />
         <div className="space-y-4 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {active && <ProofTypeBadge type={active.type} name={active.name} />}

@@ -9,13 +9,15 @@ export default function PaymentAttemptFraudModal({ open, row, onClose, onBlock, 
   const device = row.device || {}
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Device & IP details">
+    <Modal open={open} onClose={onClose} size="md" title="Device & IP details" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title="Fraud monitoring"
           subtitle={`${row.student} · Risk ${row.ipRiskScore ?? '—'}`}
           onClose={onClose}
           icon={Shield}
+          closeVariant="icon"
+          plainCloseIcon
         />
         <div className="space-y-4 p-5 text-sm">
           <div className="flex items-center gap-2">

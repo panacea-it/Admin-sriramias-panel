@@ -77,10 +77,6 @@ export const RECOVERY_CHANNELS = ['WhatsApp', 'SMS', 'Email', 'In-app', 'Counsel
 export const PAYMENT_ATTEMPT_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'attempts', label: 'Attempt Logs' },
-  { id: 'retry', label: 'Retry Analytics' },
-  { id: 'abandoned', label: 'Abandoned' },
-  { id: 'recovery', label: 'Recovery' },
-  { id: 'alerts', label: 'Alerts' },
 ]
 
 export const PAYMENT_ATTEMPT_EXPORT_COLUMNS = [
@@ -92,7 +88,6 @@ export const PAYMENT_ATTEMPT_EXPORT_COLUMNS = [
   { key: 'amount', label: 'Amount' },
   { key: 'failureCategory', label: 'Failure Reason' },
   { key: 'retryCount', label: 'Retry Count' },
-  { key: 'recoveryStatus', label: 'Recovery Status' },
   { key: 'counselorName', label: 'Counselor' },
   { key: 'fraudStatus', label: 'Device/IP Status' },
   { key: 'dateTime', label: 'Last Attempt' },

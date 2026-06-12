@@ -2,7 +2,7 @@ import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, History } from 'lucide-r
 import FinanceStatusBadge from '../FinanceStatusBadge'
 import FinanceEmptyState from '../FinanceEmptyState'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import FinanceActionMenu from '../FinanceActionMenu'
+import FinanceTableRowActions from '../FinanceTableRowActions'
 import FinanceTimeline from '../FinanceTimeline'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 
@@ -49,13 +49,16 @@ export default function CommunicationAutomationPanel({
     },
     {
       key: 'actions',
-      label: '',
+      label: 'Actions',
+      align: 'right',
+      headerClassName: 'text-right pr-6 sm:pr-8',
+      cellClassName: 'text-right pr-6 sm:pr-8',
       render: (row) =>
         canEdit ? (
-          <FinanceActionMenu
+          <FinanceTableRowActions
             actions={[
               { label: 'Edit', icon: Pencil, onClick: () => onEdit?.(row) },
-              { label: 'Execution logs', icon: History, onClick: () => onViewLogs?.(row) },
+              { label: 'Logs', icon: History, onClick: () => onViewLogs?.(row) },
               { label: 'Delete', icon: Trash2, onClick: () => onDelete?.(row), variant: 'danger' },
             ]}
           />

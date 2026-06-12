@@ -384,12 +384,21 @@ export default function ReceiptManagementPage() {
 
   const openPreview = (row) => {
 
+    setEditRow(null)
+
     setPreviewPayment(row)
 
     searchParams.set('preview', row.id)
 
     setSearchParams(searchParams, { replace: true })
 
+  }
+
+
+
+  const handleEditReceipt = (row) => {
+    closePreview()
+    setEditRow(row)
   }
 
 
@@ -746,7 +755,7 @@ export default function ReceiptManagementPage() {
 
             onDownload={handleDownload}
 
-            onEditReceipt={setEditRow}
+            onEditReceipt={handleEditReceipt}
 
             canEdit={canReceipts}
 
@@ -776,7 +785,7 @@ export default function ReceiptManagementPage() {
 
             onSendReceipt={setSendRow}
 
-            onEditReceipt={setEditRow}
+            onEditReceipt={handleEditReceipt}
 
             canSend={canReceipts}
 

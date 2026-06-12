@@ -12,6 +12,7 @@ import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContex
 import { useCenters } from '../../contexts/CentersContext'
 import { fetchCenterPerformance } from '../../api/financeAPI'
 import { formatINR } from '../../utils/financeFilters'
+import { filterFinanceOperationCenters } from '../../utils/financeCenterAggregation'
 
 export default function CenterSelectorDropdown({ open, onToggle, onClose }) {
   const {
@@ -26,6 +27,7 @@ export default function CenterSelectorDropdown({ open, onToggle, onClose }) {
     headerLabel,
   } = useFinanceCenterFilter()
   const { activeCenters } = useCenters()
+  const financeCenters = useMemo(() => filterFinanceOperationCenters(activeCenters), [activeCenters])
   const [search, setSearch] = useState('')
   const [summaries, setSummaries] = useState([])
 
@@ -43,13 +45,13 @@ export default function CenterSelectorDropdown({ open, onToggle, onClose }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return activeCenters
-    return activeCenters.filter(
+    if (!q) return financeCenters
+    return financeCenters.filter(
       (c) =>
         c.centerName.toLowerCase().includes(q) ||
         c.centerCode.toLowerCase().includes(q),
     )
-  }, [activeCenters, search])
+  }, [financeCenters, search])
 
   const isSelected = (id) => mode !== 'all' && selectedIds.includes(id)
 

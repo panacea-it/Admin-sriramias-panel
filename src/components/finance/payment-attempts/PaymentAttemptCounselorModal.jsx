@@ -30,13 +30,15 @@ export default function PaymentAttemptCounselorModal({ open, row, rows = [], onC
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Counselor assignment">
+    <Modal open={open} onClose={onClose} size="md" title="Counselor assignment" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title={isBulk ? `Assign ${rows.length} leads` : 'Assign counselor'}
           subtitle={isBulk ? 'Bulk assignment' : `${target?.student} · ${target?.course}`}
           onClose={onClose}
           icon={UserPlus}
+          closeVariant="icon"
+          plainCloseIcon
         />
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           {!isBulk && target && (
@@ -45,7 +47,6 @@ export default function PaymentAttemptCounselorModal({ open, row, rows = [], onC
                 <div><dt className="text-xs text-[#686868]">Contact</dt><dd>{target.mobile} · {target.email}</dd></div>
                 <div><dt className="text-xs text-[#686868]">Failed amount</dt><dd className="font-semibold">{formatINR(target.amount)}</dd></div>
                 <div><dt className="text-xs text-[#686868]">Failure reason</dt><dd>{target.failureCategory || '—'}</dd></div>
-                <div><dt className="text-xs text-[#686868]">Recovery probability</dt><dd>{target.recoveryProbability ?? '—'}%</dd></div>
               </dl>
               {target.retryCount > 0 && (
                 <p className="mt-2 text-xs text-[#686868]">Retry history: {target.retryCount} prior attempt(s)</p>

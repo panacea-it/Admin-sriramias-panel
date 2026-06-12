@@ -20,6 +20,9 @@ export const COMMUNICATION_CHANNELS = [
   'In-App Notification',
 ]
 
+/** Channel picker options including “All channels” for templates & automation rules */
+export const COMMUNICATION_CHANNEL_OPTIONS = ['All channels', ...COMMUNICATION_CHANNELS]
+
 export const COMMUNICATION_STATUSES = ['Sent', 'Pending', 'Failed', 'Delivered', 'Read', 'Opened', 'Queued']
 
 export const COMMUNICATION_STATUS_STYLES = {
@@ -71,7 +74,6 @@ export const PAYMENT_COMMUNICATION_TABS = [
   { id: 'activity', label: 'Activity Logs' },
   { id: 'templates', label: 'Templates' },
   { id: 'automation', label: 'Automation Rules' },
-  { id: 'alerts', label: 'Alerts' },
 ]
 
 export const COMMUNICATION_EXPORT_COLUMNS = [

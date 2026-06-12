@@ -39,6 +39,7 @@ export default function FinanceStatsGrid({ groups = [], defaultCollapsedOnMobile
           <div
             className={cn(
               'grid gap-3 px-3 pb-3 sm:grid-cols-2 sm:gap-4 sm:px-4 sm:pb-4 lg:grid-cols-4',
+              group.gridClassName,
               group.title && collapsed[group.id] && 'hidden sm:grid',
               !group.title && 'p-3 sm:p-4',
             )}

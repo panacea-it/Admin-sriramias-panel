@@ -37,7 +37,6 @@ export const FINANCE_PAYMENT_MODE_CATEGORIES = [
   { id: 'offline', label: 'Offline' },
   { id: 'banking', label: 'Banking' },
   { id: 'wallet', label: 'Wallet' },
-  { id: 'international', label: 'International' },
   { id: 'other', label: 'Other' },
 ]
 
@@ -146,6 +145,15 @@ export const FINANCE_STUDENT_TYPE_OPTIONS = [
   { value: 'Offline', label: 'Offline' },
   { value: 'Hybrid', label: 'Hybrid' },
 ]
+
+/** Finance operations — Delhi, Hyderabad, Pune only */
+export const FINANCE_OPERATION_CENTERS = [
+  { centerName: 'Delhi Center', centerCode: 'DLH', city: 'Delhi', state: 'Delhi' },
+  { centerName: 'Hyderabad Center', centerCode: 'HYD', city: 'Hyderabad', state: 'Telangana' },
+  { centerName: 'Pune Center', centerCode: 'PUN', city: 'Pune', state: 'Maharashtra' },
+]
+
+export const FINANCE_OPERATION_CENTER_NAMES = FINANCE_OPERATION_CENTERS.map((c) => c.centerName)
 
 export const FINANCE_MOCK_COUNSELORS = [
   { id: 'c1', name: 'Priya Sharma' },

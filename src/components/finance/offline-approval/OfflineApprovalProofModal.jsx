@@ -32,12 +32,13 @@ export default function OfflineApprovalProofModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} size="lg" title="Receipt verification">
+      <Modal open={open} onClose={onClose} size="lg" title="Receipt verification" showCloseButton={false}>
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
           <ModalPanelHeader
             title="Receipt preview & verification"
             subtitle={`${row.id} · ${row.studentName}`}
             onClose={onClose}
+            closeVariant="icon"
             icon={Eye}
           />
           <div className="max-h-[85vh] space-y-5 overflow-y-auto p-5 sm:p-6">
@@ -127,13 +128,6 @@ export default function OfflineApprovalProofModal({
             </div>
 
             <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-white pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-10 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-[#444] hover:bg-slate-50"
-              >
-                Close
-              </button>
               {canApprove && (
                 <>
                   <button

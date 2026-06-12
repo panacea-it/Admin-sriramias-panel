@@ -16,7 +16,6 @@ export default function OfflineApprovalMobileCard({
   actions,
   onProofClick,
   onDuplicateClick,
-  onAuditClick,
   suspicious,
 }) {
   return (
@@ -74,9 +73,6 @@ export default function OfflineApprovalMobileCard({
               <Eye className="mr-1 inline h-3.5 w-3.5" /> View proof
             </button>
           )}
-          <button type="button" onClick={() => onAuditClick?.(row)} className="text-xs text-[#686868] hover:underline">
-            Audit
-          </button>
         </div>
         <FinanceActionMenu actions={actions} />
       </div>

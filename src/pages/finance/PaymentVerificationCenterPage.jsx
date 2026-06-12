@@ -482,7 +482,7 @@ export default function PaymentVerificationCenterPage() {
       <VerificationCenterFilters
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search student, transaction ID, payment mode, status…"
+        searchPlaceholder="SEARCH PAYMENT ID , STUDENT , MODE "
         dateFrom={dateFrom}
         onDateFromChange={(e) => setDateFrom(e.target.value)}
         dateTo={dateTo}

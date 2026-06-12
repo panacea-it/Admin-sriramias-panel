@@ -1,5 +1,5 @@
 import FinanceSearchInput from '../FinanceSearchInput'
-import { PAYMENT_FAILURE_CATEGORIES, FRAUD_RISK_STATUSES, RECOVERY_STATUSES } from '../../../constants/paymentAttemptConstants'
+import { PAYMENT_FAILURE_CATEGORIES, FRAUD_RISK_STATUSES } from '../../../constants/paymentAttemptConstants'
 
 const GATEWAY_OPTIONS = ['all', 'Razorpay', 'Cashfree', 'PayU']
 
@@ -14,8 +14,6 @@ export default function PaymentAttemptFilters({
   onGatewayChange,
   failureFilter,
   onFailureChange,
-  recoveryFilter,
-  onRecoveryChange,
   fraudFilter,
   onFraudChange,
   fraudOnly,
@@ -58,12 +56,6 @@ export default function PaymentAttemptFilters({
           <option value="all">All failure reasons</option>
           {PAYMENT_FAILURE_CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <select value={recoveryFilter} onChange={(e) => onRecoveryChange(e.target.value)} className={selectClass} aria-label="Recovery status">
-          <option value="all">All recovery</option>
-          {RECOVERY_STATUSES.map((s) => (
-            <option key={s} value={s}>{s}</option>
           ))}
         </select>
         <select value={fraudFilter} onChange={(e) => onFraudChange(e.target.value)} className={selectClass} aria-label="Fraud status">

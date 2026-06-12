@@ -32,12 +32,14 @@ export default function CommunicationCounselorModal({ open, row, rows = [], onCl
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Counselor follow-up">
+    <Modal open={open} onClose={onClose} size="md" title="Counselor follow-up" showCloseButton={false} zIndex={120}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title={isBulk ? `Assign ${rows.length} communications` : 'Tag counselor'}
           subtitle={isBulk ? 'Bulk assignment' : `${target?.studentName} · ${target?.type}`}
           onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
           icon={UserPlus}
         />
         <form onSubmit={handleSubmit} className="space-y-4 p-5">

@@ -20,11 +20,9 @@ function nowIso() {
 function defaultSeed() {
   const t = nowIso()
   const rows = [
-    ['Delhi Center', 'DLH', 'New Delhi', 'Delhi'],
-    ['Mumbai Center', 'MUM', 'Mumbai', 'Maharashtra'],
-    ['Bangalore Center', 'BLR', 'Bengaluru', 'Karnataka'],
-    ['Chennai Center', 'CHE', 'Chennai', 'Tamil Nadu'],
+    ['Delhi Center', 'DLH', 'Delhi', 'Delhi'],
     ['Hyderabad Center', 'HYD', 'Hyderabad', 'Telangana'],
+    ['Pune Center', 'PUN', 'Pune', 'Maharashtra'],
   ]
   return rows.map(([centerName, centerCode, city, state]) => ({
     centerId: newId(),

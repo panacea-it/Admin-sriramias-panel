@@ -10,6 +10,7 @@ import { useAuth } from './AuthContext'
 import { useCenters } from './CentersContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { ROLES } from '../constants/roles'
+import { filterFinanceOperationCenters } from '../utils/financeCenterAggregation'
 
 const FAVORITES_KEY = 'finance_center_favorites'
 const RECENT_KEY = 'finance_center_recent'
@@ -28,6 +29,7 @@ const FinanceCenterFilterContext = createContext(null)
 export function FinanceCenterFilterProvider({ children }) {
   const { user, selectedCenter, setSelectedCenter } = useAuth()
   const { activeCenters, getCenterById } = useCenters()
+  const financeCenters = useMemo(() => filterFinanceOperationCenters(activeCenters), [activeCenters])
   const { isSuperAdmin, hasRole } = usePermissions()
 
   const [mode, setMode] = useState('all')
@@ -40,8 +42,8 @@ export function FinanceCenterFilterProvider({ children }) {
   const isFinanceTeam = hasRole(ROLES.OPERATION_ADMIN)
   const canSelectCenters = isSuperAdmin || isFinanceTeam
   const lockedCenterId = isCenterHead
-    ? activeCenters.find((c) => c.centerName === user?.center)?.centerId ||
-      activeCenters.find((c) => c.centerName === selectedCenter)?.centerId
+    ? financeCenters.find((c) => c.centerName === user?.center)?.centerId ||
+      financeCenters.find((c) => c.centerName === selectedCenter)?.centerId
     : null
 
   useEffect(() => {
@@ -56,9 +58,11 @@ export function FinanceCenterFilterProvider({ children }) {
   const selectedCenters = useMemo(
     () =>
       mode === 'all'
-        ? activeCenters
-        : selectedIds.map((id) => getCenterById(id)).filter(Boolean),
-    [mode, selectedIds, activeCenters, getCenterById],
+        ? financeCenters
+        : selectedIds.map((id) => getCenterById(id)).filter(Boolean).filter((c) =>
+            financeCenters.some((fc) => fc.centerId === c.centerId),
+          ),
+    [mode, selectedIds, financeCenters, getCenterById],
   )
 
   const syncHeaderLabel = useCallback(
@@ -169,6 +173,7 @@ export function FinanceCenterFilterProvider({ children }) {
       setCompareMode,
       selectedIds,
       selectedCenters,
+      financeCenters,
       favorites,
       recentIds,
       canSelectCenters,
@@ -189,6 +194,7 @@ export function FinanceCenterFilterProvider({ children }) {
       compareMode,
       selectedIds,
       selectedCenters,
+      financeCenters,
       favorites,
       recentIds,
       canSelectCenters,

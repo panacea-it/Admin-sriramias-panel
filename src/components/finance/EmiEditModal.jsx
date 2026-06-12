@@ -190,7 +190,7 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
 
   return (
     <>
-      <Modal open={open} onClose={onClose} size="full" title="Edit EMI Installments">
+      <Modal open={open} onClose={onClose} size="full" title="Edit EMI Installments" showCloseButton={false}>
         <form
           onSubmit={handleSubmit}
           className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
@@ -199,6 +199,8 @@ export default function EmiEditModal({ open, onClose, plan: planProp, onSubmit, 
             title="Edit EMI Installments"
             icon={CalendarClock}
             iconClassName="text-[#246392]"
+            onClose={onClose}
+            closeVariant="icon"
           />
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 sm:p-5">

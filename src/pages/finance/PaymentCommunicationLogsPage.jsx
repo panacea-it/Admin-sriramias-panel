@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MessageSquare, Eye, UserPlus, RotateCcw, Clock, Send } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
+import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import FinanceConfirmDialog from '../../components/finance/FinanceConfirmDialog'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
-import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
+import FinanceTableRowActions from '../../components/finance/FinanceTableRowActions'
 import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import VerificationCenterNav from '../../components/finance/communication/VerificationCenterNav'
@@ -21,7 +22,7 @@ import CommunicationTemplatesPanel from '../../components/finance/communication/
 import CommunicationTemplateDialog from '../../components/finance/communication/CommunicationTemplateDialog'
 import CommunicationAutomationPanel from '../../components/finance/communication/CommunicationAutomationPanel'
 import CommunicationAutomationDialog from '../../components/finance/communication/CommunicationAutomationDialog'
-import CommunicationAlertsPanel from '../../components/finance/communication/CommunicationAlertsPanel'
+import CommunicationJourneyModal from '../../components/finance/communication/CommunicationJourneyModal'
 import {
   fetchCommunicationAnalytics,
   sendPaymentReminder,
@@ -33,10 +34,10 @@ import {
   saveCommunicationAutomationRule,
   deleteCommunicationAutomationRule,
   toggleCommunicationAutomationRule,
-  markCommunicationAlertRead,
 } from '../../api/financeAPI'
 import {
   filterCommunicationLogs,
+  filterCommunicationByFinanceCenters,
   computeCommunicationSummary,
   buildDailyActivityChart,
   buildChannelUsageChart,
@@ -47,9 +48,12 @@ import {
   COMMUNICATION_EXPORT_COLUMNS,
   COMMUNICATION_CHANNELS,
 } from '../../constants/paymentCommunicationConstants'
+import { FINANCE_BATCHES } from '../../constants/financeConstants'
+import { FINANCE_COURSES } from '../../data/financeMockData'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
+import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
@@ -60,8 +64,15 @@ const REMINDER_TEMPLATES = [
   { id: 'emi', label: 'EMI due reminder' },
 ]
 
+const REMINDER_CHANNELS = ['all', ...COMMUNICATION_CHANNELS]
+
+function formatCommCenterLabel(centerName) {
+  return centerName?.replace(/\s+Center$/i, '') || centerName || 'All Centres'
+}
+
 export default function PaymentCommunicationLogsPage() {
   const { canExport, canEdit } = useFinancePermissions()
+  const financeCenterFilter = useFinanceCenterFilter()
   const { user } = useAuth()
   const adminName = user?.name || user?.email || 'Finance Admin'
   const [searchParams] = useSearchParams()
@@ -73,6 +84,9 @@ export default function PaymentCommunicationLogsPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [channelFilter, setChannelFilter] = useState('all')
+  const [centerFilter, setCenterFilter] = useState('all')
+  const [courseFilter, setCourseFilter] = useState('all')
+  const [batchFilter, setBatchFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [followUpFilter, setFollowUpFilter] = useState('all')
@@ -80,6 +94,7 @@ export default function PaymentCommunicationLogsPage() {
   const [dateTo, setDateTo] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
   const [timelineRow, setTimelineRow] = useState(null)
+  const [journeyRow, setJourneyRow] = useState(null)
   const [counselorRow, setCounselorRow] = useState(null)
   const [counselorBulk, setCounselorBulk] = useState([])
   const [templateDialog, setTemplateDialog] = useState(null)
@@ -88,7 +103,15 @@ export default function PaymentCommunicationLogsPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmSend, setConfirmSend] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [reminderForm, setReminderForm] = useState({ mobile: '', email: '', channel: 'WhatsApp', template: 'default' })
+  const [reminderForm, setReminderForm] = useState({
+    mobile: '',
+    email: '',
+    channel: 'all',
+    template: 'default',
+    centerName: 'all',
+    courseId: 'all',
+    batchId: 'all',
+  })
   const [formErrors, setFormErrors] = useState({})
 
   const load = useCallback(async () => {
@@ -116,11 +139,45 @@ export default function PaymentCommunicationLogsPage() {
   const logs = analytics?.logs ?? []
   const templates = analytics?.templates ?? []
   const rules = analytics?.rules ?? []
-  const alerts = analytics?.alerts ?? []
+
+  const centerScopedLogs = useMemo(
+    () => filterCommunicationByFinanceCenters(logs, financeCenterFilter),
+    [logs, financeCenterFilter],
+  )
+
+  const centerOptions = useMemo(
+    () =>
+      (financeCenterFilter.isOverallView ? financeCenterFilter.financeCenters : financeCenterFilter.selectedCenters).map((c) => ({
+        value: c.centerName,
+        label: formatCommCenterLabel(c.centerName),
+      })),
+    [financeCenterFilter.financeCenters, financeCenterFilter.isOverallView, financeCenterFilter.selectedCenters],
+  )
+
+  const courseOptions = useMemo(() => {
+    const names = new Set(centerScopedLogs.map((l) => l.courseName).filter(Boolean))
+    FINANCE_COURSES.forEach((c) => names.add(c.name))
+    return [...names].sort().map((name) => {
+      const course = FINANCE_COURSES.find((c) => c.name === name)
+      return { value: course?.id || name, label: name }
+    })
+  }, [centerScopedLogs])
+
+  const batchOptions = useMemo(() => {
+    const names = new Set(centerScopedLogs.map((l) => l.batchName).filter(Boolean))
+    FINANCE_BATCHES.forEach((b) => names.add(b.name))
+    return [...names].sort().map((name) => {
+      const batch = FINANCE_BATCHES.find((b) => b.name === name)
+      return { value: batch?.id || name, label: name }
+    })
+  }, [centerScopedLogs])
 
   const filterState = useMemo(
     () => ({
       search: debouncedSearch,
+      centerFilter,
+      courseFilter,
+      batchFilter,
       channelFilter,
       typeFilter,
       statusFilter,
@@ -128,18 +185,18 @@ export default function PaymentCommunicationLogsPage() {
       dateFrom,
       dateTo,
     }),
-    [debouncedSearch, channelFilter, typeFilter, statusFilter, followUpFilter, dateFrom, dateTo],
+    [debouncedSearch, centerFilter, courseFilter, batchFilter, channelFilter, typeFilter, statusFilter, followUpFilter, dateFrom, dateTo],
   )
 
-  const filtered = useMemo(() => filterCommunicationLogs(logs, filterState), [logs, filterState])
-  const summary = useMemo(() => computeCommunicationSummary(logs), [logs])
+  const filtered = useMemo(() => filterCommunicationLogs(centerScopedLogs, filterState), [centerScopedLogs, filterState])
+  const summary = useMemo(() => computeCommunicationSummary(centerScopedLogs), [centerScopedLogs])
   const charts = useMemo(
     () => ({
-      dailyActivity: buildDailyActivityChart(logs),
-      channelUsage: buildChannelUsageChart(logs),
-      deliveryTrend: buildDeliveryTrendChart(logs),
+      dailyActivity: buildDailyActivityChart(centerScopedLogs),
+      channelUsage: buildChannelUsageChart(centerScopedLogs),
+      deliveryTrend: buildDeliveryTrendChart(centerScopedLogs),
     }),
-    [logs],
+    [centerScopedLogs],
   )
   const activeRules = rules.filter((r) => r.active).length
 
@@ -156,7 +213,15 @@ export default function PaymentCommunicationLogsPage() {
     try {
       await sendPaymentReminder({ ...reminderForm, adminName })
       toast.success('Reminder queued')
-      setReminderForm({ mobile: '', email: '', channel: 'WhatsApp', template: 'default' })
+      setReminderForm({
+        mobile: '',
+        email: '',
+        channel: 'all',
+        template: 'default',
+        centerName: 'all',
+        courseId: 'all',
+        batchId: 'all',
+      })
       setConfirmSend(false)
       await load()
     } catch {
@@ -254,13 +319,23 @@ export default function PaymentCommunicationLogsPage() {
     }
   }
 
+  const openDetailsModal = (row) => {
+    setJourneyRow(null)
+    setTimelineRow(row)
+  }
+
+  const openJourneyModal = (row) => {
+    setTimelineRow(null)
+    setJourneyRow(row)
+  }
+
   const buildActions = (row) => (
-    <FinanceActionMenu
+    <FinanceTableRowActions
       actions={[
-        { label: 'View details', icon: Eye, onClick: () => setTimelineRow(row) },
-        { label: 'Tag counselor', icon: UserPlus, onClick: () => setCounselorRow(row), show: canEdit },
+        { label: 'View', icon: Eye, onClick: () => openDetailsModal(row) },
+        { label: 'Tag', icon: UserPlus, onClick: () => setCounselorRow(row), show: canEdit },
         { label: 'Resend', icon: RotateCcw, onClick: () => bulkCommunicationAction({ ids: [row.id], action: 'resend', adminName }).then(load), show: canEdit },
-        { label: 'View timeline', icon: Clock, onClick: () => setTimelineRow(row) },
+        { label: 'Timeline', icon: Clock, onClick: () => openJourneyModal(row) },
       ]}
     />
   )
@@ -298,10 +373,10 @@ export default function PaymentCommunicationLogsPage() {
     },
     {
       key: 'tracking',
-      label: 'Journey',
-      render: (r) => <CommunicationTrackingTimeline row={r} compact />,
+      label: 'Timeline',
+      render: (r) => <CommunicationTrackingTimeline row={r} compact onView={openJourneyModal} />,
     },
-    { key: 'actions', label: '', render: (row) => buildActions(row) },
+    { key: 'actions', label: 'Actions', align: 'right', headerClassName: 'text-right pr-6 sm:pr-8', cellClassName: 'text-right pr-6 sm:pr-8', render: (row) => buildActions(row) },
   ]
 
   const inputClass =
@@ -343,6 +418,8 @@ export default function PaymentCommunicationLogsPage() {
     >
       <VerificationCenterNav />
 
+      <FinanceCenterFilterBar className="mb-4" />
+
       <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200">
         {PAYMENT_COMMUNICATION_TABS.map((tab) => (
           <button
@@ -355,11 +432,6 @@ export default function PaymentCommunicationLogsPage() {
             )}
           >
             {tab.label}
-            {tab.id === 'alerts' && alerts.filter((a) => !a.read).length > 0 && (
-              <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#df8284] px-1 text-[10px] font-bold text-white">
-                {alerts.filter((a) => !a.read).length}
-              </span>
-            )}
             {activeTab === tab.id && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#246392]" />}
           </button>
         ))}
@@ -379,13 +451,31 @@ export default function PaymentCommunicationLogsPage() {
                   e.preventDefault()
                   if (validateForm()) setConfirmSend(true)
                 }}
-                className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+                className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
               >
                 <input placeholder="Mobile (10 digits)" value={reminderForm.mobile} onChange={(e) => setReminderForm((f) => ({ ...f, mobile: e.target.value }))} className={inputClass} aria-label="Mobile" />
                 <input placeholder="Email" value={reminderForm.email} onChange={(e) => setReminderForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} aria-label="Email" />
+                <select value={reminderForm.centerName} onChange={(e) => setReminderForm((f) => ({ ...f, centerName: e.target.value }))} className={inputClass} aria-label="Centre">
+                  <option value="all">All centres</option>
+                  {centerOptions.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <select value={reminderForm.courseId} onChange={(e) => setReminderForm((f) => ({ ...f, courseId: e.target.value }))} className={inputClass} aria-label="Course">
+                  <option value="all">All courses</option>
+                  {courseOptions.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <select value={reminderForm.batchId} onChange={(e) => setReminderForm((f) => ({ ...f, batchId: e.target.value }))} className={inputClass} aria-label="Batch">
+                  <option value="all">All batches</option>
+                  {batchOptions.map((b) => (
+                    <option key={b.value} value={b.value}>{b.label}</option>
+                  ))}
+                </select>
                 <select value={reminderForm.channel} onChange={(e) => setReminderForm((f) => ({ ...f, channel: e.target.value }))} className={inputClass} aria-label="Channel">
-                  {COMMUNICATION_CHANNELS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  {REMINDER_CHANNELS.map((c) => (
+                    <option key={c} value={c}>{c === 'all' ? 'All channels' : c}</option>
                   ))}
                 </select>
                 <select value={reminderForm.template} onChange={(e) => setReminderForm((f) => ({ ...f, template: e.target.value }))} className={inputClass} aria-label="Template">
@@ -393,10 +483,10 @@ export default function PaymentCommunicationLogsPage() {
                     <option key={t.id} value={t.id}>{t.label}</option>
                   ))}
                 </select>
-                <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#246392] px-4 text-sm font-semibold text-white">
+                <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#246392] px-4 text-sm font-semibold text-white sm:col-span-2 lg:col-span-1">
                   <Send className="h-4 w-4" /> Send
                 </button>
-                {formErrors.contact && <p className="text-xs text-[#df8284] sm:col-span-2 lg:col-span-5">{formErrors.contact}</p>}
+                {formErrors.contact && <p className="text-xs text-[#df8284] sm:col-span-2 lg:col-span-full">{formErrors.contact}</p>}
               </form>
             </section>
           )}
@@ -405,6 +495,15 @@ export default function PaymentCommunicationLogsPage() {
             <CommunicationFilters
               search={search}
               onSearchChange={setSearch}
+              centerFilter={centerFilter}
+              onCenterChange={setCenterFilter}
+              centerOptions={centerOptions}
+              courseFilter={courseFilter}
+              onCourseChange={setCourseFilter}
+              courseOptions={courseOptions}
+              batchFilter={batchFilter}
+              onBatchChange={setBatchFilter}
+              batchOptions={batchOptions}
               channelFilter={channelFilter}
               onChannelChange={setChannelFilter}
               typeFilter={typeFilter}
@@ -469,24 +568,8 @@ export default function PaymentCommunicationLogsPage() {
         </div>
       )}
 
-      {activeTab === 'alerts' && (
-        <CommunicationAlertsPanel
-          alerts={alerts}
-          onMarkRead={async (id) => {
-            await markCommunicationAlertRead(id)
-            await load()
-          }}
-          onSelectAlert={(alert) => {
-            const row = logs.find((l) => l.id === alert.rowId)
-            if (row) {
-              setActiveTab('activity')
-              setTimelineRow(row)
-            }
-          }}
-        />
-      )}
-
       <CommunicationTimelineDrawer row={timelineRow} onClose={() => setTimelineRow(null)} />
+      <CommunicationJourneyModal row={journeyRow} onClose={() => setJourneyRow(null)} />
       <CommunicationCounselorModal
         open={!!counselorRow || counselorBulk.length > 0}
         row={counselorRow}
@@ -518,7 +601,7 @@ export default function PaymentCommunicationLogsPage() {
       <FinanceConfirmDialog
         open={confirmSend}
         title="Send payment reminder?"
-        message={`Send reminder via ${reminderForm.channel}?`}
+        message={`Send reminder via ${reminderForm.channel === 'all' ? 'all channels' : reminderForm.channel}?`}
         confirmLabel="Send reminder"
         onConfirm={handleSendReminder}
         onCancel={() => setConfirmSend(false)}

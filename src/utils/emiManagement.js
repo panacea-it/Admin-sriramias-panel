@@ -343,3 +343,41 @@ export function filterEmiPlans(plans, filters = {}) {
 export function applyTemplate(template, vars = {}) {
   return String(template || '').replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '')
 }
+
+export function resolveEmiPlanCenter(plan) {
+  return plan?.centerName || plan?.branch || '—'
+}
+
+export function normalizeEmiCenterKey(centerName = '') {
+  const value = String(centerName).toLowerCase()
+  if (value.includes('delhi')) return 'delhi'
+  if (value.includes('hyderabad') || value.includes('hyd')) return 'hyderabad'
+  if (value.includes('pune')) return 'pune'
+  return ''
+}
+
+export function planMatchesEmiCenter(plan, centerFilter = 'all') {
+  if (!centerFilter || centerFilter === 'all') return true
+  return normalizeEmiCenterKey(resolveEmiPlanCenter(plan)) === centerFilter
+}
+
+export function formatEmiCityLabel(centerName = '') {
+  if (!centerName || centerName === '—') return '—'
+  const key = normalizeEmiCenterKey(centerName)
+  if (key === 'delhi') return 'Delhi'
+  if (key === 'hyderabad') return 'Hyderabad'
+  if (key === 'pune') return 'Pune'
+  return String(centerName).replace(/\s+Center$/i, '').trim() || centerName
+}
+
+export function filterPlansByFinanceCenters(
+  plans = [],
+  { isOverallView, selectedCenters } = {},
+) {
+  if (isOverallView || !selectedCenters?.length) return plans
+  const keys = new Set(
+    selectedCenters.map((center) => normalizeEmiCenterKey(center.centerName)).filter(Boolean),
+  )
+  if (!keys.size) return plans
+  return plans.filter((plan) => keys.has(normalizeEmiCenterKey(resolveEmiPlanCenter(plan))))
+}

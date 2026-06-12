@@ -1,23 +1,12 @@
 import { useCallback, useState } from 'react'
-import {
-  LayoutDashboard,
-  IndianRupee,
-  Clock,
-  AlertTriangle,
-  CalendarClock,
-  Banknote,
-  TrendingUp,
-  Download,
-  RefreshCw,
-  Building2,
-  ShieldCheck,
-} from 'lucide-react'
+import { LayoutDashboard, Download, RefreshCw, ShieldCheck } from 'lucide-react'
+import { FINANCE_ROUTES } from '../../constants/financeNav'
 import PageBanner from '../../components/figma/PageBanner'
 import FinanceStatCard from '../../components/finance/FinanceStatCard'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import FinanceDashboardSkeleton from '../../components/finance/FinanceDashboardSkeleton'
-import CenterPerformanceCards from '../../components/finance/CenterPerformanceCards'
-import CenterDrillDownModal from '../../components/finance/CenterDrillDownModal'
+import CentreWiseCollectionWidget from '../../components/finance/CentreWiseCollectionWidget'
+import PendingEmiWidget from '../../components/finance/PendingEmiWidget'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import { useFinanceDashboard } from '../../hooks/useFinanceDashboard'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
@@ -37,7 +26,6 @@ import {
   CourseRevenueChart,
   CollectionVsOutstandingChart,
   CenterMonthlyComparisonChart,
-  PaymentSuccessRatioChart,
   FailedRecoveryChart,
   EmiAgingChart,
   DailyCollectionWidget,
@@ -62,7 +50,6 @@ export default function PaymentDashboardPage() {
   const [courseTypeFilter, setCourseTypeFilter] = useState(DEFAULT_FILTERS.courseType)
   const [paymentTypeFilter, setPaymentTypeFilter] = useState(DEFAULT_FILTERS.paymentType)
   const [studentTypeFilter, setStudentTypeFilter] = useState(DEFAULT_FILTERS.studentType)
-  const [drillCenter, setDrillCenter] = useState(null)
   const centerFilter = useFinanceCenterFilter()
   const { canExport } = useFinancePermissions()
   const { data, loading, refreshing, reload, lastUpdated } = useFinanceDashboard(
@@ -76,6 +63,10 @@ export default function PaymentDashboardPage() {
 
   const stats = data?.stats
   const chartLoading = loading || refreshing
+  const collectionPayments =
+    data?.collectionPayments?.length > 0
+      ? data.collectionPayments
+      : [...(data?.recentPayments || []), ...(data?.recentFailed || [])]
 
   const paymentColumns = [
     { key: 'studentName', label: 'Student', render: (r) => <span className="font-medium">{r.studentName}</span> },
@@ -126,32 +117,18 @@ export default function PaymentDashboardPage() {
   const kpiGroups = stats
     ? [
         {
-          id: 'revenue',
-          title: 'Revenue & Collections',
+          id: 'payment-verification',
+          title: 'PAYMENT VERIFICATION',
+          gridClassName: 'sm:grid-cols-1 lg:max-w-sm lg:grid-cols-1',
           cards: [
-            <FinanceStatCard key="tr" label="Total revenue" value={formatINR(stats.totalRevenue)} icon={IndianRupee} className="bg-white/90" />,
-            <FinanceStatCard key="tc" label="Today's collections" value={formatINR(stats.todayCollections)} icon={TrendingUp} className="bg-white/90" />,
-            <FinanceStatCard key="mc" label="Monthly collections" value={formatINR(stats.monthlyCollections)} icon={IndianRupee} className="bg-white/90" />,
-            <FinanceStatCard key="sr" label="Payment success rate" value={`${stats.paymentSuccessRate ?? data?.paymentSuccessRate ?? 94}%`} icon={Building2} className="bg-white/90" />,
-          ],
-        },
-        {
-          id: 'pending',
-          title: 'Pending & Risk',
-          cards: [
-            <FinanceStatCard key="pr" label="Pending revenue" value={formatINR(stats.pendingRevenue ?? stats.pendingPayments * 5000)} icon={Clock} className="bg-white/90" />,
-            <FinanceStatCard key="td" label="Total due" value={formatINR(stats.totalDue ?? 0)} icon={Clock} className="bg-white/90" />,
-            <FinanceStatCard key="oa" label="Overdue amount" value={formatINR(stats.overdueAmount ?? 0)} icon={AlertTriangle} accent="from-[#df8284] to-[#b8887a]" className="bg-white/90" />,
-            <FinanceStatCard key="fp" label="Failed payments" value={stats.failedPayments} icon={AlertTriangle} accent="from-[#df8284] to-[#b8887a]" className="bg-white/90" />,
-          ],
-        },
-        {
-          id: 'ops',
-          title: 'Operations',
-          cards: [
-            <FinanceStatCard key="vp" label="Verification pending" value={stats.verificationPending ?? 0} icon={ShieldCheck} className="bg-white/90" />,
-            <FinanceStatCard key="emi" label="EMI active students" value={stats.emiActiveStudents} icon={CalendarClock} className="bg-white/90" />,
-            <FinanceStatCard key="off" label="Offline approvals" value={stats.offlineApprovalsPending} icon={Banknote} className="bg-white/90" />,
+            <FinanceStatCard
+              key="vp"
+              label="Verification pending"
+              value={stats.verificationPending ?? 0}
+              icon={ShieldCheck}
+              to={FINANCE_ROUTES.verification}
+              className="bg-white/90"
+            />,
           ],
         },
       ]
@@ -202,51 +179,32 @@ export default function PaymentDashboardPage() {
         <FinanceDashboardSkeleton />
       ) : (
         <>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
             <DailyCollectionWidget
-              daily={data?.dailyCollection}
+              payments={collectionPayments}
               loading={chartLoading}
-              className="lg:col-span-1"
+              className="h-full min-h-[440px]"
             />
             <TopPerformingCourseCard
-              course={data?.topPerformingCourse}
-              leaderboard={data?.topCoursesLeaderboard}
+              payments={collectionPayments}
               loading={chartLoading}
-              className="lg:col-span-2"
+              className="h-full min-h-[440px]"
             />
           </div>
 
-          {centerFilter.isOverallView && (
-            <CenterPerformanceCards performance={data?.performance} loading={loading} />
-          )}
+          <CentreWiseCollectionWidget
+            payments={
+              data?.allTimeCollectionPayments?.length ? data.allTimeCollectionPayments : collectionPayments
+            }
+            loading={chartLoading}
+          />
 
-          {data?.centerRanking?.length > 0 && (centerFilter.isOverallView || centerFilter.isMultiView) && (
-            <div className="overflow-hidden rounded-xl bg-white/90 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:p-5">
-              <FinanceSectionHeader title="Center revenue ranking" subtitle="Top 5 by collection" />
-              <div className="mt-3 space-y-2">
-                {data.centerRanking.slice(0, 5).map((c) => (
-                  <button
-                    key={c.centerId}
-                    type="button"
-                    onClick={() => {
-                      const match = centerFilter.selectedCenters.find((x) => x.centerName === c.centerName)
-                        || { centerId: c.centerId, centerName: c.centerName, centerCode: c.centerCode, ...c }
-                      setDrillCenter(match)
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-slate-100"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 font-medium">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#246392] text-xs font-bold text-white">
-                        {c.rank}
-                      </span>
-                      <span className="truncate">{c.centerName}</span>
-                    </span>
-                    <span className="shrink-0 font-semibold text-[#246392]">{formatINR(c.totalRevenue)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <PendingEmiWidget
+            payments={collectionPayments}
+            emiPlans={data?.emiPlans || []}
+            stats={stats}
+            loading={chartLoading}
+          />
 
           {stats && <FinanceStatsGrid groups={kpiGroups} defaultCollapsedOnMobile />}
 
@@ -254,11 +212,6 @@ export default function PaymentDashboardPage() {
           <FinanceChartContainer className="lg:grid-cols-2 xl:grid-cols-3">
             <CollectionVsOutstandingChart
               data={data?.collectionVsOutstanding}
-              loading={chartLoading}
-              className="min-w-0 xl:col-span-1"
-            />
-            <PaymentSuccessRatioChart
-              ratio={data?.paymentSuccessRatio}
               loading={chartLoading}
               className="min-w-0 xl:col-span-1"
             />
@@ -319,7 +272,6 @@ export default function PaymentDashboardPage() {
         </>
       )}
 
-      <CenterDrillDownModal center={drillCenter} data={data} onClose={() => setDrillCenter(null)} />
     </div>
   )
 }

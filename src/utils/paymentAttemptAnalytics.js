@@ -1,4 +1,5 @@
 import { FINANCE_MOCK_COUNSELORS } from '../constants/financeConstants'
+import { branchToCenterName, filterByFinanceCenters } from './financeCenterAggregation'
 import { categorizePaymentFailure, parseGatewayResponse } from './paymentAttemptFailureMapping'
 
 const BROWSERS = ['Chrome', 'Safari', 'Firefox', 'Edge']
@@ -130,6 +131,8 @@ export function enrichAttemptLogsFromPayments(payments = [], overrides = {}) {
         email: p.email,
         course: p.courseName,
         courseId: p.courseId,
+        branch: p.branch,
+        centerName: p.centerName || branchToCenterName(p.branch),
         transactionId: a.transactionId,
         attemptNo: a.attemptNo,
         gatewayStatus: a.gatewayResponse,
@@ -407,6 +410,14 @@ export function buildAttemptAlerts(logs = [], abandoned = []) {
   })
 
   return alerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+}
+
+export function filterAttemptsByFinanceCenters(logs = [], centerFilter) {
+  return filterByFinanceCenters(
+    logs,
+    centerFilter,
+    (row) => row.centerName || branchToCenterName(row.branch),
+  )
 }
 
 export function filterAttemptLogs(logs, filters = {}) {

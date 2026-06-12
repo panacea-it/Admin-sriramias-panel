@@ -140,7 +140,7 @@ export default function AppModalWrapper({
           {title}
         </span>
 
-        {showCloseButton && (
+        {showCloseButton === true && (
           <button
             ref={closeBtnRef}
             type="button"

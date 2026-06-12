@@ -32,12 +32,13 @@ export default function OfflineAuditHistoryModal({
   }))
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Audit history">
+    <Modal open={open} onClose={onClose} size="md" title="Audit history" showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
         <ModalPanelHeader
           title="Offline payment audit log"
           subtitle={row ? `${row.id} · ${row.studentName}` : 'All offline approval activity'}
           onClose={onClose}
+          closeVariant="icon"
           icon={Clock}
         />
         <div className="space-y-4 p-5 sm:p-6">

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutGrid, Table2, TrendingDown, TrendingUp } from 'lucide-react'
+import { LayoutGrid, Table2 } from 'lucide-react'
 import { formatINR } from '../../utils/financeFilters'
 import { cn } from '../../utils/cn'
 
@@ -416,51 +416,9 @@ export function EmiAgingChart({ data = [], loading, className }) {
   )
 }
 
-export function DailyCollectionWidget({ daily, loading, className }) {
-  const trend = daily?.trendPct ?? 0
-  const TrendIcon = trend >= 0 ? TrendingUp : TrendingDown
-  return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3a5c] to-[#246392] shadow-[0_8px_24px_rgba(15,23,42,0.08)]',
-        className,
-      )}
-    >
-      <div className="px-4 py-3 sm:px-5">
-        <h3 className="text-sm font-bold text-white sm:text-base">Daily Collection</h3>
-        <p className="text-xs text-white/75">Today vs yesterday</p>
-      </div>
-      <div className="bg-white/95 px-4 py-4 sm:px-5">
-        {loading ? (
-          <div className="h-16 animate-pulse rounded-lg bg-slate-100" />
-        ) : (
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase text-[#686868]">Today</p>
-              <p className="text-2xl font-bold text-[#1a3a5c] sm:text-3xl">{formatINR(daily?.today ?? 0)}</p>
-              <p className="mt-1 text-xs text-[#686868]">{daily?.count ?? 0} transactions</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-[#686868]">Yesterday</p>
-              <p className="text-sm font-semibold text-[#222]">{formatINR(daily?.yesterday ?? 0)}</p>
-              <p
-                className={cn(
-                  'mt-1 inline-flex items-center gap-1 text-sm font-bold',
-                  trend >= 0 ? 'text-[#69df66]' : 'text-[#df8284]',
-                )}
-                title="Day-over-day change"
-              >
-                <TrendIcon className="h-4 w-4" />
-                {trend >= 0 ? '+' : ''}
-                {trend}%
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+export { default as DailyCollectionWidget } from './DailyCollectionWidget'
+export { default as CentreWiseCollectionWidget } from './CentreWiseCollectionWidget'
+export { default as PendingEmiWidget } from './PendingEmiWidget'
 
 export default function FinanceCharts({ monthlyRevenue, paymentStatusBreakdown, courseWiseRevenue, emiTrend }) {
   return (

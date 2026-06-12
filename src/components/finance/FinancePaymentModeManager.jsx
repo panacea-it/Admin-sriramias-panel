@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Settings2, Layers, Loader2 } from 'lucide-react'
+import { Plus, Settings2, Layers } from 'lucide-react'
 import FinanceSettingsPanelShell from './FinanceSettingsPanelShell'
 import FinanceConfirmDialog from './FinanceConfirmDialog'
 import FinancePaymentModeCard from './FinancePaymentModeCard'
@@ -70,17 +70,36 @@ export default function FinancePaymentModeManager({
 
   const groupedModes = useMemo(() => groupPaymentModesByCategory(filteredModes), [filteredModes])
 
-  const applyToggle = (mode, enabled) => {
+  const persistSettings = async (nextDraft) => {
+    setSaving(true)
+    try {
+      const updated = await updatePaymentModeSettings(nextDraft)
+      setDraft(updated)
+      onUpdated?.(updated)
+    } catch {
+      toast.error('Failed to save payment mode settings')
+      throw new Error('save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const applyToggle = async (mode, enabled) => {
     if (!canEdit) return
-    setDraft((prev) =>
-      prev.map((m) =>
-        m.id === mode.id ? { ...m, enabled, lastUpdated: new Date().toISOString() } : m,
-      ),
+    const nextDraft = draft.map((m) =>
+      m.id === mode.id ? { ...m, enabled, lastUpdated: new Date().toISOString() } : m,
     )
+    setDraft(nextDraft)
+    try {
+      await persistSettings(nextDraft)
+      toast.success(enabled ? `"${mode.label}" enabled` : `"${mode.label}" disabled`)
+    } catch {
+      setDraft(settings)
+    }
   }
 
   const handleToggle = (mode) => {
-    if (!canEdit) return
+    if (!canEdit || saving) return
     if (mode.enabled && FINANCE_CRITICAL_PAYMENT_MODE_IDS.includes(mode.id)) {
       setConfirmDisable(mode)
       return
@@ -88,32 +107,36 @@ export default function FinancePaymentModeManager({
     applyToggle(mode, !mode.enabled)
   }
 
-  const handleFormSubmit = (form, existing) => {
-    if (!canEdit) return
+  const handleFormSubmit = async (form, existing) => {
+    if (!canEdit || saving) return
     const now = new Date().toISOString()
+    let nextDraft
     if (existing) {
-      setDraft((prev) =>
-        prev.map((m) =>
-          m.id === existing.id
-            ? {
-                ...m,
-                label: form.label.trim(),
-                category: form.category,
-                description: form.description?.trim() || '',
-                icon: form.icon,
-                enabled: form.enabled !== false,
-                lastUpdated: now,
-              }
-            : m,
-        ),
+      nextDraft = draft.map((m) =>
+        m.id === existing.id
+          ? {
+              ...m,
+              label: form.label.trim(),
+              category: form.category,
+              description: form.description?.trim() || '',
+              icon: form.icon,
+              enabled: form.enabled !== false,
+              lastUpdated: now,
+            }
+          : m,
       )
-      toast.success(`"${form.label.trim()}" updated`)
     } else {
-      setDraft((prev) => [...prev, createPaymentModeFromForm(form)])
-      toast.success(`"${form.label.trim()}" added`)
+      nextDraft = [...draft, createPaymentModeFromForm(form)]
     }
-    setFormOpen(false)
-    setEditingMode(null)
+    setDraft(nextDraft)
+    try {
+      await persistSettings(nextDraft)
+      toast.success(existing ? `"${form.label.trim()}" updated` : `"${form.label.trim()}" added`)
+      setFormOpen(false)
+      setEditingMode(null)
+    } catch {
+      setDraft(settings)
+    }
   }
 
   const handleDelete = (mode) => {
@@ -123,21 +146,6 @@ export default function FinancePaymentModeManager({
       return
     }
     setConfirmDelete(mode)
-  }
-
-  const handleSave = async () => {
-    if (!canEdit) return
-    setSaving(true)
-    try {
-      const updated = await updatePaymentModeSettings(draft)
-      onUpdated?.(updated)
-      toast.success('Payment mode settings saved')
-      setOpen(false)
-    } catch {
-      toast.error('Failed to save payment mode settings')
-    } finally {
-      setSaving(false)
-    }
   }
 
   const activeCount = draft.filter((m) => m.enabled).length
@@ -168,39 +176,6 @@ export default function FinancePaymentModeManager({
         title="Payment Mode Management"
         subtitle="Enable, disable, or add payment methods for filters and workflows."
         icon={Settings2}
-        footer={
-          canEdit ? (
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeManager}
-                disabled={saving}
-                className="h-10 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-[#444] hover:bg-slate-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#246392] px-6 text-sm font-semibold text-white hover:bg-[#1a3a5c] disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save settings
-              </button>
-            </div>
-          ) : (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={closeManager}
-                className="h-10 rounded-lg bg-[#246392] px-6 text-sm font-semibold text-white hover:bg-[#1a3a5c]"
-              >
-                Close
-              </button>
-            </div>
-          )
-        }
       >
         <div className="space-y-3 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -316,7 +291,7 @@ export default function FinancePaymentModeManager({
         confirmLabel="Disable mode"
         variant="danger"
         onConfirm={() => {
-          if (confirmDisable) applyToggle(confirmDisable, false)
+          if (confirmDisable) void applyToggle(confirmDisable, false)
           setConfirmDisable(null)
         }}
         onCancel={() => setConfirmDisable(null)}
@@ -327,15 +302,23 @@ export default function FinancePaymentModeManager({
         title="Delete payment mode?"
         message={
           confirmDelete
-            ? `Permanently remove "${confirmDelete.label}"? This cannot be undone. Save settings to persist.`
+            ? `Permanently remove "${confirmDelete.label}"? This cannot be undone.`
             : ''
         }
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => {
-          if (confirmDelete) {
-            setDraft((prev) => prev.filter((m) => m.id !== confirmDelete.id))
-            toast.success(`"${confirmDelete.label}" removed — save to persist`)
+        onConfirm={async () => {
+          if (!confirmDelete || saving) {
+            setConfirmDelete(null)
+            return
+          }
+          const nextDraft = draft.filter((m) => m.id !== confirmDelete.id)
+          setDraft(nextDraft)
+          try {
+            await persistSettings(nextDraft)
+            toast.success(`"${confirmDelete.label}" removed`)
+          } catch {
+            setDraft(settings)
           }
           setConfirmDelete(null)
         }}

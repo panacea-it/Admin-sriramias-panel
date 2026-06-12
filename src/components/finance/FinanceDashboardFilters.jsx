@@ -79,14 +79,19 @@ export default function FinanceDashboardFilters({
           >
             All Centers
           </button>
-          {centerFilter.selectedCenters.map((c) => (
+          {(centerFilter.financeCenters || centerFilter.selectedCenters).map((c) => (
             <button
               key={c.centerId}
               type="button"
               onClick={() => centerFilter.selectSingle(c.centerId)}
-              className="rounded-full bg-[#246392]/10 px-3 py-1 text-xs font-semibold text-[#246392]"
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold transition',
+                !centerFilter.isOverallView && centerFilter.selectedIds.includes(c.centerId)
+                  ? 'bg-[#246392] text-white'
+                  : 'bg-[#246392]/10 text-[#246392] hover:bg-[#246392]/20',
+              )}
             >
-              {c.centerName}
+              {c.city || c.centerName?.replace(/\s+Center$/i, '') || c.centerName}
             </button>
           ))}
           {refreshing && (

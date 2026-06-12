@@ -96,3 +96,11 @@ export const EMI_ACTIVITY_TYPES = [
   'Bounce Recorded',
   'Document Uploaded',
 ]
+
+/** EMI Management page — centre filter (Delhi, Hyderabad, Pune only) */
+export const EMI_PAGE_CENTERS = [
+  { id: 'all', label: 'All Centers' },
+  { id: 'delhi', label: 'Delhi', centerName: 'Delhi Center' },
+  { id: 'hyderabad', label: 'Hyderabad', centerName: 'Hyderabad Center' },
+  { id: 'pune', label: 'Pune', centerName: 'Pune Center' },
+]

@@ -19,9 +19,27 @@ function matchesSearch(row, q) {
   return hay.includes(q)
 }
 
+export function filterCommunicationByFinanceCenters(logs = [], centerFilter) {
+  if (!centerFilter || centerFilter.isOverallView) return logs
+  const centerNames = new Set(
+    (centerFilter.selectedCenters || []).map((c) => c.centerName).filter(Boolean),
+  )
+  if (!centerNames.size) return logs
+  return logs.filter((row) => centerNames.has(row.centerName))
+}
+
 export function filterCommunicationLogs(logs, filters = {}) {
   const q = (filters.search || '').trim().toLowerCase()
   return logs.filter((row) => {
+    if (filters.centerFilter && filters.centerFilter !== 'all' && row.centerName !== filters.centerFilter) {
+      return false
+    }
+    if (filters.courseFilter && filters.courseFilter !== 'all') {
+      if (row.courseId !== filters.courseFilter && row.courseName !== filters.courseFilter) return false
+    }
+    if (filters.batchFilter && filters.batchFilter !== 'all') {
+      if (row.batchId !== filters.batchFilter && row.batchName !== filters.batchFilter) return false
+    }
     if (filters.channelFilter && filters.channelFilter !== 'all' && row.channel !== filters.channelFilter) return false
     if (filters.typeFilter && filters.typeFilter !== 'all' && row.type !== filters.typeFilter) return false
     if (filters.statusFilter && filters.statusFilter !== 'all') {
@@ -164,28 +182,42 @@ export function buildCommunicationAlerts(logs = [], rules = []) {
   return alerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 }
 
-export function buildTrackingTimeline(row) {
+export function buildTrackingTimeline(row = {}) {
   const t = row.tracking || {}
   const steps = []
-  if (row.timestamp || t.sentAt) {
-    steps.push({ step: 'Sent', status: 'completed', timestamp: t.sentAt || row.timestamp, detail: row.sentBy ? `By ${row.sentBy}` : null })
+  const sentAt = t.sentAt || row.timestamp
+  const deliveryStatus = row.deliveryStatus || row.status
+
+  if (sentAt) {
+    steps.push({
+      step: 'Sent',
+      status: 'completed',
+      timestamp: sentAt,
+      detail: row.sentBy ? `By ${row.sentBy}` : null,
+    })
+  } else {
+    steps.push({ step: 'Sent', status: 'pending' })
   }
-  if (t.deliveredAt || ['Delivered', 'Read', 'Opened', 'Sent'].includes(row.deliveryStatus || row.status)) {
+
+  if (t.deliveredAt || ['Delivered', 'Read', 'Opened', 'Sent'].includes(deliveryStatus)) {
     steps.push({ step: 'Delivered', status: 'completed', timestamp: t.deliveredAt })
-  } else if ((row.deliveryStatus || row.status) === 'Failed') {
+  } else if (deliveryStatus === 'Failed') {
     steps.push({ step: 'Failed', status: 'failed', timestamp: t.failedAt, detail: t.failedReason })
   } else {
     steps.push({ step: 'Delivered', status: 'pending' })
   }
+
   if (t.openedAt || row.openStatus === 'Opened') {
     steps.push({ step: 'Opened', status: 'completed', timestamp: t.openedAt })
   } else if (steps[steps.length - 1]?.status !== 'failed') {
     steps.push({ step: 'Opened', status: 'pending' })
   }
+
   if (t.readAt || row.readStatus === 'Read') {
     steps.push({ step: 'Read', status: 'completed', timestamp: t.readAt })
   } else if (steps[steps.length - 1]?.status !== 'failed') {
     steps.push({ step: 'Read', status: 'pending' })
   }
+
   return steps
 }

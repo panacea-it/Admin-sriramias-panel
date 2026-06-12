@@ -8,15 +8,14 @@ import {
   buildCompareSeries,
   buildExtendedDashboardAnalytics,
   buildPerformanceHighlights,
+  buildTopPerformingCourses,
 } from '../utils/financeCenterAggregation'
-import { FINANCE_MOCK_COUNSELORS } from '../constants/financeConstants'
+import { FINANCE_BATCHES, FINANCE_MOCK_COUNSELORS } from '../constants/financeConstants'
 
 const CENTER_SEED = [
   { centerId: 'ctr-delhi', centerName: 'Delhi Center', centerCode: 'DLH', linkedStudentCount: 420 },
-  { centerId: 'ctr-mumbai', centerName: 'Mumbai Center', centerCode: 'MUM', linkedStudentCount: 380 },
-  { centerId: 'ctr-bangalore', centerName: 'Bangalore Center', centerCode: 'BLR', linkedStudentCount: 310 },
-  { centerId: 'ctr-chennai', centerName: 'Chennai Center', centerCode: 'CHE', linkedStudentCount: 220 },
   { centerId: 'ctr-hyderabad', centerName: 'Hyderabad Center', centerCode: 'HYD', linkedStudentCount: 290 },
+  { centerId: 'ctr-pune', centerName: 'Pune Center', centerCode: 'PUN', linkedStudentCount: 240 },
 ]
 
 export const FINANCE_COURSES = [
@@ -494,6 +493,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Neha Verma',
     mobile: '9876543212',
     email: 'neha.verma@example.com',
+    centerId: 'ctr-delhi',
+    centerName: 'Delhi Center',
     courseId: 'CRS-102',
     courseName: 'GS Mains Comprehensive',
     totalFees: 75000,
@@ -614,6 +615,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Rahul Mehta',
     mobile: '9876501234',
     email: 'rahul.mehta@example.com',
+    centerId: 'ctr-hyderabad',
+    centerName: 'Hyderabad Center',
     courseId: 'CRS-101',
     courseName: 'UPSC Prelims Foundation',
     totalFees: 120000,
@@ -665,6 +668,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Priya Nair',
     mobile: '9988776655',
     email: 'priya.nair@example.com',
+    centerId: 'ctr-pune',
+    centerName: 'Pune Center',
     courseId: 'CRS-103',
     courseName: 'Optional Sociology',
     totalFees: 95000,
@@ -704,6 +709,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Arjun Mehta',
     mobile: '9876543210',
     email: 'arjun.mehta@student.sriramias.in',
+    centerId: 'ctr-delhi',
+    centerName: 'Delhi Center',
     courseId: 'CRS-UPSC-FND',
     courseName: 'UPSC Foundation',
     batchId: 'BAT-UPSC-001',
@@ -812,6 +819,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Arjun Kapoor',
     mobile: '9123456780',
     email: 'arjun.k@example.com',
+    centerId: 'ctr-hyderabad',
+    centerName: 'Hyderabad Center',
     courseId: 'CRS-104',
     courseName: 'CSAT Crash Course',
     totalFees: 45000,
@@ -845,6 +854,8 @@ export const MOCK_EMI_PLANS = [
     studentName: 'Meera Joshi',
     mobile: '9012345678',
     email: 'meera.j@example.com',
+    centerId: 'ctr-pune',
+    centerName: 'Pune Center',
     courseId: 'CRS-105',
     courseName: '1:1 Mentorship Program',
     totalFees: 180000,
@@ -942,7 +953,22 @@ function buildCommTracking({ delivered = true, opened = false, read = false, fai
   return { sentAt: base, deliveredAt, openedAt, readAt, retryCount }
 }
 
-export const MOCK_COMMUNICATION_LOGS = [
+function enrichCommunicationLog(log, index) {
+  const center = CENTER_SEED[index % CENTER_SEED.length]
+  const course = FINANCE_COURSES[index % FINANCE_COURSES.length]
+  const batch = FINANCE_BATCHES[index % FINANCE_BATCHES.length]
+  return {
+    ...log,
+    centerId: center.centerId,
+    centerName: center.centerName,
+    courseId: course.id,
+    courseName: course.name,
+    batchId: batch.id,
+    batchName: batch.name,
+  }
+}
+
+const MOCK_COMMUNICATION_LOGS_RAW = [
   {
     id: 'COM-001',
     studentName: 'Aarav Sharma',
@@ -1101,6 +1127,8 @@ export const MOCK_COMMUNICATION_LOGS = [
     auditTrail: [{ action: 'receipt_sent', by: 'System', at: daysAgo(8) }],
   },
 ]
+
+export const MOCK_COMMUNICATION_LOGS = MOCK_COMMUNICATION_LOGS_RAW.map(enrichCommunicationLog)
 
 export const MOCK_COMMUNICATION_TEMPLATES = [
   {
@@ -1417,9 +1445,21 @@ export function buildFinanceDashboardPayload(params = {}) {
     FINANCE_MOCK_COUNSELORS,
   )
 
+  const allTimePayments = filterPaymentsForParams(MOCK_PAYMENTS_ENRICHED, {
+    scope,
+    centerIds: params.centerIds,
+    centerNames: params.centerNames,
+  })
+  const allTimeCourses = buildTopPerformingCourses(allTimePayments)
+
   const base = {
     ...dashboard,
     ...extended,
+    topPerformingCourse: allTimeCourses.topPerformingCourse,
+    topCoursesLeaderboard: allTimeCourses.topCourses.slice(0, 5),
+    allTimeCollectionPayments: allTimePayments,
+    collectionPayments: payments,
+    emiPlans: MOCK_EMI_PLANS,
     stats: {
       ...dashboard.stats,
       paymentSuccessRate: successRate,

@@ -5,7 +5,6 @@ import {
   Check,
   Clock,
   Eye,
-  History,
   ShieldAlert,
   X,
 } from 'lucide-react'
@@ -21,7 +20,7 @@ import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
 import VerificationRejectDialog from '../../components/finance/VerificationRejectDialog'
 import VerificationDuplicateDialog from '../../components/finance/VerificationDuplicateDialog'
-import ProofViewerModal, { ProofThumbnail } from '../../components/finance/ProofViewerModal'
+import { ProofThumbnail } from '../../components/finance/ProofViewerModal'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import OfflineBranchBadge from '../../components/finance/offline-approval/OfflineBranchBadge'
 import OfflineBranchAccessDialog from '../../components/finance/offline-approval/OfflineBranchAccessDialog'
@@ -30,7 +29,6 @@ import OfflineReconciliationCards, {
   OfflineReconciliationBadge,
 } from '../../components/finance/offline-approval/OfflineReconciliationCards'
 import OfflineDailySummaryPanel from '../../components/finance/offline-approval/OfflineDailySummaryPanel'
-import OfflineAuditHistoryModal from '../../components/finance/offline-approval/OfflineAuditHistoryModal'
 import OfflineWorkflowTracker, {
   OfflineWorkflowChip,
 } from '../../components/finance/offline-approval/OfflineWorkflowTracker'
@@ -51,7 +49,6 @@ import {
   FINANCE_PAYMENT_MODES,
 } from '../../constants/financeConstants'
 import {
-  OFFLINE_BRANCH_CODES,
   OFFLINE_TABLE_EXPORT_COLUMNS,
   OFFLINE_WORKFLOW_STATUSES,
 } from '../../constants/offlinePaymentApproval'
@@ -60,10 +57,13 @@ import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import {
   canApproveOfflineRow,
   evaluateBranchAccess,
+  filterOfflineByFinanceCenters,
 } from '../../utils/offlinePaymentApproval'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
+import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
+import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
@@ -110,6 +110,7 @@ export default function OfflinePaymentApprovalPage() {
   const { user } = useAuth()
   const { canApprove, canExport, canFinanceHeadApprove } = useFinancePermissions()
   const { bumpRefresh, goToFinance } = useFinanceOperations()
+  const centerFilter = useFinanceCenterFilter()
 
   const [requests, setRequests] = useState([])
   const [summary, setSummary] = useState(null)
@@ -118,20 +119,15 @@ export default function OfflinePaymentApprovalPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [statusFilter, setStatusFilter] = useState('Pending Approval')
-  const [branchFilter, setBranchFilter] = useState('all')
   const [modeFilter, setModeFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
-  const [auditFilterUser, setAuditFilterUser] = useState('')
-  const [auditFilterAction, setAuditFilterAction] = useState('all')
 
-  const [proofRow, setProofRow] = useState(null)
   const [proofModalRow, setProofModalRow] = useState(null)
   const [approveRow, setApproveRow] = useState(null)
   const [rejectRow, setRejectRow] = useState(null)
   const [duplicateRow, setDuplicateRow] = useState(null)
-  const [auditRow, setAuditRow] = useState(null)
   const [branchBlockRow, setBranchBlockRow] = useState(null)
   const [branchBlockAccess, setBranchBlockAccess] = useState(null)
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false)
@@ -139,13 +135,15 @@ export default function OfflinePaymentApprovalPage() {
 
   const filterParams = useMemo(
     () => ({
-      branch: branchFilter,
       paymentMode: modeFilter,
       status: statusFilter,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
+      ...(centerFilter.apiParams?.centerNames?.length
+        ? { centerNames: centerFilter.apiParams.centerNames.join(',') }
+        : {}),
     }),
-    [branchFilter, modeFilter, statusFilter, dateFrom, dateTo],
+    [modeFilter, statusFilter, dateFrom, dateTo, centerFilter.apiParams],
   )
 
   const load = useCallback(async () => {
@@ -180,17 +178,22 @@ export default function OfflinePaymentApprovalPage() {
     [user, canFinanceHeadApprove],
   )
 
+  const centerScopedRequests = useMemo(
+    () => filterOfflineByFinanceCenters(requests, centerFilter),
+    [requests, centerFilter],
+  )
+
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
-    return requests.filter((row) => {
+    return centerScopedRequests.filter((row) => {
       if (!q) return true
       return `${row.studentName} ${row.course} ${row.id} ${row.utrNumber} ${row.receiptNumber} ${row.branchCode}`
         .toLowerCase()
         .includes(q)
     })
-  }, [requests, debouncedSearch])
+  }, [centerScopedRequests, debouncedSearch])
 
-  const pendingCount = requests.filter(isPendingRow).length
+  const pendingCount = centerScopedRequests.filter(isPendingRow).length
   const unreadNotifications = notifications.filter((n) => !n.read).length
 
   const tryApprove = (row, override = false) => {
@@ -275,8 +278,6 @@ export default function OfflinePaymentApprovalPage() {
     const check = canApproveOfflineRow(row, access, { canApprove, canFinanceHeadApprove })
     const actions = [
       { label: 'Preview & verify', icon: Eye, onClick: () => setProofModalRow(row) },
-      { label: 'View proof', icon: Eye, onClick: () => setProofRow(row) },
-      { label: 'Audit history', icon: History, onClick: () => setAuditRow(row) },
     ]
     if (row.isDuplicate) {
       actions.push({
@@ -416,11 +417,6 @@ export default function OfflinePaymentApprovalPage() {
     },
   ]
 
-  const allAuditLogs = useMemo(
-    () => requests.flatMap((r) => (r.auditTrail || []).map((a) => ({ ...a, paymentId: r.id }))),
-    [requests],
-  )
-
   return (
     <FinancePageShell
       icon={Banknote}
@@ -441,13 +437,6 @@ export default function OfflinePaymentApprovalPage() {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setAuditRow({ id: 'ALL' })}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-[#444] hover:bg-slate-50"
-          >
-            <History className="h-4 w-4" /> Audit log
-          </button>
           <FinanceExportToolbar
             rows={filtered}
             filenameBase="offline-approvals"
@@ -465,6 +454,8 @@ export default function OfflinePaymentApprovalPage() {
         onAction={() => goToFinance('verification', { addOffline: '1' })}
       />
 
+      <FinanceCenterFilterBar className="mb-4" />
+
       {showNotifications && (
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-[#222]">Notification logs</h2>
@@ -480,16 +471,16 @@ export default function OfflinePaymentApprovalPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FinanceStatCard label="Pending approval" value={pendingCount} icon={Banknote} />
-        <FinanceStatCard label="Total requests" value={requests.length} icon={Clock} />
+        <FinanceStatCard label="Total requests" value={centerScopedRequests.length} icon={Clock} />
         <FinanceStatCard
           label="Approved"
-          value={requests.filter((r) => r.status === 'Approved').length}
+          value={centerScopedRequests.filter((r) => r.status === 'Approved').length}
           accent="from-[#69df66] to-[#55ace7]"
         />
         <FinanceStatCard
           label="Mismatch / duplicate flags"
           value={
-            requests.filter(
+            centerScopedRequests.filter(
               (r) => r.reconciliationStatus === 'Mismatch Detected' || r.isDuplicate,
             ).length
           }
@@ -528,16 +519,6 @@ export default function OfflinePaymentApprovalPage() {
             ],
           },
           {
-            key: 'branch',
-            label: 'Branch',
-            value: branchFilter,
-            onChange: (e) => setBranchFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All branches' },
-              ...OFFLINE_BRANCH_CODES.map((b) => ({ value: b, label: b })),
-            ],
-          },
-          {
             key: 'mode',
             label: 'Payment mode',
             value: modeFilter,
@@ -551,10 +532,10 @@ export default function OfflinePaymentApprovalPage() {
         onReset={() => {
           setSearch('')
           setStatusFilter('Pending Approval')
-          setBranchFilter('all')
           setModeFilter('all')
           setDateFrom('')
           setDateTo('')
+          centerFilter.selectAll()
         }}
       />
 
@@ -574,7 +555,7 @@ export default function OfflinePaymentApprovalPage() {
               columns={columns}
               data={filtered}
               itemLabel="requests"
-              resetDeps={[debouncedSearch, statusFilter, branchFilter, modeFilter, dateFrom, dateTo]}
+              resetDeps={[debouncedSearch, statusFilter, modeFilter, dateFrom, dateTo, centerFilter.selectedIds]}
               tableClassName="overflow-x-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-white"
               rowClassName={(r) =>
                 cn(
@@ -597,23 +578,11 @@ export default function OfflinePaymentApprovalPage() {
                   setDuplicateRow(row)
                   setDuplicateModalOpen(true)
                 }}
-                onAuditClick={setAuditRow}
               />
             ))}
           </div>
         </>
       )}
-
-      <ProofViewerModal
-        open={!!proofRow}
-        onClose={() => setProofRow(null)}
-        title="Offline payment proof"
-        proofFiles={proofRow?.proofFiles}
-        proofName={proofRow?.paymentProof}
-        utr={proofRow?.utrNumber || proofRow?.receiptNumber}
-        notes={proofRow?.verificationNotes}
-        row={proofRow}
-      />
 
       <OfflineApprovalProofModal
         open={!!proofModalRow}
@@ -648,17 +617,6 @@ export default function OfflinePaymentApprovalPage() {
               }
             : undefined
         }
-      />
-
-      <OfflineAuditHistoryModal
-        open={!!auditRow}
-        row={auditRow?.id === 'ALL' ? null : auditRow}
-        allLogs={auditRow?.id === 'ALL' ? allAuditLogs : undefined}
-        filterUser={auditFilterUser}
-        filterAction={auditFilterAction}
-        onFilterUserChange={setAuditFilterUser}
-        onFilterActionChange={setAuditFilterAction}
-        onClose={() => setAuditRow(null)}
       />
 
       <VerificationDuplicateDialog

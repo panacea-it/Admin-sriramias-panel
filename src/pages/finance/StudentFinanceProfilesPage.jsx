@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UserCircle, Eye, RotateCcw } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
+import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
 import FinanceStatCard from '../../components/finance/FinanceStatCard'
@@ -9,15 +10,15 @@ import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
 import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import ProfileSourceAnalytics from '../../components/finance/student-profiles/ProfileSourceAnalytics'
 import ProfileListMobileCard from '../../components/finance/student-profiles/ProfileListMobileCard'
 import { fetchStudentFinanceProfiles } from '../../api/financeAPI'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { filterStudentProfiles, computeSourceAnalytics } from '../../utils/studentFinanceProfile'
+import { filterStudentProfiles, filterProfilesByFinanceCenters } from '../../utils/studentFinanceProfile'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
+import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { FINANCE_COURSES } from '../../data/financeMockData'
 import { ENROLLMENT_SOURCES, LOAN_STATUSES, PROFILE_EXPORT_COLUMNS } from '../../constants/studentFinanceProfiles'
 import { toast } from '../../utils/toast'
@@ -26,11 +27,11 @@ import { cn } from '../../utils/cn'
 export default function StudentFinanceProfilesPage() {
   const { canExport } = useFinancePermissions()
   const { openStudentProfile } = useFinanceOperations()
+  const financeCenterFilter = useFinanceCenterFilter()
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
-  const [branchFilter, setBranchFilter] = useState('all')
   const [courseFilter, setCourseFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
@@ -53,15 +54,15 @@ export default function StudentFinanceProfilesPage() {
     load()
   }, [load])
 
-  const branchOptions = useMemo(() => {
-    return [...new Set(profiles.map((p) => p.branch).filter(Boolean))].sort()
-  }, [profiles])
+  const centerScopedProfiles = useMemo(
+    () => filterProfilesByFinanceCenters(profiles, financeCenterFilter),
+    [profiles, financeCenterFilter],
+  )
 
   const filtered = useMemo(() => {
     const courseName = courseFilter !== 'all' ? FINANCE_COURSES.find((c) => c.id === courseFilter)?.name : 'all'
-    return filterStudentProfiles(profiles, {
+    return filterStudentProfiles(centerScopedProfiles, {
       search: debouncedSearch,
-      branch: branchFilter,
       course: courseName === 'all' ? 'all' : courseName,
       status: statusFilter,
       source: sourceFilter,
@@ -69,33 +70,7 @@ export default function StudentFinanceProfilesPage() {
       dateFrom,
       dateTo,
     })
-  }, [profiles, debouncedSearch, branchFilter, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo])
-
-  const sourceAnalytics = useMemo(() => computeSourceAnalytics(filtered), [filtered])
-
-  const courseHistory = useMemo(
-    () =>
-      filtered.flatMap((p) =>
-        (p.courses || []).map((c) => ({
-          ...c,
-          profileId: p.id,
-          studentName: p.studentName,
-          branch: p.branch,
-        })),
-      ),
-    [filtered],
-  )
-
-  const historyColumns = [
-    { key: 'studentName', label: 'Student' },
-    { key: 'courseName', label: 'Course' },
-    { key: 'courseType', label: 'Type' },
-    { key: 'paymentType', label: 'Payment' },
-    { key: 'paidAmount', label: 'Paid', render: (r) => formatINR(r.paidAmount) },
-    { key: 'pendingAmount', label: 'Pending', render: (r) => formatINR(r.pendingAmount) },
-    { key: 'paymentStatus', label: 'Status', render: (r) => <FinanceStatusBadge status={r.paymentStatus} /> },
-    { key: 'date', label: 'Date', render: (r) => formatCategoryDateTime(r.date) },
-  ]
+  }, [centerScopedProfiles, debouncedSearch, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo])
 
   const openProfile = (profile) => {
     openStudentProfile(profile.id, profile)
@@ -103,7 +78,6 @@ export default function StudentFinanceProfilesPage() {
 
   const resetFilters = () => {
     setSearch('')
-    setBranchFilter('all')
     setCourseFilter('all')
     setStatusFilter('all')
     setSourceFilter('all')
@@ -169,6 +143,8 @@ export default function StudentFinanceProfilesPage() {
         />
       }
     >
+      <FinanceCenterFilterBar className="mb-1" />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FinanceStatCard label="Total profiles" value={filtered.length} />
         <FinanceStatCard
@@ -191,8 +167,6 @@ export default function StudentFinanceProfilesPage() {
         />
       </div>
 
-      <ProfileSourceAnalytics analytics={sourceAnalytics} />
-
       <div className="sticky top-0 z-10 -mx-1 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -211,12 +185,6 @@ export default function StudentFinanceProfilesPage() {
             </button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className={selectClass} aria-label="Branch">
-              <option value="all">All branches</option>
-              {branchOptions.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
             <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass} aria-label="Course">
               <option value="all">All courses</option>
               {FINANCE_COURSES.map((c) => (
@@ -259,7 +227,7 @@ export default function StudentFinanceProfilesPage() {
               columns={profileColumns}
               data={filtered}
               itemLabel="profiles"
-              resetDeps={[debouncedSearch, branchFilter, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo]}
+              resetDeps={[debouncedSearch, financeCenterFilter.selectedIds, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo]}
               tableClassName="overflow-x-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-[1] [&_thead]:bg-white"
             />
           </div>
@@ -267,16 +235,6 @@ export default function StudentFinanceProfilesPage() {
             {filtered.map((row) => (
               <ProfileListMobileCard key={row.id} row={row} onView={openProfile} />
             ))}
-          </div>
-
-          <div className="mt-8">
-            <h3 className="mb-3 text-sm font-bold text-[#246392]">Course finance history</h3>
-            <PaginatedFigmaTable
-              columns={historyColumns}
-              data={courseHistory}
-              itemLabel="records"
-              tableClassName="overflow-x-auto"
-            />
           </div>
         </>
       )}

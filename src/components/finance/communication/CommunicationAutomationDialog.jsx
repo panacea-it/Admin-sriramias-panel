@@ -5,7 +5,7 @@ import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import {
   AUTOMATION_TRIGGER_EVENTS,
   AUTOMATION_TRIGGER_TIMINGS,
-  COMMUNICATION_CHANNELS,
+  COMMUNICATION_CHANNEL_OPTIONS,
 } from '../../../constants/paymentCommunicationConstants'
 
 export default function CommunicationAutomationDialog({ open, rule, templates = [], onClose, onSave, saving }) {
@@ -14,7 +14,7 @@ export default function CommunicationAutomationDialog({ open, rule, templates = 
     name: '',
     triggerEvent: AUTOMATION_TRIGGER_EVENTS[0],
     triggerTiming: AUTOMATION_TRIGGER_TIMINGS[0],
-    channel: 'WhatsApp',
+    channel: 'All channels',
     templateId: '',
     audience: 'All students',
     escalationLevel: 'Low',
@@ -30,7 +30,7 @@ export default function CommunicationAutomationDialog({ open, rule, templates = 
         name: rule?.name || '',
         triggerEvent: rule?.triggerEvent || AUTOMATION_TRIGGER_EVENTS[0],
         triggerTiming: rule?.triggerTiming || AUTOMATION_TRIGGER_TIMINGS[0],
-        channel: rule?.channel || 'WhatsApp',
+        channel: rule?.channel || 'All channels',
         templateId: rule?.templateId || templates[0]?.id || '',
         audience: rule?.audience || 'All students',
         escalationLevel: rule?.escalationLevel || 'Low',
@@ -52,12 +52,14 @@ export default function CommunicationAutomationDialog({ open, rule, templates = 
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title={isEdit ? 'Edit rule' : 'Create rule'}>
+    <Modal open={open} onClose={onClose} size="lg" title={isEdit ? 'Edit rule' : 'Create rule'} showCloseButton={false}>
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title={isEdit ? 'Edit automation rule' : 'Create automation rule'}
           subtitle="Configure trigger, timing, and template"
           onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
           icon={Zap}
         />
         <form onSubmit={handleSubmit} className="grid gap-4 p-5 sm:grid-cols-2">
@@ -84,7 +86,7 @@ export default function CommunicationAutomationDialog({ open, rule, templates = 
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-[#686868]">Channel</span>
             <select value={form.channel} onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))} className={selectClass}>
-              {COMMUNICATION_CHANNELS.map((c) => (
+              {COMMUNICATION_CHANNEL_OPTIONS.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
