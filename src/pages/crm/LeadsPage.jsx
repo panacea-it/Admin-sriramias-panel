@@ -8,7 +8,9 @@ import LeadStatCards from '../../components/leads/LeadStatCards'
 import LeadTableActions from '../../components/leads/LeadTableActions'
 import LeadTableSelect from '../../components/leads/LeadTableSelect'
 import LeadViewModal from '../../components/leads/LeadViewModal'
+import CrmDeleteConfirmDialog from '../../components/crm/CrmDeleteConfirmDialog'
 import { cn } from '../../utils/cn'
+import { toast } from '@/utils/toast'
 import { isSameCalendarDay } from '../../utils/dailyCollectionUtils'
 import {
   formatLeadStatusLabel,
@@ -64,6 +66,7 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [viewLead, setViewLead] = useState(null)
   const [editLead, setEditLead] = useState(null)
+  const [deleteLeadId, setDeleteLeadId] = useState(null)
   const [counselorById, setCounselorById] = useState(() =>
     Object.fromEntries(
       INITIAL_LEADS.map((row) => [row.id, row.assignedCounselor || LEAD_COUNSELORS[0]]),
@@ -141,6 +144,23 @@ export default function LeadsPage() {
     setCounselorById((prev) => ({ ...prev, [leadId]: form.assignedCounselor }))
     setStatusById((prev) => ({ ...prev, [leadId]: form.status }))
   }, [])
+
+  const handleConfirmDeleteLead = useCallback(() => {
+    if (deleteLeadId == null) return
+    setLeads((prev) => prev.filter((row) => row.id !== deleteLeadId))
+    setCounselorById((prev) => {
+      const next = { ...prev }
+      delete next[deleteLeadId]
+      return next
+    })
+    setStatusById((prev) => {
+      const next = { ...prev }
+      delete next[deleteLeadId]
+      return next
+    })
+    toast.success('Lead deleted successfully')
+    setDeleteLeadId(null)
+  }, [deleteLeadId])
 
   const columns = useMemo(
     () => [
@@ -225,7 +245,7 @@ export default function LeadsPage() {
           <LeadTableActions
             onView={() => setViewLead(enrichLead(row))}
             onEdit={() => setEditLead(enrichLead(row))}
-            onDelete={() => {}}
+            onDelete={() => setDeleteLeadId(row.id)}
           />
         ),
       },
@@ -299,6 +319,12 @@ export default function LeadsPage() {
         counselorOptions={counselorOptions}
         statusOptions={statusOptions}
         onSave={handleEditSave}
+      />
+
+      <CrmDeleteConfirmDialog
+        open={deleteLeadId != null}
+        onCancel={() => setDeleteLeadId(null)}
+        onConfirm={handleConfirmDeleteLead}
       />
     </div>
   )

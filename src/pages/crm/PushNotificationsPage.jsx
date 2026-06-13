@@ -9,6 +9,7 @@ import PushNotificationFilterToolbar from '../../components/push-notifications/P
 import PushNotificationMessageCell from '../../components/push-notifications/PushNotificationMessageCell'
 import PushNotificationTableActions from '../../components/push-notifications/PushNotificationTableActions'
 import SendPushNotificationModal from '../../components/push-notifications/SendPushNotificationModal'
+import CrmDeleteConfirmDialog from '../../components/crm/CrmDeleteConfirmDialog'
 import { INITIAL_PUSH_NOTIFICATIONS, formatNotificationStatusLabel, pushNotificationMatchesSelectedDate } from '../../data/pushNotificationsData'
 import { getLeadStatusChipClass } from '../../components/enquiries/EnquiryTableSelect'
 import { cn } from '../../utils/cn'
@@ -56,6 +57,7 @@ export default function PushNotificationsPage() {
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [editingRow, setEditingRow] = useState(null)
   const [messageModal, setMessageModal] = useState(null)
+  const [deleteNotificationId, setDeleteNotificationId] = useState(null)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -101,6 +103,12 @@ export default function PushNotificationsPage() {
     setNotifications((prev) => prev.filter((row) => row.id !== id))
     toast.success('Notification deleted')
   }, [])
+
+  const handleConfirmDeleteNotification = useCallback(() => {
+    if (deleteNotificationId == null) return
+    handleDelete(deleteNotificationId)
+    setDeleteNotificationId(null)
+  }, [deleteNotificationId, handleDelete])
 
   const openMessageModal = useCallback((message) => {
     setMessageModal(message)
@@ -184,12 +192,12 @@ export default function PushNotificationsPage() {
           <PushNotificationTableActions
             row={row}
             onEdit={() => openSendModal(row)}
-            onDelete={() => handleDelete(row.id)}
+            onDelete={() => setDeleteNotificationId(row.id)}
           />
         ),
       },
     ],
-    [openMessageModal, openSendModal, handleDelete],
+    [openMessageModal, openSendModal],
   )
 
   const emptyMessage = dateFilter
@@ -246,6 +254,12 @@ export default function PushNotificationsPage() {
         open={Boolean(messageModal)}
         message={messageModal || ''}
         onClose={closeMessageModal}
+      />
+
+      <CrmDeleteConfirmDialog
+        open={deleteNotificationId != null}
+        onCancel={() => setDeleteNotificationId(null)}
+        onConfirm={handleConfirmDeleteNotification}
       />
     </div>
   )
