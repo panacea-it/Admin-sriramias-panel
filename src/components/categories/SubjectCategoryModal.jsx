@@ -275,7 +275,7 @@ export default function SubjectCategoryModal({
 
           {showLiveClassSection && (
             <>
-              <SectionBar title="Live Class Details" />
+              <SectionBar title="Live Class Details 1233" />
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <CategoryFormField label="Class Title" required error={errors.classTitle}>

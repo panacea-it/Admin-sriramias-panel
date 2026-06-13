@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, RefreshCw, Search } from 'lucide-react'
+import { Eye, Search } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton } from '../../academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { cn } from '../../../utils/cn'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 
-export default function MainsFacultySubjectsTable({ rows, loading, onRefresh }) {
+export default function MainsFacultySubjectsTable({ rows, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
@@ -62,7 +61,13 @@ export default function MainsFacultySubjectsTable({ rows, loading, onRefresh }) 
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={() => openFaculty(row)}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          showPlusIcon={false}
+          className="!px-3 !py-1.5"
+          onClick={() => openFaculty(row)}
+        >
           <Eye className="h-4 w-4" />
           View Topics
         </BannerButton>
@@ -84,18 +89,10 @@ export default function MainsFacultySubjectsTable({ rows, loading, onRefresh }) 
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search subject or faculty…"
+              placeholder="Search Faculty Subject"
               className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20"
             />
           </div>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-[#55ace7]"
-            title="Refresh"
-          >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </button>
         </div>
       </div>
       <PaginatedFigmaTable

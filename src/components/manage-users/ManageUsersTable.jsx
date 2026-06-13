@@ -11,9 +11,13 @@ export default function ManageUsersTable({
   itemLabel = 'users',
   resetDeps = [],
   selection,
+  loading = false,
+  controlledPagination,
 }) {
   const tableRef = useRef(null)
-  const { paginatedItems, ...pagination } = usePagination(data, { resetDeps })
+  const clientPagination = usePagination(data, { resetDeps })
+  const pagination = controlledPagination ?? clientPagination
+  const paginatedItems = controlledPagination ? data : clientPagination.paginatedItems
 
   const resolvedColumns = useMemo(() => {
     if (!selection) return columns
@@ -54,8 +58,14 @@ export default function ManageUsersTable({
   }, [columns, selection, paginatedItems])
 
   const handlePageChange = (nextPage) => {
-    pagination.setPage(nextPage)
+    const onPageChange = pagination.onPageChange ?? pagination.setPage
+    onPageChange(nextPage)
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  const handlePageSizeChange = (nextSize) => {
+    const onPageSizeChange = pagination.onPageSizeChange ?? pagination.setPageSize
+    onPageSizeChange(nextSize)
   }
 
   return (
@@ -85,7 +95,14 @@ export default function ManageUsersTable({
             </tr>
           </thead>
           <tbody>
-            {paginatedItems.map((row, idx) => (
+            {loading && paginatedItems.length === 0 ? (
+          <tr>
+            <td colSpan={resolvedColumns.length} className="py-16 text-center text-sm font-medium text-[#667085]">
+              Loading users…
+            </td>
+          </tr>
+        ) : null}
+        {paginatedItems.map((row, idx) => (
               <tr
                 key={row.id ?? idx}
                 className="cursor-pointer border-b border-[#E7ECF5] transition-colors duration-200 last:border-0 hover:bg-[#EEF5FF]"
@@ -108,12 +125,12 @@ export default function ManageUsersTable({
           </tbody>
         </table>
 
-        {paginatedItems.length === 0 && (
+        {!loading && paginatedItems.length === 0 && (
           <p className="py-16 text-center text-sm font-medium text-[#667085]">{emptyMessage}</p>
         )}
       </div>
 
-      {data.length > 0 && (
+      {(controlledPagination ? pagination.totalItems > 0 : data.length > 0) && (
         <TablePagination
           page={pagination.page}
           pageSize={pagination.pageSize}
@@ -122,7 +139,7 @@ export default function ManageUsersTable({
           startIndex={pagination.startIndex}
           endIndex={pagination.endIndex}
           onPageChange={handlePageChange}
-          onPageSizeChange={pagination.setPageSize}
+          onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
           className="border-t border-[#E7ECF5] bg-[#F5F7FB]/60"
         />

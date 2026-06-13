@@ -8,7 +8,7 @@ This frontend is a **Vite + React SPA**. The API runs separately (e.g. Render). 
 | ------------------ | ------------------ |
 | Build command      | `npm run build`    |
 | Publish directory  | `dist`             |
-| Node version       | 20 (see `netlify.toml`) |
+| Node version       | 24 (see `netlify.toml` and `.nvmrc`) |
 
 `netlify.toml` already defines SPA redirects and default build env vars.
 
@@ -25,6 +25,8 @@ Set under **Site settings → Environment variables** (Production):
 Redeploy after changing env vars (Vite bakes them at build time).
 
 ## Local development
+
+Requires **Node.js 24.x** (see `.nvmrc`). With [nvm](https://github.com/nvm-sh/nvm): `nvm use`.
 
 ```bash
 npm install

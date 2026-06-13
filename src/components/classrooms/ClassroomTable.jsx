@@ -1,5 +1,5 @@
 import CategoryStatusBadge from '../categories/CategoryStatusBadge'
-import CategoryTableActions from '../categories/CategoryTableActions'
+import ClassroomTableActions from './ClassroomTableActions'
 import { formatClassroomDateTime } from '../../utils/classroomApiHelpers'
 import { getUsageStats } from '../../api/classroomsAPI'
 import { normalizeClassroomStatus } from '../../utils/classroomsStorage'
@@ -110,16 +110,14 @@ export function buildClassroomTableColumns({ onView, onEdit, onToggle, onDelete 
       key: 'actions',
       label: 'Actions',
       align: 'right',
-      headerClassName: 'min-w-[11rem] pr-5 sm:pr-6',
-      cellClassName: 'min-w-[11rem] pr-5 sm:pr-6',
+      headerClassName: 'min-w-[200px] whitespace-nowrap pr-4 sm:pr-6',
+      cellClassName: 'min-w-[200px] whitespace-nowrap align-middle pr-4 sm:pr-6',
       render: (row) => (
-        <CategoryTableActions
-          variant="icons"
-          statusLabel="Status"
-          status={normalizeClassroomStatus(row.status)}
+        <ClassroomTableActions
+          row={row}
           onView={() => onView(row)}
           onEdit={() => onEdit(row)}
-          onToggleStatus={() => onToggle(row)}
+          onToggle={() => onToggle(row)}
           onDelete={() => onDelete(row)}
         />
       ),

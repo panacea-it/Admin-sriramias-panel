@@ -43,7 +43,12 @@ export default function MainsFacultyDetailPage() {
       icon={ListChecks}
       title={faculty ? `${faculty.subjectName} by ${faculty.facultyName}` : 'Faculty Subject'}
       actions={
-        <BannerButton type="button" variant="secondary" onClick={() => navigate(TEST_MANAGEMENT_ROUTES.mains)}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          showPlusIcon={false}
+          onClick={() => navigate(TEST_MANAGEMENT_ROUTES.mains)}
+        >
           <ArrowLeft className="h-4 w-4" />
           Back
         </BannerButton>

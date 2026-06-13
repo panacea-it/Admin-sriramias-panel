@@ -17,6 +17,7 @@ export default function TableActionMenu({
   triggerLabel = 'Row actions',
   align = 'end',
   className,
+  menuWidth = MENU_WIDTH,
 }) {
   const menuId = useId()
   const [open, setOpen] = useState(false)
@@ -37,7 +38,7 @@ export default function TableActionMenu({
     const menuHeight = menuEl?.offsetHeight || enabledItems.length * 44 + 16
 
     let top = rect.bottom + MENU_GAP
-    let left = align === 'end' ? rect.right - MENU_WIDTH : rect.left
+    let left = align === 'end' ? rect.right - menuWidth : rect.left
     let placement = 'bottom'
 
     if (top + menuHeight > window.innerHeight - VIEWPORT_PAD) {
@@ -50,11 +51,11 @@ export default function TableActionMenu({
 
     left = Math.max(
       VIEWPORT_PAD,
-      Math.min(left, window.innerWidth - MENU_WIDTH - VIEWPORT_PAD),
+      Math.min(left, window.innerWidth - menuWidth - VIEWPORT_PAD),
     )
 
     setCoords({ top, left, placement })
-  }, [align, normalizedItems.length])
+  }, [align, enabledItems.length, menuWidth])
 
   useEffect(() => {
     if (!open) return undefined
@@ -170,12 +171,12 @@ export default function TableActionMenu({
             position: 'fixed',
             top: coords.top,
             left: coords.left,
-            width: MENU_WIDTH,
+            width: menuWidth,
             zIndex: 9999,
           }}
           className={cn(
             'overflow-hidden rounded-xl border border-[#e5eaf2]/90',
-            'bg-white/95 py-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-md',
+            'bg-white py-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)]',
             'ring-1 ring-[#55ace7]/10',
           )}
         >

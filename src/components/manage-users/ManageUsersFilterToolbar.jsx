@@ -1,6 +1,5 @@
 import { Search, ChevronDown } from 'lucide-react'
 import { cn } from '../../utils/cn'
-import { USER_ROLES } from '../../data/manageUsersConfig'
 
 const controlHeight = 'h-11 min-h-[44px]'
 
@@ -37,16 +36,22 @@ export default function ManageUsersFilterToolbar({
   onCenterFilterChange,
   statusFilter,
   onStatusFilterChange,
+  roleOptions = [],
   centerOptions = [],
 }) {
-  const roleOptions = [
+  const roleOpts = [
     { value: 'all', label: 'All roles' },
-    ...USER_ROLES.map((r) => ({ value: r.value, label: r.label })),
+    ...roleOptions.map((r) => ({
+      value: r.value,
+      label: r.label,
+    })),
   ]
 
   const centerOpts = [
     { value: 'all', label: 'All centers' },
-    ...centerOptions.map((c) => ({ value: c, label: c })),
+    ...centerOptions.map((c) =>
+      typeof c === 'string' ? { value: c, label: c } : { value: c.value, label: c.label },
+    ),
   ]
 
   return (
@@ -72,7 +77,7 @@ export default function ManageUsersFilterToolbar({
           label="Role"
           value={roleFilter}
           onChange={onRoleFilterChange}
-          options={roleOptions}
+          options={roleOpts}
         />
         <FilterSelect
           label="Center"

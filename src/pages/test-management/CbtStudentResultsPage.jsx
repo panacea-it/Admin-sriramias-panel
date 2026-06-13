@@ -78,7 +78,7 @@ export default function CbtStudentResultsPage() {
             }
             className="mt-4 inline-block"
           >
-            <BannerButton type="button">Go Back</BannerButton>
+            <BannerButton type="button" showPlusIcon={false}>Go Back</BannerButton>
           </Link>
         </div>
       </TestManagementPageShell>
@@ -93,6 +93,7 @@ export default function CbtStudentResultsPage() {
         <BannerButton
           type="button"
           variant="secondary"
+          showPlusIcon={false}
           onClick={() =>
             navigate(
               topicForTest

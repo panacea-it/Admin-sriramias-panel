@@ -1,4 +1,4 @@
-import { Monitor, Plus } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import CbtMappingTable from '../../components/test-management/cbt/CbtMappingTable'
@@ -8,15 +8,11 @@ import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 
 export default function CbtManagementPage() {
-  const { mappingRows, latestEvaluations, loading, refresh } = useCbtTestSeriesHierarchy()
+  const { mappingRows, latestEvaluations, loading } = useCbtTestSeriesHierarchy()
 
-  const openEvaluation = (card, navigate) => {
-    if (card.subjectId) {
-      if (card.topicId) {
-        navigate(TEST_MANAGEMENT_ROUTES.cbtTopic(card.subjectId, card.topicId))
-      } else {
-        navigate(TEST_MANAGEMENT_ROUTES.cbtFaculty(card.subjectId))
-      }
+  const openResults = (card, navigate) => {
+    if (card.subjectId && card.id) {
+      navigate(TEST_MANAGEMENT_ROUTES.cbtResults(card.subjectId, card.id))
     }
   }
 
@@ -26,8 +22,7 @@ export default function CbtManagementPage() {
       title="CBT Management"
       actions={
         <Link to="/academics/subjects">
-          <BannerButton type="button">
-            <Plus className="h-4 w-4" />
+          <BannerButton type="button" showPlusIcon={false}>
             Faculty Subjects
           </BannerButton>
         </Link>
@@ -37,9 +32,12 @@ export default function CbtManagementPage() {
         cards={latestEvaluations}
         loading={loading}
         emptyMessage="No tests conducted yet."
-        onCardClick={openEvaluation}
+        heading="Latest Test Series"
+        showUploadedSheets={false}
+        resultsLineLabel="published"
+        onCardClick={openResults}
       />
-      <CbtMappingTable rows={mappingRows} loading={loading} onRefresh={refresh} />
+      <CbtMappingTable rows={mappingRows} loading={loading} />
     </TestManagementPageShell>
   )
 }

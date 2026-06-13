@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
+import { PlusCircle } from 'lucide-react'
+import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
+import ExamCategoryFilterBar from '../../../../components/categories/ExamCategoryFilterBar'
 import CategoryStatusBadge from '../../../../components/categories/CategoryStatusBadge'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryFormModal from '../../../../components/categories/ExamCategoryFormModal'
@@ -42,6 +44,20 @@ function hasCategoryFormFields(row) {
   return Boolean(row?.centerId && row?.programId && row?.name)
 }
 
+function CreateButton({ onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+    >
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+      Add Exam Category
+    </button>
+  )
+}
+
 export default function ExamCategorySection({ section }) {
   const {
     categories,
@@ -59,6 +75,8 @@ export default function ExamCategorySection({ section }) {
   } = useExamCategoryManagement()
 
   const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
+
+  const [programFilter, setProgramFilter] = useState('all')
 
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
@@ -78,6 +96,20 @@ export default function ExamCategorySection({ section }) {
   )
 
   const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
+
+  const programFilterOptions = useMemo(() => {
+    const programs = [...new Set(categories.map((row) => row.program).filter(Boolean))].sort()
+    return [{ value: 'all', label: 'Program' }, ...programs.map((p) => ({ value: p, label: p }))]
+  }, [categories])
+
+  const displayedCategories = useMemo(() => {
+    if (programFilter === 'all') return categories
+    return categories.filter((row) => row.program === programFilter)
+  }, [categories, programFilter])
+
+  useEffect(() => {
+    setProgramFilter('all')
+  }, [centerFilter])
 
   const categoriesById = useMemo(
     () => new Map(categories.map((row) => [String(row.id), row])),
@@ -334,14 +366,19 @@ export default function ExamCategorySection({ section }) {
     [handleView, handleEditOpen],
   )
 
-  const hasActiveFilters = Boolean(search.trim()) || statusFilter !== 'all' || centerFilter !== 'all'
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    statusFilter !== 'all' ||
+    centerFilter !== 'all' ||
+    programFilter !== 'all'
   const showEmpty = !loading && totalCategories === 0 && !hasActiveFilters
-  const showNoResults = !loading && categories.length === 0 && !showEmpty
+  const showNoResults = !loading && displayedCategories.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
     setStatusFilter('all')
     setCenterFilter('all')
+    setProgramFilter('all')
   }
 
   const deleteMessage =
@@ -359,77 +396,73 @@ export default function ExamCategorySection({ section }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <h1 className="text-xl font-bold tracking-tight text-[#111] sm:text-2xl">Exam Categories</h1>
+        <CategoryPageHeader title="Exam Categories">
+          <CreateButton onClick={openCreate} />
+        </CategoryPageHeader>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-          <CategoryFilterBar
-            search={search}
-            onSearchChange={(e) => setSearch(e.target.value)}
-            searchPlaceholder={section.searchPlaceholder}
-            status={statusFilter}
-            onStatusChange={(e) => setStatusFilter(e.target.value)}
-            statusOptions={STATUS_FILTER_OPTIONS}
-            centerFilter={centerFilter}
-            onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
-            centerOptions={centreOptions}
-          />
+        <ExamCategoryFilterBar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          searchPlaceholder={section.searchPlaceholder}
+          program={programFilter}
+          onProgramChange={(e) => setProgramFilter(e.target.value)}
+          programOptions={programFilterOptions}
+          centerFilter={centerFilter}
+          onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+          centerOptions={centreOptions}
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={STATUS_FILTER_OPTIONS}
+        />
 
-          {selectedIds.length > 0 && (
-            <ExamCategoryBulkActionsBar
-              className="mt-4"
-              count={selectedIds.length}
-              disableCount={disableableCount}
-              onDisable={handleBulkDisable}
-              onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
-            />
-          )}
+        <ExamCategoryBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        />
 
-          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
-            {loading ? (
-              <div className="p-4">
-                <ExamCategoryTableSkeleton />
-              </div>
-            ) : showEmpty ? (
-              <div className="p-4 sm:p-6">
-                <CategoryEmptyState
-                  title={section.emptyTitle}
-                  description={section.emptyDescription}
-                  ctaLabel={section.emptyCta}
-                  onCta={openCreate}
-                />
-              </div>
-            ) : showNoResults ? (
-              <div className="p-4 sm:p-6">
-                <CategoryEmptyState
-                  title="No matching records"
-                  description="Try adjusting your search or filters."
-                  ctaLabel="Clear filters"
-                  onCta={clearFilters}
-                />
-              </div>
-            ) : (
-              <PaginatedFigmaTable
-                columns={columns}
-                data={categories}
-                itemLabel="exam categories"
-                resetDeps={[search, statusFilter, centerFilter]}
-                selection={selection}
-                density="comfortable"
-                loading={bulkDisableLoading}
-                rowClassName="hover:bg-[#eef6fc]/70"
-                tableClassName="rounded-none border-0 shadow-none"
-                tableMinWidth={960}
-                paginationClassName={cn(
-                  '[&>div:last-child]:items-center',
-                  '[&_nav]:items-center',
-                  '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
-                  '[&_form_input]:h-9 [&_form_input]:leading-none',
-                  '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
-                )}
-              />
-            )}
+        {loading ? (
+          <div className="overflow-hidden rounded-2xl bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80 sm:p-5">
+            <ExamCategoryTableSkeleton />
           </div>
-        </div>
+        ) : showEmpty ? (
+          <CategoryEmptyState
+            title={section.emptyTitle}
+            description={section.emptyDescription}
+            ctaLabel={section.emptyCta}
+            onCta={openCreate}
+          />
+        ) : showNoResults ? (
+          <CategoryEmptyState
+            title="No matching records"
+            description="Try adjusting your search or filters."
+            ctaLabel="Clear filters"
+            onCta={clearFilters}
+          />
+        ) : (
+          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
+            <PaginatedFigmaTable
+              columns={columns}
+              data={displayedCategories}
+              itemLabel="exam categories"
+              resetDeps={[search, statusFilter, centerFilter, programFilter]}
+              selection={selection}
+              density="comfortable"
+              loading={bulkDisableLoading}
+              rowClassName="hover:bg-[#eef6fc]/70"
+              tableClassName="rounded-none border-0 shadow-none"
+              tableMinWidth={960}
+              paginationClassName={cn(
+                '[&>div:last-child]:items-center',
+                '[&_nav]:items-center',
+                '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
+                '[&_form_input]:h-9 [&_form_input]:leading-none',
+                '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
+              )}
+            />
+          </div>
+        )}
 
         <ExamCategoryFormModal
           open={isOpen}

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FileQuestion, Copy, Eye, ToggleLeft, ToggleRight, Trash2, Pencil, UploadCloud } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Ban, Copy, Eye, FileQuestion, Pencil, Trash2, UploadCloud } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
-import TableActionMenu from '../../components/common/TableActionMenu'
 import StatCard from '../../components/dashboard/StatCard'
+import { cn } from '../../utils/cn'
 import { useEditModal } from '../../hooks/useEditModal'
 import QuestionFormModal from '../../components/test-management/QuestionFormModal'
 import QuestionPreviewModal from '../../components/test-management/QuestionPreviewModal'
@@ -20,6 +20,76 @@ import {
 } from '../../data/testManagementSeed'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { getQuestionPreviewText, nextQuestionStatus } from '../../utils/testManagementQuestionForm'
+
+const actionButtonClass =
+  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+
+function QuestionTableActions({
+  row,
+  onView,
+  onEdit,
+  onDuplicate,
+  onToggleStatus,
+  onDelete,
+}) {
+  const isActive = row.status === 'Active'
+  const rowLabel = row.id || 'question'
+
+  return (
+    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
+      <button
+        type="button"
+        onClick={onView}
+        title="View"
+        aria-label={`View ${rowLabel}`}
+        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
+      >
+        <Eye className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">View</span>
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        title="Edit"
+        aria-label={`Edit ${rowLabel}`}
+        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
+      >
+        <Pencil className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">Edit</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDuplicate}
+        title="Duplicate"
+        aria-label={`Duplicate ${rowLabel}`}
+        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
+      >
+        <Copy className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">Duplicate</span>
+      </button>
+      <button
+        type="button"
+        onClick={onToggleStatus}
+        title={isActive ? 'Disable' : 'Enable'}
+        aria-label={isActive ? `Disable ${rowLabel}` : `Enable ${rowLabel}`}
+        className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+      >
+        <Ban className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">{isActive ? 'Disable' : 'Enable'}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        title="Delete"
+        aria-label={`Delete ${rowLabel}`}
+        className={cn(actionButtonClass, 'text-rose-600 hover:bg-rose-50 hover:text-rose-700')}
+      >
+        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">Delete</span>
+      </button>
+    </div>
+  )
+}
 
 export default function QuestionManagementPage() {
   const modal = useEditModal()
@@ -110,12 +180,29 @@ export default function QuestionManagementPage() {
     toast.success(`Status updated to ${nextStatus}`)
   }
 
-  const openPreview = (row) => {
+  const openPreview = useCallback((row) => {
     setPreviewQuestion(row)
     setPreviewOpen(true)
-  }
+  }, [])
 
-  const columns = [
+  const renderRowActions = useCallback(
+    (row) => (
+      <QuestionTableActions
+        row={row}
+        onView={() => openPreview(row)}
+        onEdit={() => modal.openEdit(row)}
+        onDuplicate={() => modal.openDuplicate(row)}
+        onToggleStatus={() => toggleStatus(row)}
+        onDelete={() => {
+          setDeleteRow(row)
+          setDeleteOpen(true)
+        }}
+      />
+    ),
+    [modal, openPreview],
+  )
+
+  const columns = useMemo(() => [
     { key: 'id', label: 'Question ID', headerClassName: 'pl-6 sm:pl-10', cellClassName: 'pl-6 sm:pl-10' },
     { key: 'type', label: 'Type', render: (r) => <span className="font-semibold text-[#1a3a5c]">{r.type}</span> },
     { key: 'subject', label: 'Subject' },
@@ -140,44 +227,12 @@ export default function QuestionManagementPage() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => (
-        <TableActionMenu
-          triggerLabel="Question actions"
-          items={[
-            {
-              label: 'View',
-              icon: Eye,
-              onClick: () => openPreview(row),
-            },
-            {
-              label: 'Edit',
-              icon: Pencil,
-              onClick: () => modal.openEdit(row),
-            },
-            {
-              label: 'Duplicate',
-              icon: Copy,
-              onClick: () => modal.openDuplicate(row),
-            },
-            {
-              label: row.status === 'Active' ? 'Disable' : 'Enable',
-              icon: row.status === 'Active' ? ToggleLeft : ToggleRight,
-              onClick: () => toggleStatus(row),
-            },
-            {
-              label: 'Delete',
-              icon: Trash2,
-              danger: true,
-              onClick: () => {
-                setDeleteRow(row)
-                setDeleteOpen(true)
-              },
-            },
-          ]}
-        />
-      ),
+      align: 'right',
+      headerClassName: 'min-w-[280px] whitespace-nowrap pr-4 sm:pr-6',
+      cellClassName: 'min-w-[280px] whitespace-nowrap align-middle pr-4 sm:pr-6',
+      render: renderRowActions,
     },
-  ]
+  ], [renderRowActions])
 
   const resetFilters = () => {
     setSearch('')

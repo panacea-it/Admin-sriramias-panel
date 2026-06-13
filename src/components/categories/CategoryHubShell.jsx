@@ -6,7 +6,16 @@ export default function CategoryHubShell({ children }) {
   const location = useLocation()
   const useOutlet = !children
   const activeTab = getTabIdFromPath(location.pathname)
-  const hideHubNav = activeTab === 'programs' || activeTab === 'exam-category'
+  const hideHubNav =
+    activeTab === 'programs' ||
+    activeTab === 'courses' ||
+    activeTab === 'subject' ||
+    activeTab === 'topic' ||
+    activeTab === 'teachers' ||
+    activeTab === 'city' ||
+    activeTab === 'exam-category' ||
+    activeTab === 'exam-sub-category' ||
+    activeTab === 'class-rooms'
 
   return (
     <div className="figma-admin-section min-h-full bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">

@@ -54,7 +54,11 @@ function resolveCenterName(row) {
   return ''
 }
 
-export function mapApiCityToLocal(data) {
+function looksLikeMongoId(value) {
+  return /^[a-f0-9]{24}$/i.test(String(value || '').trim())
+}
+
+function unwrapCityRecord(data) {
   const row =
     data?.data?.city ??
     data?.data ??
@@ -63,19 +67,144 @@ export function mapApiCityToLocal(data) {
 
   if (!row || typeof row !== 'object') return null
 
+  const base = row._doc && typeof row._doc === 'object' ? { ...row._doc, ...row } : row
+  if (base.city && typeof base.city === 'object' && !Array.isArray(base.city)) {
+    return {
+      ...base.city,
+      _id: base._id ?? base.city._id ?? base.city.id,
+      id: base.id ?? base.city.id,
+      center: base.center ?? base.city.center,
+      centerId: base.centerId ?? base.city.centerId,
+      centerName: base.centerName ?? base.city.centerName,
+    }
+  }
+
+  return base
+}
+
+function formatCityCodeFromId(row) {
+  const raw = row?.cityId ?? row?.displayId ?? row?.serialNumber
+  if (raw == null || raw === '') return ''
+  const str = String(raw).trim()
+  if (looksLikeMongoId(str)) return ''
+  if (/^CTY/i.test(str)) return str.toUpperCase()
+  if (/^[A-Z0-9-]+$/i.test(str) && /[A-Z]/i.test(str) && /\d/.test(str)) return str.toUpperCase()
+  if (/^\d+$/.test(str)) {
+    const num = parseInt(str, 10)
+    if (!Number.isNaN(num) && num > 0) return `CTY${String(num).padStart(3, '0')}`
+  }
+  return ''
+}
+
+export function resolveCityCode(row) {
+  if (!row || typeof row !== 'object') return ''
+
+  const candidates = [
+    row.cityCode,
+    row.code,
+    row.city_code,
+    row.branchCode,
+    row.placeCode,
+    row.city?.cityCode,
+    row.city?.code,
+  ]
+
+  for (const raw of candidates) {
+    const value = String(raw ?? '').trim()
+    if (!value || looksLikeMongoId(value)) continue
+    return value.toUpperCase()
+  }
+
+  const businessId = String(row.cityId ?? '').trim()
+  if (businessId && !looksLikeMongoId(businessId)) {
+    return businessId.toUpperCase()
+  }
+
+  return formatCityCodeFromId(row)
+}
+
+export function getCityDisplayCode(city) {
+  if (!city || typeof city !== 'object') return ''
+  const resolved = resolveCityCode(city)
+  if (resolved) return resolved
+  const stored = String(city.code ?? city.cityCode ?? '').trim()
+  return stored && !looksLikeMongoId(stored) ? stored.toUpperCase() : ''
+}
+
+export function mergeCityWithSource(source, detail) {
+  if (!detail) return source
+  const code = getCityDisplayCode(detail) || getCityDisplayCode(source)
+  return {
+    ...source,
+    ...detail,
+    code,
+    cityCode: code,
+  }
+}
+
+export function mapApiCityToLocal(data) {
+  const row = unwrapCityRecord(data)
+  if (!row) return null
+
   const id = row._id ?? row.id ?? row.cityId
   if (!id) return null
 
+  const code = resolveCityCode(row)
+
   return {
-    id: String(id),
-    code: String(row.cityCode ?? row.code ?? '').trim(),
+    id: String(row._id ?? row.id ?? id),
+    code,
+    cityCode: code,
     centerId: resolveCenterId(row),
     centerName: resolveCenterName(row),
-    placeName: String(row.cityAddress ?? row.placeName ?? '').trim(),
+    placeName: String(row.cityAddress ?? row.placeName ?? row.address ?? '').trim(),
     status: mapApiCityStatusToUi(row.status),
     createdAt: row.createdAt || row.createdOn || null,
     modifiedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
   }
+}
+
+export async function enrichCitiesWithMissingCodes(items, fetchCityById, { page = 1, limit = 10 } = {}) {
+  if (!Array.isArray(items) || !items.length) {
+    return items
+  }
+
+  const missing =
+    typeof fetchCityById === 'function'
+      ? items.filter((item) => !resolveCityCode(item))
+      : []
+
+  let patchById = new Map()
+
+  if (missing.length) {
+    const detailResults = await Promise.all(
+      missing.map(async (item) => {
+        try {
+          const data = await fetchCityById(item.id)
+          return mapApiCityToLocal(data)
+        } catch {
+          return null
+        }
+      }),
+    )
+
+    patchById = new Map(
+      detailResults.filter(Boolean).map((row) => [String(row.id), row]),
+    )
+  }
+
+  return items.map((item, index) => {
+    const existingCode = resolveCityCode(item)
+    if (existingCode) return { ...item, code: existingCode, cityCode: existingCode }
+
+    const detail = patchById.get(String(item.id))
+    const detailCode = detail ? resolveCityCode(detail) : ''
+    if (detailCode) return { ...item, code: detailCode, cityCode: detailCode }
+
+    const fallbackIndex = (page - 1) * limit + index + 1
+    const fallbackCode = `CTY${String(fallbackIndex).padStart(3, '0')}`
+    return { ...item, code: fallbackCode, cityCode: fallbackCode }
+  })
 }
 
 export function normalizeCitiesListResponse(data, { page = 1, limit = 10 } = {}) {

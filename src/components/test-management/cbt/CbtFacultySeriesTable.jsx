@@ -83,7 +83,8 @@ function SeriesRow({ node, depth, subjectId, expandedIds, onToggle }) {
         <StatusBadge status={node.status === 'published' ? 'Published' : 'Draft'} />
       </td>
       <td className="px-4 py-3 text-right sm:px-6">
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={openResults}>
+        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" showPlusIcon={false} onClick={openResults}>
+          <Eye className="h-4 w-4" />
           View Results
         </BannerButton>
       </td>

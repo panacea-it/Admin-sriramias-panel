@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
+import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
@@ -36,20 +37,21 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'Inactive' },
 ]
 
-function AddButton({ onClick, children }) {
+function AddButton({ onClick, children, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
-      <PlusCircle className="h-4 w-4" />
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
       {children}
     </button>
   )
 }
 
-export default function TeacherSection({ section, Icon }) {
+export default function TeacherSection({ section }) {
   const {
     teachers,
     loading,
@@ -80,6 +82,8 @@ export default function TeacherSection({ section, Icon }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
 
   const subjectFilterOptions = useMemo(
     () => [{ value: 'all', label: 'Subject' }, ...subjectDropdownOptions],
@@ -89,6 +93,16 @@ export default function TeacherSection({ section, Icon }) {
   const centerFilterOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centerDropdownOptions],
     [centerDropdownOptions],
+  )
+
+  const teachersById = useMemo(
+    () => new Map(teachers.map((row) => [String(row.id), row])),
+    [teachers],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => teachersById.get(String(id))?.status === 'Active').length,
+    [selectedIds, teachersById],
   )
 
   const loadTeacherDetail = useCallback(async (row) => {
@@ -162,14 +176,22 @@ export default function TeacherSection({ section, Icon }) {
     [refreshTeachers],
   )
 
+  const handleDelete = useCallback((row) => {
+    setDeleteTarget({ ids: [row.id], name: row.name })
+  }, [])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
+    const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
+    if (!ids.length) return
+
     setDeleteLoading(true)
     try {
-      await deleteTeacher(deleteTarget.id)
-      removeTeacherLocally(deleteTarget.id)
-      toast.success('Teacher deleted')
+      await Promise.all(ids.map((id) => deleteTeacher(id)))
+      ids.forEach((id) => removeTeacherLocally(id))
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
+      toast.success(ids.length > 1 ? `${ids.length} teachers deleted` : 'Teacher deleted')
       await refreshTeachers()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete teacher'))
@@ -201,6 +223,39 @@ export default function TeacherSection({ section, Icon }) {
     }
   }, [statusTarget, patchTeacherLocally, refreshTeachers])
 
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => teachersById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    const apiStatus = mapUiStatusToApi('In Active')
+    setBulkDisableLoading(true)
+
+    try {
+      await Promise.all(ids.map((id) => updateTeacherStatus(id, apiStatus)))
+      ids.forEach((id) => patchTeacherLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} teachers disabled` : 'Teacher disabled')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected teachers'))
+      await refreshTeachers()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }, [selectedIds, teachersById, patchTeacherLocally, refreshTeachers])
+
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
+
+  const toggleSelectPage = useCallback((pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (!select) return prev.filter((id) => !pageIds.includes(id))
+      const merged = new Set([...prev, ...pageIds])
+      return [...merged]
+    })
+  }, [])
+
   const showEmpty =
     !loading &&
     teachers.length === 0 &&
@@ -217,6 +272,11 @@ export default function TeacherSection({ section, Icon }) {
     setCenterFilter('all')
   }
 
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected teachers? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this teacher'}"? This action cannot be undone.`
+
   if (!section) return null
 
   return (
@@ -229,8 +289,10 @@ export default function TeacherSection({ section, Icon }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={Icon} hideTitle>
-          <AddButton onClick={openCreate}>{section.addLabel}</AddButton>
+        <CategoryPageHeader title="Teachers">
+          <AddButton onClick={openCreate} disabled={loading}>
+            {section.addLabel}
+          </AddButton>
         </CategoryPageHeader>
 
         <CategoryFilterBar
@@ -246,6 +308,14 @@ export default function TeacherSection({ section, Icon }) {
           centerFilter={centerFilter}
           onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
           centerOptions={centerFilterOptions}
+        />
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
         />
 
         {loading ? (
@@ -265,18 +335,21 @@ export default function TeacherSection({ section, Icon }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <TeacherTable
-              teachers={teachers}
-              loading={loading}
-              controlledPagination={controlledPagination}
-              onView={handleView}
-              onEdit={handleEditOpen}
-              onDelete={setDeleteTarget}
-              onToggleStatus={setStatusTarget}
-              resetDeps={[search, statusFilter, subjectFilter, centerFilter]}
-            />
-          </div>
+          <TeacherTable
+            teachers={teachers}
+            loading={loading || bulkDisableLoading}
+            controlledPagination={controlledPagination}
+            onView={handleView}
+            onEdit={handleEditOpen}
+            onDelete={handleDelete}
+            onToggleStatus={setStatusTarget}
+            resetDeps={[search, statusFilter, subjectFilter, centerFilter]}
+            selection={{
+              selectedIds,
+              onToggle: toggleSelect,
+              onTogglePage: toggleSelectPage,
+            }}
+          />
         )}
 
         <AddEditTeacherModal
@@ -311,8 +384,8 @@ export default function TeacherSection({ section, Icon }) {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete teacher?"
-          message={`Are you sure you want to delete "${deleteTarget?.name || 'this teacher'}"? This action cannot be undone.`}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected teachers?' : 'Delete teacher?'}
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}

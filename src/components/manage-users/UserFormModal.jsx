@@ -10,6 +10,7 @@ import {
   CourseSelect,
 } from '../courses/CourseFormField'
 import { USER_ROLES, USER_STATUS_OPTIONS } from '../../data/manageUsersConfig'
+import { isStudentRecord } from './isStudentRecord'
 import { cn } from '../../utils/cn'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
@@ -43,7 +44,20 @@ function FormSection({ title, description, children, className }) {
   )
 }
 
-function userRowToForm(row) {
+function resolveCenterValue(row, centerOptions = []) {
+  if (row?.centerId) return row.centerId
+  const label = String(row?.assignedCenter || '').trim().toLowerCase()
+  const match = centerOptions.find(
+    (c) =>
+      String(typeof c === 'string' ? c : c.label)
+        .trim()
+        .toLowerCase() === label,
+  )
+  if (match && typeof match !== 'string') return match.value
+  return row?.assignedCenter || ''
+}
+
+function userRowToForm(row, centerOptions = []) {
   return {
     fullName: row.fullName || '',
     email: row.email || '',
@@ -51,10 +65,16 @@ function userRowToForm(row) {
     parentName: row.parentName || '',
     parentPhone: row.parentPhone || '',
     role: row.role || 'student',
-    assignedCenter: row.assignedCenter || '',
+    assignedCenter: resolveCenterValue(row, centerOptions),
     status: row.status || 'Active',
     profileImage: row.profileImage || '',
   }
+}
+
+function getDefaultCenterValue(centerOptions = []) {
+  const first = centerOptions[0]
+  if (!first) return ''
+  return typeof first === 'string' ? first : first.value
 }
 
 export default function UserFormModal({
@@ -64,6 +84,8 @@ export default function UserFormModal({
   onUpdate,
   editingUser = null,
   centerOptions = [],
+  saving = false,
+  detailLoading = false,
 }) {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
@@ -73,15 +95,17 @@ export default function UserFormModal({
   editingRef.current = editingUser
   const editKey = getModalEditKey(editingUser)
   const isEdit = Boolean(editingUser)
+  const showProfilePhoto = isEdit && !isStudentRecord(editingUser)
+  const showRoleField = isEdit && !isStudentRecord(editingUser)
 
   useInitOnModalOpen(open, editKey, () => {
     const row = editingRef.current
     if (row) {
-      setForm(userRowToForm(row))
+      setForm(userRowToForm(row, centerOptions))
     } else {
       setForm({
         ...emptyForm,
-        assignedCenter: centerOptions[0] || '',
+        assignedCenter: getDefaultCenterValue(centerOptions),
       })
     }
     setErrors({})
@@ -120,8 +144,9 @@ export default function UserFormModal({
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    if (saving || detailLoading) return
     if (!validate()) {
       toast.error('Please fix the highlighted fields')
       return
@@ -134,25 +159,26 @@ export default function UserFormModal({
         phone: form.phone.trim(),
         parentName: form.parentName.trim(),
         parentPhone: form.parentPhone.trim(),
-        assignedCenter: form.assignedCenter.trim(),
+        assignedCenter: form.assignedCenter,
         status: form.status,
       })
       onClose()
       return
     }
 
-    onUpdate?.(editingUser.id, {
+    const result = await onUpdate?.(editingUser, {
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
       parentName: form.parentName.trim(),
       parentPhone: form.parentPhone.trim(),
       role: form.role,
-      assignedCenter: form.assignedCenter.trim(),
+      assignedCenter: form.assignedCenter,
       status: form.status,
       profileImage: form.profileImage,
     })
-    toast.success('User updated')
+
+    if (result === false) return
     onClose()
   }
   const modalTitle = isEdit ? 'Edit User' : 'Create User'
@@ -162,12 +188,16 @@ export default function UserFormModal({
 
   const handleReset = () => {
     if (isEdit && editingRef.current) {
-      setForm(userRowToForm(editingRef.current))
+      setForm(userRowToForm(editingRef.current, centerOptions))
     } else {
-      setForm({ ...emptyForm, assignedCenter: centerOptions[0] || '' })
+      setForm({ ...emptyForm, assignedCenter: getDefaultCenterValue(centerOptions) })
     }
     setErrors({})
   }
+
+  const resolvedCenterOptions = centerOptions.map((c) =>
+    typeof c === 'string' ? { value: c, label: c } : c,
+  )
 
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
@@ -195,6 +225,9 @@ export default function UserFormModal({
             '[scrollbar-color:#c5d9eb_#f4f7fb]',
           )}
         >
+          {detailLoading ? (
+            <p className="py-12 text-center text-sm font-medium text-[#667085]">Loading user details…</p>
+          ) : (
           <div className="space-y-8 pb-2">
             <FormSection
               title="Basic information"
@@ -286,13 +319,13 @@ export default function UserFormModal({
             <FormSection
               title="Access & status"
               description={
-                isEdit
+                showRoleField
                   ? 'Role, center assignment, and account state.'
                   : 'Center assignment and account state.'
               }
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                {isEdit ? (
+                {showRoleField ? (
                   <CourseFormField label="Role" required>
                     <CourseSelect
                       value={form.role}
@@ -316,9 +349,9 @@ export default function UserFormModal({
                     }}
                   >
                     <option value="">Select center</option>
-                    {centerOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+                    {resolvedCenterOptions.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
                       </option>
                     ))}
                   </CourseSelect>
@@ -342,7 +375,7 @@ export default function UserFormModal({
               </div>
             </FormSection>
 
-            {isEdit ? (
+            {showProfilePhoto ? (
               <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
                 <div className="flex flex-col gap-4 rounded-xl border border-[#e5eaf2] bg-[#f8fbff] p-4 sm:flex-row sm:items-center">
                   <button
@@ -398,6 +431,7 @@ export default function UserFormModal({
               </FormSection>
             ) : null}
           </div>
+          )}
         </div>
 
         <div className="shrink-0 border-t border-[#e5eaf2] bg-[#f8fafc] px-5 py-4 sm:px-8">
@@ -411,9 +445,10 @@ export default function UserFormModal({
             </button>
             <button
               type="submit"
-              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95"
+              disabled={saving || detailLoading}
+              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95 disabled:opacity-60"
             >
-              {isEdit ? 'Update User' : 'Create User'}
+              {saving ? 'Saving…' : isEdit ? 'Update User' : 'Create User'}
             </button>
           </div>
         </div>

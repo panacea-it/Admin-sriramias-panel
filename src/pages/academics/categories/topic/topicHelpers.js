@@ -35,29 +35,73 @@ function looksLikeObjectId(value) {
   return /^[a-f0-9]{24}$/i.test(String(value || '').trim())
 }
 
+function looksLikeSubjectCode(value) {
+  const s = String(value || '').trim()
+  if (!s || looksLikeObjectId(s)) return false
+  if (/^SUB[-_]?\d+$/i.test(s)) return true
+  if (/^SUB[-_][A-Z0-9]+$/i.test(s)) return true
+  if (/^[A-Z]{2,6}\d{2,}$/.test(s)) return true
+  return false
+}
+
 function resolveSubjectLabel(row) {
   const explicitName = String(row?.subjectName ?? '').trim()
-  if (explicitName && !looksLikeObjectId(explicitName)) return explicitName
+  if (explicitName && !looksLikeObjectId(explicitName) && !looksLikeSubjectCode(explicitName)) {
+    return explicitName
+  }
 
   if (row?.subject && typeof row.subject === 'object') {
     const name = String(row.subject.subjectName ?? row.subject.name ?? '').trim()
-    if (name && !looksLikeObjectId(name)) return name
+    if (name && !looksLikeObjectId(name) && !looksLikeSubjectCode(name)) return name
   }
 
   if (typeof row?.subject === 'string') {
     const label = row.subject.trim()
-    if (label && !looksLikeObjectId(label)) return label
+    if (label && !looksLikeObjectId(label) && !looksLikeSubjectCode(label)) return label
   }
 
   return ''
+}
+
+export function buildSubjectNameLookup(data) {
+  const list = Array.isArray(data)
+    ? data
+    : data?.data?.subjects ??
+      data?.data ??
+      data?.subjects ??
+      data?.items ??
+      []
+
+  const map = {}
+  for (const row of Array.isArray(list) ? list : []) {
+    if (typeof row === 'string') continue
+    const name = String(row.subjectName ?? row.name ?? row.label ?? '').trim()
+    if (!name || looksLikeSubjectCode(name)) continue
+
+    const keys = [row._id, row.id, row.subjectId, row.value].filter(Boolean).map(String)
+    for (const key of keys) {
+      map[key] = name
+    }
+  }
+  return map
 }
 
 export function resolveTopicSubjectDisplay(row, subjectNameById = {}) {
   const mapped = resolveSubjectLabel(row)
   if (mapped) return mapped
 
-  const subjectId = String(row?.subjectId ?? resolveSubjectId(row) ?? '').trim()
-  if (subjectId && subjectNameById[subjectId]) return subjectNameById[subjectId]
+  const candidates = [
+    row?.subjectId,
+    resolveSubjectId(row),
+    typeof row?.subject === 'string' ? row.subject : null,
+  ]
+    .filter(Boolean)
+    .map(String)
+
+  for (const id of candidates) {
+    const name = subjectNameById[id]
+    if (name) return name
+  }
 
   return '—'
 }

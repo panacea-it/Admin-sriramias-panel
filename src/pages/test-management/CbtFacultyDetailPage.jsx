@@ -40,7 +40,7 @@ export default function CbtFacultyDetailPage() {
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm text-slate-600">Faculty mapping not found or has no TEST series.</p>
           <Link to={TEST_MANAGEMENT_ROUTES.cbt} className="mt-4 inline-block">
-            <BannerButton type="button">Back to CBT Management</BannerButton>
+            <BannerButton type="button" showPlusIcon={false}>Back to CBT Management</BannerButton>
           </Link>
         </div>
       </TestManagementPageShell>
@@ -52,7 +52,7 @@ export default function CbtFacultyDetailPage() {
       icon={Monitor}
       title={`${faculty?.subjectName ?? 'Subject'} — ${faculty?.facultyName ?? 'Faculty'}`}
       actions={
-        <BannerButton type="button" variant="secondary" onClick={() => navigate(TEST_MANAGEMENT_ROUTES.cbt)}>
+        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={() => navigate(TEST_MANAGEMENT_ROUTES.cbt)}>
           <ArrowLeft className="h-4 w-4" />
           Back
         </BannerButton>

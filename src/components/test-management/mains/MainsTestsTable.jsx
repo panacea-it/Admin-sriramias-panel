@@ -56,7 +56,13 @@ export default function MainsTestsTable({ faculty, topic, loading }) {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={() => openResults(row)}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          showPlusIcon={false}
+          className="!px-3 !py-1.5"
+          onClick={() => openResults(row)}
+        >
           <Eye className="h-4 w-4" />
           View Results
         </BannerButton>

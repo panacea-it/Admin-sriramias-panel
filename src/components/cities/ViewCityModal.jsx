@@ -2,7 +2,7 @@ import { MapPin } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import CategoryStatusBadge from '../categories/CategoryStatusBadge'
-import { formatCityDateTime } from '../../utils/cityApiHelpers'
+import { formatCityDateTime, getCityDisplayCode } from '../../utils/cityApiHelpers'
 
 function DetailItem({ label, children }) {
   return (
@@ -17,6 +17,7 @@ export default function ViewCityModal({ open, onClose, city, loading = false }) 
   if (!open) return null
 
   const status = city?.status === 'Inactive' ? 'In Active' : city?.status
+  const displayCode = getCityDisplayCode(city)
 
   return (
     <Modal
@@ -29,7 +30,7 @@ export default function ViewCityModal({ open, onClose, city, loading = false }) 
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <ModalPanelHeader
           title={city?.placeName || 'City'}
-          subtitle={city?.code || city?.id || '—'}
+          subtitle={displayCode || city?.centerName || 'City details'}
           onClose={onClose}
           icon={MapPin}
           iconClassName="text-[#246392]"
@@ -49,7 +50,7 @@ export default function ViewCityModal({ open, onClose, city, loading = false }) 
             </div>
           ) : (
             <dl className="grid gap-4 sm:grid-cols-2">
-              <DetailItem label="City Code">{city?.code || '—'}</DetailItem>
+              <DetailItem label="City Code">{displayCode || '—'}</DetailItem>
               <DetailItem label="Place Name">{city?.placeName || '—'}</DetailItem>
               <DetailItem label="Center Name">{city?.centerName || '—'}</DetailItem>
               <DetailItem label="Status">

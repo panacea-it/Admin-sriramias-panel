@@ -64,21 +64,21 @@ export default function EvaluationOversightFilters({
               triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>
-          <FilterField label="Subject">
+          <FilterField label="Faculty Subjects">
             <SearchableSelect
               options={options.subjects}
               value={values.subjectId}
               onChange={(v) => set('subjectId', v)}
-              placeholder="Select subject"
+              placeholder="Select faculty subject"
               triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>
-          <FilterField label="Sub-topic">
+          <FilterField label="Topics">
             <SearchableSelect
               options={options.subTopics}
               value={values.subTopicId}
               onChange={(v) => set('subTopicId', v)}
-              placeholder="All Sub-topics"
+              placeholder="All topics"
               triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>

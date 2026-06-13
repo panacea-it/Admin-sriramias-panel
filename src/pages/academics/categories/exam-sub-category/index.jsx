@@ -2,22 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
-import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
+import ExamSubCategoryFilterBar from '../../../../components/categories/ExamSubCategoryFilterBar'
 import CategoryStatusBadge from '../../../../components/categories/CategoryStatusBadge'
-import CategoryTableActions from '../../../../components/categories/CategoryTableActions'
+import ExamCategoryTableActions from '../../../../components/categories/ExamCategoryTableActions'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamSubCategoryFormModal from '../../../../components/categories/ExamSubCategoryFormModal'
 import ViewExamSubCategoryModal from '../../../../components/categories/ViewExamSubCategoryModal'
 import ConfirmExamSubCategoryStatusModal from '../../../../components/categories/ConfirmExamSubCategoryStatusModal'
 import ExamSubCategoryTableSkeleton from '../../../../components/categories/ExamSubCategoryTableSkeleton'
+import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamSubCategoryManagement } from '../../../../hooks/useExamSubCategoryManagement'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
+import { useTableRowSelection } from '../../../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { toast } from '../../../../utils/toast'
+import { cn } from '../../../../utils/cn'
 import {
   buildExamSubCategoryApiPayload,
   mapApiExamSubCategoryToLocal,
@@ -37,20 +40,21 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'Inactive' },
 ]
 
-function AddButton({ onClick, children }) {
+function CreateButton({ onClick, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
-      <PlusCircle className="h-4 w-4" />
-      {children}
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+      Add Sub Category
     </button>
   )
 }
 
-export default function ExamSubCategorySection({ section, Icon }) {
+export default function ExamSubCategorySection({ section }) {
   const {
     subCategories,
     loading,
@@ -60,10 +64,6 @@ export default function ExamSubCategorySection({ section, Icon }) {
     setStatusFilter,
     centerFilter,
     setCenterFilter,
-    programFilter,
-    setProgramFilter,
-    categoryFilter,
-    setCategoryFilter,
     refreshSubCategories,
     patchSubCategoryLocally,
     removeSubCategoryLocally,
@@ -71,7 +71,11 @@ export default function ExamSubCategorySection({ section, Icon }) {
 
   const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
 
+  const [programFilter, setProgramFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+
   const { isOpen, isEditMode, openEdit, openCreate, close, selectedItem } = useEditModal()
+  const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
   const [viewItem, setViewItem] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [editDetail, setEditDetail] = useState(null)
@@ -81,6 +85,7 @@ export default function ExamSubCategorySection({ section, Icon }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
 
   const centreOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
@@ -88,6 +93,50 @@ export default function ExamSubCategorySection({ section, Icon }) {
   )
 
   const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
+
+  const programFilterOptions = useMemo(() => {
+    const programs = [...new Set(subCategories.map((row) => row.program).filter(Boolean))].sort()
+    return [{ value: 'all', label: 'Program' }, ...programs.map((p) => ({ value: p, label: p }))]
+  }, [subCategories])
+
+  const categoryFilterOptions = useMemo(() => {
+    const scoped =
+      programFilter === 'all'
+        ? subCategories
+        : subCategories.filter((row) => row.program === programFilter)
+    const categories = [...new Set(scoped.map((row) => row.examCategory).filter(Boolean))].sort()
+    return [
+      { value: 'all', label: 'Exam Category' },
+      ...categories.map((c) => ({ value: c, label: c })),
+    ]
+  }, [subCategories, programFilter])
+
+  const displayedSubCategories = useMemo(() => {
+    return subCategories.filter((row) => {
+      if (programFilter !== 'all' && row.program !== programFilter) return false
+      if (categoryFilter !== 'all' && row.examCategory !== categoryFilter) return false
+      return true
+    })
+  }, [subCategories, programFilter, categoryFilter])
+
+  useEffect(() => {
+    setProgramFilter('all')
+    setCategoryFilter('all')
+  }, [centerFilter])
+
+  useEffect(() => {
+    setCategoryFilter('all')
+  }, [programFilter])
+
+  const subCategoriesById = useMemo(
+    () => new Map(subCategories.map((row) => [String(row.id), row])),
+    [subCategories],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => subCategoriesById.get(String(id))?.status === 'Active').length,
+    [selectedIds, subCategoriesById],
+  )
 
   const loadSubCategoryDetail = useCallback(async (row) => {
     const data = await getSubCategoryById(row.id)
@@ -165,11 +214,49 @@ export default function ExamSubCategorySection({ section, Icon }) {
   )
 
   const confirmDelete = useCallback(async () => {
+    if (deleteTarget?.ids?.length) {
+      setDeleteLoading(true)
+      let successCount = 0
+      let failCount = 0
+
+      for (const id of deleteTarget.ids) {
+        try {
+          await deleteSubCategory(id)
+          removeSubCategoryLocally(id)
+          successCount += 1
+        } catch (error) {
+          failCount += 1
+          if (import.meta.env.DEV) {
+            console.error(error)
+          }
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? 'Sub-category deleted' : `${successCount} sub-categories deleted`,
+        )
+      }
+      if (failCount > 0) {
+        toast.error(
+          failCount === 1
+            ? 'Failed to delete 1 sub-category'
+            : `Failed to delete ${failCount} sub-categories`,
+        )
+      }
+
+      setDeleteTarget(null)
+      clearSelection()
+      setDeleteLoading(false)
+      return
+    }
+
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
       await deleteSubCategory(deleteTarget.id)
       removeSubCategoryLocally(deleteTarget.id)
+      clearSelection()
       toast.success('Sub-category deleted')
       setDeleteTarget(null)
     } catch (error) {
@@ -177,7 +264,7 @@ export default function ExamSubCategorySection({ section, Icon }) {
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeSubCategoryLocally])
+  }, [deleteTarget, removeSubCategoryLocally, clearSelection])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -201,13 +288,38 @@ export default function ExamSubCategorySection({ section, Icon }) {
     }
   }, [statusTarget, patchSubCategoryLocally])
 
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => subCategoriesById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkDisableLoading(true)
+    const apiStatus = mapUiStatusToApi('In Active')
+
+    try {
+      await Promise.all(ids.map((id) => updateSubCategoryStatus(id, apiStatus)))
+      ids.forEach((id) => patchSubCategoryLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} sub-categories disabled` : 'Sub-category disabled')
+      clearSelection()
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected sub-categories'))
+      await refreshSubCategories()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }, [selectedIds, subCategoriesById, patchSubCategoryLocally, clearSelection, refreshSubCategories])
+
   const columns = useMemo(
     () => [
       {
         key: 'subcategoryId',
         label: 'ID',
+        headerClassName: 'min-w-[7rem] whitespace-nowrap',
+        cellClassName: 'min-w-[7rem] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="font-mono text-sm font-medium text-[#111]">
+          <span className="font-mono text-sm font-semibold text-[#111]">
             {row.subcategoryId || row.id}
           </span>
         ),
@@ -215,34 +327,53 @@ export default function ExamSubCategorySection({ section, Icon }) {
       {
         key: 'name',
         label: 'Subcategory',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] align-middle',
         render: (row) => <span className="font-semibold text-[#111]">{row.name}</span>,
       },
       {
         key: 'examCategory',
         label: 'Category Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
-          <span className="text-sm font-medium text-[#444]">{row.examCategory || '—'}</span>
+          <span className="block truncate text-sm font-medium text-[#444]" title={row.examCategory}>
+            {row.examCategory || '—'}
+          </span>
         ),
       },
       {
         key: 'program',
         label: 'Program Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
-          <span className="text-sm font-medium text-[#444]">{row.program || '—'}</span>
+          <span className="block truncate text-sm font-medium text-[#444]" title={row.program}>
+            {row.program || '—'}
+          </span>
         ),
       },
       {
         key: 'centerName',
         label: 'Centre Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
-          <span className="text-sm font-medium text-[#1a3a5c]">{row.centerName || '—'}</span>
+          <span
+            className="block truncate text-sm font-medium text-[#1a3a5c]"
+            title={row.centerName}
+          >
+            {row.centerName || '—'}
+          </span>
         ),
       },
       {
         key: 'createdAt',
         label: 'Created On',
+        headerClassName: 'min-w-[9rem] whitespace-nowrap',
+        cellClassName: 'min-w-[9rem] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="whitespace-nowrap text-sm">
+          <span className="text-sm font-medium text-[#686868]">
             {formatCategoryDateTime(row.createdAt)}
           </span>
         ),
@@ -250,21 +381,23 @@ export default function ExamSubCategorySection({ section, Icon }) {
       {
         key: 'status',
         label: 'Status',
+        headerClassName: 'min-w-[6.5rem] whitespace-nowrap',
+        cellClassName: 'min-w-[6.5rem] align-middle',
         render: (row) => <CategoryStatusBadge status={row.status} />,
       },
       {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: 'min-w-[11rem] text-right',
-        cellClassName: 'min-w-[11rem] text-right',
+        headerClassName: 'min-w-[220px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[220px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => (
-          <CategoryTableActions
-            status={row.status}
+          <ExamCategoryTableActions
+            row={row}
             onView={() => handleView(row)}
             onEdit={() => handleEditOpen(row)}
             onDelete={() => setDeleteTarget(row)}
-            onToggleStatus={() => setStatusTarget(row)}
+            onStatusToggle={() => setStatusTarget(row)}
           />
         ),
       },
@@ -273,14 +406,14 @@ export default function ExamSubCategorySection({ section, Icon }) {
   )
 
   const hasActiveFilters =
-    search.trim() ||
+    Boolean(search.trim()) ||
     statusFilter !== 'all' ||
     centerFilter !== 'all' ||
     programFilter !== 'all' ||
     categoryFilter !== 'all'
 
   const showEmpty = !loading && subCategories.length === 0 && !hasActiveFilters
-  const showNoResults = !loading && subCategories.length === 0 && !showEmpty
+  const showNoResults = !loading && displayedSubCategories.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
@@ -289,6 +422,11 @@ export default function ExamSubCategorySection({ section, Icon }) {
     setProgramFilter('all')
     setCategoryFilter('all')
   }
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected exam sub-categories? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this sub-category'}"? This action cannot be undone.`
 
   return (
     <AnimatePresence mode="wait">
@@ -300,24 +438,40 @@ export default function ExamSubCategorySection({ section, Icon }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={Icon} hideTitle>
-          <AddButton onClick={openCreate}>{section.addLabel}</AddButton>
+        <CategoryPageHeader title="Exam Sub Categories">
+          <CreateButton onClick={openCreate} />
         </CategoryPageHeader>
 
-        <CategoryFilterBar
+        <ExamSubCategoryFilterBar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
           searchPlaceholder={section.searchPlaceholder}
-          status={statusFilter}
-          onStatusChange={(e) => setStatusFilter(e.target.value)}
-          statusOptions={STATUS_FILTER_OPTIONS}
+          program={programFilter}
+          onProgramChange={(e) => setProgramFilter(e.target.value)}
+          programOptions={programFilterOptions}
+          category={categoryFilter}
+          onCategoryChange={(e) => setCategoryFilter(e.target.value)}
+          categoryOptions={categoryFilterOptions}
           centerFilter={centerFilter}
           onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
           centerOptions={centreOptions}
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={STATUS_FILTER_OPTIONS}
+        />
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={clearSelection}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
         />
 
         {loading ? (
-          <ExamSubCategoryTableSkeleton />
+          <div className="overflow-hidden rounded-2xl bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80 sm:p-5">
+            <ExamSubCategoryTableSkeleton />
+          </div>
         ) : showEmpty ? (
           <CategoryEmptyState
             title={section.emptyTitle}
@@ -336,11 +490,22 @@ export default function ExamSubCategorySection({ section, Icon }) {
           <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
             <PaginatedFigmaTable
               columns={columns}
-              data={subCategories}
-              itemLabel={section.bannerTitle.toLowerCase()}
+              data={displayedSubCategories}
+              itemLabel="exam sub-categories"
               resetDeps={[search, statusFilter, centerFilter, programFilter, categoryFilter]}
-              rowClassName="transition-colors hover:bg-[#f8fbff]"
-              tableClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
+              selection={selection}
+              density="comfortable"
+              loading={bulkDisableLoading}
+              rowClassName="hover:bg-[#eef6fc]/70"
+              tableClassName="rounded-none border-0 shadow-none"
+              tableMinWidth={960}
+              paginationClassName={cn(
+                '[&>div:last-child]:items-center',
+                '[&_nav]:items-center',
+                '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
+                '[&_form_input]:h-9 [&_form_input]:leading-none',
+                '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
+              )}
             />
           </div>
         )}
@@ -378,8 +543,12 @@ export default function ExamSubCategorySection({ section, Icon }) {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete exam sub-category?"
-          message={`Are you sure you want to delete "${deleteTarget?.name || 'this sub-category'}"? This action cannot be undone.`}
+          title={
+            deleteTarget?.ids?.length > 1
+              ? 'Delete selected sub-categories?'
+              : 'Delete exam sub-category?'
+          }
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}

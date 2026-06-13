@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
+import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ConfirmSubjectStatusModal from './ConfirmSubjectStatusModal'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
@@ -33,20 +34,21 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'Inactive' },
 ]
 
-function AddButton({ onClick, children }) {
+function AddButton({ onClick, children, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
-      <PlusCircle className="h-4 w-4" />
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
       {children}
     </button>
   )
 }
 
-export default function SubjectSection({ section, Icon }) {
+export default function SubjectSection({ section }) {
   const {
     subjects,
     loading,
@@ -70,6 +72,18 @@ export default function SubjectSection({ section, Icon }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+
+  const subjectsById = useMemo(
+    () => new Map(subjects.map((row) => [String(row.id), row])),
+    [subjects],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => subjectsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, subjectsById],
+  )
 
   const loadSubjectDetail = useCallback(async (row) => {
     const data = await getSubjectById(row.id)
@@ -143,20 +157,29 @@ export default function SubjectSection({ section, Icon }) {
     [refreshSubjects],
   )
 
+  const handleDelete = useCallback((row) => {
+    setDeleteTarget({ ids: [row.id], name: row.name })
+  }, [])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
+    const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
+    if (!ids.length) return
+
     setDeleteLoading(true)
     try {
-      await deleteSubject(deleteTarget.id)
-      removeSubjectLocally(deleteTarget.id)
-      toast.success('Subject deleted')
+      await Promise.all(ids.map((id) => deleteSubject(id)))
+      ids.forEach((id) => removeSubjectLocally(id))
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
+      toast.success(ids.length > 1 ? `${ids.length} subjects deleted` : 'Subject deleted')
+      await refreshSubjects()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete subject'))
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeSubjectLocally])
+  }, [deleteTarget, removeSubjectLocally, refreshSubjects])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -180,6 +203,39 @@ export default function SubjectSection({ section, Icon }) {
     }
   }, [statusTarget, patchSubjectLocally])
 
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => subjectsById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    const apiStatus = mapUiStatusToApi('In Active')
+    setBulkDisableLoading(true)
+
+    try {
+      await Promise.all(ids.map((id) => updateSubjectStatus(id, apiStatus)))
+      ids.forEach((id) => patchSubjectLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} subjects disabled` : 'Subject disabled')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected subjects'))
+      await refreshSubjects()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }, [selectedIds, subjectsById, patchSubjectLocally, refreshSubjects])
+
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
+
+  const toggleSelectPage = useCallback((pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (!select) return prev.filter((id) => !pageIds.includes(id))
+      const merged = new Set([...prev, ...pageIds])
+      return [...merged]
+    })
+  }, [])
+
   const showEmpty =
     !loading && subjects.length === 0 && !search && statusFilter === 'all'
   const showNoResults = !loading && subjects.length === 0 && !showEmpty
@@ -188,6 +244,11 @@ export default function SubjectSection({ section, Icon }) {
     setSearch('')
     setStatusFilter('all')
   }
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected subjects? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this subject'}"? This action cannot be undone.`
 
   if (!section) return null
 
@@ -201,8 +262,10 @@ export default function SubjectSection({ section, Icon }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={Icon} hideTitle>
-          <AddButton onClick={openCreate}>{section.addLabel}</AddButton>
+        <CategoryPageHeader title="Subject">
+          <AddButton onClick={openCreate} disabled={loading}>
+            {section.addLabel}
+          </AddButton>
         </CategoryPageHeader>
 
         <CategoryFilterBar
@@ -212,6 +275,14 @@ export default function SubjectSection({ section, Icon }) {
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           statusOptions={STATUS_FILTER_OPTIONS}
+        />
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
         />
 
         {loading ? (
@@ -231,18 +302,21 @@ export default function SubjectSection({ section, Icon }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <SubjectTable
-              subjects={subjects}
-              loading={loading}
-              controlledPagination={controlledPagination}
-              onView={handleView}
-              onEdit={handleEditOpen}
-              onDelete={setDeleteTarget}
-              onToggleStatus={setStatusTarget}
-              resetDeps={[search, statusFilter]}
-            />
-          </div>
+          <SubjectTable
+            subjects={subjects}
+            loading={loading || bulkDisableLoading}
+            controlledPagination={controlledPagination}
+            onView={handleView}
+            onEdit={handleEditOpen}
+            onDelete={handleDelete}
+            onToggleStatus={setStatusTarget}
+            resetDeps={[search, statusFilter]}
+            selection={{
+              selectedIds,
+              onToggle: toggleSelect,
+              onTogglePage: toggleSelectPage,
+            }}
+          />
         )}
 
         <AddEditSubjectModal
@@ -275,8 +349,8 @@ export default function SubjectSection({ section, Icon }) {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete subject?"
-          message={`Are you sure you want to delete "${deleteTarget?.name || 'this subject'}"? This action cannot be undone.`}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected subjects?' : 'Delete subject?'}
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}

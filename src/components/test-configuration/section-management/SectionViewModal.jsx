@@ -15,9 +15,15 @@ export default function SectionViewModal({ open, onClose, row }) {
   if (!row) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title="View Section">
+    <Modal open={open} onClose={onClose} size="lg" title="View Section" showCloseButton={false}>
       <div className="flex max-h-[min(88vh,560px)] flex-col overflow-hidden rounded-2xl bg-[#eef2f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
-        <ModalPanelHeader title="View Section" onBack={onClose} icon={Layers} />
+        <ModalPanelHeader
+          title="View Section"
+          onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
+          icon={Layers}
+        />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <dl className="grid gap-4 sm:grid-cols-2">

@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { PlusCircle, ScanLine } from 'lucide-react'
 import TestManagementPageShell from '../../../components/test-management/TestManagementPageShell'
 import CategoryFilterBar from '../../../components/categories/CategoryFilterBar'
@@ -9,20 +8,16 @@ import OmrTableSkeleton from '../../../components/test-management/omr/OmrTableSk
 import OmrErrorState from '../../../components/test-management/omr/OmrErrorState'
 import OmrStatusBadge from '../../../components/test-management/omr/OmrStatusBadge'
 import OmrTableActions from '../../../components/test-management/omr/OmrTableActions'
-import OmrSortableHeader, { OmrYesNoBadge } from '../../../components/test-management/omr/OmrSortableHeader'
+import { OmrYesNoBadge } from '../../../components/test-management/omr/OmrSortableHeader'
 import ConfirmOmrDeleteModal from '../../../components/test-management/omr/ConfirmOmrDeleteModal'
-import ConfirmOmrResultDeleteModal from '../../../components/test-management/omr/ConfirmOmrResultDeleteModal'
-import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
+import OmrExamFormModal from '../../../components/test-management/omr/OmrExamFormModal'
+import OmrUploadResultModal from '../../../components/test-management/omr/OmrUploadResultModal'
 import { useOmrManagement } from '../../../hooks/useOmrManagement'
 import { useOmrPermissions } from '../../../hooks/useOmrPermissions'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
-import {
-  deleteOmrExam,
-  deleteOmrResultSheet,
-  downloadOmrResultSheet,
-} from '../../../services/omrService'
+import { deleteOmrExam, downloadOmrResultSheet } from '../../../services/omrService'
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
@@ -38,14 +33,12 @@ function formatExamDate(value) {
 }
 
 export default function OmrManagementPage() {
-  const navigate = useNavigate()
   const {
     canCreate,
     canEdit,
     canDelete,
     canUploadResult,
     canDownloadResult,
-    canDeleteResult,
   } = useOmrPermissions()
 
   const {
@@ -58,17 +51,18 @@ export default function OmrManagementPage() {
     setStatusFilter,
     sortKey,
     sortDirection,
-    toggleSort,
     refreshExams,
     retryLoad,
     removeExamLocally,
     patchExamLocally,
   } = useOmrManagement()
 
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editExamId, setEditExamId] = useState(null)
+  const [uploadTarget, setUploadTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
-  const [deleteResultTarget, setDeleteResultTarget] = useState(null)
-  const [deleteResultLoading, setDeleteResultLoading] = useState(false)
+  const [downloadingExamId, setDownloadingExamId] = useState(null)
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -85,59 +79,39 @@ export default function OmrManagementPage() {
     }
   }, [deleteTarget, removeExamLocally])
 
-  const confirmDeleteResult = useCallback(async () => {
-    if (!deleteResultTarget) return
-    setDeleteResultLoading(true)
-    try {
-      await deleteOmrResultSheet(deleteResultTarget.id)
-      patchExamLocally(deleteResultTarget.id, {
-        resultSheetUploaded: false,
-        resultSheet: null,
-      })
-      toast.success('Result sheet deleted')
-      setDeleteResultTarget(null)
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to delete result sheet'))
-    } finally {
-      setDeleteResultLoading(false)
-    }
-  }, [deleteResultTarget, patchExamLocally])
-
   const handleDownload = useCallback(async (row) => {
+    setDownloadingExamId(row.id)
     try {
       await downloadOmrResultSheet(row.id)
       toast.success('Download started')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to download result sheet'))
+    } finally {
+      setDownloadingExamId(null)
     }
   }, [])
+
+  const handleExamSaved = useCallback(
+    (savedExam) => {
+      if (editExamId) {
+        patchExamLocally(savedExam.id, savedExam)
+      } else {
+        refreshExams()
+      }
+    },
+    [editExamId, patchExamLocally, refreshExams],
+  )
 
   const columns = useMemo(
     () => [
       {
         key: 'examName',
-        label: (
-          <OmrSortableHeader
-            label="Exam Name"
-            sortKey="examName"
-            activeKey={sortKey}
-            direction={sortDirection}
-            onSort={toggleSort}
-          />
-        ),
+        label: 'Exam Name',
         render: (row) => <span className="font-semibold text-[#111]">{row.examName}</span>,
       },
       {
         key: 'examDate',
-        label: (
-          <OmrSortableHeader
-            label="Exam Date"
-            sortKey="examDate"
-            activeKey={sortKey}
-            direction={sortDirection}
-            onSort={toggleSort}
-          />
-        ),
+        label: 'Exam Date',
         render: (row) => (
           <span className="whitespace-nowrap text-sm">{formatExamDate(row.examDate)}</span>
         ),
@@ -154,15 +128,7 @@ export default function OmrManagementPage() {
       },
       {
         key: 'uploadDate',
-        label: (
-          <OmrSortableHeader
-            label="Upload Date"
-            sortKey="uploadDate"
-            activeKey={sortKey}
-            direction={sortDirection}
-            onSort={toggleSort}
-          />
-        ),
+        label: 'Upload Date',
         render: (row) => (
           <span className="whitespace-nowrap text-sm">
             {row.resultSheet?.uploadedAt
@@ -173,15 +139,7 @@ export default function OmrManagementPage() {
       },
       {
         key: 'createdAt',
-        label: (
-          <OmrSortableHeader
-            label="Created Date"
-            sortKey="createdAt"
-            activeKey={sortKey}
-            direction={sortDirection}
-            onSort={toggleSort}
-          />
-        ),
+        label: 'Created Date',
         render: (row) => (
           <span className="whitespace-nowrap text-sm">
             {formatCategoryDateTime(row.createdAt)}
@@ -192,8 +150,8 @@ export default function OmrManagementPage() {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: 'min-w-[14rem] text-right',
-        cellClassName: 'min-w-[14rem] text-right',
+        headerClassName: 'min-w-[12rem] text-right',
+        cellClassName: 'min-w-[12rem] text-right',
         render: (row) => (
           <OmrTableActions
             hasResultSheet={row.resultSheetUploaded}
@@ -201,26 +159,21 @@ export default function OmrManagementPage() {
             canDelete={canDelete}
             canUploadResult={canUploadResult}
             canDownloadResult={canDownloadResult}
-            canDeleteResult={canDeleteResult}
-            onEdit={() => navigate(TEST_MANAGEMENT_ROUTES.omrEdit(row.id))}
+            downloading={downloadingExamId === row.id}
+            onEdit={() => setEditExamId(row.id)}
             onDelete={() => setDeleteTarget(row)}
-            onUpload={() => navigate(TEST_MANAGEMENT_ROUTES.omrUploadResults(row.id))}
+            onUpload={() => setUploadTarget(row)}
             onDownload={() => handleDownload(row)}
-            onDeleteResult={() => setDeleteResultTarget(row)}
           />
         ),
       },
     ],
     [
-      sortKey,
-      sortDirection,
-      toggleSort,
       canEdit,
       canDelete,
       canUploadResult,
       canDownloadResult,
-      canDeleteResult,
-      navigate,
+      downloadingExamId,
       handleDownload,
     ],
   )
@@ -242,7 +195,7 @@ export default function OmrManagementPage() {
         canCreate ? (
           <button
             type="button"
-            onClick={() => navigate(TEST_MANAGEMENT_ROUTES.omrCreate)}
+            onClick={() => setCreateModalOpen(true)}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
           >
             <PlusCircle className="h-4 w-4" />
@@ -270,7 +223,7 @@ export default function OmrManagementPage() {
             title="No OMR exams yet"
             description="Create offline OMR exam records and upload result sheets for storage."
             ctaLabel="Create OMR Exam"
-            onCta={() => canCreate && navigate(TEST_MANAGEMENT_ROUTES.omrCreate)}
+            onCta={() => canCreate && setCreateModalOpen(true)}
             icon={ScanLine}
           />
         ) : showNoResults ? (
@@ -297,21 +250,35 @@ export default function OmrManagementPage() {
         )}
       </div>
 
+      <OmrExamFormModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={handleExamSaved}
+      />
+
+      <OmrExamFormModal
+        open={Boolean(editExamId)}
+        examId={editExamId}
+        onClose={() => setEditExamId(null)}
+        onSuccess={handleExamSaved}
+      />
+
+      <OmrUploadResultModal
+        open={Boolean(uploadTarget)}
+        examId={uploadTarget?.id}
+        examName={uploadTarget?.examName}
+        onClose={() => setUploadTarget(null)}
+        onSuccess={(updatedExam) => {
+          patchExamLocally(updatedExam.id, updatedExam)
+        }}
+      />
+
       <ConfirmOmrDeleteModal
         open={Boolean(deleteTarget)}
         examName={deleteTarget?.examName}
         loading={deleteLoading}
         onCancel={() => !deleteLoading && setDeleteTarget(null)}
         onConfirm={confirmDelete}
-      />
-
-      <ConfirmOmrResultDeleteModal
-        open={Boolean(deleteResultTarget)}
-        examName={deleteResultTarget?.examName}
-        fileName={deleteResultTarget?.resultSheet?.fileName}
-        loading={deleteResultLoading}
-        onCancel={() => !deleteResultLoading && setDeleteResultTarget(null)}
-        onConfirm={confirmDeleteResult}
       />
     </TestManagementPageShell>
   )

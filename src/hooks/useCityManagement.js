@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { clearCitiesListCache, getCities } from '../services/cityService'
+import { clearCitiesListCache, getCities, getCityById } from '../services/cityService'
 import {
+  enrichCitiesWithMissingCodes,
   mapCityStatusFilterToApi,
   normalizeCitiesListResponse,
 } from '../utils/cityApiHelpers'
@@ -50,7 +51,12 @@ export function useCityManagement() {
         const data = await getCities(params, { bypassCache })
         if (ignoreFlag?.()) return
         const normalized = normalizeCitiesListResponse(data, { page, limit: pageSize })
-        setCities(normalized.items)
+        const enriched = await enrichCitiesWithMissingCodes(normalized.items, getCityById, {
+          page,
+          limit: pageSize,
+        })
+        if (ignoreFlag?.()) return
+        setCities(enriched)
         setTotalItems(normalized.total)
         setTotalPages(normalized.totalPages)
       } catch (error) {

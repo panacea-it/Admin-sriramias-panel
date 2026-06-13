@@ -13,7 +13,9 @@ export default function EvaluationSidebar({
   paper,
   rubric,
   locked,
+  readOnly = false,
   saving,
+  publishing = false,
   onRubricScore,
   onRubricFeedback,
   onSaveDraft,
@@ -21,6 +23,7 @@ export default function EvaluationSidebar({
 }) {
   const total = computeTotal(rubric)
   const max = computeMax(rubric) || paper?.scoreMax || 20
+  const editingDisabled = locked || readOnly
 
   return (
     <aside className="flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)]">
@@ -57,7 +60,7 @@ export default function EvaluationSidebar({
               remarksLabel={r.remarksLabel || 'Remarks'}
               placeholder={r.placeholder}
               feedback={r.feedback}
-              disabled={locked}
+              disabled={editingDisabled}
               onScoreChange={(v) => onRubricScore(idx, v)}
               onFeedbackChange={(v) => onRubricFeedback(idx, v)}
             />
@@ -74,19 +77,19 @@ export default function EvaluationSidebar({
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              disabled={locked || saving}
+              disabled={editingDisabled || saving || publishing}
               onClick={onSaveDraft}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-[#1a3a5c] hover:bg-slate-50 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-[#1a3a5c] shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Save Draft
+              {saving ? 'Saving…' : 'Save Draft'}
             </button>
             <button
               type="button"
-              disabled={locked || saving}
+              disabled={editingDisabled || saving || publishing}
               onClick={onPublish}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-[#55ace7] text-sm font-semibold text-white shadow-sm hover:bg-[#4699d4] disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-lg bg-[#55ace7] text-sm font-semibold text-white shadow-sm hover:bg-[#4699d4] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Publish Result
+              {publishing ? 'Publishing…' : 'Publish Results'}
             </button>
           </div>
         </div>

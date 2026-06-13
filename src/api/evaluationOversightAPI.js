@@ -425,6 +425,29 @@ export async function savePaperAnnotations(paperId, annotations = []) {
 }
 
 export async function exportEvaluationCsv(params = {}) {
+  if (!isFrontendOnly) {
+    try {
+      const { default: api } = await import('./axiosInstance')
+      const res = await api.get('/evaluation-oversight/export', {
+        params,
+        responseType: 'blob',
+        skipAuthRedirect: true,
+      })
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `evaluation-oversight-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      const rows = await fetchEvaluationTableData(params)
+      return { count: rows.length }
+    } catch (err) {
+      if (err?.response?.data?.message) throw new Error(err.response.data.message)
+      if (err?.message && !err?.response) throw err
+    }
+  }
+
   const rows = await fetchEvaluationTableData(params)
   const headers = [
     'Student Name',
@@ -474,6 +497,52 @@ export async function exportEvaluationCsv(params = {}) {
   a.click()
   URL.revokeObjectURL(url)
   return { count: rows.length }
+}
+
+export async function downloadEvaluationPaper(paper) {
+  await delay(120)
+  const sheet = paper?.answerSheet
+  const safeName = String(paper?.rollNumber || paper?.studentName || 'answer-sheet')
+    .replace(/[^a-zA-Z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  if (sheet?.dataUrl) {
+    const a = document.createElement('a')
+    a.href = sheet.dataUrl
+    a.download = sheet.fileName || `${safeName}.pdf`
+    a.click()
+    return
+  }
+
+  if (sheet?.url) {
+    const a = document.createElement('a')
+    a.href = sheet.url
+    a.download = sheet.fileName || `${safeName}.pdf`
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.click()
+    return
+  }
+
+  const content = [
+    'Answer Sheet',
+    '============',
+    `Student: ${paper?.studentName || '—'}`,
+    `Roll Number: ${paper?.rollNumber || '—'}`,
+    `Test: ${paper?.testName || '—'}`,
+    `Subject: ${paper?.subjectName || '—'}`,
+    `Status: ${paper?.status || '—'}`,
+    '',
+    '[Demo placeholder — attach scanned PDF in production]',
+  ].join('\n')
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${safeName}-answer-sheet.txt`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export function getTestMeta(testId) {

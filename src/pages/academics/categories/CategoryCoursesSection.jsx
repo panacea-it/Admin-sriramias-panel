@@ -1,15 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { BookOpen, Loader2, PlusCircle } from 'lucide-react'
+import { Loader2, PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
 import ProgramsFilterBar from '../../../components/categories/ProgramsFilterBar'
+import ProgramsTable from '../../../components/categories/ProgramsTable'
+import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import { useCenters } from '../../../contexts/CentersContext'
 import CategoryStatusBadge from '../../../components/categories/CategoryStatusBadge'
-import CategoryTableActions from '../../../components/categories/CategoryTableActions'
+import CourseTableActions from '../../../components/categories/CourseTableActions'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import CourseFormModal from '../../../components/categories/CourseFormModal'
 import ViewCourseManagementModal from '../../../components/categories/ViewCourseManagementModal'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
 import {
   loadAcademicCourses,
   saveAcademicCourses,
@@ -35,9 +36,20 @@ function AddCourseButton({ onClick, disabled }) {
       disabled={disabled}
       className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
-      <PlusCircle className="h-4 w-4" strokeWidth={2.2} />
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
       Add Course
     </button>
+  )
+}
+
+function NoMatchesState() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#55ace7]/25 bg-white/80 px-6 py-16 text-center shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:py-20">
+      <h3 className="text-lg font-bold text-[#222] sm:text-xl">No matching courses</h3>
+      <p className="mt-2 max-w-sm text-sm font-medium text-[#686868]">
+        Try adjusting your search or filters.
+      </p>
+    </div>
   )
 }
 
@@ -98,6 +110,16 @@ export default function CategoryCoursesSection() {
       return matchSearch && matchStatus && matchCentre && matchProgram
     })
   }, [courses, filters])
+
+  const coursesById = useMemo(
+    () => new Map(filtered.map((row) => [row.id, row])),
+    [filtered],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => coursesById.get(id)?.status === 'Active').length,
+    [selectedIds, coursesById],
+  )
 
   const handleSave = useCallback(
     async (form, { isEdit, id }) => {
@@ -162,63 +184,77 @@ export default function CategoryCoursesSection() {
 
   const confirmDelete = useCallback(() => {
     if (!deleteTarget) return
-    removeCourseLocally(deleteTarget.id)
+
+    const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
+    if (!ids.length) return
+
+    ids.forEach((id) => removeCourseLocally(id))
     const stored = loadAcademicCourses()
-    const next = stored.filter((c) => c.id !== deleteTarget.id)
+    const next = stored.filter((c) => !ids.includes(c.id))
     saveAcademicCourses(next)
-    setSelectedIds((prev) => prev.filter((sid) => sid !== deleteTarget.id))
+    setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)))
     setDeleteTarget(null)
-    toast.success('Course deleted')
+    toast.success(ids.length > 1 ? `${ids.length} courses deleted` : 'Course deleted')
   }, [deleteTarget, removeCourseLocally])
 
-  const handleToggleStatus = (row) => {
-    const nextStatus = row.status === 'Active' ? 'In Active' : 'Active'
+  const handleToggleStatus = useCallback(
+    (row) => {
+      const nextStatus = row.status === 'Active' ? 'In Active' : 'Active'
+      const now = new Date().toISOString()
+      patchCourseLocally(row.id, { status: nextStatus, modifiedAt: now })
+      const stored = loadAcademicCourses()
+      const next = stored.map((c) =>
+        c.id === row.id ? { ...c, status: nextStatus, modifiedAt: now } : c,
+      )
+      saveAcademicCourses(next)
+      toast.success(nextStatus === 'Active' ? 'Course enabled' : 'Course disabled')
+    },
+    [patchCourseLocally],
+  )
+
+  const handleBulkDisable = useCallback(() => {
+    const ids = selectedIds.filter((id) => coursesById.get(id)?.status === 'Active')
+    if (!ids.length) return
+
     const now = new Date().toISOString()
-    patchCourseLocally(row.id, { status: nextStatus, modifiedAt: now })
+    ids.forEach((id) => {
+      patchCourseLocally(id, { status: 'In Active', modifiedAt: now })
+    })
     const stored = loadAcademicCourses()
     const next = stored.map((c) =>
-      c.id === row.id ? { ...c, status: nextStatus, modifiedAt: now } : c,
+      ids.includes(c.id) ? { ...c, status: 'In Active', modifiedAt: now } : c,
     )
     saveAcademicCourses(next)
-    toast.success(nextStatus === 'Active' ? 'Course enabled' : 'Course disabled')
-  }
+    toast.success(ids.length > 1 ? `${ids.length} courses disabled` : 'Course disabled')
+  }, [selectedIds, coursesById, patchCourseLocally])
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === filtered.length) {
-      setSelectedIds([])
-    } else {
-      setSelectedIds(filtered.map((r) => r.id))
-    }
-  }
+  const handleDelete = useCallback((row) => {
+    setDeleteTarget({ ids: [row.id], name: row.name })
+  }, [])
+
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
+
+  const toggleSelectPage = useCallback((pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (!select) return prev.filter((id) => !pageIds.includes(id))
+      const merged = new Set([...prev, ...pageIds])
+      return [...merged]
+    })
+  }, [])
 
   const columns = useMemo(
     () => [
       {
-        key: 'select',
-        label: '',
-        headerClassName: 'w-12 pl-6 sm:pl-8',
-        cellClassName: 'pl-6 sm:pl-8',
-        render: (row) => (
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(row.id)}
-            onChange={() => {
-              setSelectedIds((prev) =>
-                prev.includes(row.id)
-                  ? prev.filter((x) => x !== row.id)
-                  : [...prev, row.id],
-              )
-            }}
-            className="h-4 w-4 rounded accent-[#246392]"
-            aria-label={`Select ${row.name}`}
-          />
-        ),
-      },
-      {
         key: 'courseId',
         label: 'Course ID',
+        headerClassName: 'min-w-[7rem]',
+        cellClassName: 'whitespace-nowrap',
         render: (row) => (
-          <span className="font-mono text-sm font-medium text-[#111]">{row.courseId}</span>
+          <span className="font-mono text-sm font-semibold text-[#111]">{row.courseId}</span>
         ),
       },
       {
@@ -229,15 +265,17 @@ export default function CategoryCoursesSection() {
       {
         key: 'centerName',
         label: 'Centre',
+        cellClassName: 'max-w-[180px]',
         render: (row) => (
-          <span className="text-sm text-[#444]">{row.centerName || '—'}</span>
+          <span className="text-sm font-medium text-[#444]">{row.centerName || '—'}</span>
         ),
       },
       {
         key: 'program',
         label: 'Program',
+        cellClassName: 'max-w-[180px]',
         render: (row) => (
-          <span className="text-sm text-[#444]" title={row.program}>
+          <span className="text-sm font-medium text-[#444]" title={row.program}>
             {row.program || '—'}
           </span>
         ),
@@ -245,7 +283,9 @@ export default function CategoryCoursesSection() {
       {
         key: 'examCategory',
         label: 'Exam Category',
-        render: (row) => <span className="text-sm text-[#444]">{row.examCategory || '—'}</span>,
+        render: (row) => (
+          <span className="text-sm text-[#444]">{row.examCategory || '—'}</span>
+        ),
       },
       {
         key: 'examSubCategory',
@@ -258,7 +298,7 @@ export default function CategoryCoursesSection() {
         key: 'createdAt',
         label: 'Created On',
         render: (row) => (
-          <span className="whitespace-nowrap text-sm">
+          <span className="whitespace-nowrap text-sm text-[#444]">
             {formatCategoryDateTime(row.createdAt)}
           </span>
         ),
@@ -266,30 +306,38 @@ export default function CategoryCoursesSection() {
       {
         key: 'status',
         label: 'Status',
+        align: 'center',
+        headerClassName: 'min-w-[6rem]',
         render: (row) => <CategoryStatusBadge status={row.status} />,
       },
       {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: 'min-w-[11rem] text-right',
-        cellClassName: 'min-w-[11rem] text-right',
+        headerClassName: 'min-w-[200px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[200px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => (
-          <CategoryTableActions
+          <CourseTableActions
+            row={row}
             status={row.status}
             onView={() => setViewItem(row)}
             onEdit={() => modal.openEdit(row)}
-            onDelete={() => setDeleteTarget(row)}
+            onDelete={() => handleDelete(row)}
             onToggleStatus={() => handleToggleStatus(row)}
           />
         ),
       },
     ],
-    [selectedIds, modal],
+    [handleDelete, handleToggleStatus, modal],
   )
 
   const showEmpty = !loading && courses.length === 0
   const showNoResults = !loading && !showEmpty && filtered.length === 0
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected courses? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this course'}"? This action cannot be undone.`
 
   return (
     <motion.div
@@ -297,7 +345,7 @@ export default function CategoryCoursesSection() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-5 sm:space-y-6"
     >
-      <CategoryPageHeader icon={BookOpen} hideTitle>
+      <CategoryPageHeader title="Courses">
         <AddCourseButton onClick={modal.openCreate} disabled={loading} />
       </CategoryPageHeader>
 
@@ -317,54 +365,49 @@ export default function CategoryCoursesSection() {
         onStatusChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
       />
 
-      {loading ? (
-        <div className="flex min-h-[240px] items-center justify-center gap-2 rounded-2xl bg-white text-sm font-medium text-[#686868] shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
-          <Loader2 className="h-5 w-5 animate-spin text-[#246392]" />
+      <ProgramsBulkActionsBar
+        count={selectedIds.length}
+        disableCount={disableableCount}
+        onClearSelection={() => setSelectedIds([])}
+        onDisable={handleBulkDisable}
+        onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+      />
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-xl border border-slate-100/80 bg-white/70 px-4 py-2.5 text-sm text-[#686868]">
+          <Loader2 className="h-4 w-4 animate-spin text-[#246392]" />
           Loading courses…
         </div>
-      ) : (
-        <>
-          {filtered.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-[#686868]">
-              <input
-                type="checkbox"
-                checked={selectedIds.length === filtered.length && filtered.length > 0}
-                onChange={toggleSelectAll}
-                className="h-4 w-4 rounded accent-[#246392]"
-              />
-              <span>Select all on this page</span>
-            </div>
-          )}
+      )}
 
-          {showEmpty ? (
-            <CategoryEmptyState
-              title={section.emptyTitle}
-              description={section.emptyDescription}
-              ctaLabel="Add Course"
-              onCta={modal.openCreate}
-            />
-          ) : showNoResults ? (
-            <CategoryEmptyState
-              title="No matching courses"
-              description="Try adjusting search or filters."
-              ctaLabel="Clear filters"
-              onCta={() =>
-                setFilters({ search: '', status: 'all', centre: 'all', program: 'all' })
-              }
-            />
-          ) : (
-            <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-              <PaginatedFigmaTable
-                columns={columns}
-                data={filtered}
-                itemLabel="courses"
-                resetDeps={[filters]}
-                rowClassName="transition-colors hover:bg-[#f8fbff]"
-                tableClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
-              />
-            </div>
-          )}
-        </>
+      {loading ? (
+        <div className="space-y-3 rounded-2xl bg-[#f0f2f5]/60 p-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-white/90" />
+          ))}
+        </div>
+      ) : showEmpty ? (
+        <CategoryEmptyState
+          title={section.emptyTitle}
+          description={section.emptyDescription}
+          ctaLabel="Add Course"
+          onCta={modal.openCreate}
+        />
+      ) : showNoResults ? (
+        <NoMatchesState />
+      ) : (
+        <ProgramsTable
+          columns={columns}
+          data={filtered}
+          loading={loading}
+          resetDeps={[filters]}
+          emptyMessage="No courses match your filters."
+          selection={{
+            selectedIds,
+            onToggle: toggleSelect,
+            onTogglePage: toggleSelectPage,
+          }}
+        />
       )}
 
       <CourseFormModal
@@ -383,8 +426,8 @@ export default function CategoryCoursesSection() {
 
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
-        title="Delete item?"
-        message="Are you sure you want to delete this item?"
+        title={deleteTarget?.ids?.length > 1 ? 'Delete selected courses?' : 'Delete course?'}
+        message={deleteMessage}
         confirmLabel="Confirm Delete"
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}

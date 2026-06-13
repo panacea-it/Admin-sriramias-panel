@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DoorOpen, PlusCircle } from 'lucide-react'
+import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
-import CategoryFilterBar from '../../../components/categories/CategoryFilterBar'
+import ClassRoomsFilterBar from '../../../components/classrooms/ClassRoomsFilterBar'
+import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
 import ClassroomFormModal from '../../../components/classrooms/ClassroomFormModal'
@@ -11,6 +12,7 @@ import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialo
 import { buildClassroomTableColumns } from '../../../components/classrooms/ClassroomTable'
 import { useClassroomManagement } from '../../../hooks/useClassroomManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
+import { useTableRowSelection } from '../../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
 import {
@@ -32,6 +34,27 @@ const STATUS_OPTIONS = [
   { value: 'Inactive', label: 'Inactive' },
 ]
 
+function CreateButton({ onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+    >
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+      Add Class Room
+    </button>
+  )
+}
+
+function resolveCityFilterKey(row) {
+  const placeName = String(row.placeName || '').trim()
+  if (placeName) return placeName
+  const cityId = String(row.cityPlaceId || '').trim()
+  return cityId || ''
+}
+
 export default function ClassRoomsPage() {
   const {
     classrooms,
@@ -47,7 +70,9 @@ export default function ClassRoomsPage() {
   } = useClassroomManagement()
 
   const { options: centreDropdownOptions } = useCentersDropdownOptions()
+  const { selectedIds, selection, clearSelection } = useTableRowSelection()
 
+  const [cityFilter, setCityFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editRow, setEditRow] = useState(null)
   const [editDetail, setEditDetail] = useState(null)
@@ -60,15 +85,67 @@ export default function ClassRoomsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
 
   const centerOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
     [centreDropdownOptions],
   )
 
+  const cityOptions = useMemo(() => {
+    const seen = new Map()
+    classrooms.forEach((row) => {
+      const key = resolveCityFilterKey(row)
+      if (!key || seen.has(key)) return
+      seen.set(key, row.placeName?.trim() || key)
+    })
+    return [
+      { value: 'all', label: 'City' },
+      ...[...seen.entries()]
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([value, label]) => ({ value, label })),
+    ]
+  }, [classrooms])
+
+  const filteredClassrooms = useMemo(() => {
+    if (cityFilter === 'all') return classrooms
+    return classrooms.filter((row) => {
+      const key = resolveCityFilterKey(row)
+      return key === cityFilter || String(row.cityPlaceId || '') === cityFilter
+    })
+  }, [classrooms, cityFilter])
+
+  const classroomsById = useMemo(
+    () => new Map(filteredClassrooms.map((row) => [String(row.id), row])),
+    [filteredClassrooms],
+  )
+
+  const disableableCount = useMemo(
+    () =>
+      selectedIds.filter((id) => classroomsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, classroomsById],
+  )
+
+  useEffect(() => {
+    if (cityFilter === 'all') return
+    const stillValid = cityOptions.some((opt) => opt.value === cityFilter)
+    if (!stillValid) setCityFilter('all')
+  }, [cityFilter, cityOptions])
+
+  useEffect(() => {
+    setCityFilter('all')
+    clearSelection()
+  }, [centerFilter, clearSelection])
+
   const loadClassroomDetail = useCallback(async (row) => {
     const data = await getClassroomById(row.id)
     return mapApiClassroomToLocal(data) || row
+  }, [])
+
+  const openCreate = useCallback(() => {
+    setEditRow(null)
+    setEditDetail(null)
+    setModalOpen(true)
   }, [])
 
   const handleView = useCallback(
@@ -152,19 +229,23 @@ export default function ClassRoomsPage() {
   }
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget?.ids?.length) return
     setDeleteLoading(true)
+    const ids = deleteTarget.ids
     try {
-      await deleteClassroom(deleteTarget.id)
-      toast.success('Classroom deleted')
+      await Promise.all(ids.map((id) => deleteClassroom(id)))
+      clearSelection()
       setDeleteTarget(null)
+      toast.success(
+        ids.length > 1 ? `${ids.length} classrooms deleted` : 'Classroom deleted',
+      )
       await refreshClassrooms()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete classroom'))
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, refreshClassrooms])
+  }, [deleteTarget, refreshClassrooms, clearSelection])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -184,8 +265,26 @@ export default function ClassRoomsPage() {
     }
   }, [statusTarget, refreshClassrooms])
 
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => classroomsById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkDisableLoading(true)
+    try {
+      await Promise.all(ids.map((id) => updateClassroomStatus(id, 'INACTIVE')))
+      toast.success(
+        ids.length > 1 ? `${ids.length} classrooms disabled` : 'Classroom disabled',
+      )
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected classrooms'))
+      await refreshClassrooms()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }, [selectedIds, classroomsById, refreshClassrooms])
+
   const handleDelete = useCallback((row) => {
-    setDeleteTarget(row)
+    setDeleteTarget({ ids: [row.id], name: row.name })
   }, [])
 
   const handleToggle = useCallback((row) => {
@@ -203,43 +302,52 @@ export default function ClassRoomsPage() {
     [handleView, handleEdit, handleToggle, handleDelete],
   )
 
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    statusFilter !== 'all' ||
+    centerFilter !== 'all' ||
+    cityFilter !== 'all'
+
   const showEmpty =
     !tableLoading &&
-    classrooms.length === 0 &&
-    !search &&
-    statusFilter === 'all' &&
-    centerFilter === 'all'
-  const showNoResults = !tableLoading && classrooms.length === 0 && !showEmpty
+    filteredClassrooms.length === 0 &&
+    !hasActiveFilters
+  const showNoResults = !tableLoading && filteredClassrooms.length === 0 && !showEmpty
 
   const saving = createLoading || updateLoading
 
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected classrooms? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this classroom'}"? This action cannot be undone.`
+
   return (
     <div className="space-y-5 sm:space-y-6">
-      <CategoryPageHeader icon={DoorOpen} hideTitle>
-        <button
-          type="button"
-          onClick={() => {
-            setEditRow(null)
-            setEditDetail(null)
-            setModalOpen(true)
-          }}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
-        >
-          <PlusCircle className="h-4 w-4" />
-          Add Classroom
-        </button>
+      <CategoryPageHeader title="Class Room">
+        <CreateButton onClick={openCreate} />
       </CategoryPageHeader>
 
-      <CategoryFilterBar
+      <ClassRoomsFilterBar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
         searchPlaceholder="Search classrooms..."
+        cityFilter={cityFilter}
+        onCityFilterChange={(e) => setCityFilter(e.target.value)}
+        cityOptions={cityOptions}
         status={statusFilter}
         onStatusChange={(e) => setStatusFilter(e.target.value)}
         statusOptions={STATUS_OPTIONS}
         centerFilter={centerFilter}
         onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
         centerOptions={centerOptions}
+      />
+
+      <ProgramsBulkActionsBar
+        count={selectedIds.length}
+        disableCount={disableableCount}
+        onClearSelection={clearSelection}
+        onDisable={handleBulkDisable}
+        onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
       />
 
       {tableLoading ? (
@@ -255,12 +363,8 @@ export default function ClassRoomsPage() {
         <CategoryEmptyState
           title="No Classrooms Found"
           description="Add classrooms to assign them to live classes and prevent scheduling conflicts."
-          ctaLabel="Add Classroom"
-          onCta={() => {
-            setEditRow(null)
-            setEditDetail(null)
-            setModalOpen(true)
-          }}
+          ctaLabel="Add Class Room"
+          onCta={openCreate}
         />
       ) : showNoResults ? (
         <CategoryEmptyState
@@ -271,17 +375,20 @@ export default function ClassRoomsPage() {
             setSearch('')
             setStatusFilter('all')
             setCenterFilter('all')
+            setCityFilter('all')
           }}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
           <PaginatedFigmaTable
-            data={classrooms}
+            data={filteredClassrooms}
             columns={columns}
             itemLabel="classrooms"
             controlledPagination={controlledPagination}
             density="comfortable"
-            tableClassName="min-w-[1080px]"
+            loading={bulkDisableLoading}
+            selection={selection}
+            tableClassName="min-w-[1120px]"
             stickyHeader
           />
         </div>
@@ -317,8 +424,8 @@ export default function ClassRoomsPage() {
 
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
-        title="Delete Classroom?"
-        message="This action cannot be undone."
+        title={deleteTarget?.ids?.length > 1 ? 'Delete selected classrooms?' : 'Delete Classroom?'}
+        message={deleteMessage}
         confirmLabel="Delete"
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}

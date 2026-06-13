@@ -75,14 +75,16 @@ export default function SectionConfigFormModal({ open, onClose, item, existingRo
   }
 
   return (
-    <Modal open={open} onClose={close} size="lg" title={isEditMode ? 'Edit Section' : 'Add Section'}>
+    <Modal open={open} onClose={close} size="lg" title={isEditMode ? 'Edit Section' : 'Add Section'} showCloseButton={false}>
       <form
         onSubmit={submit}
         className="flex max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-2xl bg-[#eef2f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
           title={isEditMode ? 'Edit Section' : 'Add Section'}
-          onBack={close}
+          onClose={close}
+          closeVariant="icon"
+          plainCloseIcon
           icon={Layers}
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">

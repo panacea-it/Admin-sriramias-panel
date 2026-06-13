@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
   # Override in Netlify UI → Site settings → Environment variables if needed:
   VITE_FRONTEND_ONLY = "false"
   VITE_ENABLE_DEMO_LOGIN = "false"

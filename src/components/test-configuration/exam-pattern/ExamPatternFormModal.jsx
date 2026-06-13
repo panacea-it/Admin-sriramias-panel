@@ -74,6 +74,7 @@ export default function ExamPatternFormModal({
       onClose={close}
       size="lg"
       title={isEditMode ? 'Edit Instruction' : 'Add Instruction'}
+      showCloseButton={false}
     >
       <form
         onSubmit={submit}
@@ -81,7 +82,9 @@ export default function ExamPatternFormModal({
       >
         <ModalPanelHeader
           title={isEditMode ? 'Edit Instruction' : 'Add Instruction'}
-          onBack={close}
+          onClose={close}
+          closeVariant="icon"
+          plainCloseIcon
           icon={ClipboardList}
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">

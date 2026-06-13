@@ -7,6 +7,7 @@ import {
   ZoomOut,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react'
 import PdfViewer from '../../evaluation-management/PdfViewer'
 import { getTestMeta } from '../../../api/evaluationOversightAPI'
@@ -25,6 +26,8 @@ export default function AnswerSheetViewer({
   activeTool,
   annotations,
   locked,
+  downloading = false,
+  onDownload,
   onPageChange,
   onScaleChange,
   onRotate,
@@ -90,16 +93,31 @@ export default function AnswerSheetViewer({
   return (
     <div className="flex flex-col rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--card-shadow)]">
       <div className="border-b border-slate-100 p-4 sm:p-5">
-        <h2 className="text-base font-bold text-[#1a3a5c] sm:text-lg">{title}</h2>
-        {questionText && (
-          <div className="mt-3 border-l-4 border-[#55ace7] pl-3">
-            <p className="text-xs font-semibold text-slate-500">Question 1</p>
-            <p className="mt-1 text-sm leading-relaxed text-[#333]">
-              {questionText}{' '}
-              <span className="font-semibold text-slate-500">({questionMarks} Marks)</span>
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold text-[#1a3a5c] sm:text-lg">{title}</h2>
+            {questionText && (
+              <div className="mt-3 border-l-4 border-[#55ace7] pl-3">
+                <p className="text-xs font-semibold text-slate-500">Question 1</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#333]">
+                  {questionText}{' '}
+                  <span className="font-semibold text-slate-500">({questionMarks} Marks)</span>
+                </p>
+              </div>
+            )}
           </div>
-        )}
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              disabled={downloading}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className={cn('h-4 w-4', downloading && 'animate-pulse')} />
+              {downloading ? 'Downloading…' : 'Download'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative flex min-h-[420px] flex-1 flex-col bg-slate-100/80 p-3 sm:min-h-[520px]">

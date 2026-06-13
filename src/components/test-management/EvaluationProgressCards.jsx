@@ -13,7 +13,7 @@ function ProgressCardSkeleton() {
   )
 }
 
-function EvaluationProgressCard({ card, onOpen }) {
+function EvaluationProgressCard({ card, onOpen, showUploadedSheets, resultsLineLabel }) {
   const pct = card.evaluationPct ?? 0
 
   return (
@@ -47,13 +47,24 @@ function EvaluationProgressCard({ card, onOpen }) {
         <li>
           <span className="font-semibold text-[#333]">{card.studentsAssigned}</span> Students Assigned
         </li>
+        {showUploadedSheets && (
+          <li>
+            <span className="font-semibold text-[#333]">{card.studentsUploaded}</span> Uploaded Answer
+            Sheets
+          </li>
+        )}
         <li>
-          <span className="font-semibold text-[#333]">{card.studentsUploaded}</span> Uploaded Answer
-          Sheets
-        </li>
-        <li>
-          <span className="font-semibold text-emerald-700">{card.studentsEvaluated}</span> Evaluated ·{' '}
-          <span className="font-semibold text-amber-700">{card.pendingEvaluations}</span> Pending
+          {resultsLineLabel === 'published' ? (
+            <>
+              <span className="font-semibold text-emerald-700">{card.studentsEvaluated}</span> Published ·{' '}
+              <span className="font-semibold text-amber-700">{card.pendingEvaluations}</span> Unpublished
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-emerald-700">{card.studentsEvaluated}</span> Evaluated ·{' '}
+              <span className="font-semibold text-amber-700">{card.pendingEvaluations}</span> Pending
+            </>
+          )}
         </li>
       </ul>
       <div className="mt-3">
@@ -77,6 +88,9 @@ export default function EvaluationProgressCards({
   loading = false,
   emptyMessage = 'No evaluations completed yet.',
   onCardClick,
+  heading = 'Latest Evaluation Progress',
+  showUploadedSheets = true,
+  resultsLineLabel = 'evaluation',
 }) {
   const navigate = useNavigate()
 
@@ -85,7 +99,7 @@ export default function EvaluationProgressCards({
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1a3a5c]">
           <ClipboardCheck className="h-4 w-4 text-[#55ace7]" />
-          Latest Evaluation Progress
+          {heading}
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
           <ProgressCardSkeleton />
@@ -109,13 +123,15 @@ export default function EvaluationProgressCards({
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1a3a5c]">
         <ClipboardCheck className="h-4 w-4 text-[#55ace7]" />
-        Latest Evaluation Progress
+        {heading}
       </h2>
       <div className="grid gap-4 md:grid-cols-3">
         {cards.map((card) => (
           <EvaluationProgressCard
             key={card.id}
             card={card}
+            showUploadedSheets={showUploadedSheets}
+            resultsLineLabel={resultsLineLabel}
             onOpen={
               onCardClick
                 ? () => onCardClick(card, navigate)

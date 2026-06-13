@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
+import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
@@ -22,6 +23,7 @@ import {
 import {
   buildCreateTopicPayload,
   buildUpdateTopicPayload,
+  buildSubjectNameLookup,
   mapApiTopicToLocal,
   resolveTopicSubjectDisplay,
 } from './topicHelpers'
@@ -29,6 +31,7 @@ import AddEditTopicModal from './AddEditTopicModal'
 import ViewTopicModal from './ViewTopicModal'
 import ConfirmTopicStatusModal from './ConfirmTopicStatusModal'
 import TopicTable from './TopicTable'
+import { getSubjectsDropdown } from '../../../../services/subjectService'
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
@@ -36,20 +39,21 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'Inactive' },
 ]
 
-function AddButton({ onClick, children }) {
+function AddButton({ onClick, children, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
-      <PlusCircle className="h-4 w-4" />
+      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
       {children}
     </button>
   )
 }
 
-export default function TopicSection({ section, Icon }) {
+export default function TopicSection({ section }) {
   const {
     topics,
     loading,
@@ -77,16 +81,20 @@ export default function TopicSection({ section, Icon }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [subjectNameById, setSubjectNameById] = useState({})
 
   const subjectFilterOptions = useMemo(
     () => [{ value: 'all', label: 'Subject' }, ...subjectDropdownOptions],
     [subjectDropdownOptions],
   )
 
-  const subjectNameById = useMemo(
-    () => Object.fromEntries(subjectDropdownOptions.map((opt) => [opt.value, opt.label])),
-    [subjectDropdownOptions],
-  )
+  useEffect(() => {
+    getSubjectsDropdown()
+      .then((data) => setSubjectNameById(buildSubjectNameLookup(data)))
+      .catch(() => setSubjectNameById({}))
+  }, [])
 
   const enrichedTopics = useMemo(
     () =>
@@ -95,6 +103,16 @@ export default function TopicSection({ section, Icon }) {
         subject: resolveTopicSubjectDisplay(row, subjectNameById),
       })),
     [topics, subjectNameById],
+  )
+
+  const topicsById = useMemo(
+    () => new Map(enrichedTopics.map((row) => [String(row.id), row])),
+    [enrichedTopics],
+  )
+
+  const disableableCount = useMemo(
+    () => selectedIds.filter((id) => topicsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, topicsById],
   )
 
   const loadTopicDetail = useCallback(async (row) => {
@@ -176,14 +194,22 @@ export default function TopicSection({ section, Icon }) {
     [refreshTopics],
   )
 
+  const handleDelete = useCallback((row) => {
+    setDeleteTarget({ ids: [row.id], name: row.name })
+  }, [])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
+    const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
+    if (!ids.length) return
+
     setDeleteLoading(true)
     try {
-      await deleteTopic(deleteTarget.id)
-      removeTopicLocally(deleteTarget.id)
-      toast.success('Topic deleted')
+      await Promise.all(ids.map((id) => deleteTopic(id)))
+      ids.forEach((id) => removeTopicLocally(id))
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
+      toast.success(ids.length > 1 ? `${ids.length} topics deleted` : 'Topic deleted')
       await refreshTopics()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete topic'))
@@ -215,6 +241,39 @@ export default function TopicSection({ section, Icon }) {
     }
   }, [statusTarget, patchTopicLocally, refreshTopics])
 
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => topicsById.get(String(id))?.status === 'Active')
+    if (!ids.length) return
+
+    const apiStatus = mapUiStatusToApi('In Active')
+    setBulkDisableLoading(true)
+
+    try {
+      await Promise.all(ids.map((id) => updateTopicStatus(id, apiStatus)))
+      ids.forEach((id) => patchTopicLocally(id, { status: 'In Active' }))
+      toast.success(ids.length > 1 ? `${ids.length} topics disabled` : 'Topic disabled')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to disable selected topics'))
+      await refreshTopics()
+    } finally {
+      setBulkDisableLoading(false)
+    }
+  }, [selectedIds, topicsById, patchTopicLocally, refreshTopics])
+
+  const toggleSelect = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
+
+  const toggleSelectPage = useCallback((pageIds, select) => {
+    setSelectedIds((prev) => {
+      if (!select) return prev.filter((id) => !pageIds.includes(id))
+      const merged = new Set([...prev, ...pageIds])
+      return [...merged]
+    })
+  }, [])
+
   const showEmpty =
     !loading && topics.length === 0 && !search && statusFilter === 'all' && subjectFilter === 'all'
   const showNoResults = !loading && topics.length === 0 && !showEmpty
@@ -224,6 +283,11 @@ export default function TopicSection({ section, Icon }) {
     setStatusFilter('all')
     setSubjectFilter('all')
   }
+
+  const deleteMessage =
+    deleteTarget?.ids?.length > 1
+      ? `Delete ${deleteTarget.ids.length} selected topics? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this topic'}"? This action cannot be undone.`
 
   if (!section) return null
 
@@ -237,8 +301,10 @@ export default function TopicSection({ section, Icon }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader icon={Icon} hideTitle>
-          <AddButton onClick={openCreate}>{section.addLabel}</AddButton>
+        <CategoryPageHeader title="Topic">
+          <AddButton onClick={openCreate} disabled={loading}>
+            {section.addLabel}
+          </AddButton>
         </CategoryPageHeader>
 
         <CategoryFilterBar
@@ -251,6 +317,14 @@ export default function TopicSection({ section, Icon }) {
           subjectFilter={subjectFilter}
           onSubjectFilterChange={(e) => setSubjectFilter(e.target.value)}
           subjectOptions={subjectFilterOptions}
+        />
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onDisable={handleBulkDisable}
+          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
         />
 
         {loading ? (
@@ -270,18 +344,21 @@ export default function TopicSection({ section, Icon }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <TopicTable
-              topics={enrichedTopics}
-              loading={loading}
-              controlledPagination={controlledPagination}
-              onView={handleView}
-              onEdit={handleEditOpen}
-              onDelete={setDeleteTarget}
-              onToggleStatus={setStatusTarget}
-              resetDeps={[search, statusFilter, subjectFilter]}
-            />
-          </div>
+          <TopicTable
+            topics={enrichedTopics}
+            loading={loading || bulkDisableLoading}
+            controlledPagination={controlledPagination}
+            onView={handleView}
+            onEdit={handleEditOpen}
+            onDelete={handleDelete}
+            onToggleStatus={setStatusTarget}
+            resetDeps={[search, statusFilter, subjectFilter]}
+            selection={{
+              selectedIds,
+              onToggle: toggleSelect,
+              onTogglePage: toggleSelectPage,
+            }}
+          />
         )}
 
         <AddEditTopicModal
@@ -316,8 +393,8 @@ export default function TopicSection({ section, Icon }) {
 
         <ConfirmDeleteDialog
           open={Boolean(deleteTarget)}
-          title="Delete topic?"
-          message={`Are you sure you want to delete "${deleteTarget?.name || 'this topic'}"? This action cannot be undone.`}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected topics?' : 'Delete topic?'}
+          message={deleteMessage}
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}

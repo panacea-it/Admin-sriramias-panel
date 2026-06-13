@@ -55,9 +55,9 @@ export default function CbtTopicsTable({ faculty, loading }) {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={() => openTopic(row)}>
+        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" showPlusIcon={false} onClick={() => openTopic(row)}>
           <Eye className="h-4 w-4" />
-          View Tests
+          View Topics
         </BannerButton>
       ),
     },

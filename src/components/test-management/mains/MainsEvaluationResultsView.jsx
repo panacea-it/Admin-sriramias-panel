@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Filter, Search, Trophy, TrendingDown, TrendingUp } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import StatCard from '../../dashboard/StatCard'
-import { StatusBadge } from '../../academics/AcademicsUi'
-import { Users, Target, Award, AlertTriangle } from 'lucide-react'
+import { Users, Target } from 'lucide-react'
+import { cn } from '../../../utils/cn'
 import {
   generateMainsStudentResults,
   summarizeMainsResults,
@@ -14,9 +14,25 @@ const FILTER_OPTIONS = [
   { value: 'all', label: 'All students' },
   { value: 'Evaluated', label: 'Evaluated' },
   { value: 'Pending', label: 'Pending' },
-  { value: 'Passed', label: 'Passed' },
-  { value: 'Failed', label: 'Failed' },
 ]
+
+const UPLOAD_STATUS_STYLES = {
+  Uploaded: 'bg-[#10b981]',
+  'Not Uploaded': 'bg-[#efb36d]',
+}
+
+function UploadStatusBadge({ status }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex min-w-[110px] items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold text-white',
+        UPLOAD_STATUS_STYLES[status] || 'bg-slate-400',
+      )}
+    >
+      {status}
+    </span>
+  )
+}
 
 function SummaryProgressBar({ label, value, max, color = '#55ace7' }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
@@ -70,8 +86,6 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
     }
     if (statusFilter === 'Evaluated') rows = rows.filter((r) => r.filterEvaluated === 'Evaluated')
     else if (statusFilter === 'Pending') rows = rows.filter((r) => r.filterEvaluated === 'Pending')
-    else if (statusFilter === 'Passed') rows = rows.filter((r) => r.passFailStatus === 'Passed')
-    else if (statusFilter === 'Failed') rows = rows.filter((r) => r.passFailStatus === 'Failed')
     return rows
   }, [allRows, search, statusFilter])
 
@@ -85,7 +99,7 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
     {
       key: 'uploadedStatus',
       label: 'Uploaded Status',
-      render: (row) => <StatusBadge status={row.uploadedStatus} />,
+      render: (row) => <UploadStatusBadge status={row.uploadedStatus} />,
     },
     {
       key: 'marks',
@@ -97,11 +111,6 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
       ),
     },
     { key: 'rank', label: 'Rank' },
-    {
-      key: 'passFailStatus',
-      label: 'Pass / Fail',
-      render: (row) => <StatusBadge status={row.passFailStatus} />,
-    },
     { key: 'evaluatedBy', label: 'Evaluated By' },
     { key: 'evaluationDate', label: 'Evaluation Date' },
   ]
@@ -150,16 +159,14 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
         </div>
       </article>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         <StatCard title="Total Students" value={summary.totalStudents} color="#55ace7" icon={Users} />
         <StatCard title="Evaluated" value={summary.totalEvaluated} color="#10b981" icon={Target} />
-        <StatCard title="Passed" value={summary.totalPassed} color="#8b5cf6" icon={Award} />
-        <StatCard title="Failed" value={summary.totalFailed} color="#f59e0b" icon={AlertTriangle} />
       </div>
 
       <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
         <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">Analytics</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
             <TrendingUp className="h-5 w-5 text-emerald-600" />
             <div>
@@ -186,20 +193,6 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
             <div>
               <p className="text-xs text-slate-500">Top Ranker</p>
               <p className="truncate font-bold text-[#1a3a5c]">{summary.topRanker}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-            <Award className="h-5 w-5 text-emerald-600" />
-            <div>
-              <p className="text-xs text-slate-500">Total Passed</p>
-              <p className="font-bold text-emerald-700 tabular-nums">{summary.totalPassed}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <div>
-              <p className="text-xs text-slate-500">Total Failed</p>
-              <p className="font-bold text-red-600 tabular-nums">{summary.totalFailed}</p>
             </div>
           </div>
         </div>
