@@ -1,4 +1,5 @@
 import { Search, ChevronDown } from 'lucide-react'
+import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -23,8 +24,8 @@ function FilterSelect({ label, value, onChange, options }) {
 export default function HelpDeskFilterToolbar({
   search,
   onSearchChange,
-  dateRange,
-  onDateRangeChange,
+  selectedDate,
+  onDateChange,
   statusFilter,
   onStatusFilterChange,
 }) {
@@ -36,22 +37,12 @@ export default function HelpDeskFilterToolbar({
           type="search"
           value={search}
           onChange={onSearchChange}
-          placeholder="Search Notifications"
+          placeholder="Search By Username"
           className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/50 sm:pl-11 sm:text-base"
         />
       </div>
       <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-        <FilterSelect
-          label="Today"
-          value={dateRange}
-          onChange={onDateRangeChange}
-          options={[
-            { value: 'all', label: 'Today' },
-            { value: 'Today', label: 'Today' },
-            { value: 'This Week', label: 'This Week' },
-            { value: 'This Month', label: 'This Month' },
-          ]}
-        />
+        <CrmDateFilterPicker value={selectedDate} onChange={onDateChange} className="sm:min-w-[120px]" />
         <FilterSelect
           label="All"
           value={statusFilter}

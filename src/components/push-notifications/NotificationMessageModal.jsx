@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { FileText, X } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 
-export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
+export default function NotificationMessageModal({ open, message, onClose }) {
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => {
@@ -21,12 +21,12 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
 
   return createPortal(
     <AnimatePresence>
-      {open && ticket && (
+      {open && (
         <div
           className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="help-desk-description-title"
+          aria-labelledby="notification-message-title"
         >
           <motion.button
             type="button"
@@ -46,22 +46,22 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
             transition={{ duration: 0.28, ease: [0.21, 1.02, 0.48, 1] }}
             className="relative flex max-h-[min(88vh,560px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(15,23,42,0.2)] sm:max-w-xl"
           >
-            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-[#f8fbff] to-white px-5 py-4 sm:px-6">
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-[#55ace7] to-[#246392] px-5 py-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6fc]">
-                  <FileText className="h-5 w-5 text-[#55ace7]" strokeWidth={2.2} />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                  <Bell className="h-5 w-5 text-white" strokeWidth={2.2} />
                 </span>
                 <h2
-                  id="help-desk-description-title"
-                  className="text-lg font-bold text-[#111] sm:text-xl"
+                  id="notification-message-title"
+                  className="text-lg font-bold text-white sm:text-xl"
                 >
-                  Ticket Description
+                  Notification Message
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white shadow-sm transition hover:bg-white/25"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -70,8 +70,8 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
               <div className="rounded-xl border border-slate-100 bg-[#f8fbff]/80 px-4 py-4 sm:px-5 sm:py-5">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#333] sm:text-base sm:leading-7">
-                  {ticket.description}
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#333] sm:text-base sm:leading-7">
+                  {message}
                 </p>
               </div>
             </div>

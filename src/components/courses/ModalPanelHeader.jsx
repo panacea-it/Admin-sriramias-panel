@@ -33,12 +33,18 @@ export default function ModalPanelHeader({
           type="button"
           onClick={handleClose}
           className={cn(
-            'flex h-9 w-9 shrink-0 items-center justify-center text-white transition',
-            plainCloseIcon ? 'hover:text-white/85' : 'rounded-full bg-white/20 hover:bg-white/30',
+            'flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all duration-150',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            plainCloseIcon
+              ? 'text-white hover:bg-white/10 hover:text-white/90'
+              : cn(
+                  'border border-white/25 bg-white/15 text-white shadow-sm',
+                  'hover:scale-105 hover:bg-white/25 active:scale-95',
+                ),
           )}
           aria-label="Close"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" strokeWidth={2.2} />
         </button>
       ) : handleClose ? (
         <button

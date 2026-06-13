@@ -1,5 +1,6 @@
-export const NOTIFICATION_CENTERS = ['New Delhi', 'Hyderabad', 'Pune']
+import { isSameCalendarDay, startOfDay } from '../utils/dailyCollectionUtils'
 
+export const NOTIFICATION_CENTERS = ['New Delhi', 'Hyderabad', 'Pune']
 export const NOTIFICATION_TYPES = ['Video', 'Text', 'PDF', 'Image']
 
 export const USER_TYPE_OPTIONS = [
@@ -8,6 +9,90 @@ export const USER_TYPE_OPTIONS = [
   'Faculty',
   'Center Admins',
 ]
+
+export const NOTIFICATION_LEAD_STATUS_OPTIONS = [
+  'NEW',
+  'ASSIGNED',
+  'CONTACT_ATTEMPTED',
+  'CONTACTED',
+  'FOLLOW_UP',
+  'INTERESTED',
+  'NOT_INTERESTED',
+  'INFO_SHARED',
+  'MEETING_SCHEDULED',
+  'MEETING_COMPLETED',
+  'NEGOTIATION',
+  'VERIFICATION_IN_PROGRESS',
+  'APPROVED',
+  'CONVERTED',
+  'ON_HOLD',
+  'LOST',
+  'DUPLICATE',
+  'CLOSED',
+]
+
+export function formatNotificationStatusLabel(status) {
+  return String(status || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export function parsePushNotificationDisplayDate(dateStr) {
+  if (!dateStr) return null
+  const parsed = new Date(dateStr)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+export function formatPushNotificationFilterDate(date) {
+  if (!date) return ''
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+export function parsePushNotificationFilterInput(text) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) {
+    return { valid: false, error: 'Enter a date in DD/MM/YYYY format' }
+  }
+
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) {
+    return { valid: false, error: 'Use DD/MM/YYYY format (e.g. 15/10/2026)' }
+  }
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+
+  if (month < 1 || month > 12) {
+    return { valid: false, error: 'Invalid month' }
+  }
+  if (day < 1 || day > 31) {
+    return { valid: false, error: 'Invalid day' }
+  }
+
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return { valid: false, error: 'Invalid date' }
+  }
+
+  return { valid: true, date }
+}
+
+export function pushNotificationMatchesSelectedDate(notification, selectedDate) {
+  if (!selectedDate) return true
+  const notificationDate = parsePushNotificationDisplayDate(notification.sentDate)
+  if (!notificationDate) return false
+  return isSameCalendarDay(startOfDay(notificationDate), startOfDay(selectedDate))
+}
 
 export const INITIAL_PUSH_NOTIFICATIONS = [
   {
@@ -23,6 +108,10 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'All Users',
     title: 'Geography class live',
     url: '',
+    leadStatus: 'NEW',
+    assignedCounselorId: '',
+    assignedCounselorName: 'Sneha Gupta',
+    centerId: '',
   },
   {
     id: 56566,
@@ -37,12 +126,17 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'Students',
     title: 'Chemistry revision',
     url: '',
+    leadStatus: 'ASSIGNED',
+    assignedCounselorId: '',
+    assignedCounselorName: 'Priya Singh',
+    centerId: '',
   },
   {
     id: 56567,
     sentBy: 'Priya Sharma',
     device: 'Android',
-    message: 'New study material uploaded for Current Affairs — March 2026.',
+    message:
+      'New study material uploaded for Current Affairs — March 2026. Students can review the PDF from the learning portal before the weekend test.',
     center: 'Pune',
     type: 'Text',
     sentTime: '8 AM',
@@ -51,12 +145,17 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'All Users',
     title: 'Current Affairs update',
     url: 'https://example.com/ca-march',
+    leadStatus: 'INFO_SHARED',
+    assignedCounselorId: '',
+    assignedCounselorName: 'Rahul Sharma',
+    centerId: '',
   },
   {
     id: 56568,
     sentBy: 'Admin',
     device: 'Android',
-    message: 'Physics doubt session recording is now available.',
+    message:
+      'Physics doubt session recording is now available. Students can access it from the Learning Portal. Please watch before tomorrow\'s live session.',
     center: 'New Delhi',
     type: 'Video',
     sentTime: '6 PM',
@@ -65,6 +164,10 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'Students',
     title: 'Physics recording',
     url: '',
+    leadStatus: 'CONTACTED',
+    assignedCounselorId: '',
+    assignedCounselorName: 'Ankit Verma',
+    centerId: '',
   },
 ]
 
@@ -76,4 +179,10 @@ export const EMPTY_NOTIFICATION_FORM = {
   pdfName: '',
   videoName: '',
   imageName: '',
+  centerId: '',
+  assignedCounselorId: '',
+  leadStatus: 'NEW',
+  type: 'Text',
+  sentDate: '',
+  sentTime: '',
 }

@@ -1,3 +1,61 @@
+import { isSameCalendarDay, startOfDay } from '../utils/dailyCollectionUtils'
+
+export function parseHelpDeskDisplayDate(dateStr) {
+  if (!dateStr) return null
+  const parsed = new Date(dateStr)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+export function formatHelpDeskFilterDate(date) {
+  if (!date) return ''
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+export function parseHelpDeskFilterInput(text) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) {
+    return { valid: false, error: 'Enter a date in DD/MM/YYYY format' }
+  }
+
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) {
+    return { valid: false, error: 'Use DD/MM/YYYY format (e.g. 15/10/2026)' }
+  }
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+
+  if (month < 1 || month > 12) {
+    return { valid: false, error: 'Invalid month' }
+  }
+  if (day < 1 || day > 31) {
+    return { valid: false, error: 'Invalid day' }
+  }
+
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return { valid: false, error: 'Invalid date' }
+  }
+
+  return { valid: true, date }
+}
+
+export function helpDeskTicketMatchesSelectedDate(ticket, selectedDate) {
+  if (!selectedDate) return true
+  const ticketDate = parseHelpDeskDisplayDate(ticket.date)
+  if (!ticketDate) return false
+  return isSameCalendarDay(startOfDay(ticketDate), startOfDay(selectedDate))
+}
+
 export const INITIAL_HELP_DESK_TICKETS = [
   {
     id: '56565',
