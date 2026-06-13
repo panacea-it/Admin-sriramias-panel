@@ -1,13 +1,10 @@
-import {
-  Download,
-  Pencil,
-  Trash2,
-  UploadCloud,
-  FileX2,
-} from 'lucide-react'
+import { Download, Pencil, Trash2, UploadCloud } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 
-function ActionBtn({ label, onClick, className, disabled, children }) {
+const actionButtonClass =
+  'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition sm:text-[12px]'
+
+function ActionButton({ label, onClick, disabled, className, children }) {
   return (
     <button
       type="button"
@@ -15,13 +12,10 @@ function ActionBtn({ label, onClick, className, disabled, children }) {
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={cn(
-        'inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1 py-1 text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 sm:gap-1.5 sm:px-1.5 sm:text-sm',
-        className,
-      )}
+      className={cn(actionButtonClass, className)}
     >
       {children}
-      <span className="truncate">{label}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   )
 }
@@ -32,59 +26,68 @@ export default function OmrTableActions({
   canDelete,
   canUploadResult,
   canDownloadResult,
-  canDeleteResult,
+  downloading = false,
   onEdit,
   onDelete,
   onUpload,
   onDownload,
-  onDeleteResult,
 }) {
+  const isExamDone = hasResultSheet
+
+  if (isExamDone) {
+    return (
+      <div className="flex flex-nowrap items-center justify-end gap-1.5">
+        {canDownloadResult && (
+          <ActionButton
+            label={downloading ? 'Downloading…' : 'Download Results'}
+            onClick={onDownload}
+            disabled={downloading}
+            className="text-[#246392] hover:bg-[#eef2fc] hover:text-[#1a3a5c] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+          </ActionButton>
+        )}
+        {canDelete && (
+          <ActionButton
+            label="Delete"
+            onClick={onDelete}
+            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+          >
+            <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+          </ActionButton>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="grid w-full min-w-[min(100%,20rem)] max-w-[26rem] grid-cols-2 items-center gap-1 sm:grid-cols-3">
+    <div className="flex flex-nowrap items-center justify-end gap-1.5">
       {canEdit && (
-        <ActionBtn
+        <ActionButton
           label="Edit"
           onClick={onEdit}
-          className="text-[#686868] hover:bg-slate-100 hover:text-[#246392]"
+          className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
         >
-          <Pencil className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-        </ActionBtn>
-      )}
-      {canDelete && (
-        <ActionBtn
-          label="Delete"
-          onClick={onDelete}
-          className="text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]"
-        >
-          <Trash2 className="h-4 w-4 shrink-0" strokeWidth={2.1} />
-        </ActionBtn>
+          <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+        </ActionButton>
       )}
       {canUploadResult && (
-        <ActionBtn
-          label={hasResultSheet ? 'Replace' : 'Upload'}
+        <ActionButton
+          label="Upload"
           onClick={onUpload}
-          className="text-[#246392] hover:bg-[#eef2fc]"
+          className="text-[#246392] hover:bg-[#eef2fc] hover:text-[#1a3a5c]"
         >
-          <UploadCloud className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-        </ActionBtn>
+          <UploadCloud className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+        </ActionButton>
       )}
-      {canDownloadResult && hasResultSheet && (
-        <ActionBtn
-          label="Download"
-          onClick={onDownload}
-          className="text-[#246392] hover:bg-[#eef2fc]"
+      {canDelete && (
+        <ActionButton
+          label="Delete"
+          onClick={onDelete}
+          className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
         >
-          <Download className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-        </ActionBtn>
-      )}
-      {canDeleteResult && hasResultSheet && (
-        <ActionBtn
-          label="Delete File"
-          onClick={onDeleteResult}
-          className="text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]"
-        >
-          <FileX2 className="h-4 w-4 shrink-0" strokeWidth={2.1} />
-        </ActionBtn>
+          <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+        </ActionButton>
       )}
     </div>
   )

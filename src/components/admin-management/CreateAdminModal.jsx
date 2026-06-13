@@ -14,6 +14,7 @@ import RoleOverviewCard from './RoleOverviewCard'
 import ErrorState from '../feedback/ErrorState'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { validateAdminAccessForm } from '../../utils/adminAccessValidation'
+import { mapManageUserRowToAdminForm } from '../manage-users/mapManageUserToAdminForm'
 import {
   buildAdminAccessPayload,
   createAdminUser,
@@ -100,7 +101,14 @@ function SelectField({ id, label, required, error, disabled, className, children
   )
 }
 
-export default function CreateAdminModal({ open, onClose, onSuccess, editingId = null }) {
+export default function CreateAdminModal({
+  open,
+  onClose,
+  onSuccess,
+  editingId = null,
+  prefillRow = null,
+  frontendOnly = false,
+}) {
   const {
     options: roleOptions = [],
     loading: rolesLoading,
@@ -125,9 +133,10 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const editingIdRef = useRef(editingId)
   editingIdRef.current = editingId
-  const editKey = getModalEditKey(editingId)
+  const isUserListEdit = Boolean(prefillRow && frontendOnly)
+  const editKey = getModalEditKey(isUserListEdit ? prefillRow?.id : editingId)
 
-  const isEdit = Boolean(editingId)
+  const isEdit = Boolean(editingId) || isUserListEdit
 
   const selectedRoleLabel = useMemo(
     () => safeRoleOptions.find((r) => r.value === form.roleId)?.label || '',
@@ -141,7 +150,7 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
 
   useInitOnModalOpen(open, editKey, () => {
     setErrors({})
-    if (!editingIdRef.current) {
+    if (!editingIdRef.current && !isUserListEdit) {
       setForm({
         ...INITIAL,
         roleId: safeRoleOptions[0]?.value || '',
@@ -151,8 +160,23 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
   })
 
   useEffect(() => {
-    if (!open || !editingId) {
-      setDetailLoadError(null)
+    if (!open || !prefillRow || editingId) return
+    if (!safeRoleOptions.length || !safeCenterOptions.length) return
+
+    setForm(
+      mapManageUserRowToAdminForm(prefillRow, {
+        roleOptions: safeRoleOptions,
+        centerOptions: safeCenterOptions,
+      }),
+    )
+    setErrors({})
+    setDetailLoadError(null)
+    setDetailLoading(false)
+  }, [open, prefillRow, editingId, safeRoleOptions, safeCenterOptions])
+
+  useEffect(() => {
+    if (!open || !editingId || isUserListEdit) {
+      if (!open || isUserListEdit) setDetailLoadError(null)
       return
     }
 
@@ -191,7 +215,7 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
     return () => {
       cancelled = true
     }
-  }, [open, editingId, safeRoleOptions, safeCenterOptions, detailReloadKey])
+  }, [open, editingId, isUserListEdit, safeRoleOptions, safeCenterOptions, detailReloadKey])
 
   useEffect(() => {
     if (!open || isEdit) return
@@ -240,6 +264,11 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
     const { errors: nextErrors, isValid } = validateAdminAccessForm(form, { isEdit })
     setErrors(nextErrors)
     if (!isValid) return
+
+    if (frontendOnly) {
+      onClose()
+      return
+    }
 
     setLoading(true)
     try {
@@ -327,7 +356,7 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
                   id="create-admin-modal-title"
                   className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl"
                 >
-                  {isEdit ? 'Edit User Access' : 'Create Admin Access'}
+                  {isUserListEdit ? 'Edit Admin' : isEdit ? 'Edit User Access' : 'Create Admin Access'}
                 </h2>
                 <p className="mt-1 text-[13px] leading-snug text-slate-500">
                   Manage and assign secure administrative access across departments.
@@ -552,6 +581,8 @@ export default function CreateAdminModal({ open, onClose, onSuccess, editingId =
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {isEdit ? 'Saving…' : 'Creating…'}
                       </span>
+                    ) : isUserListEdit ? (
+                      'Update Admin'
                     ) : isEdit ? (
                       'Save changes'
                     ) : (

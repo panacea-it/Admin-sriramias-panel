@@ -12,7 +12,10 @@ import {
   HelpDeskDateCell,
   HelpDeskStatusCell,
 } from '../../components/help-desk/helpDeskTableCells'
-import { INITIAL_HELP_DESK_TICKETS } from '../../data/helpDeskData'
+import {
+  helpDeskTicketMatchesSelectedDate,
+  INITIAL_HELP_DESK_TICKETS,
+} from '../../data/helpDeskData'
 import { toast } from '@/utils/toast'
 
 const FIRST_CELL = 'pl-6 sm:pl-8'
@@ -20,7 +23,7 @@ const FIRST_CELL = 'pl-6 sm:pl-8'
 export default function HelpDeskPage() {
   const [tickets, setTickets] = useState(INITIAL_HELP_DESK_TICKETS)
   const [search, setSearch] = useState('')
-  const [dateFilter, setDateFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [activeTicketId, setActiveTicketId] = useState(null)
   const [viewTicketId, setViewTicketId] = useState(null)
@@ -41,7 +44,7 @@ export default function HelpDeskPage() {
         row.mobile.includes(q) ||
         row.subject.toLowerCase().includes(q) ||
         row.description.toLowerCase().includes(q)
-      const matchDate = dateFilter === 'all' || row.dateBucket === dateFilter
+      const matchDate = helpDeskTicketMatchesSelectedDate(row, dateFilter)
       const matchStatus = statusFilter === 'all' || row.status === statusFilter
       return matchSearch && matchDate && matchStatus
     })
@@ -87,6 +90,10 @@ export default function HelpDeskPage() {
       closeReply()
     }, 400)
   }
+
+  const emptyMessage = dateFilter
+    ? 'No help desk tickets found for the selected date.'
+    : 'No help desk tickets match your filters.'
 
   const columns = [
     {
@@ -151,51 +158,44 @@ export default function HelpDeskPage() {
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
       <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
-        {!activeTicket && (
-          <PageBanner
-            icon={BellRing}
-            iconClassName="text-[#55ace7]"
-            title="Help Desk"
-            className="from-[#55ace7] via-[#7eb3d4] to-[#df8284]"
-          />
-        )}
+        <PageBanner
+          icon={BellRing}
+          iconClassName="text-[#55ace7]"
+          title="Help Desk"
+          className="from-[#55ace7] via-[#7eb3d4] to-[#df8284]"
+        />
 
-        {!activeTicket && (
-          <>
-            <HelpDeskFilterToolbar
-              search={search}
-              onSearchChange={(e) => setSearch(e.target.value)}
-              dateRange={dateFilter}
-              onDateRangeChange={(e) => setDateFilter(e.target.value)}
-              statusFilter={statusFilter}
-              onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
-            />
+        <HelpDeskFilterToolbar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          selectedDate={dateFilter}
+          onDateChange={setDateFilter}
+          statusFilter={statusFilter}
+          onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+        />
 
-            <PaginatedFigmaTable
-              columns={columns}
-              data={filtered}
-              emptyMessage="No help desk tickets match your filters."
-              className="min-w-[980px] rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
-              itemLabel="tickets"
-              initialPageSize={10}
-              resetDeps={[search, dateFilter, statusFilter]}
-              density="helpdesk"
-              rowClassName="transition-colors duration-150 hover:bg-[#f8fbff]"
-            />
-          </>
-        )}
-
-        {activeTicket && (
-          <HelpDeskReplyPanel
-            ticket={activeTicket}
-            replyText={replyText}
-            onReplyChange={setReplyText}
-            onGoBack={closeReply}
-            onSend={handleSendReply}
-            sending={sending}
-          />
-        )}
+        <PaginatedFigmaTable
+          columns={columns}
+          data={filtered}
+          emptyMessage={emptyMessage}
+          className="min-w-[980px] rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
+          itemLabel="tickets"
+          initialPageSize={10}
+          resetDeps={[search, dateFilter, statusFilter]}
+          density="helpdesk"
+          rowClassName="transition-colors duration-150 hover:bg-[#f8fbff]"
+        />
       </section>
+
+      <HelpDeskReplyPanel
+        ticket={activeTicket}
+        open={Boolean(activeTicket)}
+        replyText={replyText}
+        onReplyChange={setReplyText}
+        onClose={closeReply}
+        onSend={handleSendReply}
+        sending={sending}
+      />
 
       <HelpDeskDescriptionModal
         ticket={viewTicket}

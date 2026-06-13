@@ -1,13 +1,15 @@
 import { Search, ChevronDown } from 'lucide-react'
+import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
+import { formatLeadStatusLabel, LEAD_STATUS_OPTIONS } from '../../data/leadsData'
 
-function FilterSelect({ label, value, onChange, options }) {
+function FilterSelect({ label, value, onChange, options, className }) {
   return (
-    <div className="relative w-full sm:w-auto sm:min-w-[128px]">
+    <div className={className ?? 'relative w-full sm:w-auto sm:min-w-[148px]'}>
       <select
         value={value}
         onChange={onChange}
         aria-label={label}
-        className="h-10 w-full min-h-[38px] cursor-pointer appearance-none rounded-lg border-0 bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] pl-4 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40 sm:text-base"
+        className="h-10 w-full min-h-[40px] cursor-pointer appearance-none rounded-lg border-0 bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] pl-4 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
@@ -20,29 +22,37 @@ function FilterSelect({ label, value, onChange, options }) {
   )
 }
 
+const statusFilterOptions = [
+  { value: 'all', label: 'Status' },
+  ...LEAD_STATUS_OPTIONS.map((status) => ({
+    value: status,
+    label: formatLeadStatusLabel(status),
+  })),
+]
+
 export default function LeadFilterToolbar({
   search,
   onSearchChange,
   center,
   onCenterChange,
-  dateRange,
-  onDateRangeChange,
-  leadsFilter,
-  onLeadsFilterChange,
+  selectedDate,
+  onDateChange,
+  status,
+  onStatusChange,
 }) {
   return (
-    <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
-      <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
+    <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.07)] ring-1 ring-slate-100/80 sm:px-5">
+      <div className="relative w-full min-w-0 flex-1 sm:max-w-md lg:max-w-xl">
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#55ace7]/70" />
         <input
           type="search"
           value={search}
           onChange={onSearchChange}
-          placeholder="Search By Course"
-          className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/50 sm:pl-11 sm:text-base"
+          placeholder="Search By Username"
+          className="h-10 w-full min-h-[40px] rounded-xl border border-slate-200/80 bg-[#eef2fc]/80 pl-11 pr-4 text-sm text-[#222] shadow-sm outline-none transition placeholder:text-[#9ca0a8] focus:border-[#55ace7] focus:bg-white focus:ring-2 focus:ring-[#55ace7]/25"
         />
       </div>
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+      <div className="flex w-full flex-wrap gap-2.5 sm:w-auto sm:flex-nowrap">
         <FilterSelect
           label="Center"
           value={center}
@@ -54,26 +64,13 @@ export default function LeadFilterToolbar({
             { value: 'Pune', label: 'Pune' },
           ]}
         />
+        <CrmDateFilterPicker value={selectedDate} onChange={onDateChange} />
         <FilterSelect
-          label="Today"
-          value={dateRange}
-          onChange={onDateRangeChange}
-          options={[
-            { value: 'all', label: 'Today' },
-            { value: 'Today', label: 'Today' },
-            { value: 'This Week', label: 'This Week' },
-            { value: 'This Month', label: 'This Month' },
-          ]}
-        />
-        <FilterSelect
-          label="All Leads"
-          value={leadsFilter}
-          onChange={onLeadsFilterChange}
-          options={[
-            { value: 'all', label: 'All Leads' },
-            { value: 'Hot', label: 'Hot Leads' },
-            { value: 'Cold', label: 'Cold Leads' },
-          ]}
+          label="Status"
+          value={status}
+          onChange={onStatusChange}
+          options={statusFilterOptions}
+          className="relative w-full sm:w-auto sm:min-w-[160px]"
         />
       </div>
     </div>

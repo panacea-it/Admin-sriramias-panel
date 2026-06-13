@@ -1,15 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Globe } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import PageBanner from '../../figma/PageBanner'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import { TopicRowActions } from '../../subjects/ActionButtons'
 import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
+import {
+  LanguageSettingsTableActions,
+  testConfigActionsColumnWide,
+  testConfigTablePaginationClass,
+} from '../TestConfigTableActions'
+import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
 import { useEditModal } from '../../../hooks/useEditModal'
 import { deleteLanguage, fetchLanguages, upsertLanguage } from '../../../api/testConfigurationAPI'
 import ConfigFilterToolbar from '../ConfigFilterToolbar'
 import LanguageFormModal from './LanguageFormModal'
+import LanguageViewModal from './LanguageViewModal'
 
 function displayDate(row, key) {
   return row?.[key] || row?.createdAt || '—'
@@ -24,6 +30,9 @@ export default function LanguageSettingsTab() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteRow, setDeleteRow] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [viewRow, setViewRow] = useState(null)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusLoading, setStatusLoading] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -68,38 +77,71 @@ export default function LanguageSettingsTab() {
     }
   }
 
-  const columns = [
-    { key: 'id', label: 'Language ID', headerClassName: 'pl-6 sm:pl-10', cellClassName: 'pl-6 sm:pl-10' },
-    {
-      key: 'languageName',
-      label: 'Language Name',
-      render: (r) => <span className="font-medium text-[#1a3a5c]">{r.languageName}</span>,
-    },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-    {
-      key: 'createdOn',
-      label: 'Created On',
-      render: (r) => displayDate(r, 'createdOn'),
-    },
-    {
-      key: 'modifiedOn',
-      label: 'Modified On',
-      render: (r) => displayDate(r, 'modifiedOn'),
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <TopicRowActions
-          onEdit={() => modal.openEdit(row)}
-          onDelete={() => {
-            setDeleteRow(row)
-            setDeleteOpen(true)
-          }}
-        />
-      ),
-    },
-  ]
+  const confirmStatusChange = async () => {
+    if (!statusTarget) return
+    const enabling = statusTarget.status !== 'Active'
+    const nextStatus = enabling ? 'Active' : 'Inactive'
+
+    setStatusLoading(true)
+    try {
+      const saved = await upsertLanguage(
+        {
+          languageName: statusTarget.languageName,
+          status: nextStatus,
+        },
+        { id: statusTarget.id, isEdit: true },
+      )
+      setRows((prev) =>
+        prev.map((row) => (String(row.id) === String(statusTarget.id) ? { ...row, ...saved } : row)),
+      )
+      toast.success(enabling ? 'Language enabled' : 'Language disabled')
+      setStatusTarget(null)
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update language status')
+    } finally {
+      setStatusLoading(false)
+    }
+  }
+
+  const columns = useMemo(
+    () => [
+      { key: 'id', label: 'Language ID', headerClassName: 'pl-6 sm:pl-10', cellClassName: 'pl-6 sm:pl-10' },
+      {
+        key: 'languageName',
+        label: 'Language Name',
+        render: (r) => <span className="font-medium text-[#1a3a5c]">{r.languageName}</span>,
+      },
+      { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+      {
+        key: 'createdOn',
+        label: 'Created On',
+        render: (r) => displayDate(r, 'createdOn'),
+      },
+      {
+        key: 'modifiedOn',
+        label: 'Modified On',
+        render: (r) => displayDate(r, 'modifiedOn'),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        ...testConfigActionsColumnWide,
+        render: (row) => (
+          <LanguageSettingsTableActions
+            row={row}
+            onView={() => setViewRow(row)}
+            onEdit={() => modal.openEdit(row)}
+            onToggleStatus={() => setStatusTarget(row)}
+            onDelete={() => {
+              setDeleteRow(row)
+              setDeleteOpen(true)
+            }}
+          />
+        ),
+      },
+    ],
+    [modal],
+  )
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -126,11 +168,11 @@ export default function LanguageSettingsTab() {
         emptyMessage="No languages found."
         itemLabel="languages"
         resetDeps={[search, status]}
-        rowClassName="hover:bg-slate-50/90"
-        stickyHeader
-        stickyLastColumn
-        zebraStriping
+        density="comfortable"
+        rowClassName="hover:bg-[#eef6fc]/70"
+        tableClassName="rounded-none border-0 shadow-none"
         tableMinWidth={920}
+        paginationClassName={testConfigTablePaginationClass}
       />
 
       <LanguageFormModal
@@ -140,6 +182,8 @@ export default function LanguageSettingsTab() {
         existingRows={rows}
         onSubmit={handleSave}
       />
+
+      <LanguageViewModal open={Boolean(viewRow)} onClose={() => setViewRow(null)} row={viewRow} />
 
       <ConfirmDeleteDialog
         open={deleteOpen}
@@ -151,6 +195,17 @@ export default function LanguageSettingsTab() {
           setDeleteRow(null)
         }}
         loading={deleting}
+      />
+
+      <ConfirmTestConfigStatusModal
+        open={Boolean(statusTarget)}
+        entityLabel="Language"
+        enabling={statusTarget?.status !== 'Active'}
+        loading={statusLoading}
+        onCancel={() => {
+          if (!statusLoading) setStatusTarget(null)
+        }}
+        onConfirm={confirmStatusChange}
       />
     </div>
   )

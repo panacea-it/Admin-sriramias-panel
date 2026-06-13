@@ -10,9 +10,15 @@ export default function ExamPatternViewModal({ open, onClose, row, loading = fal
   const description = row?.instructionDescription || '—'
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title="View Instruction">
+    <Modal open={open} onClose={onClose} size="lg" title="View Instruction" showCloseButton={false}>
       <div className="flex max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-2xl bg-[#eef2f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
-        <ModalPanelHeader title="View Instruction" onBack={onClose} icon={ClipboardList} />
+        <ModalPanelHeader
+          title="View Instruction"
+          onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
+          icon={ClipboardList}
+        />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">
           {loading ? (
             <div className="rounded-2xl bg-white p-5 shadow-sm">

@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, RefreshCw, Search } from 'lucide-react'
+import { Eye, Search } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton } from '../../academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { cn } from '../../../utils/cn'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 
 function formatLastUpdated(iso) {
@@ -12,7 +11,7 @@ function formatLastUpdated(iso) {
   return formatCategoryDateTime(iso)
 }
 
-export default function CbtMappingTable({ rows, loading, onRefresh }) {
+export default function CbtMappingTable({ rows, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
@@ -22,8 +21,7 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
     return rows.filter(
       (r) =>
         r.subjectName.toLowerCase().includes(q) ||
-        r.facultyName.toLowerCase().includes(q) ||
-        r.testCategory.toLowerCase().includes(q),
+        r.facultyName.toLowerCase().includes(q),
     )
   }, [rows, search])
 
@@ -34,7 +32,7 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
   const columns = [
     {
       key: 'subjectName',
-      label: 'Subject Name',
+      label: 'Faculty Subject',
       render: (row) => (
         <button
           type="button"
@@ -59,13 +57,9 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
       ),
     },
     {
-      key: 'testCategory',
-      label: 'Test Category',
-      render: (row) => (
-        <span className="inline-flex rounded-full bg-[#1a3a5c]/10 px-2.5 py-1 text-xs font-bold text-[#1a3a5c]">
-          {row.testCategory}
-        </span>
-      ),
+      key: 'totalTopics',
+      label: 'Total Topics',
+      render: (row) => <span className="font-semibold tabular-nums">{row.totalTopics ?? 0}</span>,
     },
     {
       key: 'totalTestSeries',
@@ -95,7 +89,13 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={() => openFaculty(row)}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          className="!px-3 !py-1.5"
+          showPlusIcon={false}
+          onClick={() => openFaculty(row)}
+        >
           <Eye className="h-4 w-4" />
           View
         </BannerButton>
@@ -112,25 +112,15 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
             Synced from Faculty Subjects — TEST category only
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search subject or faculty…"
-              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-[#55ace7]"
-            title="Refresh sync"
-          >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </button>
+        <div className="relative min-w-[200px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search subject or faculty…"
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20"
+          />
         </div>
       </div>
       <PaginatedFigmaTable
@@ -147,7 +137,7 @@ export default function CbtMappingTable({ rows, loading, onRefresh }) {
       />
       {!loading && filtered.length > 0 && (
         <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
-          Click any row, subject, faculty name, or View to open test series details.
+          Click any row, faculty subject, faculty name, or View to open test series details.
         </p>
       )}
     </div>

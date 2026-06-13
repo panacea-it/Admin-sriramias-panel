@@ -233,10 +233,10 @@ export const updateAdminUser = async (adminAccessId, payload) => {
   }
 }
 
-export const updateAdminStatus = async (adminAccessId, accountStatus) => {
+export const updateAdminStatus = async (adminAccessId, status) => {
   try {
     const response = await api.patch(`/api/admin/admin-access/${adminAccessId}/status`, {
-      accountStatus: Boolean(accountStatus),
+      status: Boolean(status),
     })
     return response.data
   } catch (error) {

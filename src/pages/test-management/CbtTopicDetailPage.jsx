@@ -43,7 +43,7 @@ export default function CbtTopicDetailPage() {
             to={faculty ? TEST_MANAGEMENT_ROUTES.cbtFaculty(subjectId) : TEST_MANAGEMENT_ROUTES.cbt}
             className="mt-4 inline-block"
           >
-            <BannerButton type="button">Go Back</BannerButton>
+            <BannerButton type="button" showPlusIcon={false}>Go Back</BannerButton>
           </Link>
         </div>
       </TestManagementPageShell>
@@ -58,6 +58,7 @@ export default function CbtTopicDetailPage() {
         <BannerButton
           type="button"
           variant="secondary"
+          showPlusIcon={false}
           onClick={() => navigate(TEST_MANAGEMENT_ROUTES.cbtFaculty(subjectId))}
         >
           <ArrowLeft className="h-4 w-4" />

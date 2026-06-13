@@ -1,22 +1,22 @@
 import { Search, X, ChevronDown } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
-function FilterChip({ label, value, onChange, options, className }) {
+function FilterSelect({ label, value, onChange, options, className }) {
   return (
-    <div className={cn('relative inline-flex', className)}>
+    <div className={cn('relative w-full sm:w-auto sm:min-w-[148px]', className)}>
       <select
         value={value}
         onChange={onChange}
         aria-label={label}
-        className="h-9 min-w-[120px] cursor-pointer appearance-none rounded-full border border-slate-200/90 bg-white pl-3.5 pr-8 text-xs font-semibold text-[#1a3a5c] shadow-sm outline-none transition hover:border-[#55ace7]/40 focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20"
+        className="h-10 w-full min-h-[40px] cursor-pointer appearance-none rounded-lg border-0 bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] pl-4 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40"
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
             {opt.label}
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
     </div>
   )
 }
@@ -59,9 +59,8 @@ export default function SubjectListingToolbar({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Filters</span>
-        <FilterChip
+      <div className="flex flex-wrap items-center gap-2.5">
+        <FilterSelect
           label="Status"
           value={status}
           onChange={onStatusChange}
@@ -72,7 +71,7 @@ export default function SubjectListingToolbar({
           ]}
         />
         {teacherOptions.length > 1 && (
-          <FilterChip
+          <FilterSelect
             label="Teacher"
             value={teacher}
             onChange={onTeacherChange}
@@ -80,20 +79,20 @@ export default function SubjectListingToolbar({
           />
         )}
         {categoryOptions.length > 1 && (
-          <FilterChip
+          <FilterSelect
             label="Category"
             value={category}
             onChange={onCategoryChange}
             options={categoryOptions}
           />
         )}
-        {hasActiveFilters && (
+        {hasActiveFilters && onClearFilters && (
           <button
             type="button"
             onClick={onClearFilters}
-            className="inline-flex h-9 items-center gap-1 rounded-full border border-red-200/80 bg-red-50/80 px-3 text-xs font-semibold text-[#c96565] transition hover:bg-red-50"
+            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200/80 bg-red-50/80 px-3.5 text-sm font-semibold text-[#c96565] transition hover:bg-red-50"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
             Clear Filters
           </button>
         )}

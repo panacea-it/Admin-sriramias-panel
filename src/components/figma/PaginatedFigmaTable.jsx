@@ -31,6 +31,7 @@ export default function PaginatedFigmaTable({
   /** Server-driven pagination — skips client-side slicing */
   controlledPagination,
   paginationClassName,
+  gradientActivePage = false,
 }) {
   const internalRef = useRef(null)
   const tableRef = externalRef ?? internalRef
@@ -134,6 +135,7 @@ export default function PaginatedFigmaTable({
           onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
           className={paginationClassName}
+          gradientActivePage={gradientActivePage}
         />
       )}
     </div>

@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { BellRing, Globe } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import SectionBar from '../courses/SectionBar'
+import SearchableSelect from '../categories/SearchableSelect'
+import LeadStatusSearchableSelect from './LeadStatusSearchableSelect'
 import {
   CourseFormField,
   CourseInput,
@@ -13,9 +15,14 @@ import {
   CourseSelect,
   CourseTextarea,
 } from '../courses/CourseFormField'
+import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
+import { useCounselorEmployees } from '../../hooks/useCounselorEmployees'
 import { cn } from '../../utils/cn'
 import {
   EMPTY_NOTIFICATION_FORM,
+  formatNotificationStatusLabel,
+  NOTIFICATION_LEAD_STATUS_OPTIONS,
+  NOTIFICATION_TYPES,
   USER_TYPE_OPTIONS,
 } from '../../data/pushNotificationsData'
 
@@ -34,7 +41,7 @@ function UrlInput({ value, onChange, placeholder = 'https://' }) {
   )
 }
 
-export function buildNotificationFromForm(form, existing) {
+export function buildNotificationFromForm(form, existing, { centerLabel, counselorName } = {}) {
   const now = new Date()
   const sentDate = now.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -49,24 +56,36 @@ export function buildNotificationFromForm(form, existing) {
 
   const hasVideo = Boolean(form.videoName)
   const hasPdf = Boolean(form.pdfName)
-  const type = hasVideo ? 'Video' : hasPdf ? 'PDF' : form.imageName ? 'Image' : 'Text'
+  const type = existing
+    ? form.type || existing.type || 'Text'
+    : hasVideo
+      ? 'Video'
+      : hasPdf
+        ? 'PDF'
+        : form.imageName
+          ? 'Image'
+          : 'Text'
 
   return {
     id: existing?.id ?? Date.now(),
     sentBy: existing?.sentBy ?? 'Admin',
     device: existing?.device ?? 'Android',
     message: form.message.trim(),
-    center: existing?.center ?? 'New Delhi',
+    center: centerLabel || existing?.center || 'New Delhi',
+    centerId: form.centerId || existing?.centerId || '',
     type,
-    sentTime: existing?.sentTime ?? sentTime,
-    sentDate: existing?.sentDate ?? sentDate,
-    dateBucket: 'Today',
+    sentTime: existing ? form.sentTime || existing.sentTime : sentTime,
+    sentDate: existing ? form.sentDate || existing.sentDate : sentDate,
+    dateBucket: existing?.dateBucket ?? 'Today',
     userType: form.userType,
     title: form.title.trim(),
     url: form.url.trim(),
     pdfName: form.pdfName,
     videoName: form.videoName,
     imageName: form.imageName,
+    leadStatus: form.leadStatus || 'NEW',
+    assignedCounselorId: form.assignedCounselorId || '',
+    assignedCounselorName: counselorName || existing?.assignedCounselorName || '',
   }
 }
 
@@ -79,6 +98,12 @@ function formFromNotification(row) {
     pdfName: row.pdfName ?? '',
     videoName: row.videoName ?? '',
     imageName: row.imageName ?? '',
+    centerId: row.centerId ?? '',
+    assignedCounselorId: row.assignedCounselorId ?? '',
+    leadStatus: row.leadStatus ?? 'NEW',
+    type: row.type ?? 'Text',
+    sentDate: row.sentDate ?? '',
+    sentTime: row.sentTime ?? '',
   }
 }
 
@@ -88,12 +113,35 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
   editingRef.current = editing
   const editKey = getModalEditKey(editing)
 
+  const {
+    options: centerOptions,
+    loading: centersLoading,
+    error: centersError,
+  } = useCentersDropdownOptions({ enabled: open })
+  const {
+    options: counselorOptions,
+    counselorById,
+    loading: counselorsLoading,
+    error: counselorsError,
+  } = useCounselorEmployees({ enabled: open })
+
+  const statusOptions = useMemo(
+    () =>
+      NOTIFICATION_LEAD_STATUS_OPTIONS.map((status) => ({
+        value: status,
+        label: formatNotificationStatusLabel(status),
+      })),
+    [],
+  )
+
   useInitOnModalOpen(open, editKey, () => {
     const row = editingRef.current
     setForm(row ? formFromNotification(row) : { ...EMPTY_NOTIFICATION_FORM })
   })
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
   const setFileName = (key) => (e) => {
     const file = e.target.files?.[0]
@@ -114,22 +162,119 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
       return
     }
 
-    const notification = buildNotificationFromForm(form, editing)
+    const centerLabel =
+      centerOptions.find((opt) => String(opt.value) === String(form.centerId))?.label || ''
+    const counselorName = counselorById[form.assignedCounselorId] || ''
+
+    const notification = buildNotificationFromForm(form, editing, {
+      centerLabel,
+      counselorName,
+    })
     onSubmit?.(notification, editing ? 'update' : 'create')
     handleClose()
   }
 
+  if (editing) {
+    return (
+      <Modal open={open} onClose={handleClose} size="md" title="Edit Notification" showCloseButton={false}>
+        <form
+          onSubmit={handleSubmit}
+          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(15,23,42,0.2)]"
+        >
+          <ModalPanelHeader
+            title="Edit Notification"
+            subtitle={`Notification #${editing.id}`}
+            onClose={handleClose}
+            icon={BellRing}
+            iconClassName="text-[#246392]"
+            closeVariant="icon"
+          />
+
+          <div className="custom-scrollbar max-h-[min(70vh,640px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+            <CourseFormField label="Notification Title" required>
+              <CourseInput
+                value={form.title}
+                onChange={update('title')}
+                placeholder="Notification title"
+              />
+            </CourseFormField>
+
+            <CourseFormField label="Message" required>
+              <CourseTextarea
+                value={form.message}
+                onChange={update('message')}
+                rows={5}
+                placeholder="Write your notification message..."
+              />
+            </CourseFormField>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <CourseFormField label="Center">
+                <SearchableSelect
+                  value={form.centerId}
+                  onChange={(value) => setField('centerId', value)}
+                  options={centerOptions}
+                  placeholder="Select center"
+                  loading={centersLoading}
+                  error={centersError}
+                />
+              </CourseFormField>
+
+              <CourseFormField label="Type">
+                <CourseSelect value={form.type} onChange={update('type')}>
+                  {NOTIFICATION_TYPES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </CourseSelect>
+              </CourseFormField>
+            </div>
+
+            <CourseFormField label="Date">
+              <CourseInput
+                value={form.sentDate}
+                onChange={update('sentDate')}
+                placeholder="e.g. 26 March 2026"
+              />
+            </CourseFormField>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={cn(
+                'inline-flex min-h-[40px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white',
+                'shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98]',
+              )}
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </Modal>
+    )
+  }
+
   return (
-    <Modal open={open} onClose={handleClose} size="full" title="Send Notification">
+    <Modal open={open} onClose={handleClose} size="full" title="Send Notification" showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-xl bg-[#f7f7f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
           title="Send Notification"
-          onBack={handleClose}
+          onClose={handleClose}
           icon={BellRing}
           iconClassName="text-[#246392]"
+          closeVariant="icon"
         />
 
         <div className="max-h-[min(72vh,720px)] overflow-y-auto">
@@ -145,6 +290,40 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
                     </option>
                   ))}
                 </CourseSelect>
+              </CourseFormField>
+            </div>
+
+            <SectionBar title="Assignment" />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <CourseFormField label="Assigned Center">
+                <SearchableSelect
+                  value={form.centerId}
+                  onChange={(value) => setField('centerId', value)}
+                  options={centerOptions}
+                  placeholder="Select center"
+                  loading={centersLoading}
+                  error={centersError}
+                />
+              </CourseFormField>
+              <CourseFormField label="Assign Counselor">
+                <SearchableSelect
+                  value={form.assignedCounselorId}
+                  onChange={(value) => setField('assignedCounselorId', value)}
+                  options={counselorOptions}
+                  placeholder="Select counselor"
+                  emptyMessage="No active counselors found"
+                  loading={counselorsLoading}
+                  error={counselorsError}
+                />
+              </CourseFormField>
+              <CourseFormField label="Notification Status">
+                <LeadStatusSearchableSelect
+                  value={form.leadStatus}
+                  onChange={(value) => setField('leadStatus', value)}
+                  options={statusOptions}
+                  placeholder="Select status"
+                />
               </CourseFormField>
             </div>
 

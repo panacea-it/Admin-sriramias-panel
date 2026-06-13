@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Pencil, Trash2, ClipboardList, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../figma/PageBanner'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import TableActionMenu from '../../common/TableActionMenu'
 import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
+import {
+  ExamPatternTableActions,
+  testConfigActionsColumnWide,
+  testConfigTablePaginationClass,
+} from '../TestConfigTableActions'
 import { useExamPatternManagement } from '../../../hooks/useExamPatternManagement'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import {
@@ -160,7 +164,7 @@ export default function ExamPatternTab() {
     try {
       await updateExamPatternStatus(statusTarget.id, nextApiStatus)
       toast.success(
-        activating ? 'Instruction activated successfully' : 'Instruction deactivated successfully',
+        activating ? 'Instruction enabled successfully' : 'Instruction disabled successfully',
       )
       setStatusTarget(null)
       await refreshExamPatterns()
@@ -207,29 +211,16 @@ export default function ExamPatternTab() {
       {
         key: 'actions',
         label: 'Actions',
-        render: (row) => {
-          const isActive = row.status === 'Active'
-          return (
-            <TableActionMenu
-              triggerLabel="Instruction actions"
-              items={[
-                { label: 'View', icon: Eye, onClick: () => handleView(row) },
-                { label: 'Edit', icon: Pencil, onClick: () => handleEdit(row) },
-                {
-                  label: isActive ? 'Deactivate' : 'Activate',
-                  icon: isActive ? ToggleLeft : ToggleRight,
-                  onClick: () => setStatusTarget(row),
-                },
-                {
-                  label: 'Delete',
-                  icon: Trash2,
-                  danger: true,
-                  onClick: () => setDeleteTarget(row),
-                },
-              ]}
-            />
-          )
-        },
+        ...testConfigActionsColumnWide,
+        render: (row) => (
+          <ExamPatternTableActions
+            row={row}
+            onView={() => handleView(row)}
+            onEdit={() => handleEdit(row)}
+            onToggleStatus={() => setStatusTarget(row)}
+            onDelete={() => setDeleteTarget(row)}
+          />
+        ),
       },
     ],
     [handleView, handleEdit],
@@ -281,10 +272,10 @@ export default function ExamPatternTab() {
         itemLabel="instructions"
         controlledPagination={controlledPagination}
         resetDeps={[search, status, sortPreset]}
-        rowClassName="hover:bg-slate-50/90"
-        stickyHeader
-        stickyLastColumn
-        zebraStriping
+        density="comfortable"
+        rowClassName="hover:bg-[#eef6fc]/70"
+        tableClassName="rounded-none border-0 shadow-none"
+        paginationClassName={testConfigTablePaginationClass}
       />
 
       <ExamPatternFormModal

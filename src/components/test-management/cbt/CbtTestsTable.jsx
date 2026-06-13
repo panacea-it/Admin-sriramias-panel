@@ -68,9 +68,9 @@ export default function CbtTestsTable({ faculty, topic, loading }) {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" onClick={() => openResults(row)}>
+        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" showPlusIcon={false} onClick={() => openResults(row)}>
           <Eye className="h-4 w-4" />
-          View Results
+          View Test Series
         </BannerButton>
       ),
     },

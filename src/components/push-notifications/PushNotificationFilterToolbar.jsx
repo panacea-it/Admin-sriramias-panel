@@ -1,4 +1,5 @@
 import { Search, ChevronDown } from 'lucide-react'
+import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -25,24 +26,22 @@ export default function PushNotificationFilterToolbar({
   onSearchChange,
   center,
   onCenterChange,
-  dateRange,
-  onDateRangeChange,
-  type,
-  onTypeChange,
+  selectedDate,
+  onDateChange,
 }) {
   return (
     <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
-      <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
+      <div className="relative w-full min-w-0 flex-1 sm:max-w-xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
         <input
           type="search"
           value={search}
           onChange={onSearchChange}
-          placeholder="Search Notifications"
+          placeholder="Search By Username"
           className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] sm:pl-11 sm:text-base"
         />
       </div>
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
         <FilterSelect
           label="Center"
           value={center}
@@ -54,28 +53,7 @@ export default function PushNotificationFilterToolbar({
             { value: 'Pune', label: 'Pune' },
           ]}
         />
-        <FilterSelect
-          label="Today"
-          value={dateRange}
-          onChange={onDateRangeChange}
-          options={[
-            { value: 'all', label: 'Today' },
-            { value: 'Today', label: 'Today' },
-            { value: 'This Week', label: 'This Week' },
-            { value: 'This Month', label: 'This Month' },
-          ]}
-        />
-        <FilterSelect
-          label="Type"
-          value={type}
-          onChange={onTypeChange}
-          options={[
-            { value: 'all', label: 'Type' },
-            { value: 'All', label: 'All' },
-            { value: 'Video', label: 'Video' },
-            { value: 'Text', label: 'Text' },
-          ]}
-        />
+        <CrmDateFilterPicker value={selectedDate} onChange={onDateChange} className="sm:min-w-[120px]" />
       </div>
     </div>
   )

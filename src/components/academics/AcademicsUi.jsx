@@ -1,14 +1,18 @@
 import { PlusCircle } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
-export function BannerButton({ children, onClick }) {
+export function BannerButton({ children, onClick, showPlusIcon = true, className, ...rest }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 min-h-[38px] items-center justify-center gap-2 rounded-lg bg-[#1a3a5c] px-4 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(0,0,0,0.15)] transition hover:bg-[#152f4a] sm:text-base"
+      className={cn(
+        'inline-flex h-10 min-h-[38px] items-center justify-center gap-2 rounded-lg bg-[#1a3a5c] px-4 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(0,0,0,0.15)] transition hover:bg-[#152f4a] sm:text-base',
+        className,
+      )}
+      {...rest}
     >
-      <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+      {showPlusIcon && <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />}
       {children}
     </button>
   )
@@ -20,6 +24,8 @@ const STATUS_STYLES = {
   Scheduled: 'bg-[#55ace7]',
   Completed: 'bg-[#9ca3af]',
   'In Active': 'bg-[#ef4444]',
+  Published: 'bg-[#10b981]',
+  Unpublished: 'bg-[#efb36d]',
 }
 
 export function StatusBadge({ status }) {

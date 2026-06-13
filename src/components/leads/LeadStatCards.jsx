@@ -4,44 +4,40 @@ const cards = [
   {
     label: 'Total Leads',
     key: 'total',
-    bg: 'bg-[#fce8ec]',
-    valueClass: 'text-[#e85d7a] font-bold text-xl sm:text-2xl',
-  },
-  {
-    label: 'Hot Leads',
-    key: 'hot',
-    bg: 'bg-[#e8f8eb]',
-    valueClass: 'text-[#3dad4a] font-bold text-xl sm:text-2xl',
-  },
-  {
-    label: 'Cold Leads',
-    key: 'cold',
-    bg: 'bg-[#f0ebf8]',
-    valueClass: 'text-[#8b5cf6] font-bold text-xl sm:text-2xl',
+    valueColor: 'text-[#e85d7a]',
+    accent: 'from-[#e85d7a] to-[#df8284]',
+    bg: 'bg-gradient-to-br from-[#fff5f7] to-white',
   },
   {
     label: 'Conversion Rate',
     key: 'conversionRate',
-    bg: 'bg-[#fef9e6]',
-    valueClass: 'text-[#c9a227] font-bold text-xl sm:text-2xl',
+    valueColor: 'text-[#c9a227]',
+    accent: 'from-[#c9a227] to-[#b8921f]',
+    bg: 'bg-gradient-to-br from-[#fffbeb] to-white',
   },
 ]
 
 export default function LeadStatCards({ stats }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-      {cards.map(({ label, key, bg, valueClass }) => (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:max-w-2xl">
+      {cards.map(({ label, key, valueColor, accent, bg }) => (
         <div
           key={key}
           className={cn(
-            'flex min-h-[72px] items-center justify-between rounded-xl px-4 py-3.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)] sm:px-5 sm:py-4',
+            'relative overflow-hidden rounded-xl border border-slate-100/80 px-4 py-4 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:px-5 sm:py-4',
             bg,
           )}
         >
-          <span className="text-sm font-semibold text-[#111] sm:text-base">{label}</span>
-          <span className={valueClass}>
-            {typeof stats[key] === 'number' ? stats[key].toLocaleString() : stats[key]}
-          </span>
+          <div
+            className={cn('absolute left-0 top-0 h-full w-1 bg-gradient-to-b', accent)}
+            aria-hidden
+          />
+          <div className="flex items-center justify-between gap-3 pl-2">
+            <span className="text-sm font-semibold text-[#333] sm:text-base">{label}</span>
+            <span className={cn('text-xl font-bold tabular-nums sm:text-2xl', valueColor)}>
+              {typeof stats[key] === 'number' ? stats[key].toLocaleString() : stats[key]}
+            </span>
+          </div>
         </div>
       ))}
     </div>

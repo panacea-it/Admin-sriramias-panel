@@ -58,6 +58,7 @@ export default function MainsTopicDetailPage() {
         <BannerButton
           type="button"
           variant="secondary"
+          showPlusIcon={false}
           onClick={() => navigate(TEST_MANAGEMENT_ROUTES.mainsFaculty(subjectId))}
         >
           <ArrowLeft className="h-4 w-4" />

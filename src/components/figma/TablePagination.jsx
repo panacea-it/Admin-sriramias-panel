@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { getPaginationPages, PAGE_SIZE_OPTIONS } from '../../utils/getPaginationPages'
 
-function PageButton({ children, active, disabled, onClick, ariaLabel }) {
+function PageButton({ children, active, disabled, onClick, ariaLabel, gradientActive = false }) {
   return (
     <button
       type="button"
@@ -14,7 +14,9 @@ function PageButton({ children, active, disabled, onClick, ariaLabel }) {
       className={cn(
         'inline-flex h-9 min-w-[36px] items-center justify-center rounded-lg px-2.5 text-sm font-semibold transition-all duration-150',
         active
-          ? 'bg-[#246392] text-white shadow-[0_4px_12px_rgba(36,99,146,0.35)]'
+          ? gradientActive
+            ? 'bg-gradient-to-r from-[#55ace7] to-[#246392] text-white shadow-[0_4px_12px_rgba(36,99,146,0.35)]'
+            : 'bg-[#246392] text-white shadow-[0_4px_12px_rgba(36,99,146,0.35)]'
           : 'border border-slate-200 bg-white text-[#333] hover:border-[#55ace7] hover:bg-[#eef6fc] hover:text-[#246392]',
         disabled && 'cursor-not-allowed opacity-40 hover:border-slate-200 hover:bg-white hover:text-[#333]',
       )}
@@ -35,6 +37,7 @@ export default function TablePagination({
   onPageSizeChange,
   itemLabel = 'records',
   className,
+  gradientActivePage = false,
 }) {
   const [jumpValue, setJumpValue] = useState('')
   const pages = getPaginationPages(page, totalPages)
@@ -87,6 +90,7 @@ export default function TablePagination({
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
             ariaLabel="Previous page"
+            gradientActive={gradientActivePage}
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
           </PageButton>
@@ -105,6 +109,7 @@ export default function TablePagination({
                 active={p === page}
                 onClick={() => onPageChange(p)}
                 ariaLabel={`Page ${p}`}
+                gradientActive={gradientActivePage}
               >
                 {p}
               </PageButton>
@@ -115,6 +120,7 @@ export default function TablePagination({
             disabled={page >= totalPages}
             onClick={() => onPageChange(page + 1)}
             ariaLabel="Next page"
+            gradientActive={gradientActivePage}
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
           </PageButton>

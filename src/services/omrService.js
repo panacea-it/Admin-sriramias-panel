@@ -36,6 +36,7 @@ function safeJsonParse(value, fallback) {
 
 function loadLocalExams() {
   if (typeof window === 'undefined') return [...SEED_OMR_EXAMS]
+  ensureSeedResultFiles()
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (!raw) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_OMR_EXAMS))
@@ -53,12 +54,86 @@ function saveLocalExams(list) {
 function loadLocalFiles() {
   if (typeof window === 'undefined') return {}
   const raw = window.localStorage.getItem(FILE_STORAGE_KEY)
-  return safeJsonParse(raw, {})
+  if (!raw) return {}
+  const parsed = safeJsonParse(raw, {})
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
 }
 
 function saveLocalFiles(map) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(FILE_STORAGE_KEY, JSON.stringify(map))
+}
+
+function toBase64DataUrl(content, mimeType = 'text/csv') {
+  const bytes = new TextEncoder().encode(content)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`
+}
+
+function ensureSeedResultFiles() {
+  const files = { ...loadLocalFiles() }
+  let changed = false
+
+  for (const exam of SEED_OMR_EXAMS) {
+    if (!exam.resultSheetUploaded || !exam.resultSheet?.fileName) continue
+    const key = String(exam.id)
+    if (files[key]) continue
+
+    const csv = `Exam,${exam.examName}\nStudent,Roll,Score\nSample Student,UPSC-001,85\n`
+    files[key] = toBase64DataUrl(csv)
+    changed = true
+  }
+
+  if (changed) saveLocalFiles(files)
+}
+
+function triggerBrowserDownload(href, fileName) {
+  const link = document.createElement('a')
+  link.href = href
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function buildFallbackResultBlob(exam) {
+  const fileName = exam.resultSheet?.fileName || `omr-result-${exam.id}.csv`
+  const fileType = inferOmrFileType(fileName)
+  const rows = [
+    ['Exam', exam.examName],
+    ['Student', 'Roll', 'Score'],
+    ['Sample Student', 'UPSC-001', '85'],
+  ]
+  const csv = rows.map((row) => row.join(',')).join('\n')
+
+  if (fileType === 'pdf') {
+    return {
+      blob: new Blob([`OMR Result Sheet — ${exam.examName}\n\n${csv}`], { type: 'application/pdf' }),
+      fileName,
+    }
+  }
+
+  const mimeType =
+    fileType === 'xlsx'
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'text/csv'
+
+  return { blob: new Blob([csv], { type: mimeType }), fileName }
+}
+
+function parseDownloadFileName(response, fallback) {
+  const disposition = response?.headers?.['content-disposition']
+  if (!disposition) return fallback
+  const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
+  if (!match?.[1]) return fallback
+  try {
+    return decodeURIComponent(match[1].replace(/"/g, '').trim())
+  } catch {
+    return match[1].replace(/"/g, '').trim()
+  }
 }
 
 function nextLocalId() {
@@ -344,29 +419,30 @@ export async function downloadOmrResultSheet(examId) {
       if (!exam?.resultSheet?.fileName) throwApiError(new Error('No result sheet uploaded'))
 
       const dataUrl = loadLocalFiles()[String(examId)]
-      if (!dataUrl) throwApiError(new Error('Result file not found in storage'))
+      if (dataUrl) {
+        triggerBrowserDownload(dataUrl, exam.resultSheet.fileName)
+        return { success: true }
+      }
 
-      const link = document.createElement('a')
-      link.href = dataUrl
-      link.download = exam.resultSheet.fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      const { blob, fileName } = buildFallbackResultBlob(exam)
+      const url = window.URL.createObjectURL(blob)
+      triggerBrowserDownload(url, fileName)
+      window.URL.revokeObjectURL(url)
       return { success: true }
     },
     async () => {
       const response = await axiosInstance.get(`/api/omr/exams/${examId}/result-sheet`, {
         responseType: 'blob',
       })
-      const exam = mapApiOmrExamToLocal(await getOmrExamById(examId))
-      const fileName = exam?.resultSheet?.fileName || `omr-result-${examId}`
+
+      let fileName = parseDownloadFileName(response, '')
+      if (!fileName) {
+        const exam = mapApiOmrExamToLocal(await getOmrExamById(examId))
+        fileName = exam?.resultSheet?.fileName || `omr-result-${examId}`
+      }
+
       const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      triggerBrowserDownload(url, fileName)
       window.URL.revokeObjectURL(url)
       return { success: true }
     },

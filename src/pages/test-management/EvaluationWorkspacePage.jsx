@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { toast } from '@/utils/toast'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ClipboardCheck } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { toast } from '../../utils/toast'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import AnswerSheetViewer from '../../components/test-management/evaluation-workspace/AnswerSheetViewer'
 import EvaluationSidebar from '../../components/test-management/evaluation-workspace/EvaluationSidebar'
+import { DEFAULT_WORKSPACE_RUBRIC } from '../../data/evaluationOversightSeed'
 import {
-  DEFAULT_WORKSPACE_RUBRIC,
-} from '../../data/evaluationOversightSeed'
-import {
+  downloadEvaluationPaper,
   fetchEvaluationPaperById,
   publishEvaluationResult,
   saveEvaluationDraft,
@@ -23,14 +22,23 @@ function normalizeRubric(rubric) {
   return base.map((r) => ({ ...r }))
 }
 
+function computeRubricTotal(rubric = []) {
+  return rubric.reduce((sum, r) => sum + (Number(r.score) || 0), 0)
+}
+
 export default function EvaluationWorkspacePage() {
   const { paperId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const workspaceMode = location.state?.mode || 'view'
+
   const [loading, setLoading] = useState(true)
   const [paper, setPaper] = useState(null)
   const [rubric, setRubric] = useState(normalizeRubric())
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [page, setPage] = useState(1)
   const [pageCount, setPageCount] = useState(12)
   const [scale, setScale] = useState(1)
@@ -39,6 +47,15 @@ export default function EvaluationWorkspacePage() {
   const silentToastRef = useRef(false)
 
   const locked = !!paper?.locked
+  const readOnly = locked || workspaceMode === 'view'
+
+  const pageTitle = useMemo(() => {
+    if (!paper) return 'Paper Evaluation'
+    if (paper.status === 'Evaluated' || workspaceMode === 'view') {
+      return paper.status === 'Evaluated' ? 'View Evaluation' : 'View Paper'
+    }
+    return 'Detailed Paper Evaluation'
+  }, [paper, workspaceMode])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,18 +75,28 @@ export default function EvaluationWorkspacePage() {
     load()
   }, [load])
 
-  const buildPatch = useCallback(
-    () => ({
+  const buildPatch = useCallback(() => {
+    const total = computeRubricTotal(rubric)
+    return {
       rubric,
       annotations: paper?.annotations,
       remarks: paper?.remarks,
-    }),
-    [rubric, paper?.annotations, paper?.remarks],
-  )
+      scoreObtained: Math.round(total * 10) / 10,
+    }
+  }, [rubric, paper?.annotations, paper?.remarks])
 
   const saveDraft = useCallback(
     async ({ silent = false } = {}) => {
-      if (!paper || locked) return
+      if (!paper) return
+      if (locked) {
+        if (!silent) toast.error('This evaluation is locked and cannot be edited.')
+        return
+      }
+      if (readOnly) {
+        if (!silent) toast.error('Switch to Start Evaluation to save changes.')
+        return
+      }
+
       setSaving(true)
       try {
         const saved = await saveEvaluationDraft(paper.id, buildPatch())
@@ -84,7 +111,7 @@ export default function EvaluationWorkspacePage() {
             }, 4000)
           }
         } else {
-          toast.success('Draft saved')
+          toast.success('Draft saved successfully')
         }
       } catch (err) {
         if (!silent) toast.error(err?.message || 'Failed to save draft')
@@ -92,16 +119,17 @@ export default function EvaluationWorkspacePage() {
         setSaving(false)
       }
     },
-    [paper, locked, buildPatch],
+    [paper, locked, readOnly, buildPatch],
   )
 
   useEffect(() => {
-    if (!dirty || locked) return undefined
+    if (!dirty || locked || readOnly) return undefined
     const t = setInterval(() => saveDraft({ silent: true }), AUTOSAVE_MS)
     return () => clearInterval(t)
-  }, [dirty, locked, saveDraft])
+  }, [dirty, locked, readOnly, saveDraft])
 
   const setRubricScore = (idx, score) => {
+    if (readOnly) return
     setRubric((prev) =>
       prev.map((r, i) =>
         i === idx ? { ...r, score: Math.min(Number(r.max), Math.max(0, Number(score))) } : r,
@@ -111,12 +139,13 @@ export default function EvaluationWorkspacePage() {
   }
 
   const setRubricFeedback = (idx, feedback) => {
+    if (readOnly) return
     setRubric((prev) => prev.map((r, i) => (i === idx ? { ...r, feedback } : r)))
     setDirty(true)
   }
 
   const handleAnnotate = async (ann) => {
-    if (!paper || locked) return
+    if (!paper || locked || readOnly) return
     const next = [
       ...(Array.isArray(paper.annotations) ? paper.annotations : []),
       { id: `ANN-${Date.now()}`, ...ann },
@@ -132,23 +161,51 @@ export default function EvaluationWorkspacePage() {
 
   const handlePublish = async () => {
     if (!paper) return
-    setSaving(true)
+    if (locked) {
+      toast.error('This evaluation is already published.')
+      return
+    }
+    if (readOnly) {
+      toast.error('Switch to Start Evaluation to publish results.')
+      return
+    }
+
+    const total = computeRubricTotal(rubric)
+    if (total <= 0) {
+      toast.error('Enter scores before publishing results.')
+      return
+    }
+
+    setPublishing(true)
     try {
       const saved = await publishEvaluationResult(paper.id, buildPatch())
       setPaper((prev) => ({ ...prev, ...saved }))
       setDirty(false)
-      toast.success('Result published')
+      toast.success('Results published successfully')
       navigate(TEST_MANAGEMENT_ROUTES.evaluations)
     } catch (err) {
-      toast.error(err?.message || 'Failed to publish')
+      toast.error(err?.message || 'Failed to publish results')
     } finally {
-      setSaving(false)
+      setPublishing(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!paper) return
+    setDownloading(true)
+    try {
+      await downloadEvaluationPaper(paper)
+      toast.success('Download started')
+    } catch (err) {
+      toast.error(err?.message || 'Download failed')
+    } finally {
+      setDownloading(false)
     }
   }
 
   if (loading) {
     return (
-      <TestManagementPageShell icon={ArrowLeft} title="Paper Evaluation">
+      <TestManagementPageShell icon={ClipboardCheck} title="Paper Evaluation">
         <div className="animate-pulse space-y-4">
           <div className="h-32 rounded-2xl bg-white shadow-sm" />
           <div className="grid gap-4 lg:grid-cols-12">
@@ -162,7 +219,7 @@ export default function EvaluationWorkspacePage() {
 
   if (!paper) {
     return (
-      <TestManagementPageShell icon={ArrowLeft} title="Paper Evaluation">
+      <TestManagementPageShell icon={ClipboardCheck} title="Paper Evaluation">
         <p className="text-sm font-semibold text-slate-600">Paper not found.</p>
       </TestManagementPageShell>
     )
@@ -170,8 +227,8 @@ export default function EvaluationWorkspacePage() {
 
   return (
     <TestManagementPageShell
-      icon={ArrowLeft}
-      title="Detailed Paper Evaluation"
+      icon={ClipboardCheck}
+      title={pageTitle}
       actions={
         <button
           type="button"
@@ -193,7 +250,9 @@ export default function EvaluationWorkspacePage() {
             rotation={rotation}
             activeTool={activeTool}
             annotations={paper.annotations}
-            locked={locked}
+            locked={locked || readOnly}
+            downloading={downloading}
+            onDownload={handleDownload}
             onPageChange={setPage}
             onScaleChange={setScale}
             onRotate={() => setRotation((r) => (r + 90) % 360)}
@@ -207,7 +266,9 @@ export default function EvaluationWorkspacePage() {
             paper={paper}
             rubric={rubric}
             locked={locked}
+            readOnly={readOnly}
             saving={saving}
+            publishing={publishing}
             onRubricScore={setRubricScore}
             onRubricFeedback={setRubricFeedback}
             onSaveDraft={() => saveDraft({ silent: false })}

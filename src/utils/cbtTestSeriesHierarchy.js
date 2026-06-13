@@ -98,6 +98,9 @@ function buildFacultyRow(subject) {
   const content = loadSubjectContent(subject.id, subject)
   const folders = extractTestSeriesTree(content)
   const totalTestSeries = countTestSeriesLeaves(folders)
+  const totalTopics = folders.filter(
+    (node) => node.type === 'folder' && countTestSeriesLeaves(node.children || []) > 0,
+  ).length
   const metrics = deriveRowMetrics(subject.id, teacher, totalTestSeries)
 
   return {
@@ -107,6 +110,7 @@ function buildFacultyRow(subject) {
     subjectNameRaw: subject.subjectName,
     facultyName: teacher,
     testCategory: 'TEST',
+    totalTopics,
     totalTestSeries,
     studentsAttempted: metrics.studentsAttempted,
     averageScorePct: metrics.averageScorePct,

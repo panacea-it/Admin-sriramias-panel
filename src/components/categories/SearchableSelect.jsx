@@ -18,6 +18,7 @@ export default function SearchableSelect({
   loading = false,
   error,
   triggerClassName,
+  listClassName,
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -101,7 +102,7 @@ export default function SearchableSelect({
                 autoFocus
               />
             </div>
-            <ul className="max-h-48 overflow-y-auto py-1">
+            <ul className={cn('max-h-48 overflow-y-auto py-1', listClassName)}>
               {filtered.length === 0 ? (
                 <li className="px-4 py-6 text-center text-sm text-[#686868]">
                   {emptyMessage}

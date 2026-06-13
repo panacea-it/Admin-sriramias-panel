@@ -66,7 +66,7 @@ export default function AddLiveClassModal({ open, onClose, item, onSubmit }) {
         />
 
         <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
-          <SectionBar title="Live Class Details" />
+          <SectionBar title="Live Class Details 23444 " />
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <CourseFormField label="Class Title" required>

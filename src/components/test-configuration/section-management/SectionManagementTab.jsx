@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react'
-import { Eye, Pencil, Trash2, Layers } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Layers } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../figma/PageBanner'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import TableActionMenu from '../../common/TableActionMenu'
 import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
+import {
+  SectionManagementTableActions,
+  testConfigActionsColumnWide,
+  testConfigTablePaginationClass,
+} from '../TestConfigTableActions'
+import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
 import { useEditModal } from '../../../hooks/useEditModal'
 import {
   deleteSectionConfig,
@@ -50,6 +55,8 @@ export default function SectionManagementTab() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteRow, setDeleteRow] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusLoading, setStatusLoading] = useState(false)
 
   const { sortBy, sortDir } = parseSort(sort)
 
@@ -98,56 +105,80 @@ export default function SectionManagementTab() {
     }
   }
 
-  const columns = [
-    {
-      key: 'id',
-      label: 'Section ID',
-      headerClassName: 'pl-6 sm:pl-10',
-      cellClassName: 'pl-6 sm:pl-10',
-    },
-    {
-      key: 'sectionName',
-      label: 'Section Name',
-      render: (r) => <span className="font-medium text-[#1a3a5c]">{displaySectionName(r)}</span>,
-    },
-    {
-      key: 'createdOn',
-      label: 'Created On',
-      render: (r) => displayDate(r, 'createdOn'),
-    },
-    {
-      key: 'modifiedOn',
-      label: 'Modified On',
-      render: (r) => displayDate(r, 'modifiedOn'),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (r) => <StatusBadge status={r.status} />,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <TableActionMenu
-          triggerLabel="Section actions"
-          items={[
-            { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
-            { label: 'Edit', icon: Pencil, onClick: () => modal.openEdit(row) },
-            {
-              label: 'Delete',
-              icon: Trash2,
-              danger: true,
-              onClick: () => {
-                setDeleteRow(row)
-                setDeleteOpen(true)
-              },
-            },
-          ]}
-        />
-      ),
-    },
-  ]
+  const confirmStatusChange = async () => {
+    if (!statusTarget) return
+    const enabling = statusTarget.status !== 'Active'
+    const nextStatus = enabling ? 'Active' : 'Inactive'
+
+    setStatusLoading(true)
+    try {
+      const saved = await upsertSectionConfig(
+        {
+          sectionName: statusTarget.sectionName || statusTarget.configurationName,
+          status: nextStatus,
+        },
+        { id: statusTarget.id, isEdit: true },
+      )
+      setRows((prev) =>
+        prev.map((row) => (String(row.id) === String(statusTarget.id) ? { ...row, ...saved } : row)),
+      )
+      toast.success(enabling ? 'Section enabled' : 'Section disabled')
+      setStatusTarget(null)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update section status')
+    } finally {
+      setStatusLoading(false)
+    }
+  }
+
+  const columns = useMemo(
+    () => [
+      {
+        key: 'id',
+        label: 'Section ID',
+        headerClassName: 'pl-6 sm:pl-10',
+        cellClassName: 'pl-6 sm:pl-10',
+      },
+      {
+        key: 'sectionName',
+        label: 'Section Name',
+        render: (r) => <span className="font-medium text-[#1a3a5c]">{displaySectionName(r)}</span>,
+      },
+      {
+        key: 'createdOn',
+        label: 'Created On',
+        render: (r) => displayDate(r, 'createdOn'),
+      },
+      {
+        key: 'modifiedOn',
+        label: 'Modified On',
+        render: (r) => displayDate(r, 'modifiedOn'),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (r) => <StatusBadge status={r.status} />,
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        ...testConfigActionsColumnWide,
+        render: (row) => (
+          <SectionManagementTableActions
+            row={row}
+            onView={() => setViewRow(row)}
+            onEdit={() => modal.openEdit(row)}
+            onToggleStatus={() => setStatusTarget(row)}
+            onDelete={() => {
+              setDeleteRow(row)
+              setDeleteOpen(true)
+            }}
+          />
+        ),
+      },
+    ],
+    [modal],
+  )
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -184,11 +215,11 @@ export default function SectionManagementTab() {
         emptyMessage="No sections found."
         itemLabel="sections"
         resetDeps={[search, status, sort]}
-        rowClassName="hover:bg-slate-50/90"
-        stickyHeader
-        stickyLastColumn
-        zebraStriping
+        density="comfortable"
+        rowClassName="hover:bg-[#eef6fc]/70"
+        tableClassName="rounded-none border-0 shadow-none"
         tableMinWidth={980}
+        paginationClassName={testConfigTablePaginationClass}
       />
 
       <SectionConfigFormModal
@@ -211,6 +242,17 @@ export default function SectionManagementTab() {
           setDeleteRow(null)
         }}
         loading={deleting}
+      />
+
+      <ConfirmTestConfigStatusModal
+        open={Boolean(statusTarget)}
+        entityLabel="Section"
+        enabling={statusTarget?.status !== 'Active'}
+        loading={statusLoading}
+        onCancel={() => {
+          if (!statusLoading) setStatusTarget(null)
+        }}
+        onConfirm={confirmStatusChange}
       />
     </div>
   )

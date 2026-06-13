@@ -323,7 +323,7 @@ export default function SubjectContentFields({
     <div className="space-y-5">
       {showLive && (
         <section className="space-y-4">
-          <SectionTitle>Live Class Details</SectionTitle>
+          <SectionTitle>Live Class Details 6674</SectionTitle>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {liveClassGridFields}
           </div>

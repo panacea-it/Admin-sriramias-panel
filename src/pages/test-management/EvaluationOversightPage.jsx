@@ -11,13 +11,8 @@ import {
 } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import StatCard from '../../components/dashboard/StatCard'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import TableActionMenu, {
-  tableActionsCellClass,
-  tableActionsHeaderClass,
-} from '../../components/common/TableActionMenu'
 import EvaluationOversightFilters from '../../components/test-management/evaluation-oversight/EvaluationOversightFilters'
-import PaperEvaluationStatusBadge from '../../components/test-management/evaluation-oversight/PaperEvaluationStatusBadge'
+import EvaluationOversightStudentsTable from '../../components/test-management/evaluation-oversight/EvaluationOversightStudentsTable'
 import AssignEvaluatorQuickModal from '../../components/test-management/evaluation-oversight/AssignEvaluatorQuickModal'
 import {
   exportEvaluationCsv,
@@ -45,30 +40,6 @@ const DEFAULT_FILTERS = {
   search: '',
 }
 
-function MentorCell({ row }) {
-  if (!row.mentorName) {
-    return (
-      <span className="inline-flex items-center gap-2 italic text-slate-500">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 text-[10px]">
-          —
-        </span>
-        Unassigned
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-        style={{ backgroundColor: '#55ace7' }}
-      >
-        {row.mentorInitials || row.mentorName.slice(0, 2)}
-      </span>
-      <span className="font-medium text-[#333]">{row.mentorName}</span>
-    </span>
-  )
-}
-
 export default function EvaluationOversightPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState(null)
@@ -87,6 +58,7 @@ export default function EvaluationOversightPage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [assignPaper, setAssignPaper] = useState(null)
 
   const queryParams = useMemo(() => ({ ...filters }), [filters])
@@ -148,107 +120,34 @@ export default function EvaluationOversightPage() {
   }
 
   const handleExport = async () => {
+    setExporting(true)
     try {
       const { count } = await exportEvaluationCsv(queryParams)
-      toast.success(`Exported ${count} records`)
+      toast.success(`Exported ${count ?? rows.length} records`)
     } catch (err) {
       toast.error(err?.message || 'Export failed')
+    } finally {
+      setExporting(false)
     }
   }
 
-  const columns = useMemo(
+  const tableResetDeps = useMemo(
     () => [
-      {
-        key: 'studentName',
-        label: 'Student Name',
-        render: (r) => <span className="font-semibold text-[#1a3a5c]">{r.studentName}</span>,
-      },
-      {
-        key: 'rollNumber',
-        label: 'Roll Number',
-        render: (r) => <span className="text-slate-500">{r.rollNumber}</span>,
-      },
-      { key: 'testName', label: 'Test Name' },
-      { key: 'subjectName', label: 'Subject' },
-      {
-        key: 'examType',
-        label: 'Type',
-        render: (r) => (
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-            {r.examType || '—'}
-          </span>
-        ),
-      },
-      {
-        key: 'priority',
-        label: 'Priority',
-        render: (r) => (
-          <span
-            className={cn(
-              'text-xs font-bold',
-              r.priority === 'High' && 'text-red-600',
-              r.priority === 'Normal' && 'text-slate-600',
-              r.priority === 'Low' && 'text-slate-400',
-            )}
-          >
-            {r.priority || 'Normal'}
-          </span>
-        ),
-      },
-      { key: 'centerName', label: 'Center', render: (r) => <span className="text-xs text-slate-600">{r.centerName}</span> },
-      {
-        key: 'mentorName',
-        label: 'Mentor Assigned',
-        render: (r) => <MentorCell row={r} />,
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (r) => <PaperEvaluationStatusBadge status={r.status} />,
-      },
-      {
-        key: 'scoreDisplay',
-        label: 'Score',
-        align: 'center',
-        render: (r) => (
-          <span
-            className={cn(
-              'font-bold',
-              r.status === 'Evaluated' ? 'text-[#1a3a5c]' : 'text-slate-500',
-            )}
-          >
-            {r.scoreDisplay}
-          </span>
-        ),
-      },
-      {
-        key: 'actions',
-        label: 'Actions',
-        headerClassName: tableActionsHeaderClass,
-        cellClassName: tableActionsCellClass,
-        render: (row) => (
-          <TableActionMenu
-            triggerLabel="Paper actions"
-            items={[
-              {
-                label: 'View Paper',
-                onClick: () => openWorkspace(row, 'view'),
-              },
-              {
-                label: 'Assign Evaluator',
-                onClick: () => setAssignPaper(row),
-              },
-              {
-                label: row.status === 'Evaluated' ? 'View Evaluation' : 'Start Evaluation',
-                onClick: () =>
-                  openWorkspace(row, row.status === 'Evaluated' ? 'view' : 'evaluate'),
-              },
-            ]}
-          />
-        ),
-      },
+      filters.batchId,
+      filters.programId,
+      filters.mentorId,
+      filters.subjectId,
+      filters.subTopicId,
+      filters.testId,
+      filters.status,
+      filters.priority,
+      filters.examType,
+      filters.centerId,
+      filters.submittedFrom,
+      filters.submittedTo,
+      filters.search,
     ],
-    [navigate],
+    [filters],
   )
 
   return (
@@ -311,10 +210,11 @@ export default function EvaluationOversightPage() {
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm hover:bg-slate-50"
+              disabled={exporting}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Download className="h-4 w-4" />
-              Export CSV
+              <Download className={cn('h-4 w-4', exporting && 'animate-pulse')} />
+              {exporting ? 'Downloading…' : 'Export CSV'}
             </button>
             <button
               type="button"
@@ -336,32 +236,16 @@ export default function EvaluationOversightPage() {
             </button>
           </div>
         </div>
-        <div className="p-2 sm:p-3">
-          <PaginatedFigmaTable
-            columns={columns}
-            data={rows}
+        <div className="mt-5 p-2 sm:p-3">
+          <EvaluationOversightStudentsTable
+            rows={rows}
             loading={loading}
-            emptyMessage="No papers match the selected filters."
-            itemLabel="records"
-            initialPageSize={10}
-            density="compact"
-            stickyHeader
-            stickyLastColumn
-            resetDeps={[
-              filters.batchId,
-              filters.programId,
-              filters.mentorId,
-              filters.subjectId,
-              filters.subTopicId,
-              filters.testId,
-              filters.status,
-              filters.priority,
-              filters.examType,
-              filters.centerId,
-              filters.submittedFrom,
-              filters.submittedTo,
-              filters.search,
-            ]}
+            resetDeps={tableResetDeps}
+            onViewPaper={(row) => openWorkspace(row, 'view')}
+            onAssignEvaluator={setAssignPaper}
+            onOpenEvaluation={(row) =>
+              openWorkspace(row, row.status === 'Evaluated' ? 'view' : 'evaluate')
+            }
           />
         </div>
       </article>

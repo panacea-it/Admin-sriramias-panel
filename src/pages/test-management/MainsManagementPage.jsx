@@ -6,7 +6,7 @@ import { useMainsEvaluationHierarchy } from '../../hooks/useMainsEvaluationHiera
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 
 export default function MainsManagementPage() {
-  const { facultyRows, latestEvaluations, loading, refresh } = useMainsEvaluationHierarchy()
+  const { facultyRows, latestEvaluations, loading } = useMainsEvaluationHierarchy()
 
   const openEvaluation = (card, navigate) => {
     if (card.subjectId && card.topicId) {
@@ -20,9 +20,10 @@ export default function MainsManagementPage() {
         cards={latestEvaluations}
         loading={loading}
         emptyMessage="No evaluations completed yet."
+        heading="Latest Test Series"
         onCardClick={openEvaluation}
       />
-      <MainsFacultySubjectsTable rows={facultyRows} loading={loading} onRefresh={refresh} />
+      <MainsFacultySubjectsTable rows={facultyRows} loading={loading} />
     </TestManagementPageShell>
   )
 }

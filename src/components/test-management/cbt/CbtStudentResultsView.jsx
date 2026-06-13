@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Download, FileText, Filter, Search, Trophy, AlertTriangle } from 'lucide-react'
+import { Download, FileText, Search, Trophy, AlertTriangle } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import StatCard from '../../dashboard/StatCard'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
@@ -23,12 +23,14 @@ import { exportToCsv } from '../../../utils/financeExport'
 import { openPrintablePdfLikeReport } from '../../../utils/testManagement/reportExport'
 import { toast } from '../../../utils/toast'
 
-const ATTEMPT_OPTIONS = ['all', 'Completed', 'In Progress', 'Not Started', 'Absent']
-const RESULT_OPTIONS = ['all', 'Published', 'Pending', 'Under Review']
+const RESULT_OPTIONS = ['all', 'Published', 'Unpublished']
+
+function normalizeCbtResultStatus(status) {
+  return status === 'Published' ? 'Published' : 'Unpublished'
+}
 
 export default function CbtStudentResultsView({ testItem, facultyLabel }) {
   const [search, setSearch] = useState('')
-  const [attemptFilter, setAttemptFilter] = useState('all')
   const [resultFilter, setResultFilter] = useState('all')
   const [sortKey, setSortKey] = useState('rank')
   const [sortDir, setSortDir] = useState('asc')
@@ -93,8 +95,11 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
           r.rollNumber.toLowerCase().includes(q),
       )
     }
-    if (attemptFilter !== 'all') rows = rows.filter((r) => r.attemptStatus === attemptFilter)
-    if (resultFilter !== 'all') rows = rows.filter((r) => r.resultStatus === resultFilter)
+    if (resultFilter === 'Published') {
+      rows = rows.filter((r) => r.resultStatus === 'Published')
+    } else if (resultFilter === 'Unpublished') {
+      rows = rows.filter((r) => r.resultStatus !== 'Published')
+    }
 
     rows.sort((a, b) => {
       let av = a[sortKey]
@@ -109,7 +114,7 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
       return sortDir === 'asc' ? av - bv : bv - av
     })
     return rows
-  }, [allRows, search, attemptFilter, resultFilter, sortKey, sortDir])
+  }, [allRows, search, resultFilter, sortKey, sortDir])
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -204,7 +209,7 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
     {
       key: 'resultStatus',
       label: 'Result Status',
-      render: (row) => <StatusBadge status={row.resultStatus} />,
+      render: (row) => <StatusBadge status={normalizeCbtResultStatus(row.resultStatus)} />,
     },
   ]
 
@@ -304,18 +309,6 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
             className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none"
           />
         </div>
-        <Filter className="h-4 w-4 text-slate-400" />
-        <select
-          value={attemptFilter}
-          onChange={(e) => setAttemptFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-        >
-          {ATTEMPT_OPTIONS.map((o) => (
-            <option key={o} value={o}>
-              {o === 'all' ? 'All attempts' : o}
-            </option>
-          ))}
-        </select>
         <select
           value={resultFilter}
           onChange={(e) => setResultFilter(e.target.value)}
@@ -323,15 +316,15 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
         >
           {RESULT_OPTIONS.map((o) => (
             <option key={o} value={o}>
-              {o === 'all' ? 'All results' : o}
+              {o === 'all' ? 'All' : o}
             </option>
           ))}
         </select>
-        <BannerButton type="button" variant="secondary" onClick={exportCsv}>
+        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={exportCsv}>
           <Download className="h-4 w-4" />
           CSV
         </BannerButton>
-        <BannerButton type="button" variant="secondary" onClick={exportPdf}>
+        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={exportPdf}>
           <FileText className="h-4 w-4" />
           PDF
         </BannerButton>
@@ -342,7 +335,7 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
         data={filtered}
         itemLabel="students"
         initialPageSize={10}
-        resetDeps={[search, attemptFilter, resultFilter, testItem.id]}
+        resetDeps={[search, resultFilter, testItem.id]}
         stickyHeader
         emptyMessage="No students match your filters."
       />

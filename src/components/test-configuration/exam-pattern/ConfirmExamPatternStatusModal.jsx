@@ -7,16 +7,16 @@ export default function ConfirmExamPatternStatusModal({
   onCancel,
   onConfirm,
 }) {
-  const title = activating ? 'Activate Instruction?' : 'Deactivate Instruction?'
+  const title = activating ? 'Enable Instruction?' : 'Disable Instruction?'
   const message = activating
-    ? 'Are you sure you want to activate this instruction?'
-    : 'Are you sure you want to deactivate this instruction?'
-  const confirmLabel = activating ? 'Activate' : 'Deactivate'
+    ? 'Are you sure you want to enable this instruction?'
+    : 'Are you sure you want to disable this instruction?'
+  const confirmLabel = activating ? 'Enable' : 'Disable'
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl">
-        <div className="border-b border-slate-100 px-6 py-5">
+        <div className="border-b border-slate-100 px-6 py-5 pr-14">
           <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           <p className="mt-2 text-[14px] leading-relaxed text-slate-600">{message}</p>
         </div>
