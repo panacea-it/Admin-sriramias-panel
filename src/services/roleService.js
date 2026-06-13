@@ -74,22 +74,67 @@ export function normalizeRolesListResponse(data, { page = 1, limit = 10 } = {}) 
 }
 
 export function normalizeRolesDropdown(data) {
-  const list = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.data)
+  const payload =
+    data?.data && !Array.isArray(data.data) && typeof data.data === 'object'
       ? data.data
-      : data?.data?.roles ||
-        data?.data?.items ||
-        data?.roles ||
-        data?.items ||
-        []
+      : data
+
+  const list =
+    payload?.roles ||
+    payload?.items ||
+    payload?.userRoles ||
+    payload?.adminRoles ||
+    (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
+
+  const seen = new Set()
 
   return (Array.isArray(list) ? list : [])
-    .map((item) => ({
-      label: item.label || item.roleTitle || String(item.name || ''),
-      value: String(item.value || item._id || item.id || item.roleId || ''),
-    }))
-    .filter((opt) => opt.label && opt.value)
+    .map((item) => {
+      const label = String(
+        item?.label ||
+          item?.roleTitle ||
+          item?.roleName ||
+          item?.name ||
+          item?.title ||
+          '',
+      ).trim()
+
+      const roleCode = String(item?.roleCode || item?.role_code || item?.code || '').trim().toUpperCase()
+      const rawValue = String(
+        item?.value ||
+          item?._id ||
+          item?.id ||
+          item?.roleId ||
+          item?.role_id ||
+          '',
+      ).trim()
+      const value = roleCode || rawValue
+
+      const status = String(
+        item?.status ||
+          (item?.enabled === false ? 'INACTIVE' : item?.isActive === false ? 'INACTIVE' : 'ACTIVE') ||
+          '',
+      ).trim()
+
+      return {
+        label,
+        value,
+        roleCode,
+        status,
+        raw: item,
+      }
+    })
+    .filter((opt) => {
+      if (!opt.label || !opt.value) return false
+      if (opt.label.toLowerCase() === 'all roles' || opt.value.toLowerCase() === 'all') {
+        return false
+      }
+
+      const key = `${opt.label.toLowerCase()}::${opt.value.toLowerCase()}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 export function unwrapRoleResponse(data) {
@@ -143,7 +188,47 @@ export const deleteRole = async (roleId) => {
 
 export const getRolesDropdown = async () => {
   try {
-    const response = await api.get('/api/admin/roles/dropdown')
+    const response = await api.get('/api/admin/user-roles')
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export function normalizeCreateUserRoles(data) {
+  const payload =
+    data?.data && !Array.isArray(data.data) && typeof data.data === 'object'
+      ? data.data
+      : data
+
+  const list =
+    payload?.data ||
+    payload?.roles ||
+    payload?.items ||
+    payload?.options ||
+    (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
+
+  return (Array.isArray(list) ? list : [])
+    .map((item) => {
+      const label = String(item?.label || item?.roleTitle || item?.name || item?.title || '').trim()
+      const roleCode = String(item?.roleCode || item?.code || item?.value || '').trim().toUpperCase()
+      const value = String(item?.value || roleCode || item?.id || item?.roleId || '').trim().toUpperCase()
+
+      return {
+        label,
+        value,
+        roleCode,
+        kind: String(item?.kind || item?.type || '').trim(),
+        locked: Boolean(item?.locked ?? item?.isLocked ?? false),
+        raw: item,
+      }
+    })
+    .filter((option) => option.label || option.value)
+}
+
+export const getCreateUserRoles = async () => {
+  try {
+    const response = await api.get('/api/admin/user-create-roles')
     return response.data
   } catch (error) {
     throwApiError(error)

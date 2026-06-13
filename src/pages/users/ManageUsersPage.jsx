@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Users } from 'lucide-react'
 import { toast } from '@/utils/toast'
@@ -12,17 +12,27 @@ import UserFormModal from '../../components/manage-users/UserFormModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
 import {
   MANAGE_USERS_STATIC_CENTERS,
-  MANAGE_USERS_STATIC_DATA,
-  buildUserFromCreateForm,
   formatManageUserJoinDate,
 } from '../../components/manage-users/manageUsersStaticData'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
+import { useRolesDropdown } from '../../hooks/useRolesDropdown'
+import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
 import { roleLabel } from '../../data/manageUsersConfig'
 import { cn } from '../../utils/cn'
+import {
+  createStudentUser,
+  deleteUser,
+  getUnifiedUsers,
+  getUserById,
+  normalizeUnifiedUsersResponse,
+  updateUser,
+  updateUserStatus,
+} from '../../services/userManagementService'
 
 const ROLE_BADGE_STYLES = {
   student: 'bg-[#EEF5FF] text-[#1D72B8] ring-[#4CA6E8]/30',
   admin: 'bg-violet-50 text-violet-700 ring-violet-200/60',
+  mentor_admin: 'bg-violet-50 text-violet-700 ring-violet-200/60',
   faculty: 'bg-emerald-50 text-emerald-700 ring-emerald-200/60',
   counselor: 'bg-orange-50 text-orange-700 ring-orange-200/60',
   employee: 'bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]',
@@ -30,9 +40,12 @@ const ROLE_BADGE_STYLES = {
 }
 
 function roleDisplayLabel(role) {
-  if (role === 'faculty') return 'Teacher'
-  if (role === 'counselor') return 'Parent'
-  return roleLabel(role)
+  const normalized = String(role || '').trim().toLowerCase()
+
+  if (normalized === 'faculty') return 'Teacher'
+  if (normalized === 'counselor') return 'Parent'
+  if (normalized === 'mentor_admin' || normalized === 'mentor-admin') return 'Mentor Admin'
+  return roleLabel(normalized)
 }
 
 function UserStatusBadge({ status }) {
@@ -82,8 +95,13 @@ function CenterPill({ label }) {
 
 export default function ManageUsersPage() {
   const navigate = useNavigate()
-  const [users, setUsers] = useState(MANAGE_USERS_STATIC_DATA)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [roleFilter, setRoleFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -98,30 +116,113 @@ export default function ManageUsersPage() {
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 
-  const centerOptions = useMemo(() => [...MANAGE_USERS_STATIC_CENTERS], [])
+  const { options: roleDropdownOptions = [] } = useRolesDropdown()
+  const { options: centerDropdownOptions = [] } = useCentersDropdownOptions()
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return users.filter((u) => {
-      if (roleFilter !== 'all' && u.role !== roleFilter) return false
-      if (centerFilter !== 'all' && u.assignedCenter !== centerFilter) return false
-      if (statusFilter !== 'all' && u.status !== statusFilter) return false
-      if (!q) return true
-      const hay = [
-        u.fullName,
-        u.email,
-        u.phone,
-        u.parentName,
-        u.parentPhone,
-        u.userId,
-        roleDisplayLabel(u.role),
-        u.assignedCenter,
-      ]
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(q)
-    })
-  }, [users, search, roleFilter, centerFilter, statusFilter])
+  const normalizedRoleDropdownOptions = useMemo(() => {
+    const seen = new Set()
+
+    return (roleDropdownOptions || [])
+      .map((opt) => {
+        const rawLabel = String(opt?.label || opt?.roleTitle || opt?.name || '').trim()
+        const rawValue = String(opt?.value || opt?._id || opt?.id || opt?.roleId || '').trim()
+        const roleCode = String(opt?.roleCode || opt?.code || '').trim().toUpperCase()
+
+        const normalizedValue = roleCode || rawValue
+
+        return {
+          value: normalizedValue,
+          label: rawLabel || 'Role',
+          roleCode,
+          rawValue,
+        }
+      })
+      .filter((opt) => {
+        if (!opt.label || !opt.value) return false
+        if (opt.label.toLowerCase() === 'all roles' || opt.value.toLowerCase() === 'all') {
+          return false
+        }
+
+        const key = `${opt.label.toLowerCase()}::${opt.value.toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  }, [roleDropdownOptions])
+
+  const roleOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All roles' },
+      ...normalizedRoleDropdownOptions,
+    ],
+    [normalizedRoleDropdownOptions],
+  )
+
+  const centerOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All centers' },
+      ...(centerDropdownOptions.length
+        ? centerDropdownOptions.map((opt) => ({
+            value: String(opt.value || '').trim(),
+            label: String(opt.label || opt.centerName || '').trim() || 'Center',
+          }))
+        : MANAGE_USERS_STATIC_CENTERS.map((name) => ({ value: name, label: name }))),
+    ],
+    [centerDropdownOptions],
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, roleFilter, centerFilter, statusFilter])
+
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await getUnifiedUsers({
+        page,
+        limit: pageSize,
+        search,
+        role: roleFilter === 'all' ? 'ALL' : roleFilter,
+        center: centerFilter === 'all' ? 'ALL' : centerFilter,
+        status: statusFilter === 'all' ? '' : statusFilter.toUpperCase(),
+        userType: 'ALL',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      })
+
+      const normalized = normalizeUnifiedUsersResponse(response, { page, limit: pageSize })
+      setUsers(normalized.items)
+      setTotalItems(normalized.total || 0)
+      setTotalPages(normalized.totalPages || 1)
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error('Failed to load users from the API')
+      setUsers([])
+      setTotalItems(0)
+      setTotalPages(1)
+    } finally {
+      setLoading(false)
+    }
+  }, [centerFilter, page, pageSize, roleFilter, search, statusFilter])
+
+  useEffect(() => {
+    let active = true
+
+    const runLoad = async () => {
+      if (!active) return
+      await loadUsers()
+    }
+
+    runLoad()
+
+    return () => {
+      active = false
+    }
+  }, [loadUsers])
+
+  const filtered = useMemo(() => users, [users])
 
   const selectedActiveCount = useMemo(
     () => users.filter((u) => selectedIds.includes(u.id) && u.status === 'Active').length,
@@ -160,16 +261,64 @@ export default function ManageUsersPage() {
     clearSelection()
   }
 
-  const handleCreateUser = (formData) => {
-    const user = buildUserFromCreateForm(formData, { nextIndex: users.length + 1 })
-    setUsers((prev) => [user, ...prev])
-    toast.success('User added successfully')
+  const handleCreateUser = async (formData) => {
+    try {
+      setLoading(true)
+      await createStudentUser({
+        ...formData,
+        status: Boolean(formData.status === true || formData.status === 'Active' || formData.status === 'ACTIVE'),
+        userType: String(formData.userType || 'STUDENT').trim().toUpperCase(),
+      })
+
+      toast.success('User created successfully')
+      await loadUsers()
+      return true
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error('Failed to create user from the API')
+      return false
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleUpdateUser = (id, patch) => {
-    setUsers((prev) =>
-      prev.map((user) => (user.id === id ? { ...user, ...patch, email: patch.email?.toLowerCase?.() ?? user.email } : user)),
-    )
+  const handleUpdateUser = async (id, patch) => {
+    try {
+      setLoading(true)
+
+      const centerId = String(patch.centerId || '').trim()
+      const payload = {
+        fullName: String(patch.fullName || '').trim(),
+        isActive:
+          patch.isActive === true ||
+          patch.status === true ||
+          String(patch.status || '').toUpperCase() === 'ACTIVE' ||
+          String(patch.status || '').toLowerCase() === 'active',
+        parentName: String(patch.parentName || '').trim(),
+        parentMobile: String(patch.parentMobile || '').trim(),
+        centerId,
+      }
+
+      if (!payload.fullName) {
+        toast.error('Full name is required to update the user')
+        return false
+      }
+
+      await updateUser(id, payload, 'USER')
+      toast.success('User updated successfully')
+      await loadUsers()
+      return true
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error('Failed to update user from the API')
+      return false
+    } finally {
+      setLoading(false)
+    }
   }
 
   const openCreate = () => {
@@ -188,18 +337,28 @@ export default function ManageUsersPage() {
 
   const isStudent = (row) => row.role === 'student'
 
-  const handleView = (row) => {
+  const handleView = async (row) => {
     try {
       if (isStudent(row)) {
         openStudent360(row)
         return
       }
-      setViewingUser(row)
+
+      const userId = row.studentRecordId || row.id
+      if (!userId) {
+        setViewingUser(row)
+        return
+      }
+
+      const detailResponse = await getUserById(userId)
+      const normalized = normalizeUnifiedUsersResponse(detailResponse, { page: 1, limit: 10 })
+      setViewingUser(normalized.items[0] || row)
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error('Unable to open user details')
+      setViewingUser(row)
+      toast.error('Unable to load user details from the API')
     }
   }
 
@@ -210,34 +369,48 @@ export default function ManageUsersPage() {
   const confirmStatusChange = async () => {
     if (!statusTarget || statusLoading) return
 
-    const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'In Active'
+    try {
+      const enabling = statusTarget.status !== 'Active'
+      setStatusLoading(true)
+      setActionUserId(statusTarget.id)
 
-    setStatusLoading(true)
-    setActionUserId(statusTarget.id)
+      await updateUserStatus(statusTarget.studentRecordId || statusTarget.id, enabling)
 
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === statusTarget.id ? { ...user, status: nextStatus } : user,
-      ),
-    )
-    toast.success(enabling ? 'User enabled successfully' : 'User disabled successfully')
-    setStatusTarget(null)
-    setStatusLoading(false)
-    setActionUserId(null)
+      await loadUsers()
+      toast.success(enabling ? 'User enabled successfully' : 'User disabled successfully')
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error('Failed to update user status from the API')
+    } finally {
+      setStatusTarget(null)
+      setStatusLoading(false)
+      setActionUserId(null)
+    }
   }
 
   const confirmDelete = async () => {
     if (!deleteTarget || deleteLoading) return
 
-    setDeleteLoading(true)
-    setActionUserId(deleteTarget.id)
+    try {
+      setDeleteLoading(true)
+      setActionUserId(deleteTarget.id)
 
-    setUsers((prev) => prev.filter((user) => user.id !== deleteTarget.id))
-    toast.success('User deleted successfully')
-    setDeleteTarget(null)
-    setDeleteLoading(false)
-    setActionUserId(null)
+      await deleteUser(deleteTarget.studentRecordId || deleteTarget.id)
+
+      await loadUsers()
+      toast.success('User deleted successfully')
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error('Failed to delete user from the API')
+    } finally {
+      setDeleteTarget(null)
+      setDeleteLoading(false)
+      setActionUserId(null)
+    }
   }
 
   const columns = [
@@ -252,7 +425,9 @@ export default function ManageUsersPage() {
             <p className="truncate text-base font-semibold leading-snug text-[#14213D]">
               {row.fullName}
             </p>
-            <p className="mt-1 truncate text-xs font-medium text-[#667085]">{row.userId}</p>
+            {row.userId ? (
+              <p className="mt-1 truncate text-xs font-medium text-[#667085]">{row.userId}</p>
+            ) : null}
           </div>
         )
         if (isStudent(row)) {
@@ -382,6 +557,7 @@ export default function ManageUsersPage() {
             onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
             statusFilter={statusFilter}
             onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+            roleOptions={roleOptions}
             centerOptions={centerOptions}
           />
         </div>
@@ -395,14 +571,30 @@ export default function ManageUsersPage() {
           />
         )}
 
-        <ManageUsersTable
-          columns={columns}
-          data={filtered}
-          emptyMessage="No users match your search or filters."
-          itemLabel="users"
-          resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-          selection={selection}
-        />
+        {loading ? (
+          <div className="rounded-2xl border border-[#E7ECF5] bg-white p-6 text-sm text-[#667085] shadow-[0_8px_24px_rgba(7,19,63,0.05)]">
+            Loading users…
+          </div>
+        ) : (
+          <ManageUsersTable
+            columns={columns}
+            data={filtered}
+            emptyMessage="No users match your search or filters."
+            itemLabel="users"
+            resetDeps={[search, roleFilter, centerFilter, statusFilter]}
+            selection={selection}
+            serverPagination
+            totalItems={totalItems}
+            totalPages={totalPages}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={(next) => setPage(Number(next) || 1)}
+            onPageSizeChange={(nextSize) => {
+              setPageSize(Number(nextSize) || 10)
+              setPage(1)
+            }}
+          />
+        )}
       </section>
 
       <UserFormModal

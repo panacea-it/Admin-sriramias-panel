@@ -11,9 +11,36 @@ export default function ManageUsersTable({
   itemLabel = 'users',
   resetDeps = [],
   selection,
+  serverPagination = false,
+  totalItems,
+  totalPages,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
 }) {
   const tableRef = useRef(null)
-  const { paginatedItems, ...pagination } = usePagination(data, { resetDeps })
+  const { paginatedItems: localPaginatedItems, ...localPagination } = usePagination(data, {
+    resetDeps,
+  })
+
+  const useServerPagination = Boolean(serverPagination)
+  const paginatedItems = useServerPagination ? data : localPaginatedItems
+  const pagination = useServerPagination
+    ? {
+        page: Math.min(Math.max(1, Number(page) || 1), Math.max(1, Number(totalPages) || 1)),
+        pageSize: Number(pageSize) || 10,
+        totalItems: Number(totalItems) || 0,
+        totalPages: Math.max(1, Number(totalPages) || 1),
+        startIndex: Number(totalItems) === 0 ? 0 : (Math.min(Math.max(1, Number(page) || 1), Math.max(1, Number(totalPages) || 1)) - 1) * (Number(pageSize) || 10),
+        endIndex: Math.min(
+          (Math.min(Math.max(1, Number(page) || 1), Math.max(1, Number(totalPages) || 1)) - 1) * (Number(pageSize) || 10) + (Number(pageSize) || 10),
+          Number(totalItems) || 0,
+        ),
+        setPage: onPageChange,
+        setPageSize: onPageSizeChange,
+      }
+    : localPagination
 
   const resolvedColumns = useMemo(() => {
     if (!selection) return columns
@@ -54,8 +81,20 @@ export default function ManageUsersTable({
   }, [columns, selection, paginatedItems])
 
   const handlePageChange = (nextPage) => {
-    pagination.setPage(nextPage)
+    if (useServerPagination) {
+      onPageChange?.(nextPage)
+    } else {
+      pagination.setPage(nextPage)
+    }
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  const handlePageSizeChange = (nextSize) => {
+    if (useServerPagination) {
+      onPageSizeChange?.(nextSize)
+    } else {
+      pagination.setPageSize(nextSize)
+    }
   }
 
   return (
@@ -122,7 +161,7 @@ export default function ManageUsersTable({
           startIndex={pagination.startIndex}
           endIndex={pagination.endIndex}
           onPageChange={handlePageChange}
-          onPageSizeChange={pagination.setPageSize}
+          onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
           className="border-t border-[#E7ECF5] bg-[#F5F7FB]/60"
         />

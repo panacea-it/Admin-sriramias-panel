@@ -255,7 +255,7 @@ export const deleteAdminUser = async (adminAccessId) => {
 
 export const getRolesDropdown = async () => {
   try {
-    const response = await api.get('/api/admin/roles/dropdown')
+    const response = await api.get('/api/admin/user-roles')
     return response.data
   } catch (error) {
     throwApiError(error)

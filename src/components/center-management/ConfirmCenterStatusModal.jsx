@@ -1,4 +1,4 @@
-import Modal from '../ui/Modal'
+import Modal from "../ui/Modal";
 
 export default function ConfirmCenterStatusModal({
   open,
@@ -9,24 +9,30 @@ export default function ConfirmCenterStatusModal({
   onCancel,
   onConfirm,
 }) {
-  const isBulk = bulkCount > 0
+  const isBulk = bulkCount > 0;
   const title = isBulk
-    ? 'Disable Selected Centers?'
+    ? enabling
+      ? "Enable Selected Centers?"
+      : "Disable Selected Centers?"
     : enabling
-      ? 'Enable center?'
-      : 'Disable center?'
+      ? "Enable center?"
+      : "Disable center?";
   const description = isBulk
-    ? `You are about to disable ${bulkCount} selected ${bulkCount === 1 ? 'center' : 'centers'}. They will be hidden from operational dropdowns until re-enabled.`
+    ? enabling
+      ? `You are about to enable ${bulkCount} selected ${bulkCount === 1 ? "center" : "centers"}. They will be available in operational dropdowns again.`
+      : `You are about to disable ${bulkCount} selected ${bulkCount === 1 ? "center" : "centers"}. They will be hidden from operational dropdowns until re-enabled.`
     : enabling
       ? `This will mark ${centerName} as active and restore it in operational dropdowns.`
-      : `This will mark ${centerName} as disabled. It will be hidden from operational dropdowns until re-enabled.`
+      : `This will mark ${centerName} as disabled. It will be hidden from operational dropdowns until re-enabled.`;
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl">
         <div className="border-b border-slate-100 px-6 py-5">
           <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">{description}</p>
+          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+            {description}
+          </p>
         </div>
         <div className="flex flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end">
           <button
@@ -43,14 +49,22 @@ export default function ConfirmCenterStatusModal({
             disabled={loading}
             className={
               enabling
-                ? 'rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
-                : 'rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60'
+                ? "rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60"
+                : "rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60"
             }
           >
-            {loading ? 'Updating…' : isBulk ? 'Disable' : enabling ? 'Enable center' : 'Disable center'}
+            {loading
+              ? "Updating…"
+              : isBulk
+                ? enabling
+                  ? "Enable"
+                  : "Disable"
+                : enabling
+                  ? "Enable center"
+                  : "Disable center"}
           </button>
         </div>
       </div>
     </Modal>
-  )
+  );
 }

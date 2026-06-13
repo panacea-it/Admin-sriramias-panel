@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { ImagePlus, UserPlus, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
@@ -9,7 +9,9 @@ import {
   CourseInput,
   CourseSelect,
 } from '../courses/CourseFormField'
-import { USER_ROLES, USER_STATUS_OPTIONS } from '../../data/manageUsersConfig'
+import { USER_ROLES, USER_STATUS_OPTIONS, USER_TYPE_OPTIONS } from '../../data/manageUsersConfig'
+import { useRolesDropdown } from '../../hooks/useRolesDropdown'
+import { getCreateUserRoles, normalizeCreateUserRoles } from '../../services/roleService'
 import { cn } from '../../utils/cn'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
@@ -23,6 +25,7 @@ const emptyForm = {
   phone: '',
   parentName: '',
   parentPhone: '',
+  userType: 'STUDENT',
   role: 'student',
   assignedCenter: '',
   status: 'Active',
@@ -50,8 +53,9 @@ function userRowToForm(row) {
     phone: row.phone || '',
     parentName: row.parentName || '',
     parentPhone: row.parentPhone || '',
+    userType: String(row.userType || row.roleType || row.role || 'STUDENT').toUpperCase(),
     role: row.role || 'student',
-    assignedCenter: row.assignedCenter || '',
+    assignedCenter: row.centerId || row.assignedCenter || '',
     status: row.status || 'Active',
     profileImage: row.profileImage || '',
   }
@@ -68,7 +72,9 @@ export default function UserFormModal({
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [uploadError, setUploadError] = useState(null)
+  const [createRoleOptions, setCreateRoleOptions] = useState([])
   const fileRef = useRef(null)
+  const { options: roleCatalogOptions = [] } = useRolesDropdown()
   const editingRef = useRef(editingUser)
   editingRef.current = editingUser
   const editKey = getModalEditKey(editingUser)
@@ -79,9 +85,10 @@ export default function UserFormModal({
     if (row) {
       setForm(userRowToForm(row))
     } else {
+      const firstCenter = centerOptions?.[0]
       setForm({
         ...emptyForm,
-        assignedCenter: centerOptions[0] || '',
+        assignedCenter: typeof firstCenter === 'string' ? firstCenter : firstCenter?.value || '',
       })
     }
     setErrors({})
@@ -120,7 +127,7 @@ export default function UserFormModal({
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) {
       toast.error('Please fix the highlighted fields')
@@ -128,33 +135,101 @@ export default function UserFormModal({
     }
 
     if (!isEdit) {
-      onCreate?.({
+      const selectedCenter = (centerOptions || []).find((option) => {
+        const optionValue = typeof option === 'string' ? option : option?.value
+        return String(optionValue || '').trim() === String(form.assignedCenter || '').trim()
+      })
+
+      const created = await onCreate?.({
+        userType: String(form.userType || 'STUDENT').toUpperCase(),
         fullName: form.fullName.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim(),
+        mobile: form.phone.trim(),
         parentName: form.parentName.trim(),
-        parentPhone: form.parentPhone.trim(),
-        assignedCenter: form.assignedCenter.trim(),
-        status: form.status,
+        parentMobile: form.parentPhone.trim(),
+        centerId:
+          (typeof selectedCenter === 'string' ? selectedCenter : selectedCenter?.value) ||
+          form.assignedCenter.trim(),
+        status: form.status === 'Active' || form.status === 'ACTIVE' || form.status === true,
       })
-      onClose()
+
+      if (created !== false) {
+        onClose()
+      }
       return
     }
 
-    onUpdate?.(editingUser.id, {
-      fullName: form.fullName.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      parentName: form.parentName.trim(),
-      parentPhone: form.parentPhone.trim(),
-      role: form.role,
-      assignedCenter: form.assignedCenter.trim(),
-      status: form.status,
-      profileImage: form.profileImage,
+    const selectedCenter = (centerOptions || []).find((option) => {
+      const optionValue = typeof option === 'string' ? option : option?.value
+      return String(optionValue || '').trim() === String(form.assignedCenter || '').trim()
     })
-    toast.success('User updated')
-    onClose()
+
+    const centerId =
+      (typeof selectedCenter === 'string' ? selectedCenter : selectedCenter?.value) ||
+      String(editingUser?.centerId || form.assignedCenter || '').trim()
+
+    const updated = await onUpdate?.(editingUser.id, {
+      fullName: form.fullName.trim(),
+      parentName: form.parentName.trim(),
+      parentMobile: form.parentPhone.trim(),
+      centerId,
+      status: form.status,
+      isActive: form.status === 'Active' || form.status === 'ACTIVE' || form.status === true,
+    })
+
+    if (updated !== false) {
+      toast.success('User updated successfully')
+      onClose()
+    }
   }
+  useEffect(() => {
+    let mounted = true
+
+    const loadCreateRoles = async () => {
+      try {
+        const response = await getCreateUserRoles()
+        const normalized = normalizeCreateUserRoles(response)
+        if (mounted) setCreateRoleOptions(normalized)
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+        if (mounted) setCreateRoleOptions([])
+      }
+    }
+
+    if (open) {
+      loadCreateRoles()
+    }
+
+    return () => {
+      mounted = false
+    }
+  }, [open])
+
+  const dynamicUserTypeOptions = useMemo(() => {
+    const fromApi = (createRoleOptions.length ? createRoleOptions : roleCatalogOptions)
+      .map((option) => {
+        const label = String(option?.label || option?.roleTitle || option?.name || '').trim()
+        const roleCode = String(option?.roleCode || option?.code || option?.value || '').trim().toUpperCase()
+        const value = roleCode || String(option?.value || option?.id || option?.roleId || '').trim().toUpperCase()
+
+        if (!label && !value) return null
+
+        return {
+          value,
+          label: label || value,
+        }
+      })
+      .filter(Boolean)
+
+    if (fromApi.length > 0) {
+      return fromApi
+    }
+
+    return USER_TYPE_OPTIONS
+  }, [createRoleOptions, roleCatalogOptions])
+
   const modalTitle = isEdit ? 'Edit User' : 'Create User'
   const subtitle = isEdit
     ? `Update account for ${editingUser?.fullName || 'this user'}`
@@ -164,7 +239,11 @@ export default function UserFormModal({
     if (isEdit && editingRef.current) {
       setForm(userRowToForm(editingRef.current))
     } else {
-      setForm({ ...emptyForm, assignedCenter: centerOptions[0] || '' })
+      const firstCenter = centerOptions?.[0]
+      setForm({
+        ...emptyForm,
+        assignedCenter: typeof firstCenter === 'string' ? firstCenter : firstCenter?.value || '',
+      })
     }
     setErrors({})
   }
@@ -292,6 +371,19 @@ export default function UserFormModal({
               }
             >
               <div className="grid gap-4 sm:grid-cols-2">
+                <CourseFormField label="User Type" required>
+                  <CourseSelect
+                    value={form.userType || 'STUDENT'}
+                    onChange={(e) => setForm((f) => ({ ...f, userType: e.target.value }))}
+                  >
+                    {dynamicUserTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CourseSelect>
+                </CourseFormField>
+
                 {isEdit ? (
                   <CourseFormField label="Role" required>
                     <CourseSelect
@@ -316,11 +408,16 @@ export default function UserFormModal({
                     }}
                   >
                     <option value="">Select center</option>
-                    {centerOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                    {(centerOptions || []).map((c) => {
+                      const value = typeof c === 'string' ? c : c?.value
+                      const label = typeof c === 'string' ? c : c?.label || c?.centerName || c?.name || value
+
+                      return (
+                        <option key={value || label} value={value || ''}>
+                          {label}
+                        </option>
+                      )
+                    })}
                   </CourseSelect>
                   {errors.assignedCenter && (
                     <p className="text-xs font-medium text-red-600">{errors.assignedCenter}</p>

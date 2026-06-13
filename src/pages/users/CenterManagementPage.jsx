@@ -1,41 +1,35 @@
-import { useCallback, useMemo, useState } from 'react'
-import {
-  Ban,
-  Building2,
-  Eye,
-  Pencil,
-  Plus,
-} from 'lucide-react'
-import ErrorState from '../../components/feedback/ErrorState'
-import { toast } from '@/utils/toast'
-import PageBanner from '../../components/figma/PageBanner'
-import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
-import CenterFormDrawer from '../../components/center-management/CenterFormDrawer'
-import ViewCenterDrawer from '../../components/center-management/ViewCenterDrawer'
-import ConfirmCenterDeleteModal from '../../components/center-management/ConfirmCenterDeleteModal'
-import ConfirmCenterStatusModal from '../../components/center-management/ConfirmCenterStatusModal'
-import CenterBulkActionsBar from '../../components/center-management/CenterBulkActionsBar'
-import CenterManagementTable from '../../components/center-management/CenterManagementTable'
-import { useCenters } from '../../contexts/CentersContext'
-import { useCenterManagement } from '../../hooks/useCenterManagement'
-import { useTableRowSelection } from '../../hooks/useTableRowSelection'
-import { getApiErrorMessage } from '../../utils/apiError'
-import { cn } from '../../utils/cn'
+import { useCallback, useMemo, useState } from "react";
+import { Ban, Building2, Eye, Pencil, Plus } from "lucide-react";
+import ErrorState from "../../components/feedback/ErrorState";
+import { toast } from "@/utils/toast";
+import PageBanner from "../../components/figma/PageBanner";
+import CourseFilterToolbar from "../../components/courses/CourseFilterToolbar";
+import CenterFormDrawer from "../../components/center-management/CenterFormDrawer";
+import ViewCenterDrawer from "../../components/center-management/ViewCenterDrawer";
+import ConfirmCenterDeleteModal from "../../components/center-management/ConfirmCenterDeleteModal";
+import ConfirmCenterStatusModal from "../../components/center-management/ConfirmCenterStatusModal";
+import CenterBulkActionsBar from "../../components/center-management/CenterBulkActionsBar";
+import CenterManagementTable from "../../components/center-management/CenterManagementTable";
+import { useCenters } from "../../contexts/CentersContext";
+import { useCenterManagement } from "../../hooks/useCenterManagement";
+import { useTableRowSelection } from "../../hooks/useTableRowSelection";
+import { getApiErrorMessage } from "../../utils/apiError";
+import { cn } from "../../utils/cn";
 import {
   buildUpdateCenterPayloadFromPatch,
   deleteCenter as deleteCenterApi,
   updateCenter as updateCenterApi,
   updateCenterStatus,
-} from '../../services/centerService'
+} from "../../services/centerService";
 
 const CENTER_STATUS_OPTIONS = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'disabled', label: 'Disabled' },
-]
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "disabled", label: "Disabled" },
+];
 
 const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+  "inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5";
 
 function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
   return (
@@ -45,7 +39,10 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
         onClick={onView}
         title="View"
         aria-label={`View ${row.centerName}`}
-        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
+        className={cn(
+          actionButtonClass,
+          "text-slate-500 hover:bg-slate-100 hover:text-[#246392]",
+        )}
       >
         <Eye className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">View</span>
@@ -55,7 +52,10 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
         onClick={onEdit}
         title="Edit"
         aria-label={`Edit ${row.centerName}`}
-        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
+        className={cn(
+          actionButtonClass,
+          "text-slate-500 hover:bg-slate-100 hover:text-[#246392]",
+        )}
       >
         <Pencil className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">Edit</span>
@@ -63,19 +63,25 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
       <button
         type="button"
         onClick={onStatusToggle}
-        title={row.status === 'active' ? 'Disable' : 'Enable'}
-        aria-label={row.status === 'active' ? `Disable ${row.centerName}` : `Enable ${row.centerName}`}
-        className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+        title={row.status === "active" ? "Disable" : "Enable"}
+        aria-label={
+          row.status === "active"
+            ? `Disable ${row.centerName}`
+            : `Enable ${row.centerName}`
+        }
+        className={cn(actionButtonClass, "text-amber-700 hover:bg-amber-50")}
       >
         <Ban className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">{row.status === 'active' ? 'Disable' : 'Enable'}</span>
+        <span className="hidden sm:inline">
+          {row.status === "active" ? "Disable" : "Enable"}
+        </span>
       </button>
     </div>
-  )
+  );
 }
 
 export default function CenterManagementPage() {
-  const { createCenter } = useCenters()
+  const { createCenter } = useCenters();
   const {
     centers,
     loading,
@@ -91,22 +97,23 @@ export default function CenterManagementPage() {
     refreshCenters,
     patchCenterLocally,
     removeCenterLocally,
-  } = useCenterManagement()
+  } = useCenterManagement();
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection(
     (row) => row.centerId,
-  )
+  );
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [formMode, setFormMode] = useState('create')
-  const [editing, setEditing] = useState(null)
-  const [viewingId, setViewingId] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
-  const [statusTarget, setStatusTarget] = useState(null)
-  const [bulkDisableIds, setBulkDisableIds] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState("create");
+  const [editing, setEditing] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [statusTarget, setStatusTarget] = useState(null);
+  const [bulkDisableIds, setBulkDisableIds] = useState(null);
+  const [bulkEnableIds, setBulkEnableIds] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const controlledPagination = useMemo(
     () => ({
@@ -115,176 +122,254 @@ export default function CenterManagementPage() {
       onPageSizeChange: setPageSize,
     }),
     [pagination, setPage, setPageSize],
-  )
+  );
 
-  const selectedActiveCount = useMemo(
+  const selectedActiveIds = useMemo(
     () =>
-      centers.filter((c) => selectedIds.includes(c.centerId) && c.status === 'active').length,
+      centers
+        .filter(
+          (c) => selectedIds.includes(c.centerId) && c.status === "active",
+        )
+        .map((c) => c.centerId),
     [centers, selectedIds],
-  )
+  );
+
+  const selectedDisabledIds = useMemo(
+    () =>
+      centers
+        .filter(
+          (c) => selectedIds.includes(c.centerId) && c.status === "disabled",
+        )
+        .map((c) => c.centerId),
+    [centers, selectedIds],
+  );
+
+  const selectedActiveCount = selectedActiveIds.length;
+
+  const selectedDisabledCount = selectedDisabledIds.length;
 
   const openCreate = () => {
-    setFormMode('create')
-    setEditing(null)
-    setFormOpen(true)
-  }
+    setFormMode("create");
+    setEditing(null);
+    setFormOpen(true);
+  };
 
   const openEdit = (row) => {
-    setFormMode('edit')
-    setEditing(row)
-    setFormOpen(true)
-  }
+    setFormMode("edit");
+    setEditing(row);
+    setFormOpen(true);
+  };
 
   const handleCreateSuccess = useCallback(
     (mapped) => {
-      createCenter(mapped)
-      refreshCenters()
+      createCenter(mapped);
+      refreshCenters();
     },
     [createCenter, refreshCenters],
-  )
+  );
 
   const handleUpdateCenter = useCallback(
     async (centerId, patch) => {
-      const payload = buildUpdateCenterPayloadFromPatch(patch)
-      await updateCenterApi(centerId, payload)
-      toast.success('Center updated successfully')
-      await refreshCenters()
+      const payload = buildUpdateCenterPayloadFromPatch(patch);
+      await updateCenterApi(centerId, payload);
+      toast.success("Center updated successfully");
+      await refreshCenters();
     },
     [refreshCenters],
-  )
+  );
 
   const handleStatusToggleRequest = (row) => {
-    setStatusTarget(row)
-  }
+    setStatusTarget(row);
+  };
 
   const confirmStatusChange = async () => {
-    if (!statusTarget) return
-    const enabling = statusTarget.status !== 'active'
-    const nextStatus = enabling ? 'active' : 'disabled'
-    const apiStatus = enabling ? 'ACTIVE' : 'DISABLED'
+    if (!statusTarget) return;
+    const enabling = statusTarget.status !== "active";
+    const nextStatus = enabling ? "active" : "disabled";
+    const apiStatus = enabling ? "ACTIVE" : "DISABLED";
 
-    setStatusLoading(true)
-    patchCenterLocally(statusTarget.centerId, { status: nextStatus })
+    setStatusLoading(true);
+    patchCenterLocally(statusTarget.centerId, { status: nextStatus });
 
     try {
-      await updateCenterStatus(statusTarget.centerId, apiStatus)
-      toast.success(enabling ? 'Center enabled' : 'Center disabled')
-      setStatusTarget(null)
-      await refreshCenters()
+      await updateCenterStatus(statusTarget.centerId, apiStatus);
+      toast.success(enabling ? "Center enabled" : "Center disabled");
+      setStatusTarget(null);
+      await refreshCenters();
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error(error)
+        console.error(error);
       }
-      patchCenterLocally(statusTarget.centerId, { status: statusTarget.status })
-      toast.error(getApiErrorMessage(error, 'Failed to update center status'))
+      patchCenterLocally(statusTarget.centerId, {
+        status: statusTarget.status,
+      });
+      toast.error(getApiErrorMessage(error, "Failed to update center status"));
     } finally {
-      setStatusLoading(false)
+      setStatusLoading(false);
     }
-  }
+  };
 
   const confirmBulkDisable = async () => {
-    if (!bulkDisableIds?.length) return
+    if (!bulkDisableIds?.length) return;
 
     const targets = centers.filter(
-      (row) => bulkDisableIds.includes(row.centerId) && row.status === 'active',
-    )
+      (row) => bulkDisableIds.includes(row.centerId) && row.status === "active",
+    );
 
     if (!targets.length) {
-      setBulkDisableIds(null)
-      return
+      setBulkDisableIds(null);
+      return;
     }
 
-    setStatusLoading(true)
-    let successCount = 0
-    let failCount = 0
+    setStatusLoading(true);
+    let successCount = 0;
+    let failCount = 0;
 
     for (const row of targets) {
-      patchCenterLocally(row.centerId, { status: 'disabled' })
+      patchCenterLocally(row.centerId, { status: "disabled" });
       try {
-        await updateCenterStatus(row.centerId, 'DISABLED')
-        successCount += 1
+        await updateCenterStatus(row.centerId, "DISABLED");
+        successCount += 1;
       } catch (error) {
-        failCount += 1
-        patchCenterLocally(row.centerId, { status: row.status })
+        failCount += 1;
+        patchCenterLocally(row.centerId, { status: row.status });
         if (import.meta.env.DEV) {
-          console.error(error)
+          console.error(error);
         }
       }
     }
 
     if (successCount > 0) {
       toast.success(
-        successCount === 1 ? 'Center disabled' : `${successCount} centers disabled`,
-      )
+        successCount === 1
+          ? "Center disabled"
+          : `${successCount} centers disabled`,
+      );
     }
     if (failCount > 0) {
       toast.error(
         failCount === 1
-          ? 'Failed to disable 1 center'
+          ? "Failed to disable 1 center"
           : `Failed to disable ${failCount} centers`,
-      )
+      );
     }
 
-    setBulkDisableIds(null)
-    clearSelection()
-    await refreshCenters()
-    setStatusLoading(false)
-  }
+    setBulkDisableIds(null);
+    clearSelection();
+    await refreshCenters();
+    setStatusLoading(false);
+  };
+
+  const confirmBulkEnable = async () => {
+    if (!bulkEnableIds?.length) return;
+
+    const targets = centers.filter(
+      (row) =>
+        bulkEnableIds.includes(row.centerId) && row.status === "disabled",
+    );
+
+    if (!targets.length) {
+      setBulkEnableIds(null);
+      return;
+    }
+
+    setStatusLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const row of targets) {
+      patchCenterLocally(row.centerId, { status: "active" });
+      try {
+        await updateCenterStatus(row.centerId, "ACTIVE");
+        successCount += 1;
+      } catch (error) {
+        failCount += 1;
+        patchCenterLocally(row.centerId, { status: row.status });
+        if (import.meta.env.DEV) {
+          console.error(error);
+        }
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(
+        successCount === 1
+          ? "Center enabled"
+          : `${successCount} centers enabled`,
+      );
+    }
+    if (failCount > 0) {
+      toast.error(
+        failCount === 1
+          ? "Failed to enable 1 center"
+          : `Failed to enable ${failCount} centers`,
+      );
+    }
+
+    setBulkEnableIds(null);
+    clearSelection();
+    await refreshCenters();
+    setStatusLoading(false);
+  };
 
   const confirmDelete = async () => {
     if (bulkDeleteIds?.length) {
-      setDeleteLoading(true)
-      let successCount = 0
-      let failCount = 0
+      setDeleteLoading(true);
+      let successCount = 0;
+      let failCount = 0;
 
       for (const centerId of bulkDeleteIds) {
         try {
-          await deleteCenterApi(centerId)
-          removeCenterLocally(centerId)
-          successCount += 1
+          await deleteCenterApi(centerId);
+          removeCenterLocally(centerId);
+          successCount += 1;
         } catch (error) {
-          failCount += 1
+          failCount += 1;
           if (import.meta.env.DEV) {
-            console.error(error)
+            console.error(error);
           }
         }
       }
 
       if (successCount > 0) {
-        toast.success(successCount === 1 ? 'Center deleted' : `${successCount} centers deleted`)
+        toast.success(
+          successCount === 1
+            ? "Center deleted"
+            : `${successCount} centers deleted`,
+        );
       }
       if (failCount > 0) {
         toast.error(
           failCount === 1
-            ? 'Unable to delete 1 center'
+            ? "Unable to delete 1 center"
             : `Unable to delete ${failCount} centers`,
-        )
+        );
       }
 
-      setBulkDeleteIds(null)
-      clearSelection()
-      await refreshCenters()
-      setDeleteLoading(false)
-      return
+      setBulkDeleteIds(null);
+      clearSelection();
+      await refreshCenters();
+      setDeleteLoading(false);
+      return;
     }
 
-    if (!deleteTarget) return
-    setDeleteLoading(true)
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
     try {
-      await deleteCenterApi(deleteTarget.centerId)
-      removeCenterLocally(deleteTarget.centerId)
-      toast.success('Center deleted')
-      setDeleteTarget(null)
-      await refreshCenters()
+      await deleteCenterApi(deleteTarget.centerId);
+      removeCenterLocally(deleteTarget.centerId);
+      toast.success("Center deleted");
+      setDeleteTarget(null);
+      await refreshCenters();
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error(error)
+        console.error(error);
       }
-      toast.error(getApiErrorMessage(error, 'Unable to delete center'))
+      toast.error(getApiErrorMessage(error, "Unable to delete center"));
     } finally {
-      setDeleteLoading(false)
+      setDeleteLoading(false);
     }
-  }
+  };
 
   const renderRowActions = useCallback(
     (row) => (
@@ -296,13 +381,13 @@ export default function CenterManagementPage() {
       />
     ),
     [],
-  )
+  );
 
-  const hasActiveFilters = Boolean(search.trim() || statusFilter !== 'all')
+  const hasActiveFilters = Boolean(search.trim() || statusFilter !== "all");
 
   const emptyMessage = hasActiveFilters
-    ? 'No centers match your filters.'
-    : 'No centers to display'
+    ? "No centers match your filters."
+    : "No centers to display";
 
   const emptyState = hasActiveFilters ? undefined : (
     <div className="px-4 py-6 sm:px-6">
@@ -322,7 +407,7 @@ export default function CenterManagementPage() {
         </button>
       </div>
     </div>
-  )
+  );
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
@@ -354,7 +439,9 @@ export default function CenterManagementPage() {
               className="mt-4"
               count={selectedIds.length}
               disableCount={selectedActiveCount}
-              onDisable={() => setBulkDisableIds([...selectedIds])}
+              selectedDisabledCount={selectedDisabledCount}
+              onDisable={() => setBulkDisableIds(selectedActiveIds)}
+              onEnable={() => setBulkEnableIds(selectedDisabledIds)}
               onDelete={() => setBulkDeleteIds([...selectedIds])}
             />
           )}
@@ -396,27 +483,42 @@ export default function CenterManagementPage() {
         loading={deleteLoading}
         onCancel={() => {
           if (!deleteLoading) {
-            setDeleteTarget(null)
-            setBulkDeleteIds(null)
+            setDeleteTarget(null);
+            setBulkDeleteIds(null);
           }
         }}
         onConfirm={confirmDelete}
       />
 
       <ConfirmCenterStatusModal
-        open={!!statusTarget || !!bulkDisableIds?.length}
+        open={
+          !!statusTarget || !!bulkDisableIds?.length || !!bulkEnableIds?.length
+        }
         centerName={statusTarget?.centerName}
-        bulkCount={bulkDisableIds?.length || 0}
-        enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'active'}
+        bulkCount={bulkDisableIds?.length || bulkEnableIds?.length || 0}
+        enabling={
+          bulkEnableIds?.length
+            ? true
+            : bulkDisableIds?.length
+              ? false
+              : statusTarget?.status !== "active"
+        }
         loading={statusLoading}
         onCancel={() => {
           if (!statusLoading) {
-            setStatusTarget(null)
-            setBulkDisableIds(null)
+            setStatusTarget(null);
+            setBulkDisableIds(null);
+            setBulkEnableIds(null);
           }
         }}
-        onConfirm={bulkDisableIds?.length ? confirmBulkDisable : confirmStatusChange}
+        onConfirm={
+          bulkEnableIds?.length
+            ? confirmBulkEnable
+            : bulkDisableIds?.length
+              ? confirmBulkDisable
+              : confirmStatusChange
+        }
       />
     </div>
-  )
+  );
 }
