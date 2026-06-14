@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Layers } from 'lucide-react'
+import { FileSpreadsheet, Layers } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
+import LeadBulkUploadModal from '../../components/leads/LeadBulkUploadModal'
 import LeadEditModal from '../../components/leads/LeadEditModal'
 import LeadFilterToolbar from '../../components/leads/LeadFilterToolbar'
 import LeadStatCards from '../../components/leads/LeadStatCards'
@@ -67,6 +68,7 @@ export default function LeadsPage() {
   const [viewLead, setViewLead] = useState(null)
   const [editLead, setEditLead] = useState(null)
   const [deleteLeadId, setDeleteLeadId] = useState(null)
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
   const [counselorById, setCounselorById] = useState(() =>
     Object.fromEntries(
       INITIAL_LEADS.map((row) => [row.id, row.assignedCounselor || LEAD_COUNSELORS[0]]),
@@ -273,7 +275,16 @@ export default function LeadsPage() {
           iconClassName="text-[#55ace7]"
           title="Leads"
           className="from-[#55ace7] via-[#7eb3d4] to-[#df8284]"
-        />
+        >
+          <button
+            type="button"
+            onClick={() => setBulkUploadOpen(true)}
+            className="inline-flex h-10 min-h-[40px] items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] hover:shadow-[0_6px_18px_rgba(3,4,94,0.4)] active:scale-[0.98] sm:px-5"
+          >
+            <FileSpreadsheet className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+            Bulk Upload
+          </button>
+        </PageBanner>
 
         <LeadFilterToolbar
           search={search}
@@ -325,6 +336,11 @@ export default function LeadsPage() {
         open={deleteLeadId != null}
         onCancel={() => setDeleteLeadId(null)}
         onConfirm={handleConfirmDeleteLead}
+      />
+
+      <LeadBulkUploadModal
+        open={bulkUploadOpen}
+        onClose={() => setBulkUploadOpen(false)}
       />
     </div>
   )

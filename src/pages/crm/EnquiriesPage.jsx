@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import { FileSpreadsheet, Layers } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import EnquiryBulkUploadModal from '../../components/enquiries/EnquiryBulkUploadModal'
 import EnquiryCounselorSelect from '../../components/enquiries/EnquiryCounselorSelect'
 import EnquiryEditModal from '../../components/enquiries/EnquiryEditModal'
 import EnquiryEmptyState from '../../components/enquiries/EnquiryEmptyState'
@@ -36,7 +35,6 @@ export default function EnquiriesPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
-  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
   const [counselorById, setCounselorById] = useState(() =>
     Object.fromEntries(
       INITIAL_ENQUIRIES.map((row) => [row.id, row.assignedCounselor || ENQUIRY_COUNSELORS[0]]),
@@ -227,16 +225,7 @@ export default function EnquiriesPage() {
           iconClassName="text-[#dc2626]"
           title="Enquiries"
           className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
-        >
-          <button
-            type="button"
-            onClick={() => setBulkUploadOpen(true)}
-            className="inline-flex h-10 min-h-[40px] items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] hover:shadow-[0_6px_18px_rgba(3,4,94,0.4)] active:scale-[0.98] sm:px-5"
-          >
-            <FileSpreadsheet className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-            Bulk Upload
-          </button>
-        </PageBanner>
+        />
 
         <EnquiryFilterToolbar
           search={search}
@@ -295,11 +284,6 @@ export default function EnquiriesPage() {
         counselorOptions={counselorOptions}
         leadStatusOptions={leadStatusOptions}
         onSave={handleEditSave}
-      />
-
-      <EnquiryBulkUploadModal
-        open={bulkUploadOpen}
-        onClose={() => setBulkUploadOpen(false)}
       />
     </div>
   )
