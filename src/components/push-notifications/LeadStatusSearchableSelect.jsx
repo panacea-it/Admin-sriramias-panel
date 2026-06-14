@@ -6,7 +6,7 @@ export default function LeadStatusSearchableSelect({
   value,
   onChange,
   options,
-  placeholder = 'Select status...',
+  placeholder = 'Select Status',
   loading = false,
   error,
   disabled = false,

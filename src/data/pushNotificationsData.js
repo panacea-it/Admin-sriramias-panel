@@ -10,25 +10,18 @@ export const USER_TYPE_OPTIONS = [
   'Center Admins',
 ]
 
-export const NOTIFICATION_LEAD_STATUS_OPTIONS = [
-  'NEW',
-  'ASSIGNED',
-  'CONTACT_ATTEMPTED',
-  'CONTACTED',
-  'FOLLOW_UP',
-  'INTERESTED',
-  'NOT_INTERESTED',
-  'INFO_SHARED',
-  'MEETING_SCHEDULED',
-  'MEETING_COMPLETED',
-  'NEGOTIATION',
-  'VERIFICATION_IN_PROGRESS',
-  'APPROVED',
-  'CONVERTED',
-  'ON_HOLD',
-  'LOST',
-  'DUPLICATE',
-  'CLOSED',
+export const NOTIFICATION_STATUS_OPTIONS = ['SENT', 'UNSENT', 'IN_PROGRESS']
+
+/** @deprecated Use NOTIFICATION_STATUS_OPTIONS */
+export const NOTIFICATION_LEAD_STATUS_OPTIONS = NOTIFICATION_STATUS_OPTIONS
+
+export const NOTIFICATION_STATUS_PLACEHOLDER = 'Select Status'
+
+export const NOTIFICATION_STATUS_FILTER_OPTIONS = [
+  { value: '', label: NOTIFICATION_STATUS_PLACEHOLDER },
+  { value: 'SENT', label: 'Sent' },
+  { value: 'UNSENT', label: 'Unsent' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
 ]
 
 export function formatNotificationStatusLabel(status) {
@@ -36,6 +29,17 @@ export function formatNotificationStatusLabel(status) {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export function getNotificationStatusOptions({ includePlaceholder = false } = {}) {
+  const options = NOTIFICATION_STATUS_OPTIONS.map((status) => ({
+    value: status,
+    label: formatNotificationStatusLabel(status),
+  }))
+  if (includePlaceholder) {
+    return [{ value: '', label: NOTIFICATION_STATUS_PLACEHOLDER }, ...options]
+  }
+  return options
 }
 
 export function parsePushNotificationDisplayDate(dateStr) {
@@ -108,7 +112,7 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'All Users',
     title: 'Geography class live',
     url: '',
-    leadStatus: 'NEW',
+    leadStatus: 'UNSENT',
     assignedCounselorId: '',
     assignedCounselorName: 'Sneha Gupta',
     centerId: '',
@@ -126,7 +130,7 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'Students',
     title: 'Chemistry revision',
     url: '',
-    leadStatus: 'ASSIGNED',
+    leadStatus: 'IN_PROGRESS',
     assignedCounselorId: '',
     assignedCounselorName: 'Priya Singh',
     centerId: '',
@@ -145,7 +149,7 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'All Users',
     title: 'Current Affairs update',
     url: 'https://example.com/ca-march',
-    leadStatus: 'INFO_SHARED',
+    leadStatus: 'SENT',
     assignedCounselorId: '',
     assignedCounselorName: 'Rahul Sharma',
     centerId: '',
@@ -164,7 +168,7 @@ export const INITIAL_PUSH_NOTIFICATIONS = [
     userType: 'Students',
     title: 'Physics recording',
     url: '',
-    leadStatus: 'CONTACTED',
+    leadStatus: 'SENT',
     assignedCounselorId: '',
     assignedCounselorName: 'Ankit Verma',
     centerId: '',
@@ -181,7 +185,7 @@ export const EMPTY_NOTIFICATION_FORM = {
   imageName: '',
   centerId: '',
   assignedCounselorId: '',
-  leadStatus: 'NEW',
+  leadStatus: '',
   type: 'Text',
   sentDate: '',
   sentTime: '',

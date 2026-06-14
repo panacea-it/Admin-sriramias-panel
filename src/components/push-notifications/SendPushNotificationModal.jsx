@@ -20,8 +20,7 @@ import { useCounselorEmployees } from '../../hooks/useCounselorEmployees'
 import { cn } from '../../utils/cn'
 import {
   EMPTY_NOTIFICATION_FORM,
-  formatNotificationStatusLabel,
-  NOTIFICATION_LEAD_STATUS_OPTIONS,
+  getNotificationStatusOptions,
   NOTIFICATION_TYPES,
   USER_TYPE_OPTIONS,
 } from '../../data/pushNotificationsData'
@@ -83,7 +82,7 @@ export function buildNotificationFromForm(form, existing, { centerLabel, counsel
     pdfName: form.pdfName,
     videoName: form.videoName,
     imageName: form.imageName,
-    leadStatus: form.leadStatus || 'NEW',
+    leadStatus: form.leadStatus || '',
     assignedCounselorId: form.assignedCounselorId || '',
     assignedCounselorName: counselorName || existing?.assignedCounselorName || '',
   }
@@ -100,7 +99,7 @@ function formFromNotification(row) {
     imageName: row.imageName ?? '',
     centerId: row.centerId ?? '',
     assignedCounselorId: row.assignedCounselorId ?? '',
-    leadStatus: row.leadStatus ?? 'NEW',
+    leadStatus: '',
     type: row.type ?? 'Text',
     sentDate: row.sentDate ?? '',
     sentTime: row.sentTime ?? '',
@@ -112,6 +111,7 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
   const editingRef = useRef(editing)
   editingRef.current = editing
   const editKey = getModalEditKey(editing)
+  const isEditing = Boolean(editing)
 
   const {
     options: centerOptions,
@@ -125,14 +125,7 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
     error: counselorsError,
   } = useCounselorEmployees({ enabled: open })
 
-  const statusOptions = useMemo(
-    () =>
-      NOTIFICATION_LEAD_STATUS_OPTIONS.map((status) => ({
-        value: status,
-        label: formatNotificationStatusLabel(status),
-      })),
-    [],
-  )
+  const statusOptions = useMemo(() => getNotificationStatusOptions({ includePlaceholder: true }), [])
 
   useInitOnModalOpen(open, editKey, () => {
     const row = editingRef.current
@@ -153,7 +146,9 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
     onClose()
   }
 
-  const handleReset = () => setForm({ ...EMPTY_NOTIFICATION_FORM })
+  const handleReset = () => {
+    setForm(isEditing && editing ? formFromNotification(editing) : { ...EMPTY_NOTIFICATION_FORM })
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -170,107 +165,21 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
       centerLabel,
       counselorName,
     })
-    onSubmit?.(notification, editing ? 'update' : 'create')
+    onSubmit?.(notification, isEditing ? 'update' : 'create')
     handleClose()
   }
 
-  if (editing) {
-    return (
-      <Modal open={open} onClose={handleClose} size="md" title="Edit Notification" showCloseButton={false}>
-        <form
-          onSubmit={handleSubmit}
-          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(15,23,42,0.2)]"
-        >
-          <ModalPanelHeader
-            title="Edit Notification"
-            subtitle={`Notification #${editing.id}`}
-            onClose={handleClose}
-            icon={BellRing}
-            iconClassName="text-[#246392]"
-            closeVariant="icon"
-          />
-
-          <div className="custom-scrollbar max-h-[min(70vh,640px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
-            <CourseFormField label="Notification Title" required>
-              <CourseInput
-                value={form.title}
-                onChange={update('title')}
-                placeholder="Notification title"
-              />
-            </CourseFormField>
-
-            <CourseFormField label="Message" required>
-              <CourseTextarea
-                value={form.message}
-                onChange={update('message')}
-                rows={5}
-                placeholder="Write your notification message..."
-              />
-            </CourseFormField>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CourseFormField label="Center">
-                <SearchableSelect
-                  value={form.centerId}
-                  onChange={(value) => setField('centerId', value)}
-                  options={centerOptions}
-                  placeholder="Select center"
-                  loading={centersLoading}
-                  error={centersError}
-                />
-              </CourseFormField>
-
-              <CourseFormField label="Type">
-                <CourseSelect value={form.type} onChange={update('type')}>
-                  {NOTIFICATION_TYPES.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </CourseSelect>
-              </CourseFormField>
-            </div>
-
-            <CourseFormField label="Date">
-              <CourseInput
-                value={form.sentDate}
-                onChange={update('sentDate')}
-                placeholder="e.g. 26 March 2026"
-              />
-            </CourseFormField>
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={cn(
-                'inline-flex min-h-[40px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white',
-                'shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98]',
-              )}
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-    )
-  }
+  const modalTitle = isEditing ? 'Edit Notification' : 'Send Notification'
 
   return (
-    <Modal open={open} onClose={handleClose} size="full" title="Send Notification" showCloseButton={false}>
+    <Modal open={open} onClose={handleClose} size="full" title={modalTitle} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-xl bg-[#f7f7f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
-          title="Send Notification"
+          title={modalTitle}
+          subtitle={isEditing ? `Notification #${editing.id}` : undefined}
           onClose={handleClose}
           icon={BellRing}
           iconClassName="text-[#246392]"
@@ -322,7 +231,7 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
                   value={form.leadStatus}
                   onChange={(value) => setField('leadStatus', value)}
                   options={statusOptions}
-                  placeholder="Select status"
+                  placeholder="Select Status"
                 />
               </CourseFormField>
             </div>
@@ -388,7 +297,7 @@ export default function SendPushNotificationModal({ open, onClose, editing, onSu
                   'shadow-[0_6px_18px_rgba(5,25,45,0.4)] transition hover:brightness-110',
                 )}
               >
-                {editing ? 'Update' : 'Send'}
+                {isEditing ? 'Update' : 'Send'}
               </button>
             </div>
           </div>

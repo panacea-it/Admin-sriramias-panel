@@ -10,9 +10,13 @@ import PushNotificationMessageCell from '../../components/push-notifications/Pus
 import PushNotificationTableActions from '../../components/push-notifications/PushNotificationTableActions'
 import SendPushNotificationModal from '../../components/push-notifications/SendPushNotificationModal'
 import CrmDeleteConfirmDialog from '../../components/crm/CrmDeleteConfirmDialog'
-import { INITIAL_PUSH_NOTIFICATIONS, formatNotificationStatusLabel, pushNotificationMatchesSelectedDate } from '../../data/pushNotificationsData'
-import { getLeadStatusChipClass } from '../../components/enquiries/EnquiryTableSelect'
-import { cn } from '../../utils/cn'
+import EnquiryLeadStatusSelect from '../../components/enquiries/EnquiryLeadStatusSelect'
+import {
+  INITIAL_PUSH_NOTIFICATIONS,
+  formatNotificationStatusLabel,
+  getNotificationStatusOptions,
+  pushNotificationMatchesSelectedDate,
+} from '../../data/pushNotificationsData'
 
 function DateCell({ time, date }) {
   return (
@@ -26,38 +30,21 @@ function DateCell({ time, date }) {
   )
 }
 
-function StatusChip({ status }) {
-  const label = formatNotificationStatusLabel(status || 'NEW')
-  return (
-    <span
-      className={cn(
-        'inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap',
-        getLeadStatusChipClass(status || 'NEW'),
-      )}
-    >
-      {label}
-    </span>
-  )
-}
-
-function CounselorCell({ name }) {
-  const value = String(name || '').trim()
-  return (
-    <span className={cn(!value && 'text-[#9ca0a8]')}>
-      {value || '—'}
-    </span>
-  )
-}
-
 export default function PushNotificationsPage() {
   const [notifications, setNotifications] = useState(INITIAL_PUSH_NOTIFICATIONS)
   const [search, setSearch] = useState('')
   const [centerFilter, setCenterFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [statusById, setStatusById] = useState(() =>
+    Object.fromEntries(INITIAL_PUSH_NOTIFICATIONS.map((row) => [row.id, ''])),
+  )
   const [dateFilter, setDateFilter] = useState(null)
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [editingRow, setEditingRow] = useState(null)
   const [messageModal, setMessageModal] = useState(null)
   const [deleteNotificationId, setDeleteNotificationId] = useState(null)
+
+  const statusOptions = useMemo(() => getNotificationStatusOptions({ includePlaceholder: true }), [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -69,13 +56,13 @@ export default function PushNotificationsPage() {
         row.message.toLowerCase().includes(q) ||
         row.device.toLowerCase().includes(q) ||
         row.center.toLowerCase().includes(q) ||
-        (row.assignedCounselorName || '').toLowerCase().includes(q) ||
-        formatNotificationStatusLabel(row.leadStatus).toLowerCase().includes(q)
+        formatNotificationStatusLabel(statusById[row.id] || '').toLowerCase().includes(q)
       const matchCenter = centerFilter === 'all' || row.center === centerFilter
+      const matchStatus = !statusFilter || statusById[row.id] === statusFilter
       const matchDate = pushNotificationMatchesSelectedDate(row, dateFilter)
-      return matchSearch && matchCenter && matchDate
+      return matchSearch && matchCenter && matchStatus && matchDate
     })
-  }, [notifications, search, centerFilter, dateFilter])
+  }, [notifications, search, centerFilter, statusFilter, statusById, dateFilter])
 
   const openSendModal = useCallback((row = null) => {
     setEditingRow(row)
@@ -90,6 +77,7 @@ export default function PushNotificationsPage() {
   const handleSaveNotification = useCallback((notification, mode) => {
     if (mode === 'create') {
       setNotifications((prev) => [notification, ...prev])
+      setStatusById((prev) => ({ ...prev, [notification.id]: '' }))
       toast.success('Notification sent successfully')
     } else {
       setNotifications((prev) =>
@@ -99,8 +87,17 @@ export default function PushNotificationsPage() {
     }
   }, [])
 
+  const handleStatusChange = useCallback((id, value) => {
+    setStatusById((prev) => ({ ...prev, [id]: value }))
+  }, [])
+
   const handleDelete = useCallback((id) => {
     setNotifications((prev) => prev.filter((row) => row.id !== id))
+    setStatusById((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
     toast.success('Notification deleted')
   }, [])
 
@@ -159,20 +156,19 @@ export default function PushNotificationsPage() {
         cellClassName: 'align-middle text-left whitespace-nowrap',
       },
       {
-        key: 'assignedCounselor',
-        label: 'Assigned Counselor',
-        align: 'center',
-        headerClassName: 'min-w-[150px]',
-        cellClassName: 'align-middle text-left whitespace-nowrap',
-        render: (row) => <CounselorCell name={row.assignedCounselorName} />,
-      },
-      {
         key: 'leadStatus',
         label: 'Status',
         align: 'center',
-        headerClassName: 'min-w-[140px]',
+        headerClassName: 'min-w-[170px]',
         cellClassName: 'align-middle text-left',
-        render: (row) => <StatusChip status={row.leadStatus} />,
+        render: (row) => (
+          <EnquiryLeadStatusSelect
+            value={statusById[row.id] || ''}
+            onChange={(value) => handleStatusChange(row.id, value)}
+            options={statusOptions}
+            placeholder="Select Status"
+          />
+        ),
       },
       {
         key: 'date',
@@ -197,7 +193,7 @@ export default function PushNotificationsPage() {
         ),
       },
     ],
-    [openMessageModal, openSendModal],
+    [openMessageModal, openSendModal, handleStatusChange, statusById, statusOptions],
   )
 
   const emptyMessage = dateFilter
@@ -221,6 +217,8 @@ export default function PushNotificationsPage() {
           onSearchChange={(e) => setSearch(e.target.value)}
           center={centerFilter}
           onCenterChange={(e) => setCenterFilter(e.target.value)}
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
           selectedDate={dateFilter}
           onDateChange={setDateFilter}
         />
@@ -230,12 +228,12 @@ export default function PushNotificationsPage() {
           data={filtered}
           emptyMessage={emptyMessage}
           itemLabel="notifications"
-          resetDeps={[search, centerFilter, dateFilter]}
+          resetDeps={[search, centerFilter, statusFilter, dateFilter]}
           rowClassName="transition-colors duration-200"
           zebraStriping
           stickyHeader
           density="comfortable"
-          tableMinWidth={1180}
+          tableMinWidth={1040}
           gradientActivePage
           className="overflow-hidden rounded-xl border border-slate-100/80 shadow-[0_4px_20px_rgba(15,23,42,0.06)]"
           tableClassName="rounded-xl"
