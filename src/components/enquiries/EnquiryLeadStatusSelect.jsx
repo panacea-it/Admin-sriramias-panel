@@ -6,7 +6,7 @@ export default function EnquiryLeadStatusSelect({
   value,
   onChange,
   options,
-  placeholder = 'Select status',
+  placeholder = 'Select Status',
   className,
   disabled = false,
   size = 'compact',

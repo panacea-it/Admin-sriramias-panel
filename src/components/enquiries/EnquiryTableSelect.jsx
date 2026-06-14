@@ -23,6 +23,7 @@ const STATUS_CHIP_STYLES = {
 }
 
 export function getLeadStatusChipClass(status) {
+  if (!status) return 'border-slate-200/90 bg-white text-[#8b98bb]'
   return STATUS_CHIP_STYLES[status] ?? 'border-slate-200 bg-white text-[#1a3a5c]'
 }
 

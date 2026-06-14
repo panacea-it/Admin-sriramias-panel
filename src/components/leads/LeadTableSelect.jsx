@@ -8,7 +8,10 @@ export default function LeadTableSelect({
   ariaLabel,
   className,
   compact = false,
+  placeholder,
 }) {
+  const isPlaceholder = !value && placeholder
+
   return (
     <div
       className={cn(
@@ -22,13 +25,19 @@ export default function LeadTableSelect({
         onChange={onChange}
         aria-label={ariaLabel}
         className={cn(
-          'h-9 w-full cursor-pointer appearance-none rounded-lg border border-slate-200/90 bg-white pl-3 pr-8 text-xs font-semibold text-[#1a3a5c] shadow-sm outline-none transition',
+          'h-9 w-full cursor-pointer appearance-none rounded-lg border border-slate-200/90 bg-white pl-3 pr-8 text-xs font-semibold shadow-sm outline-none transition',
           'hover:border-[#55ace7]/50 focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25',
           compact ? 'text-[11px]' : 'text-xs',
+          isPlaceholder ? 'text-[#8b98bb]' : 'text-[#1a3a5c]',
         )}
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
+          <option
+            key={opt.value}
+            value={opt.value}
+            disabled={opt.disabled}
+            className="bg-white text-[#222]"
+          >
             {opt.label}
           </option>
         ))}

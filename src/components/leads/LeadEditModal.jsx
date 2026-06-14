@@ -28,7 +28,7 @@ function leadToForm(lead) {
       mobile: '',
       courseVisited: '',
       assignedCounselor: '',
-      status: 'NEW',
+      status: '',
     }
   }
   const courseVisited = [lead.course, lead.courseSub].filter(Boolean).join(' ')
@@ -38,7 +38,7 @@ function leadToForm(lead) {
     mobile: lead.mobile === '—' ? '' : lead.mobile || '',
     courseVisited,
     assignedCounselor: lead.assignedCounselor || '',
-    status: lead.status || 'NEW',
+    status: lead.status || '',
   }
 }
 

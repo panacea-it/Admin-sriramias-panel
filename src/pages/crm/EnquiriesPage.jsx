@@ -13,8 +13,8 @@ import EnquiryTableActions from '../../components/enquiries/EnquiryTableActions'
 import EnquiryViewModal from '../../components/enquiries/EnquiryViewModal'
 import {
   ENQUIRY_COUNSELORS,
-  ENQUIRY_LEAD_STATUS_OPTIONS,
   ENQUIRY_STATS,
+  ENQUIRY_LEAD_STATUS_OPTIONS,
   enquiryMatchesSelectedDate,
   formatEnquiryLeadStatusLabel,
   INITIAL_ENQUIRIES,
@@ -36,21 +36,11 @@ export default function EnquiriesPage() {
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [counselorById, setCounselorById] = useState(() =>
-    Object.fromEntries(
-      INITIAL_ENQUIRIES.map((row) => [row.id, row.assignedCounselor || ENQUIRY_COUNSELORS[0]]),
-    ),
+    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
   )
   const [leadStatusById, setLeadStatusById] = useState(() =>
-    Object.fromEntries(
-      INITIAL_ENQUIRIES.map((row) => [row.id, row.leadStatus || 'NEW']),
-    ),
+    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
   )
-
-  const handleOpenStatusChange = useCallback((id, nextStatus) => {
-    setEnquiries((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, status: nextStatus } : row)),
-    )
-  }, [])
 
   const handleCounselorChange = useCallback((id, value) => {
     setCounselorById((prev) => ({ ...prev, [id]: value }))
@@ -166,9 +156,10 @@ export default function EnquiriesPage() {
         cellClassName: 'align-middle text-left',
         render: (row) => (
           <EnquiryCounselorSelect
-            value={counselorById[row.id] || ENQUIRY_COUNSELORS[0]}
+            value={counselorById[row.id] || ''}
             onChange={(value) => handleCounselorChange(row.id, value)}
             options={counselorOptions}
+            placeholder="Select Counselor"
           />
         ),
       },
@@ -180,9 +171,10 @@ export default function EnquiriesPage() {
         cellClassName: 'align-middle text-left',
         render: (row) => (
           <EnquiryLeadStatusSelect
-            value={leadStatusById[row.id] || 'NEW'}
+            value={leadStatusById[row.id] || ''}
             onChange={(value) => handleLeadStatusChange(row.id, value)}
             options={leadStatusOptions}
+            placeholder="Select Status"
           />
         ),
       },
@@ -190,12 +182,10 @@ export default function EnquiriesPage() {
         key: 'actions',
         label: 'Actions',
         align: 'center',
-        headerClassName: 'min-w-[220px] pr-5 sm:pr-6',
+        headerClassName: 'min-w-[120px] pr-5 sm:pr-6',
         cellClassName: 'align-middle text-center pr-5 sm:pr-6',
         render: (row) => (
           <EnquiryTableActions
-            status={row.status}
-            onStatusChange={(nextStatus) => handleOpenStatusChange(row.id, nextStatus)}
             onView={() => setViewRow(row)}
             onEdit={() => setEditRow(row)}
           />
@@ -209,7 +199,6 @@ export default function EnquiriesPage() {
       leadStatusOptions,
       handleCounselorChange,
       handleLeadStatusChange,
-      handleOpenStatusChange,
     ],
   )
 
@@ -272,7 +261,7 @@ export default function EnquiriesPage() {
         onClose={() => setViewRow(null)}
         enquiry={viewRow}
         assignedCounselor={viewRow ? counselorById[viewRow.id] : ''}
-        leadStatus={viewRow ? leadStatusById[viewRow.id] : 'NEW'}
+        leadStatus={viewRow ? leadStatusById[viewRow.id] : ''}
       />
 
       <EnquiryEditModal
@@ -280,7 +269,7 @@ export default function EnquiriesPage() {
         onClose={() => setEditRow(null)}
         enquiry={editRow}
         assignedCounselor={editRow ? counselorById[editRow.id] : ''}
-        leadStatus={editRow ? leadStatusById[editRow.id] : 'NEW'}
+        leadStatus={editRow ? leadStatusById[editRow.id] : ''}
         counselorOptions={counselorOptions}
         leadStatusOptions={leadStatusOptions}
         onSave={handleEditSave}

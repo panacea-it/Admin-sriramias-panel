@@ -1,6 +1,5 @@
 import { Eye, Pencil } from 'lucide-react'
 import { cn } from '../../utils/cn'
-import EnquiryStatusBadge from './EnquiryStatusBadge'
 
 function ActionIconButton({ icon: Icon, label, onClick, variant = 'default' }) {
   const variants = {
@@ -38,7 +37,7 @@ function ActionIconButton({ icon: Icon, label, onClick, variant = 'default' }) {
   )
 }
 
-export default function EnquiryTableActions({ status, onStatusChange, onView, onEdit }) {
+export default function EnquiryTableActions({ onView, onEdit }) {
   return (
     <div
       className="flex flex-nowrap items-center justify-center gap-2.5 whitespace-nowrap sm:gap-3"
@@ -47,7 +46,6 @@ export default function EnquiryTableActions({ status, onStatusChange, onView, on
     >
       <ActionIconButton icon={Eye} label="View" onClick={onView} variant="view" />
       <ActionIconButton icon={Pencil} label="Edit" onClick={onEdit} variant="edit" />
-      <EnquiryStatusBadge status={status} onStatusChange={onStatusChange} compact />
     </div>
   )
 }

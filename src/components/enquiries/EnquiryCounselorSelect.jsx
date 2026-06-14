@@ -5,7 +5,7 @@ export default function EnquiryCounselorSelect({
   value,
   onChange,
   options,
-  placeholder = 'Select counselor',
+  placeholder = 'Select Counselor',
   className,
   disabled = false,
   size = 'compact',

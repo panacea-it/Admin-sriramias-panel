@@ -1,4 +1,5 @@
 import { getMonthRange, getWeekRange, isSameCalendarDay, startOfDay } from '../utils/dailyCollectionUtils'
+import { CRM_LEAD_STATUS_OPTIONS } from '../constants/crmLeadStatus'
 
 export const ENQUIRY_CENTERS = ['New Delhi', 'Hyderabad', 'Pune']
 export const ENQUIRY_COUNSELORS = [
@@ -6,28 +7,11 @@ export const ENQUIRY_COUNSELORS = [
   'Priya Singh',
   'Mahesh Kumar',
   'Sneha Reddy',
+  'Anita Sharma',
+  'Vikram Singh',
 ]
 
-export const ENQUIRY_LEAD_STATUS_OPTIONS = [
-  'NEW',
-  'ASSIGNED',
-  'CONTACT_ATTEMPTED',
-  'CONTACTED',
-  'FOLLOW_UP',
-  'INTERESTED',
-  'NOT_INTERESTED',
-  'INFO_SHARED',
-  'MEETING_SCHEDULED',
-  'MEETING_COMPLETED',
-  'NEGOTIATION',
-  'VERIFICATION_IN_PROGRESS',
-  'APPROVED',
-  'CONVERTED',
-  'ON_HOLD',
-  'LOST',
-  'DUPLICATE',
-  'CLOSED',
-]
+export const ENQUIRY_LEAD_STATUS_OPTIONS = CRM_LEAD_STATUS_OPTIONS
 
 export function formatEnquiryLeadStatusLabel(status) {
   return String(status || '')
@@ -78,12 +62,25 @@ export function parseEnquiryFilterInput(text) {
   return { valid: true, date }
 }
 
+export function parseEnquiryDisplayDate(dateStr) {
+  if (!dateStr) return null
+  const parsed = new Date(String(dateStr).trim())
+  if (Number.isNaN(parsed.getTime())) return null
+  return startOfDay(parsed)
+}
+
 export function enquiryMatchesSelectedDate(enquiryDateLabel, selectedDate) {
   if (!selectedDate) return true
 
   const selected = startOfDay(selectedDate)
-  const now = startOfDay(new Date())
   const label = String(enquiryDateLabel || '').trim()
+
+  const displayParsed = parseEnquiryDisplayDate(label)
+  if (displayParsed) {
+    return isSameCalendarDay(displayParsed, selected)
+  }
+
+  const now = startOfDay(new Date())
 
   if (label === 'Today') {
     return isSameCalendarDay(selected, now)
@@ -113,10 +110,8 @@ export const INITIAL_ENQUIRIES = [
     phone: '6300662566',
     enquiryType: 'Admission Enquiry',
     center: 'New Delhi',
-    enquiryDate: 'Today',
+    enquiryDate: '11 Aug 2026',
     status: 'Opened',
-    assignedCounselor: 'Rahul Sharma',
-    leadStatus: 'CONTACTED',
   },
   {
     id: 2,
@@ -125,10 +120,8 @@ export const INITIAL_ENQUIRIES = [
     phone: '6300662566',
     enquiryType: 'Demo',
     center: 'Hyderabad',
-    enquiryDate: 'Today',
+    enquiryDate: '12 Aug 2026',
     status: 'Unopened',
-    assignedCounselor: 'Priya Singh',
-    leadStatus: 'NEW',
   },
   {
     id: 3,
@@ -137,10 +130,8 @@ export const INITIAL_ENQUIRIES = [
     phone: '6300662566',
     enquiryType: 'Admission Enquiry',
     center: 'Pune',
-    enquiryDate: 'Today',
+    enquiryDate: '13 Aug 2026',
     status: 'Opened',
-    assignedCounselor: 'Mahesh Kumar',
-    leadStatus: 'FOLLOW_UP',
   },
   {
     id: 4,
@@ -149,10 +140,8 @@ export const INITIAL_ENQUIRIES = [
     phone: '6300662566',
     enquiryType: 'Demo',
     center: 'New Delhi',
-    enquiryDate: 'Today',
+    enquiryDate: '14 Aug 2026',
     status: 'Unopened',
-    assignedCounselor: 'Sneha Reddy',
-    leadStatus: 'ASSIGNED',
   },
   {
     id: 5,
@@ -161,10 +150,8 @@ export const INITIAL_ENQUIRIES = [
     phone: '9876543210',
     enquiryType: 'Admission Enquiry',
     center: 'Hyderabad',
-    enquiryDate: 'This Week',
+    enquiryDate: '15 Aug 2026',
     status: 'Opened',
-    assignedCounselor: 'Rahul Sharma',
-    leadStatus: 'INTERESTED',
   },
 ]
 

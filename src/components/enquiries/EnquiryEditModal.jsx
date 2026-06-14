@@ -33,7 +33,7 @@ function buildFormFromEnquiry(enquiry, counselor, leadStatus) {
     center: enquiry?.center ?? '',
     enquiryType: enquiry?.enquiryType ?? '',
     assignedCounselor: counselor ?? '',
-    leadStatus: leadStatus ?? 'NEW',
+    leadStatus: leadStatus ?? '',
   }
 }
 

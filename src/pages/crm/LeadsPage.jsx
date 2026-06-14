@@ -70,33 +70,36 @@ export default function LeadsPage() {
   const [deleteLeadId, setDeleteLeadId] = useState(null)
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
   const [counselorById, setCounselorById] = useState(() =>
-    Object.fromEntries(
-      INITIAL_LEADS.map((row) => [row.id, row.assignedCounselor || LEAD_COUNSELORS[0]]),
-    ),
+    Object.fromEntries(INITIAL_LEADS.map((row) => [row.id, ''])),
   )
   const [statusById, setStatusById] = useState(() =>
-    Object.fromEntries(INITIAL_LEADS.map((row) => [row.id, row.status || 'NEW'])),
+    Object.fromEntries(INITIAL_LEADS.map((row) => [row.id, ''])),
   )
 
   const counselorOptions = useMemo(
-    () => LEAD_COUNSELORS.map((name) => ({ value: name, label: name })),
+    () => [
+      { value: '', label: 'Select Counselor', disabled: true },
+      ...LEAD_COUNSELORS.map((name) => ({ value: name, label: name })),
+    ],
     [],
   )
 
   const statusOptions = useMemo(
-    () =>
-      LEAD_STATUS_OPTIONS.map((status) => ({
+    () => [
+      { value: '', label: 'Select Status', disabled: true },
+      ...LEAD_STATUS_OPTIONS.map((status) => ({
         value: status,
         label: formatLeadStatusLabel(status),
       })),
+    ],
     [],
   )
 
   const enrichLead = useCallback(
     (row) => ({
       ...row,
-      assignedCounselor: counselorById[row.id] || LEAD_COUNSELORS[0],
-      status: statusById[row.id] || 'NEW',
+      assignedCounselor: counselorById[row.id] || '',
+      status: statusById[row.id] || '',
     }),
     [counselorById, statusById],
   )
@@ -113,7 +116,7 @@ export default function LeadsPage() {
           const leadDate = parseLeadDisplayDate(row.date)
           return leadDate && isSameCalendarDay(leadDate, dateFilter)
         })()
-      const rowStatus = statusById[row.id] || row.status || 'NEW'
+      const rowStatus = statusById[row.id] || ''
       const matchStatus = statusFilter === 'all' || rowStatus === statusFilter
       return matchSearch && matchCenter && matchDate && matchStatus
     })
@@ -199,6 +202,14 @@ export default function LeadsPage() {
         render: (row) => <CourseCell course={row.course} courseSub={row.courseSub} />,
       },
       {
+        key: 'center',
+        label: 'Center',
+        align: 'center',
+        headerClassName: 'min-w-[110px]',
+        cellClassName: 'align-middle text-left whitespace-nowrap',
+        render: (row) => <span className="font-medium">{row.center}</span>,
+      },
+      {
         key: 'date',
         label: 'Date',
         align: 'center',
@@ -214,10 +225,11 @@ export default function LeadsPage() {
         cellClassName: 'align-middle text-left',
         render: (row) => (
           <LeadTableSelect
-            value={counselorById[row.id] || LEAD_COUNSELORS[0]}
+            value={counselorById[row.id] || ''}
             onChange={(e) => handleCounselorChange(row.id, e.target.value)}
             options={counselorOptions}
             ariaLabel={`Assigned counselor for ${row.userName}`}
+            placeholder="Select Counselor"
             compact
           />
         ),
@@ -230,10 +242,11 @@ export default function LeadsPage() {
         cellClassName: 'align-middle text-left',
         render: (row) => (
           <LeadTableSelect
-            value={statusById[row.id] || 'NEW'}
+            value={statusById[row.id] || ''}
             onChange={(e) => handleStatusChange(row.id, e.target.value)}
             options={statusOptions}
             ariaLabel={`Status for ${row.userName}`}
+            placeholder="Select Status"
           />
         ),
       },
@@ -309,7 +322,7 @@ export default function LeadsPage() {
           zebraStriping
           stickyHeader
           density="comfortable"
-          tableMinWidth={1100}
+          tableMinWidth={1200}
           gradientActivePage
           className="overflow-hidden rounded-xl border border-slate-100/80 shadow-[0_4px_20px_rgba(15,23,42,0.06)]"
           tableClassName="rounded-xl"

@@ -1,0 +1,21 @@
+/** Shared lead/enquiry status options for CRM table and edit dropdowns */
+export const CRM_LEAD_STATUS_OPTIONS = [
+  'NEW',
+  'ASSIGNED',
+  'CONTACT_ATTEMPTED',
+  'CONTACTED',
+  'FOLLOW_UP',
+  'INTERESTED',
+  'NOT_INTERESTED',
+  'INFO_SHARED',
+  'MEETING_SCHEDULED',
+  'MEETING_COMPLETED',
+  'NEGOTIATION',
+  'VERIFICATION_IN_PROGRESS',
+  'APPROVED',
+  'CONVERTED',
+  'ON_HOLD',
+  'LOST',
+  'DUPLICATE',
+  'CLOSED',
+]
