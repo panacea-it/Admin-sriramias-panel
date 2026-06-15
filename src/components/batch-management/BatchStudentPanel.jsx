@@ -228,6 +228,10 @@ export default function BatchStudentPanel({
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || deleteStudentSaving) return
+    if (useDemoData) {
+      setDeleteTarget(null)
+      return
+    }
     setSaving(true)
     try {
       await onDeleteStudent?.(
@@ -375,7 +379,7 @@ export default function BatchStudentPanel({
                 <th className="px-4 py-3 text-center">Attendance %</th>
                 <th className="px-4 py-3 min-w-[120px]">Progress</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right sm:px-5">Actions</th>
+                <th className="min-w-[320px] px-4 py-3 text-center sm:px-5">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -455,29 +459,32 @@ export default function BatchStudentPanel({
                       <td className="px-4 py-3.5 align-middle">
                         <StudentEnrollmentStatusBadge status={student.status} />
                       </td>
-                      <td className="px-4 py-3.5 align-middle sm:px-5">
-                        <StudentTableActions
-                          demoOnly={useDemoData}
-                          canMove={canMoveStudent}
-                          status={student.status ?? 'Active'}
-                          onView={() => handleView(student)}
-                          onEdit={() => void openEdit(student)}
-                          onMove={
-                            canMoveStudent
-                              ? () => setMoveTarget(student)
-                              : undefined
-                          }
-                          onDelete={!useDemoData ? () => setDeleteTarget(student) : undefined}
-                          onToggleStatus={
-                            !useDemoData
-                              ? () =>
-                                  onToggleStudentStatus?.(
-                                    batch.id,
-                                    resolveEnrollmentApiId(student) || student.id,
-                                  )
-                              : undefined
-                          }
-                        />
+                      <td className="min-w-[320px] px-4 py-3.5 align-middle text-center sm:px-5">
+                        <div className="flex justify-center">
+                          <StudentTableActions
+                            studentName={student.name}
+                            status={student.status ?? 'Active'}
+                            onView={() => handleView(student)}
+                            onEdit={() => void openEdit(student)}
+                            onDelete={() => setDeleteTarget(student)}
+                            onMove={
+                              !useDemoData && canMoveStudent
+                                ? () => setMoveTarget(student)
+                                : undefined
+                            }
+                            onToggleStatus={
+                              !useDemoData
+                                ? () =>
+                                    onToggleStudentStatus?.(
+                                      batch.id,
+                                      resolveEnrollmentApiId(student) || student.id,
+                                    )
+                                : undefined
+                            }
+                            canMove={canMoveStudent}
+                            disabled={rowBusy}
+                          />
+                        </div>
                       </td>
                     </tr>
                   )

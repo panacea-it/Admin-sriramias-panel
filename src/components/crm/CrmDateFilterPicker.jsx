@@ -214,7 +214,7 @@ function CrmFilterCalendar({ viewMonth, selectedDate, onSelectDate, onViewMonthC
   )
 }
 
-export default function CrmDateFilterPicker({ value, onChange, className }) {
+export default function CrmDateFilterPicker({ value, onChange, className, tone = 'gradient' }) {
   const [open, setOpen] = useState(false)
   const [panelStyle, setPanelStyle] = useState(null)
   const [viewMonth, setViewMonth] = useState(() =>
@@ -308,9 +308,11 @@ export default function CrmDateFilterPicker({ value, onChange, className }) {
         aria-haspopup="dialog"
         aria-label="Select date"
         className={cn(
-          'relative flex h-10 w-full min-h-[40px] cursor-pointer items-center gap-2 rounded-lg border-0 bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] pl-3.5 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition-all duration-200',
-          'hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40',
-          open && 'ring-2 ring-[#246392]/40',
+          'relative flex h-10 w-full min-h-[40px] cursor-pointer items-center gap-2 rounded-lg border-0 pl-3.5 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition-all duration-200',
+          tone === 'solid'
+            ? 'bg-[#55ace7] hover:bg-[#4a9fd8] focus:ring-2 focus:ring-[#246392]/50'
+            : 'bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40',
+          open && (tone === 'solid' ? 'ring-2 ring-[#246392]/50' : 'ring-2 ring-[#246392]/40'),
         )}
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-white/90" aria-hidden />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { ChevronDown, Pencil } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import { cn } from '../../utils/cn'
@@ -17,6 +17,20 @@ function FormField({ label, children, className }) {
       <span className="text-xs font-semibold text-[#686868]">{label}</span>
       {children}
     </label>
+  )
+}
+
+function SelectField({ label, children, className }) {
+  return (
+    <FormField label={label} className={className}>
+      <div className="relative">
+        {children}
+        <ChevronDown
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]"
+          aria-hidden
+        />
+      </div>
+    </FormField>
   )
 }
 
@@ -122,28 +136,28 @@ export default function LeadEditModal({
                 placeholder="Enter course visited"
               />
             </FormField>
-            <FormField label="Assigned Counselor">
+            <SelectField label="Assigned Counselor">
               <select
                 value={form.assignedCounselor}
                 onChange={handleChange('assignedCounselor')}
                 className={selectClass}
               >
                 {counselorOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                     {opt.label}
                   </option>
                 ))}
               </select>
-            </FormField>
-            <FormField label="Status">
+            </SelectField>
+            <SelectField label="Status">
               <select value={form.status} onChange={handleChange('status')} className={selectClass}>
                 {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                     {opt.label}
                   </option>
                 ))}
               </select>
-            </FormField>
+            </SelectField>
           </div>
         </div>
 

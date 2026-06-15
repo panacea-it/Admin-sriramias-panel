@@ -400,7 +400,15 @@ export default function BatchDetailsPage() {
       try {
         await deleteEnrollment(enrollmentId)
         toast.success('Student deleted successfully')
-        await refetchStudentsAfterMutation()
+        if (viewOpen && resolveEnrollmentApiId(viewStudent) === enrollmentId) {
+          setViewOpen(false)
+          setViewStudent(null)
+          setViewLoading(false)
+        }
+        const result = await refetchStudentsAfterMutation()
+        if (result?.students?.length === 0 && studentsPage > 1) {
+          setStudentsPage(studentsPage - 1)
+        }
         await refetchBatchDetails()
       } catch (err) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
@@ -410,7 +418,15 @@ export default function BatchDetailsPage() {
         setDeletingStudent(false)
       }
     },
-    [deletingStudent, refetchStudentsAfterMutation, refetchBatchDetails],
+    [
+      deletingStudent,
+      refetchStudentsAfterMutation,
+      refetchBatchDetails,
+      studentsPage,
+      setStudentsPage,
+      viewOpen,
+      viewStudent,
+    ],
   )
 
   const handleToggleStudentStatus = useCallback(
