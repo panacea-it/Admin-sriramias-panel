@@ -13,8 +13,7 @@ function readEnvBaseUrl() {
 }
 
 /** API host without trailing slash or `/api` suffix */
-export const BASE_URL =
-  readEnvBaseUrl() || "https://sriramias-backend.onrender.com";
+export const BASE_URL = "https://sriramias-backend.onrender.com";
 
 export const API_ENDPOINTS = {
   LOGIN_SUPER_ADMIN: "/api/auth/login-super-admin",
