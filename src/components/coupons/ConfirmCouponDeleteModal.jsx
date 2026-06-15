@@ -1,4 +1,4 @@
-import AppModalWrapper from '../ui/AppModalWrapper'
+import AppModalWrapper from "../ui/AppModalWrapper";
 
 export default function ConfirmCouponDeleteModal({
   open,
@@ -8,22 +8,22 @@ export default function ConfirmCouponDeleteModal({
   onCancel,
   onConfirm,
 }) {
-  const isBulk = bulkCount > 0
-  const title = isBulk ? 'Delete Selected Coupons' : 'Delete Coupon'
+  const isBulk = bulkCount > 0;
+  const title = isBulk ? "Delete Selected Coupons" : "Delete Coupon";
   const message = isBulk
-    ? `Are you sure you want to delete ${bulkCount} selected ${bulkCount === 1 ? 'coupon' : 'coupons'}?`
-    : 'Are you sure you want to delete this coupon?'
+    ? `Are you sure you want to delete ${bulkCount} selected ${bulkCount === 1 ? "coupon" : "coupons"}?`
+    : "Are you sure you want to delete this coupon?";
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!loading) onConfirm?.()
-  }
+    e.preventDefault();
+    if (!loading) onConfirm?.();
+  };
 
   return (
     <AppModalWrapper
       open={open}
       onClose={() => {
-        if (!loading) onCancel?.()
+        if (!loading) onCancel?.();
       }}
       title={title}
       size="md"
@@ -36,7 +36,9 @@ export default function ConfirmCouponDeleteModal({
       >
         <div className="border-b border-[#eef2fc] px-6 py-5 pr-14">
           <h2 className="text-lg font-bold text-[#111]">{title}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#686868]">{message}</p>
+          <p className="mt-2 text-sm leading-relaxed text-[#686868]">
+            {message}
+          </p>
           {!isBulk && couponName ? (
             <p className="mt-3 rounded-xl border border-[#eef2fc] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#111]">
               {couponName}
@@ -58,10 +60,10 @@ export default function ConfirmCouponDeleteModal({
             disabled={loading}
             className="h-10 min-h-[38px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95 disabled:opacity-60"
           >
-            {loading ? 'Deleting…' : 'Delete Coupon'}
+            {loading ? "Deleting…" : "Delete Coupon"}
           </button>
         </div>
       </form>
     </AppModalWrapper>
-  )
+  );
 }

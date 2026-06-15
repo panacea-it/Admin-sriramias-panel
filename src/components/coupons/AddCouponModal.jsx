@@ -55,7 +55,6 @@ function ValueField({ type, value, onChange }) {
           onChange={onChange}
           inputMode="decimal"
           className="pr-11"
-          placeholder=""
         />
         <AlarmClock
           className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#246392]"
@@ -130,7 +129,7 @@ export default function AddCouponModal({
       toast.error("Coupon name and code are required");
       return;
     }
-    if (!form.value.trim() || !form.validFrom || !form.validTill) {
+    if (!form.value.toString().trim() || !form.validFrom || !form.validTill) {
       toast.error("Please fill value and validity dates");
       return;
     }
@@ -150,11 +149,9 @@ export default function AddCouponModal({
       toast.error("Select a student for specific eligibility");
       return;
     }
+
+    // Call submit function passed from parent
     onSubmit?.(form, editingRef.current);
-    toast.success(
-      isEdit ? "Coupon updated successfully" : "Coupon created successfully",
-    );
-    handleClose();
   };
 
   const modalTitle = isEdit ? "Edit Coupon" : "Add Coupon";
@@ -169,10 +166,8 @@ export default function AddCouponModal({
           title={isEdit ? "Edit Coupon" : "Coupon"}
           icon={TicketPercent}
         />
-
         <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
           <SectionBar title="Coupon Details" />
-
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <CourseFormField label="Coupon Name" required>
               <CourseInput
@@ -193,13 +188,11 @@ export default function AddCouponModal({
                 <option value="BOGO">BOGO</option>
               </CourseSelect>
             </CourseFormField>
-
             <ValueField
               type={form.type}
               value={form.value}
               onChange={update("value")}
             />
-
             <CourseFormField label="Valid From" required>
               <CourseDateInput
                 value={form.validFrom}
@@ -212,7 +205,6 @@ export default function AddCouponModal({
                 onChange={update("validTill")}
               />
             </CourseFormField>
-
             <CourseFormField label="Category">
               <CourseSelect value={form.category} onChange={update("category")}>
                 <option value="Course">Course</option>
@@ -230,7 +222,7 @@ export default function AddCouponModal({
                 placeholder={
                   (form.backgroundImage &&
                     (form.backgroundImage.name || form.backgroundImage)) ||
-                  "312×214 Kb"
+                  "Upload Image"
                 }
                 onChange={(e) =>
                   setForm((f) => ({
@@ -243,7 +235,6 @@ export default function AddCouponModal({
           </div>
 
           <SectionBar title="Usage Limit" />
-
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <CourseFormField label="Total Users Limit">
               <CourseInput
