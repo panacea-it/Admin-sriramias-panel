@@ -14,7 +14,7 @@ function resolveRemoteApiBase() {
     process.env.REMOTE_API_URL?.trim() ||
     process.env.API_BASE_URL?.trim() ||
     process.env.VITE_API_BASE_URL?.trim() ||
-    'https://new-sriramias.onrender.com'
+    'https://sriramias-backend.onrender.com'
   return raw.replace(/\/api\/?$/, '').replace(/\/$/, '')
 }
 
