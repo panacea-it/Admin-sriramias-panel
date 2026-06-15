@@ -4,11 +4,11 @@ This frontend is a **Vite + React SPA**. The API runs separately (e.g. Render). 
 
 ## Netlify project settings
 
-| Setting            | Value              |
-| ------------------ | ------------------ |
-| Build command      | `npm run build`    |
-| Publish directory  | `dist`             |
-| Node version       | 24 (see `netlify.toml` and `.nvmrc`) |
+| Setting           | Value                                |
+| ----------------- | ------------------------------------ |
+| Build command     | `npm run build`                      |
+| Publish directory | `dist`                               |
+| Node version      | 24 (see `netlify.toml` and `.nvmrc`) |
 
 `netlify.toml` already defines SPA redirects and default build env vars.
 
@@ -16,11 +16,11 @@ This frontend is a **Vite + React SPA**. The API runs separately (e.g. Render). 
 
 Set under **Site settings → Environment variables** (Production):
 
-| Variable                 | Example                                      | Purpose                          |
-| ------------------------ | -------------------------------------------- | -------------------------------- |
-| `VITE_API_BASE_URL`      | `https://new-sriramias.onrender.com`         | Backend host (no `/api` suffix)  |
-| `VITE_FRONTEND_ONLY`     | `false`                                      | Required for live Super Admin login |
-| `VITE_ENABLE_DEMO_LOGIN` | `false`                                      | Optional demo fallback           |
+| Variable                 | Example                                  | Purpose                             |
+| ------------------------ | ---------------------------------------- | ----------------------------------- |
+| `VITE_API_BASE_URL`      | `https://sriramias-backend.onrender.com` | Backend host (no `/api` suffix)     |
+| `VITE_FRONTEND_ONLY`     | `false`                                  | Required for live Super Admin login |
+| `VITE_ENABLE_DEMO_LOGIN` | `false`                                  | Optional demo fallback              |
 
 Redeploy after changing env vars (Vite bakes them at build time).
 
@@ -47,9 +47,9 @@ Use credentials issued by your backend — demo UI prefills are for offline role
 
 ## Troubleshooting
 
-| Issue | Fix |
-| ----- | --- |
+| Issue                               | Fix                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
 | Login works locally, not on Netlify | Set `VITE_FRONTEND_ONLY=false` and `VITE_API_BASE_URL` in Netlify, then redeploy |
-| Blank page on refresh | Ensure `netlify.toml` SPA redirect is present |
-| CORS errors | Add your Netlify URL to backend `CLIENT_ORIGIN` / allowed origins |
-| Wrong API host | Confirm `VITE_API_BASE_URL` has no trailing slash |
+| Blank page on refresh               | Ensure `netlify.toml` SPA redirect is present                                    |
+| CORS errors                         | Add your Netlify URL to backend `CLIENT_ORIGIN` / allowed origins                |
+| Wrong API host                      | Confirm `VITE_API_BASE_URL` has no trailing slash                                |

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layers, Star } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
@@ -8,39 +8,76 @@ import AddCouponModal from '../../components/coupons/AddCouponModal'
 import CouponTableActions from '../../components/coupons/CouponTableActions'
 import CouponsBulkActionsBar from '../../components/coupons/CouponsBulkActionsBar'
 import ConfirmCouponDeleteModal from '../../components/coupons/ConfirmCouponDeleteModal'
-import ConfirmCouponStatusModal from '../../components/coupons/ConfirmCouponStatusModal'
 import ViewCouponModal from '../../components/coupons/ViewCouponModal'
 import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
-import {
-  createCoupon,
-  deleteCoupon,
-  loadCoupons,
-  updateCoupon,
-  updateCouponStatus,
-} from '../../utils/couponsStorage'
+import { createCoupon, loadCoupons, updateCoupon } from '../../utils/couponsStorage'
+import { deleteAdminCoupon, fetchAdminCoupons, createAdminCoupon, updateAdminCoupon } from '../../api/couponsAPI'
 
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState(() => loadCoupons())
+  const [loadingCoupons, setLoadingCoupons] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState(null)
   const [viewingCoupon, setViewingCoupon] = useState(null)
-  const [statusTarget, setStatusTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [bulkDisableIds, setBulkDisableIds] = useState(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [actionCouponId, setActionCouponId] = useState(null)
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 
-  const refresh = useCallback(() => {
-    setCoupons(loadCoupons())
-  }, [])
+  useEffect(() => {
+    let mounted = true
+    const controller = new AbortController()
+
+    const loadCouponsFromApi = async () => {
+      try {
+        setLoadingCoupons(true)
+        const rows =
+          categoryFilter && categoryFilter !== 'all'
+            ? await (await import('../../api/couponsAPI')).fetchCouponsByCategory(categoryFilter, controller.signal)
+            : await fetchAdminCoupons(controller.signal)
+        if (mounted) {
+          setCoupons(rows)
+        }
+      } catch (error) {
+        if (mounted && !controller.signal.aborted) {
+          console.error('Failed to load admin coupons:', error)
+          toast.error('Unable to load coupons from the server.')
+          setCoupons(loadCoupons())
+        }
+      } finally {
+        if (mounted) {
+          setLoadingCoupons(false)
+        }
+      }
+    }
+
+    loadCouponsFromApi()
+
+    return () => {
+      mounted = false
+      controller.abort()
+    }
+  }, [categoryFilter])
+
+  const refresh = useCallback(async () => {
+    try {
+      const rows =
+        categoryFilter && categoryFilter !== 'all'
+          ? await (await import('../../api/couponsAPI')).fetchCouponsByCategory(categoryFilter)
+          : await fetchAdminCoupons()
+      setCoupons(rows)
+    } catch (error) {
+      console.error('Failed to refresh coupons:', error)
+      setCoupons(loadCoupons())
+    }
+  }, [categoryFilter])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -60,105 +97,92 @@ export default function CouponsPage() {
     [coupons, selectedIds],
   )
 
-  const handleAddOrUpdate = (form, editing) => {
-    if (editing) {
-      const result = updateCoupon(editing.id, form)
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to update coupon')
-        return
-      }
-    } else {
-      const result = createCoupon(form)
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to create coupon')
-        return
-      }
-    }
-    refresh()
-    setEditingCoupon(null)
-  }
-
-  const confirmStatusChange = async () => {
-    if (bulkDisableIds?.length) {
-      setStatusLoading(true)
-      let successCount = 0
-      for (const id of bulkDisableIds) {
-        const coupon = coupons.find((c) => c.id === id && c.status === 'Active')
-        if (!coupon) continue
-        const result = updateCouponStatus(id, false)
-        if (result.ok) successCount += 1
-      }
-      if (successCount > 0) {
-        toast.success(
-          successCount === 1 ? 'Coupon disabled' : `${successCount} coupons disabled`,
-        )
-        refresh()
-      }
-      setBulkDisableIds(null)
-      clearSelection()
-      setStatusLoading(false)
-      return
-    }
-
-    if (!statusTarget || statusLoading) return
-    const enabling = statusTarget.status !== 'Active'
-
-    setStatusLoading(true)
-    setActionCouponId(statusTarget.id)
-
+  const handleAddOrUpdate = async (form, editing) => {
     try {
-      const result = updateCouponStatus(statusTarget.id, enabling)
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to update coupon status')
-        return
+      if (editing) {
+        const id = editing._id || editing.id || editing.couponId
+        await updateAdminCoupon(id, form)
+      } else {
+        await createAdminCoupon(form)
       }
-      toast.success(enabling ? 'Coupon enabled successfully' : 'Coupon disabled successfully')
-      setStatusTarget(null)
-      refresh()
-    } catch {
-      toast.error('Failed to update coupon status')
+      await refresh()
+    } catch (err) {
+      console.error('API create/update failed, falling back to local storage', err)
+      if (editing) {
+        const result = updateCoupon(editing.id, form)
+        if (!result.ok) {
+          toast.error(result.reason || 'Failed to update coupon')
+          return
+        }
+      } else {
+        const result = createCoupon(form)
+        if (!result.ok) {
+          toast.error(result.reason || 'Failed to create coupon')
+          return
+        }
+      }
+      await refresh()
     } finally {
-      setStatusLoading(false)
-      setActionCouponId(null)
+      setEditingCoupon(null)
     }
   }
+
+  
 
   const confirmDelete = async () => {
     if (bulkDeleteIds?.length) {
       setDeleteLoading(true)
       let successCount = 0
-      for (const id of bulkDeleteIds) {
-        const result = deleteCoupon(id)
-        if (result.ok) successCount += 1
+
+      try {
+        for (const id of bulkDeleteIds) {
+          await deleteAdminCoupon(id)
+          successCount += 1
+        }
+
+        if (successCount > 0) {
+          toast.success(
+            successCount === 1 ? 'Coupon deleted' : `${successCount} coupons deleted`,
+          )
+          await refresh()
+        }
+      } catch (error) {
+        console.error('Failed to delete coupons:', error)
+        toast.error('Failed to delete selected coupons')
+      } finally {
+        setBulkDeleteIds(null)
+        clearSelection()
+        setDeleteLoading(false)
       }
-      if (successCount > 0) {
-        toast.success(
-          successCount === 1 ? 'Coupon deleted' : `${successCount} coupons deleted`,
-        )
-        refresh()
-      }
-      setBulkDeleteIds(null)
-      clearSelection()
-      setDeleteLoading(false)
       return
     }
 
     if (!deleteTarget || deleteLoading) return
 
+    const couponId = deleteTarget?._id || deleteTarget?.couponId || deleteTarget?.id
+
     setDeleteLoading(true)
-    setActionCouponId(deleteTarget.id)
+    setActionCouponId(couponId)
 
     try {
-      const result = deleteCoupon(deleteTarget.id)
-      if (!result.ok) {
-        toast.error(result.reason || 'Failed to delete coupon')
-        return
+      // Log current auth token used by axios instances for debugging
+      try {
+        // eslint-disable-next-line no-console
+        console.debug('SuperAdminToken (localStorage):', localStorage.getItem('SuperAdminToken'))
+        // eslint-disable-next-line no-console
+        console.debug('auth_token (localStorage):', localStorage.getItem('auth_token'))
+      } catch {
+        // ignore
       }
+
+      await deleteAdminCoupon(couponId)
       toast.success('Coupon deleted successfully')
       setDeleteTarget(null)
-      refresh()
-    } catch {
-      toast.error('Failed to delete coupon')
+      await refresh()
+    } catch (error) {
+      console.error('Failed to delete coupon:', error)
+      const serverMessage = error?.response?.data?.message || error?.message || 'Failed to delete coupon'
+      toast.error(serverMessage)
     } finally {
       setDeleteLoading(false)
       setActionCouponId(null)
@@ -204,7 +228,7 @@ export default function CouponsPage() {
             setEditingCoupon(row)
             setAddOpen(true)
           }}
-          onStatusToggle={() => setStatusTarget(row)}
+          onStatusToggle={undefined}
           onDelete={() => setDeleteTarget(row)}
         />
       ),
@@ -237,26 +261,35 @@ export default function CouponsPage() {
           onTypeChange={(e) => setTypeFilter(e.target.value)}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
+          category={categoryFilter}
+          onCategoryChange={(e) => {
+            setCategoryFilter(e.target.value)
+          }}
         />
 
         {selectedIds.length > 0 && (
           <CouponsBulkActionsBar
-            count={selectedIds.length}
-            disableCount={selectedActiveCount}
-            onDisable={() => setBulkDisableIds([...selectedIds])}
-            onDelete={() => setBulkDeleteIds([...selectedIds])}
-          />
+              count={selectedIds.length}
+              disableCount={selectedActiveCount}
+              onDelete={() => setBulkDeleteIds([...selectedIds])}
+            />
         )}
 
-        <PaginatedFigmaTable
-          columns={columns}
-          data={filtered}
-          emptyMessage="No coupons match your filters."
-          itemLabel="coupons"
-          resetDeps={[search, typeFilter, statusFilter]}
-          selection={selection}
-          rowClassName="hover:bg-slate-50/90"
-        />
+        {loadingCoupons ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
+            Loading coupons from the API...
+          </div>
+        ) : (
+          <PaginatedFigmaTable
+            columns={columns}
+            data={filtered}
+            emptyMessage="No coupons match your filters."
+            itemLabel="coupons"
+            resetDeps={[search, typeFilter, statusFilter]}
+            selection={selection}
+            rowClassName="hover:bg-slate-50/90"
+          />
+        )}
       </section>
 
       <AddCouponModal
@@ -275,19 +308,7 @@ export default function CouponsPage() {
         coupon={viewingCoupon}
       />
 
-      <ConfirmCouponStatusModal
-        open={Boolean(statusTarget) || Boolean(bulkDisableIds?.length)}
-        enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'Active'}
-        bulkCount={bulkDisableIds?.length || 0}
-        loading={statusLoading}
-        onCancel={() => {
-          if (!statusLoading) {
-            setStatusTarget(null)
-            setBulkDisableIds(null)
-          }
-        }}
-        onConfirm={confirmStatusChange}
-      />
+      {/* Status modal removed: backend does not support enable/disable for coupons */}
 
       <ConfirmCouponDeleteModal
         open={Boolean(deleteTarget) || Boolean(bulkDeleteIds?.length)}

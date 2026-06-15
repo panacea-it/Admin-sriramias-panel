@@ -145,19 +145,28 @@ export function deleteCoupon(id) {
 
 export function couponToForm(coupon) {
   if (!coupon) return null
+  function isoToInputDate(iso) {
+    if (!iso) return ''
+    // handle ISO datetimes like 2026-06-01T00:00:00.000Z or date-only 'YYYY-MM-DD'
+    const d = String(iso).split('T')[0]
+    return d || ''
+  }
   return {
     couponName: coupon.name || '',
     couponCode: coupon.couponCode || '',
     type: coupon.type || 'Percentage',
-    value: coupon.value || '',
-    validFrom: coupon.validFrom || '',
-    validTill: coupon.validTill || expiresOnToIso(coupon.expiresOn),
+    value: String(coupon.value ?? '').trim(),
+    validFrom: isoToInputDate(coupon.validFrom) || '',
+    validTill: isoToInputDate(coupon.validTill) || expiresOnToIso(coupon.expiresOn),
     category: coupon.category || 'Course',
-    backgroundImage: coupon.backgroundImage || '',
-    totalUsersLimit: coupon.totalUsersLimit || '',
-    usageLimitPerCustomer: coupon.usageLimitPerCustomer || '',
-    minQuantityItems: coupon.minQuantityItems || '',
-    minCartValue: coupon.minCartValue || '',
+    backgroundImage:
+      (coupon.backgroundImage && typeof coupon.backgroundImage === 'object'
+        ? coupon.backgroundImage.url || coupon.backgroundImage.public_id || ''
+        : coupon.backgroundImage) || '',
+    totalUsersLimit: String(coupon.totalUsersLimit ?? '').trim(),
+    usageLimitPerCustomer: String(coupon.usageLimitPerCustomer ?? '').trim(),
+    minQuantityItems: String(coupon.minQuantityItems ?? '').trim(),
+    minCartValue: String(coupon.minCartValue ?? '').trim(),
     eligibility: coupon.eligibility || 'everyone',
     specificStudent: coupon.specificStudent || '',
   }

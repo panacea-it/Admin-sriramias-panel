@@ -117,7 +117,15 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
       toast.error('Please fill value and validity dates')
       return
     }
-    if (!form.backgroundImage?.trim() && !(isEdit && editingRef.current?.backgroundImage)) {
+    const hasBackground = (() => {
+      const v = form.backgroundImage
+      if (!v) return false
+      if (typeof v === 'string') return v.trim() !== ''
+      if (typeof File !== 'undefined' && v instanceof File) return true
+      return true
+    })()
+
+    if (!hasBackground && !(isEdit && editingRef.current?.backgroundImage)) {
       toast.error('Background image is required')
       return
     }
@@ -177,11 +185,11 @@ export default function AddCouponModal({ open, onClose, onSubmit, editingCoupon 
             </CourseFormField>
             <CourseFormField label="Background Image" required className="sm:col-span-2">
               <CourseFileInput
-                placeholder={form.backgroundImage || '312×214 Kb'}
+                placeholder={(form.backgroundImage && (form.backgroundImage.name || form.backgroundImage)) || '312×214 Kb'}
                 onChange={(e) =>
                   setForm((f) => ({
                     ...f,
-                    backgroundImage: e.target.files?.[0]?.name || '',
+                    backgroundImage: e.target.files?.[0] || '',
                   }))
                 }
               />

@@ -27,6 +27,9 @@ export default function CouponFilterToolbar({
   onTypeChange,
   status,
   onStatusChange,
+  category,
+  onCategoryChange,
+  categoryOptions = [],
 }) {
   return (
     <div className="rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
@@ -42,6 +45,19 @@ export default function CouponFilterToolbar({
           />
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <FilterSelect
+            label="Category"
+            value={category}
+            onChange={onCategoryChange}
+            options={[
+              { value: 'all', label: 'All Categories' },
+              ...(categoryOptions.length ? categoryOptions : [
+                { value: 'Course', label: 'Course' },
+                { value: 'Books', label: 'Books' },
+                { value: 'TestSeries', label: 'Test Series' },
+              ]),
+            ]}
+          />
           <FilterSelect
             label="Type"
             value={type}

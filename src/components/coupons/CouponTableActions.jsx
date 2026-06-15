@@ -43,21 +43,7 @@ export default function CouponTableActions({
         <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
         Edit
       </button>
-      <button
-        type="button"
-        onClick={onStatusToggle}
-        disabled={disabled}
-        title={isActive ? 'Disable' : 'Enable'}
-        aria-label={isActive ? `Disable ${row.name}` : `Enable ${row.name}`}
-        className={statusClassName}
-      >
-        {isActive ? (
-          <Ban className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
-        ) : (
-          <Circle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden />
-        )}
-        {isActive ? 'Disable' : 'Enable'}
-      </button>
+      {/* Status toggle removed: backend does not provide enable/disable API for coupons */}
       <button
         type="button"
         onClick={onDelete}

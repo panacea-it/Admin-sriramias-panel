@@ -1,7 +1,7 @@
-import { Search, ChevronDown } from 'lucide-react'
-import { cn } from '../../utils/cn'
+import { Search, ChevronDown } from "lucide-react";
+import { cn } from "../../utils/cn";
 
-const controlHeight = 'h-11 min-h-[44px]'
+const controlHeight = "h-11 min-h-[44px]";
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -12,19 +12,23 @@ function FilterSelect({ label, value, onChange, options }) {
         aria-label={label}
         className={cn(
           controlHeight,
-          'w-full appearance-none rounded-lg border-0 bg-[#1D72B8] pl-4 pr-10 text-sm font-semibold text-white outline-none transition',
-          'focus:ring-2 focus:ring-[#4CA6E8]/50',
+          "w-full appearance-none rounded-lg border-0 bg-[#1D72B8] pl-4 pr-10 text-sm font-semibold text-white outline-none transition",
+          "focus:ring-2 focus:ring-[#4CA6E8]/50",
         )}
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-white text-[#14213D]">
+          <option
+            key={opt.value}
+            value={opt.value}
+            className="bg-white text-[#14213D]"
+          >
             {opt.label}
           </option>
         ))}
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
     </div>
-  )
+  );
 }
 
 export default function ManageUsersFilterToolbar({
@@ -39,13 +43,15 @@ export default function ManageUsersFilterToolbar({
   roleOptions = [],
   centerOptions = [],
 }) {
-  const roleOpts = Array.isArray(roleOptions) && roleOptions.length
-    ? roleOptions
-    : [{ value: 'all', label: 'All roles' }]
+  const roleOpts =
+    Array.isArray(roleOptions) && roleOptions.length
+      ? roleOptions
+      : [{ value: "all", label: "All roles" }];
 
-  const centerOpts = Array.isArray(centerOptions) && centerOptions.length
-    ? centerOptions
-    : [{ value: 'all', label: 'All centers' }]
+  const centerOpts =
+    Array.isArray(centerOptions) && centerOptions.length
+      ? centerOptions
+      : [{ value: "all", label: "All centers" }];
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-5">
@@ -58,9 +64,9 @@ export default function ManageUsersFilterToolbar({
           placeholder="Search by name, email or User ID..."
           className={cn(
             controlHeight,
-            'w-full rounded-lg border border-[#E7ECF5] bg-[#EEF5FF] pl-11 pr-4 text-sm text-[#14213D] outline-none transition',
-            'placeholder:text-[#667085]',
-            'focus:border-[#1D72B8] focus:bg-white focus:ring-2 focus:ring-[#4CA6E8]/30',
+            "w-full rounded-lg border border-[#E7ECF5] bg-[#EEF5FF] pl-11 pr-4 text-sm text-[#14213D] outline-none transition",
+            "placeholder:text-[#667085]",
+            "focus:border-[#1D72B8] focus:bg-white focus:ring-2 focus:ring-[#4CA6E8]/30",
           )}
         />
       </div>
@@ -83,12 +89,12 @@ export default function ManageUsersFilterToolbar({
           value={statusFilter}
           onChange={onStatusFilterChange}
           options={[
-            { value: 'all', label: 'All status' },
-            { value: 'Active', label: 'Active' },
-            { value: 'In Active', label: 'In Active' },
+            { value: "all", label: "All status" },
+            { value: "Active", label: "Active" },
+            { value: "In Active", label: "In Active" },
           ]}
         />
       </div>
     </div>
-  )
+  );
 }
