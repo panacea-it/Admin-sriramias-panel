@@ -74,14 +74,9 @@ export default defineConfig(({ mode }) => {
 
   const isHttpsTarget = apiTarget.startsWith("https://");
 
-<<<<<<< HEAD
-  if (mode === "development") {
-    console.log(`[vite] /api proxy → ${apiTarget} (secure: ${isHttpsTarget})`);
-=======
   if (mode === 'development') {
     console.log(`[vite] bulk-status /api/* → ${localApiTarget} (optional gateway)`)
     console.log(`[vite] other /api/* → ${apiTarget} (secure: ${isHttpsTarget})`)
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
   }
 
   return {
@@ -144,58 +139,6 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: {
-<<<<<<< HEAD
-        "/api/batch-enrollments": {
-          target: localApiTarget,
-          changeOrigin: true,
-          secure: false,
-          configure: (proxy) => {
-            proxy.on("error", (err, req, res) => {
-              console.error(
-                `[vite proxy] ${req.method} ${req.url} → ${localApiTarget}: ${err.message}`,
-              );
-              if (res && !res.headersSent) {
-                res.writeHead(502, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    message:
-                      "Batch enrollment API unavailable. Start the local backend with npm run dev:api.",
-                  }),
-                );
-              }
-            });
-          },
-        },
-        "/api": {
-          target: apiTarget,
-          changeOrigin: true,
-          secure: isHttpsTarget,
-          configure: (proxy) => {
-            proxy.on("proxyReq", (proxyReq, req) => {
-              if (mode !== "development" || !req.url?.includes("/auth/login"))
-                return;
-              console.log(
-                `[vite proxy] ${req.method} ${req.url} → ${apiTarget}${req.url}`,
-              );
-            });
-            proxy.on("error", (err, req, res) => {
-              console.error(
-                `[vite proxy] ${req.method} ${req.url} → ${apiTarget}: ${err.message}`,
-              );
-              if (res && !res.headersSent) {
-                res.writeHead(502, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    message: `Backend unavailable at ${apiTarget}. Start the API server or update VITE_API_BASE_URL, then restart npm run dev.`,
-                  }),
-                );
-              }
-            });
-          },
-        },
-=======
         '/api/batch-enrollments': createDevProxy(localApiTarget, {
           label: `${localApiTarget} (batch-enrollments)`,
         }),
@@ -212,7 +155,6 @@ export default defineConfig(({ mode }) => {
           label: apiTarget,
           logAuth: mode === 'development',
         }),
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
       },
     },
   };
