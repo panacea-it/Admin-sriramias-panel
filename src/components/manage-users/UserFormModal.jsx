@@ -1,24 +1,14 @@
-<<<<<<< HEAD
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getModalEditKey, useInitOnModalOpen } from "../../hooks/modalFormSync";
 import { ImagePlus, UserPlus, X } from "lucide-react";
 import { toast } from "@/utils/toast";
 import Modal from "../ui/Modal";
 import ModalPanelHeader from "../courses/ModalPanelHeader";
-=======
-import { useRef, useState } from 'react'
-import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
-import { ImagePlus, UserPlus, X } from 'lucide-react'
-import { toast } from '@/utils/toast'
-import Modal from '../ui/Modal'
-import ModalPanelHeader from '../courses/ModalPanelHeader'
-import FormModalSubmitBar from '../common/FormModalSubmitBar'
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
+import FormModalSubmitBar from "../common/FormModalSubmitBar";
 import {
   CourseFormField,
   CourseInput,
   CourseSelect,
-<<<<<<< HEAD
 } from "../courses/CourseFormField";
 import {
   USER_ROLES,
@@ -36,13 +26,6 @@ import {
   UploadValidationMessage,
 } from "../common/UploadFieldHint";
 import { validateUploadFile } from "../../utils/uploadValidation";
-=======
-} from '../courses/CourseFormField'
-import { USER_ROLES, USER_STATUS_OPTIONS } from '../../data/manageUsersConfig'
-import { cn } from '../../utils/cn'
-import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
-import { validateUploadFile } from '../../utils/uploadValidation'
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRe = /^[6-9]\d{9}$/;
@@ -62,7 +45,6 @@ const emptyForm = {
 
 function FormSection({ title, description, children, className }) {
   return (
-<<<<<<< HEAD
     <section className={cn("space-y-4", className)}>
       <div className="border-b border-[#e8eef5] pb-2">
         <h3 className="text-sm font-bold tracking-wide text-[#246392]">
@@ -71,12 +53,6 @@ function FormSection({ title, description, children, className }) {
         {description ? (
           <p className="mt-0.5 text-xs text-[#686868]">{description}</p>
         ) : null}
-=======
-    <section className={cn('space-y-4', className)}>
-      <div className="border-b border-[#E7ECF5] pb-2">
-        <h3 className="text-sm font-bold text-[#1D72B8]">{title}</h3>
-        {description ? <p className="mt-0.5 text-xs text-[#667085]">{description}</p> : null}
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
       </div>
       {children}
     </section>
@@ -108,7 +84,6 @@ export default function UserFormModal({
   editingUser = null,
   centerOptions = [],
 }) {
-<<<<<<< HEAD
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [uploadError, setUploadError] = useState(null);
@@ -119,16 +94,6 @@ export default function UserFormModal({
   editingRef.current = editingUser;
   const editKey = getModalEditKey(editingUser);
   const isEdit = Boolean(editingUser);
-=======
-  const [form, setForm] = useState(emptyForm)
-  const [errors, setErrors] = useState({})
-  const [uploadError, setUploadError] = useState(null)
-  const fileRef = useRef(null)
-  const editingRef = useRef(editingUser)
-  editingRef.current = editingUser
-  const editKey = getModalEditKey(editingUser)
-  const isEdit = Boolean(editingUser)
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
 
   useInitOnModalOpen(open, editKey, () => {
     const row = editingRef.current;
@@ -252,8 +217,8 @@ export default function UserFormModal({
       toast.success("User updated successfully");
       onClose();
     }
-<<<<<<< HEAD
   };
+
   useEffect(() => {
     let mounted = true;
 
@@ -313,9 +278,6 @@ export default function UserFormModal({
 
     return USER_TYPE_OPTIONS;
   }, [createRoleOptions, roleCatalogOptions]);
-=======
-  }
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
 
   const modalTitle = isEdit ? "Edit User" : "Create User";
   const subtitle = isEdit
@@ -343,34 +305,49 @@ export default function UserFormModal({
   };
 
   const assignedCenterField = (
-    <CourseFormField label="Assigned Center" required className={isEdit ? undefined : 'w-full'}>
+    <CourseFormField
+      label="Assigned Center"
+      required
+      className={isEdit ? undefined : "w-full"}
+    >
       <CourseSelect
         value={form.assignedCenter}
         onChange={(e) => {
-          setForm((f) => ({ ...f, assignedCenter: e.target.value }))
-          clearError('assignedCenter')
+          setForm((f) => ({ ...f, assignedCenter: e.target.value }));
+          clearError("assignedCenter");
         }}
       >
         <option value="">Select center</option>
         {(centerOptions || []).map((c) => {
-          const value = typeof c === 'string' ? c : c?.value
-          const label = typeof c === 'string' ? c : c?.label || c?.centerName || c?.name || value
+          const value = typeof c === "string" ? c : c?.value;
+          const label =
+            typeof c === "string"
+              ? c
+              : c?.label || c?.centerName || c?.name || value;
 
           return (
-            <option key={value || label} value={value || ''}>
+            <option key={value || label} value={value || ""}>
               {label}
             </option>
-          )
+          );
         })}
       </CourseSelect>
       {errors.assignedCenter && (
-        <p className="text-xs font-medium text-red-600">{errors.assignedCenter}</p>
+        <p className="text-xs font-medium text-red-600">
+          {errors.assignedCenter}
+        </p>
       )}
     </CourseFormField>
-  )
+  );
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title={modalTitle} showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title={modalTitle}
+      showCloseButton={false}
+    >
       <form
         onSubmit={handleSubmit}
         className="flex max-h-[min(90vh,760px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
@@ -385,7 +362,6 @@ export default function UserFormModal({
           plainCloseIcon
         />
 
-<<<<<<< HEAD
         <div
           className={cn(
             "min-h-0 flex-1 overflow-y-auto overscroll-contain",
@@ -507,123 +483,8 @@ export default function UserFormModal({
                   : "Center assignment and account state."
               }
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="User Type" required>
-                  <CourseSelect
-                    value={form.userType || "STUDENT"}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, userType: e.target.value }))
-                    }
-=======
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4 sm:px-6">
-          <FormSection
-            title="Basic information"
-            description="Primary identity and contact details for this account."
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CourseFormField label="Full Name" required className="sm:col-span-2">
-                <CourseInput
-                  value={form.fullName}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, fullName: e.target.value }))
-                    clearError('fullName')
-                  }}
-                  placeholder="e.g. Arjun Mehta"
-                />
-                {errors.fullName && (
-                  <p className="text-xs font-medium text-red-600">{errors.fullName}</p>
-                )}
-              </CourseFormField>
-
-              <CourseFormField label="Email" required>
-                <CourseInput
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, email: e.target.value }))
-                    clearError('email')
-                  }}
-                  placeholder="user@sriramias.in"
-                />
-                {errors.email && (
-                  <p className="text-xs font-medium text-red-600">{errors.email}</p>
-                )}
-              </CourseFormField>
-
-              <CourseFormField label="Phone Number" required>
-                <CourseInput
-                  inputMode="numeric"
-                  value={form.phone}
-                  onChange={(e) => {
-                    setForm((f) => ({
-                      ...f,
-                      phone: e.target.value.replace(/\D/g, '').slice(0, 10),
-                    }))
-                    clearError('phone')
-                  }}
-                  placeholder="10-digit mobile"
-                />
-                {errors.phone && (
-                  <p className="text-xs font-medium text-red-600">{errors.phone}</p>
-                )}
-              </CourseFormField>
-            </div>
-          </FormSection>
-
-          <FormSection title="Family details" description="Optional — used for student accounts.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CourseFormField label="Parent Name">
-                <CourseInput
-                  value={form.parentName}
-                  onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))}
-                  placeholder="e.g. Rajesh Mehta"
-                />
-              </CourseFormField>
-
-              <CourseFormField label="Parent Phone Number">
-                <CourseInput
-                  inputMode="numeric"
-                  value={form.parentPhone}
-                  onChange={(e) => {
-                    setForm((f) => ({
-                      ...f,
-                      parentPhone: e.target.value.replace(/\D/g, '').slice(0, 10),
-                    }))
-                    clearError('parentPhone')
-                  }}
-                  placeholder="10-digit parent mobile"
-                />
-                {errors.parentPhone && (
-                  <p className="text-xs font-medium text-red-600">{errors.parentPhone}</p>
-                )}
-              </CourseFormField>
-            </div>
-          </FormSection>
-
-          <FormSection
-            title="Access & status"
-            description={
-              isEdit ? 'Role, center assignment, and account state.' : 'Center assignment.'
-            }
-          >
-            {isEdit ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="Role" required>
-                  <CourseSelect
-                    value={form.role}
-                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
-                  >
-                    {USER_ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </CourseSelect>
-                </CourseFormField>
-
-<<<<<<< HEAD
-                {isEdit ? (
+              {isEdit ? (
+                <div className="grid gap-4 sm:grid-cols-2">
                   <CourseFormField label="Role" required>
                     <CourseSelect
                       value={form.role}
@@ -638,65 +499,57 @@ export default function UserFormModal({
                       ))}
                     </CourseSelect>
                   </CourseFormField>
-                ) : null}
-
-                <CourseFormField label="Assigned Center" required>
-                  <CourseSelect
-                    value={form.assignedCenter}
-                    onChange={(e) => {
-                      setForm((f) => ({
-                        ...f,
-                        assignedCenter: e.target.value,
-                      }));
-                      clearError("assignedCenter");
-                    }}
-                  >
-                    <option value="">Select center</option>
-                    {(centerOptions || []).map((c) => {
-                      const value = typeof c === "string" ? c : c?.value;
-                      const label =
-                        typeof c === "string"
-                          ? c
-                          : c?.label || c?.centerName || c?.name || value;
-
-                      return (
-                        <option key={value || label} value={value || ""}>
-                          {label}
+                  {assignedCenterField}
+                  <CourseFormField label="Status">
+                    <CourseSelect
+                      value={form.status}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, status: e.target.value }))
+                      }
+                    >
+                      {USER_STATUS_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
                         </option>
-                      );
-                    })}
-                  </CourseSelect>
-                  {errors.assignedCenter && (
-                    <p className="text-xs font-medium text-red-600">
-                      {errors.assignedCenter}
-                    </p>
-                  )}
-                </CourseFormField>
-=======
-                {assignedCenterField}
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
+                      ))}
+                    </CourseSelect>
+                  </CourseFormField>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <CourseFormField label="User Type" required>
+                    <CourseSelect
+                      value={form.userType || "STUDENT"}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, userType: e.target.value }))
+                      }
+                    >
+                      {dynamicUserTypeOptions.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </CourseSelect>
+                  </CourseFormField>
+                  {assignedCenterField}
+                  <CourseFormField label="Status">
+                    <CourseSelect
+                      value={form.status}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, status: e.target.value }))
+                      }
+                    >
+                      {USER_STATUS_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </CourseSelect>
+                  </CourseFormField>
+                </div>
+              )}
+            </FormSection>
 
-                <CourseFormField label="Status">
-                  <CourseSelect
-                    value={form.status}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, status: e.target.value }))
-                    }
-                  >
-                    {USER_STATUS_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </CourseSelect>
-                </CourseFormField>
-              </div>
-            ) : (
-              assignedCenterField
-            )}
-          </FormSection>
-
-<<<<<<< HEAD
             {isEdit ? (
               <FormSection
                 title="Profile photo"
@@ -723,45 +576,13 @@ export default function UserFormModal({
                         strokeWidth={1.75}
                       />
                     )}
-=======
-          {isEdit ? (
-            <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
-              <div className="flex flex-col gap-4 rounded-xl border border-[#E7ECF5] bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className={cn(
-                    'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
-                    'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
-                  )}
-                >
-                  {form.profileImage ? (
-                    <img src={form.profileImage} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
-                  )}
-                </button>
-                <div className="min-w-0 flex-1 text-center sm:text-left">
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
-                  >
-                    {form.profileImage ? 'Change photo' : 'Upload photo'}
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
                   </button>
-                  <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
-                  <p className="mt-1 text-[11px] leading-relaxed text-[#667085]">
-                    Max display size 96×96 px in user lists.
-                  </p>
-                  <UploadValidationMessage message={uploadError} />
-                  {form.profileImage ? (
+                  <div className="min-w-0 flex-1 text-center sm:text-left">
                     <button
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
-                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
+                      onClick={() => fileRef.current?.click()}
+                      className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
                     >
-<<<<<<< HEAD
                       {form.profileImage ? "Change photo" : "Upload photo"}
                     </button>
                     <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
@@ -789,43 +610,12 @@ export default function UserFormModal({
                     className="sr-only"
                     onChange={handleImage}
                   />
-=======
-                      <X className="h-3.5 w-3.5" />
-                      Remove image
-                    </button>
-                  ) : null}
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
                 </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleImage}
-                />
-              </div>
-            </FormSection>
-          ) : null}
+              </FormSection>
+            ) : null}
+          </div>
         </div>
 
-<<<<<<< HEAD
-        <div className="shrink-0 border-t border-[#e5eaf2] bg-[#f8fafc] px-5 py-4 sm:px-8">
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="h-11 rounded-xl border border-[#55ace7]/30 bg-white px-6 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef6fc]"
-            >
-              Reset
-            </button>
-            <button
-              type="submit"
-              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95"
-            >
-              {isEdit ? "Update User" : "Create User"}
-            </button>
-          </div>
-=======
         <div className="sticky bottom-0 border-t border-slate-200/80 bg-[#f0f4f8] px-5 pb-5 pt-4 sm:px-6">
           <FormModalSubmitBar
             isEditMode={isEdit}
@@ -834,7 +624,6 @@ export default function UserFormModal({
             updateLabel="Update User"
             resetLabel="Reset"
           />
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
         </div>
       </form>
     </Modal>

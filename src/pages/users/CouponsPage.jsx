@@ -58,7 +58,9 @@ export default function CouponsPage() {
                 await import("../../api/couponsAPI")
               ).fetchCouponsByCategory(categoryFilter, controller.signal)
             : await fetchAdminCoupons(controller.signal);
-        if (mounted) setCoupons(rows);
+        if (mounted) {
+          setCoupons(rows);
+        }
       } catch (error) {
         if (mounted && !controller.signal.aborted) {
           console.error("Failed to load admin coupons:", error);
@@ -66,11 +68,14 @@ export default function CouponsPage() {
           setCoupons(loadCoupons());
         }
       } finally {
-        if (mounted) setLoadingCoupons(false);
+        if (mounted) {
+          setLoadingCoupons(false);
+        }
       }
     };
 
     loadCouponsFromApi();
+
     return () => {
       mounted = false;
       controller.abort();
@@ -111,8 +116,8 @@ export default function CouponsPage() {
         .length,
     [coupons, selectedIds],
   );
-
   const handleAddOrUpdate = async (form, editing) => {
+    // 1. Extract the correct ID before the try/catch blocks
     const targetId = editing
       ? editing._id || editing.id || editing.couponId
       : null;
@@ -120,38 +125,30 @@ export default function CouponsPage() {
     try {
       if (editing) {
         await updateAdminCoupon(targetId, form);
-        toast.success("Coupon updated successfully");
       } else {
         await createAdminCoupon(form);
-        toast.success("Coupon created successfully");
       }
-      setAddOpen(false);
       await refresh();
     } catch (err) {
-      // EXACT ERROR CAPTURE: Extract backend validation strings
-      const backendError =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.response?.data ||
-        err.message;
-      console.error("🔥 API create/update failed:", backendError);
-
-      // Toast the specific backend error so you know exactly what is wrong
-      toast.error(
-        typeof backendError === "string"
-          ? backendError
-          : "Validation Error from Server",
+      console.error(
+        "API create/update failed, falling back to local storage",
+        err,
       );
 
-      // Fallback
       if (editing) {
+        // 2. Use targetId instead of editing.id
         const result = updateCoupon(targetId, form);
-        if (!result.ok) throw new Error("Fallback update failed");
+        if (!result.ok) {
+          toast.error(result.reason || "Failed to update coupon");
+          throw new Error("Fallback update failed"); // 3. Throw so the modal knows it failed
+        }
       } else {
         const result = createCoupon(form);
-        if (!result.ok) throw new Error("Fallback create failed");
+        if (!result.ok) {
+          toast.error(result.reason || "Failed to create coupon");
+          throw new Error("Fallback create failed");
+        }
       }
-      setAddOpen(false);
       await refresh();
     } finally {
       setEditingCoupon(null);
@@ -162,11 +159,13 @@ export default function CouponsPage() {
     if (bulkDeleteIds?.length) {
       setDeleteLoading(true);
       let successCount = 0;
+
       try {
         for (const id of bulkDeleteIds) {
           await deleteAdminCoupon(id);
           successCount += 1;
         }
+
         if (successCount > 0) {
           toast.success(
             successCount === 1
@@ -187,16 +186,31 @@ export default function CouponsPage() {
     }
 
     if (!deleteTarget || deleteLoading) return;
-    const rawId =
+
+    const couponId =
       deleteTarget?._id || deleteTarget?.couponId || deleteTarget?.id;
-    const couponId = String(rawId).trim() === "undefined" ? null : rawId;
 
     setDeleteLoading(true);
     setActionCouponId(couponId);
 
     try {
-      if (couponId) await deleteAdminCoupon(couponId);
-      else throw new Error("Invalid ID");
+      // Log current auth token used by axios instances for debugging
+      try {
+        // eslint-disable-next-line no-console
+        console.debug(
+          "SuperAdminToken (localStorage):",
+          localStorage.getItem("SuperAdminToken"),
+        );
+        // eslint-disable-next-line no-console
+        console.debug(
+          "auth_token (localStorage):",
+          localStorage.getItem("auth_token"),
+        );
+      } catch {
+        // ignore
+      }
+
+      await deleteAdminCoupon(couponId);
       toast.success("Coupon deleted successfully");
       setDeleteTarget(null);
       await refresh();
@@ -249,12 +263,15 @@ export default function CouponsPage() {
       render: (row) => (
         <CouponTableActions
           row={row}
-          disabled={actionCouponId === row.id && deleteLoading}
+          disabled={
+            actionCouponId === row.id && (statusLoading || deleteLoading)
+          }
           onView={() => setViewingCoupon(row)}
           onEdit={() => {
             setEditingCoupon(row);
             setAddOpen(true);
           }}
+          onStatusToggle={undefined}
           onDelete={() => setDeleteTarget(row)}
         />
       ),
@@ -288,7 +305,9 @@ export default function CouponsPage() {
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           category={categoryFilter}
-          onCategoryChange={(e) => setCategoryFilter(e.target.value)}
+          onCategoryChange={(e) => {
+            setCategoryFilter(e.target.value);
+          }}
         />
 
         {selectedIds.length > 0 && (
@@ -331,6 +350,8 @@ export default function CouponsPage() {
         onClose={() => setViewingCoupon(null)}
         coupon={viewingCoupon}
       />
+
+      {/* Status modal removed: backend does not support enable/disable for coupons */}
 
       <ConfirmCouponDeleteModal
         open={Boolean(deleteTarget) || Boolean(bulkDeleteIds?.length)}
