@@ -1,17 +1,3 @@
-<<<<<<< HEAD
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Plus, Users } from "lucide-react";
-import { toast } from "@/utils/toast";
-import ManageUsersFilterToolbar from "../../components/manage-users/ManageUsersFilterToolbar";
-import ManageUsersBulkActionsBar from "../../components/manage-users/ManageUsersBulkActionsBar";
-import ManageUsersTable from "../../components/manage-users/ManageUsersTable";
-import ManageUsersTableActions from "../../components/manage-users/ManageUsersTableActions";
-import ConfirmManageUserDeleteModal from "../../components/manage-users/ConfirmManageUserDeleteModal";
-import ConfirmManageUserStatusModal from "../../components/manage-users/ConfirmManageUserStatusModal";
-import UserFormModal from "../../components/manage-users/UserFormModal";
-import ViewUserModal from "../../components/manage-users/ViewUserModal";
-=======
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
@@ -26,7 +12,6 @@ import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmM
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
 import UserFormModal from '../../components/manage-users/UserFormModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
->>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
 import {
   MANAGE_USERS_STATIC_CENTERS,
   formatManageUserJoinDate,

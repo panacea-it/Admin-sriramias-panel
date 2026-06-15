@@ -1,4 +1,4 @@
-import { Search, ChevronDown } from 'lucide-react'
+import { Search, ChevronDown } from "lucide-react";
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -10,14 +10,18 @@ function FilterSelect({ label, value, onChange, options }) {
         className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 sm:text-base"
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
+          <option
+            key={opt.value}
+            value={opt.value}
+            className="bg-white text-[#222]"
+          >
             {opt.label}
           </option>
         ))}
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
     </div>
-  )
+  );
 }
 
 export default function CouponFilterToolbar({
@@ -50,12 +54,14 @@ export default function CouponFilterToolbar({
             value={category}
             onChange={onCategoryChange}
             options={[
-              { value: 'all', label: 'All Categories' },
-              ...(categoryOptions.length ? categoryOptions : [
-                { value: 'Course', label: 'Course' },
-                { value: 'Books', label: 'Books' },
-                { value: 'TestSeries', label: 'Test Series' },
-              ]),
+              { value: "all", label: "All Categories" },
+              ...(categoryOptions.length
+                ? categoryOptions
+                : [
+                    { value: "Course", label: "Course" },
+                    { value: "Books", label: "Books" },
+                    { value: "TestSeries", label: "Test Series" },
+                  ]),
             ]}
           />
           <FilterSelect
@@ -63,10 +69,10 @@ export default function CouponFilterToolbar({
             value={type}
             onChange={onTypeChange}
             options={[
-              { value: 'all', label: 'Type' },
-              { value: 'Percentage', label: 'Percentage' },
-              { value: 'Flat Discount', label: 'Flat Discount' },
-              { value: 'BOGO', label: 'BOGO' },
+              { value: "all", label: "Type" },
+              { value: "Percentage", label: "Percentage" },
+              { value: "Flat Discount", label: "Flat Discount" },
+              { value: "BOGO", label: "BOGO" },
             ]}
           />
           <FilterSelect
@@ -74,9 +80,9 @@ export default function CouponFilterToolbar({
             value={status}
             onChange={onStatusChange}
             options={[
-              { value: 'all', label: 'Status' },
-              { value: 'Active', label: 'Active' },
-              { value: 'In Active', label: 'In Active' },
+              { value: "all", label: "Status" },
+              { value: "Active", label: "Active" },
+              { value: "In Active", label: "In Active" },
             ]}
           />
         </div>
@@ -86,5 +92,5 @@ export default function CouponFilterToolbar({
         <span>-Top Performing Coupon</span>
       </p>
     </div>
-  )
+  );
 }
