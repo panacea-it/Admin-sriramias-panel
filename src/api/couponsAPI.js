@@ -1,5 +1,5 @@
 import axiosInstance from './axiosInstance'
-// use axiosInstance which attaches Authorization header
+// use axiosInstance whdich attaches Authorization header
 
 function mapAdminCoupon(row) {
   const type = String(row.type || '').toUpperCase()
