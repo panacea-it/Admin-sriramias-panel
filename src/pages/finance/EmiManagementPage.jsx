@@ -9,8 +9,6 @@ import {
   AlertTriangle,
   TrendingUp,
   IndianRupee,
-  RefreshCw,
-  Download,
   Bell,
   Banknote,
 } from 'lucide-react'
@@ -36,7 +34,6 @@ import {
 } from '../../api/financeAPI'
 import { FINANCE_COURSES } from '../../data/financeMockData'
 import { formatINR } from '../../utils/financeFilters'
-import { exportFinanceCsv } from '../../utils/financeExport'
 import {
   enrichEmiPlans,
   filterEmiPlans,
@@ -53,21 +50,6 @@ import { EMI_SCHEDULE_FREQUENCIES } from '../../constants/emiManagement'
 import { OFFLINE_PAYMENT_MODES } from '../../constants/offlinePaymentEmi'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
-
-const EMI_EXPORT_COLUMNS = [
-  { key: 'studentName', label: 'Student Name' },
-  { key: 'studentId', label: 'Student ID' },
-  { key: 'centerCity', label: 'City' },
-  { key: 'courseName', label: 'Course' },
-  { key: 'emiPlanLabel', label: 'EMI Plan' },
-  { key: 'emiAmount', label: 'EMI Amount', export: (r) => formatINR(r.emiAmount) },
-  { key: 'installmentsPaid', label: 'Installments Paid' },
-  { key: 'remainingInstallments', label: 'Remaining Installments' },
-  { key: 'nextDueDate', label: 'Next Due Date' },
-  { key: 'pendingAmount', label: 'Pending Amount', export: (r) => formatINR(r.pendingAmount) },
-  { key: 'emiStatus', label: 'EMI Status' },
-  { key: 'counselorName', label: 'Assigned Counselor' },
-]
 
 const ASSIGN_PRIORITIES = ['High', 'Medium', 'Low']
 const REMINDER_WINDOW_DAYS = 30
@@ -673,7 +655,7 @@ function EmiMobileCard({ row, actions }) {
 }
 
 export default function EmiManagementPage() {
-  const { canManageEmi, canExport } = useFinancePermissions()
+  const { canManageEmi } = useFinancePermissions()
   const financeCenterFilter = useFinanceCenterFilter()
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
@@ -751,13 +733,6 @@ export default function EmiManagementPage() {
       }),
     [centerFilteredPlans, debouncedSearch, statusFilter, counselorFilter, courseFilter, monthFilter],
   )
-
-  const handleExport = () => {
-    if (!canExport) return toast.error('Export not permitted')
-    if (!filteredPlans.length) return toast.error('No records to export')
-    exportFinanceCsv(filteredPlans, `emi-students-${Date.now()}.csv`, EMI_EXPORT_COLUMNS)
-    toast.success('Export ready')
-  }
 
   const handleSendReminder = async (row) => {
     setSendingReminderId(row.id)
@@ -920,41 +895,16 @@ export default function EmiManagementPage() {
       <FinanceBreadcrumbs items={[{ label: 'EMI Management' }]} />
 
       <div className="rounded-lg bg-gradient-to-r from-[#55ace7] via-[#8b98bb] to-[#df8284] px-5 py-4 shadow-[0_5px_13px_rgba(0,0,0,0.08)] sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white">
-                <CalendarClock className="h-5 w-5 text-[#8b98bb]" strokeWidth={2.4} />
-              </div>
-              <h1 className="text-lg font-bold text-white sm:text-xl">EMI Management</h1>
+        <div className="min-w-0">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white">
+              <CalendarClock className="h-5 w-5 text-[#8b98bb]" strokeWidth={2.4} />
             </div>
-            <p className="mt-2 pl-14 text-sm text-white/90">
-              Manage student EMI plans and installment collections
-            </p>
+            <h1 className="text-lg font-bold text-white sm:text-xl">EMI Management</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => load(true)}
-              disabled={refreshing}
-              aria-label="Refresh"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-60"
-            >
-              <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-              Refresh
-            </button>
-            {canExport && (
-              <button
-                type="button"
-                onClick={handleExport}
-                aria-label="Export"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </button>
-            )}
-          </div>
+          <p className="mt-2 pl-14 text-sm text-white/90">
+            Manage student EMI plans and installment collections
+          </p>
         </div>
       </div>
 

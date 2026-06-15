@@ -70,15 +70,22 @@ export default function ClassroomFormModal({
     clearErrors()
   })
 
-  const onSubmit = async (values) => {
+  const validateLocationFields = (values) => {
+    let valid = true
     if (!values.centerId) {
-      setError('centerId', { message: 'Centre is required' })
-      return
+      setError('centerId', { message: 'Center is required' })
+      valid = false
     }
     if (!values.cityPlaceId) {
-      setError('cityPlaceId', { message: 'City is required' })
-      return
+      setError('cityPlaceId', { message: 'City / Place is required' })
+      valid = false
     }
+    return valid
+  }
+
+  const onSubmit = async (values) => {
+    if (!validateLocationFields(values)) return
+
     const capacityRaw = String(values.capacity ?? '').trim()
     if (!capacityRaw) {
       setError('capacity', { message: 'Capacity is required' })
@@ -101,6 +108,10 @@ export default function ClassroomFormModal({
     }
   }
 
+  const onInvalid = () => {
+    validateLocationFields(watch())
+  }
+
   if (!open) return null
 
   return (
@@ -112,7 +123,7 @@ export default function ClassroomFormModal({
       showCloseButton={false}
     >
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
       >
         <ModalPanelHeader

@@ -127,6 +127,12 @@ export function mapApiCurrentAffairToRow(data) {
     category,
     status: mapApiStatusToUi(data.status),
     pdfUrl: data.pdfUrl || null,
+    uploadedOn:
+      data.uploadedAt ||
+      data.uploadedOn ||
+      data.createdAt ||
+      data.createdOn ||
+      null,
     _raw: data,
   }
 }
@@ -138,6 +144,7 @@ export function mapApiCurrentAffairToForm(data) {
 
   const category = mapApiCategoryToUi(data.category)
   const pdfUrl = data.pdfUrl || null
+  const sampleUrl = data.sampleUrl || data.samplePdfUrl || null
 
   return {
     category,
@@ -147,12 +154,22 @@ export function mapApiCurrentAffairToForm(data) {
     date: data.date || '',
     mainsCategory: mapApiMainsCategoryToUi(data.mainsCategory),
     paperName: data.paperName || data.title || '',
+    duration: data.duration != null ? String(data.duration) : '',
+    totalMarks:
+      data.totalMarks != null
+        ? String(data.totalMarks)
+        : data.total_marks != null
+          ? String(data.total_marks)
+          : '',
     sectionFrom: data.sectionFrom != null ? String(data.sectionFrom) : '',
     sectionTo: data.sectionTo != null ? String(data.sectionTo) : '',
     questions: Array.isArray(data.questions) ? data.questions.map(mapQuestionApiToUi) : [],
     fileName: extractPdfFileName(pdfUrl),
     file: null,
     existingPdfUrl: pdfUrl,
+    sampleFileName: extractPdfFileName(sampleUrl),
+    sampleFile: null,
+    existingSampleUrl: sampleUrl,
     status: mapApiStatusToUi(data.status),
   }
 }
@@ -193,6 +210,9 @@ export function buildCurrentAffairFormData(form, { isEdit = false } = {}) {
   if (form.file instanceof File) {
     formData.append('pdf', form.file)
   }
+  if (form.sampleFile instanceof File) {
+    formData.append('sample', form.sampleFile)
+  }
 
   if (isEdit) {
     formData.append('status', form.status === 'Active' ? 'true' : 'false')
@@ -208,6 +228,8 @@ export function buildDailyPracticePayload(form, { isEdit = false } = {}) {
     year: parseInt(String(form.year), 10) || String(form.year || ''),
     month: String(form.month || '').trim(),
     date: String(form.date || '').trim(),
+    duration: parseInt(String(form.duration), 10) || 0,
+    totalMarks: parseInt(String(form.totalMarks), 10) || 0,
     sectionFrom: parseInt(String(form.sectionFrom), 10) || 0,
     sectionTo: parseInt(String(form.sectionTo), 10) || 0,
     questions: (form.questions || []).map(mapQuestionUiToApi),
@@ -227,6 +249,8 @@ export function buildDailyPracticeBulkFormData(form, file) {
   formData.append('year', String(form.year || ''))
   formData.append('month', String(form.month || ''))
   formData.append('date', String(form.date || ''))
+  formData.append('duration', String(form.duration || ''))
+  formData.append('totalMarks', String(form.totalMarks || ''))
   formData.append('file', file)
   return formData
 }

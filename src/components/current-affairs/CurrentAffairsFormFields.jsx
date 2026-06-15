@@ -9,6 +9,7 @@ import { MONTH_OPTIONS } from '../../data/currentAffairsData'
 import { getCurrentAffairsYearOptions } from '../../utils/currentAffairsYearOptions'
 import { CourseDateInput, CourseFormField, CourseInput, CourseSelect } from '../courses/CourseFormField'
 import CurrentAffairsFileField from './CurrentAffairsFileField'
+import CurrentAffairsSampleFileField from './CurrentAffairsSampleFileField'
 
 function FieldError({ message }) {
   if (!message) return null
@@ -25,9 +26,11 @@ export default function CurrentAffairsFormFields({
   form,
   errors,
   fileInputKey,
+  sampleFileInputKey,
   onCategoryChange,
   onFieldChange,
   onFileChange,
+  onSampleFileChange,
   onClearError,
   mainsCategoryOptions,
   mainsCategoryLoading = false,
@@ -66,14 +69,34 @@ export default function CurrentAffairsFormFields({
           value={form.fileName}
           error={error}
           inputKey={fileInputKey}
-          className={key === 'pdfUpload' && layout.flat().includes('pdfUpload') ? undefined : undefined}
           onClearError={() => onClearError(key)}
           onChange={({ fileName, file, errorMessage }) => {
             if (errorMessage) {
-              onFileChange({ fileName: '', file: null })
+              onFileChange({ fileName: '', file: null, errorMessage })
               return
             }
             onFileChange({ fileName, file })
+          }}
+        />
+      )
+    }
+
+    if (key === 'sampleUpload') {
+      return (
+        <CurrentAffairsSampleFileField
+          key={key}
+          label={label}
+          required
+          value={form.sampleFileName}
+          error={error}
+          inputKey={sampleFileInputKey}
+          onClearError={() => onClearError(key)}
+          onChange={({ fileName, file, errorMessage }) => {
+            if (errorMessage) {
+              onSampleFileChange({ fileName: '', file: null, errorMessage })
+              return
+            }
+            onSampleFileChange({ fileName, file })
           }}
         />
       )
@@ -139,6 +162,29 @@ export default function CurrentAffairsFormFields({
               </option>
             ))}
           </CourseSelect>
+          <FieldError message={error} />
+        </CourseFormField>
+      )
+    }
+
+    if (key === 'duration' || key === 'totalMarks') {
+      const placeholder =
+        key === 'duration' ? 'Enter duration (in minutes)' : 'Enter total marks'
+
+      return (
+        <CourseFormField key={key} label={label} required>
+          <CourseInput
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={form[key] || ''}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^\d]/g, '')
+              onFieldChange(key)({ target: { value } })
+            }}
+            placeholder={placeholder}
+          />
           <FieldError message={error} />
         </CourseFormField>
       )

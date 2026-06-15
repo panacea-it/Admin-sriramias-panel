@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   createBatch,
+  deleteBatch,
   duplicateBatch,
   getBatchById,
   getBatchQuickView,
@@ -22,5 +23,6 @@ router.patch('/status/:batchId', updateBatchStatus)
 router.post('/:batchId/duplicate', parseBatchBody, duplicateBatch)
 router.get('/:batchId', getBatchById)
 router.put('/:batchId', parseBatchBody, updateBatch)
+router.delete('/:batchId', deleteBatch)
 
 export default router

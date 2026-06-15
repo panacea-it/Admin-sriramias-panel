@@ -22,8 +22,11 @@ export const FIELD_KEYS = {
   date: 'date',
   pdfUpload: 'pdfUpload',
   magazineUpload: 'magazineUpload',
+  sampleUpload: 'sampleUpload',
   mainsCategory: 'mainsCategory',
   paperName: 'paperName',
+  duration: 'duration',
+  totalMarks: 'totalMarks',
 }
 
 /** Grid rows per category — each row is an array of field keys */
@@ -35,6 +38,7 @@ export const CURRENT_AFFAIRS_FIELD_LAYOUT = {
   'Monthly Magazine': [
     ['category', 'name', 'year'],
     ['month', 'magazineUpload'],
+    ['sampleUpload'],
   ],
   Infographics: [
     ['category', 'name', 'year'],
@@ -47,6 +51,7 @@ export const CURRENT_AFFAIRS_FIELD_LAYOUT = {
   'Daily Practice Questions': [
     ['category', 'mainsCategory', 'paperName'],
     ['year', 'month', 'date'],
+    ['duration', 'totalMarks'],
   ],
 }
 
@@ -58,8 +63,11 @@ export const FIELD_LABELS = {
   date: 'Date',
   pdfUpload: 'Upload PDF',
   magazineUpload: 'Upload Magazine',
+  sampleUpload: 'Upload Sample PDF / Excel',
   mainsCategory: 'Mains Category',
   paperName: 'Paper Name',
+  duration: 'Duration',
+  totalMarks: 'Total Marks',
 }
 
 export function getFieldLabel(key, category) {

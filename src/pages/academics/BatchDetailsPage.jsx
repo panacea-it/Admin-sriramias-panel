@@ -13,11 +13,13 @@ import { useEditModal } from '../../hooks/useEditModal'
 import { useBatchesData } from '../../hooks/useBatchesData'
 import { useBatchEnrollments } from '../../hooks/useBatchEnrollments'
 import { useBatchAudit } from '../../hooks/useBatchAudit'
+import { usePermissions } from '../../hooks/usePermissions'
 import {
   enrichBatchRow,
   findBatchRow,
   mapBatchRowToTableFormat,
   resolveBatchMongoId,
+  resolveBatchDisplayId,
 } from '../../utils/batchHelpers'
 import { BATCH_AUDIT_TYPES } from '../../utils/batchAuditStorage'
 import { createBatch, fetchBatchByIdResolved, updateBatch } from '../../api/batchesAPI'
@@ -33,7 +35,7 @@ import { resolveApiBaseUrl } from '../../api/axiosInstance'
 import { BASE_URL } from '../../config/api'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { getAuthToken } from '../../utils/authStorage'
-import { toast } from '../../utils/toast'
+import { toast, TOAST_DURATION } from '../../utils/toast'
 import {
   buildEnrollmentRowFromEdit,
   fetchEnrollmentForEdit,
@@ -42,6 +44,8 @@ import {
   resolveLatestEnrollmentStudent,
 } from '../../components/batch-management/enrollmentHelpers'
 import { isStudentEnrollmentActive } from '../../components/batch-management/studentStatusDisplay'
+import { STUDENT_MOVE_ROLES } from '../../constants/roles'
+import { canTransferToBatch, normalizeBatchUiStatus } from '../../utils/batchOperations'
 
 const BREADCRUMB = [
   { label: 'Academics' },
@@ -85,7 +89,9 @@ export default function BatchDetailsPage() {
   const [viewLoading, setViewLoading] = useState(false)
   const fetchRequestRef = useRef(0)
   const viewFetchRef = useRef(0)
-  const { logBatchActivity } = useBatchAudit()
+  const { logBatchActivity, adminName } = useBatchAudit()
+  const { hasRole } = usePermissions()
+  const canMoveStudent = hasRole(...STUDENT_MOVE_ROLES)
 
   const selectedBatch = useMemo(
     () => findBatchRow(sourceRows, routeBatchId),
@@ -445,10 +451,11 @@ export default function BatchDetailsPage() {
         return
       }
 
+      const targetRow = findBatchRow(sourceRows, values.targetBatchId)
       const targetBatch = allTableBatches.find(
         (b) => String(b.id) === String(values.targetBatchId),
       )
-      if (!targetBatch) {
+      if (!targetRow && !targetBatch) {
         toast.error('Invalid target batch')
         return
       }
@@ -456,9 +463,25 @@ export default function BatchDetailsPage() {
         toast.error('Cannot move to the same batch')
         return
       }
+      const targetStatus = targetBatch?.status || targetRow?.status
+      if (targetStatus && normalizeBatchUiStatus(targetStatus) !== 'Active') {
+        toast.error('Cannot move student to an inactive batch')
+        return
+      }
+
+      const targetStrength = getTargetStrength(targetBatch || { totalStudents: targetRow?.totalStudents ?? 0 })
+      const capacityRow = targetBatch?.apiRow || targetRow || targetBatch
+      const transferCheck = canTransferToBatch(
+        { status: targetStatus || 'Active', capacity: targetBatch?.capacity ?? capacityRow?.capacity },
+        targetStrength,
+      )
+      if (!transferCheck.ok) {
+        toast.error(transferCheck.reason)
+        return
+      }
 
       const targetBatchMongoId = resolveBatchMongoId(
-        targetBatch.apiRow || targetBatch,
+        values.targetBatchId,
         sourceRows,
       )
       if (!targetBatchMongoId) {
@@ -466,35 +489,65 @@ export default function BatchDetailsPage() {
         return
       }
 
+      const destinationLabel = targetRow
+        ? `${resolveBatchDisplayId(targetRow)} - ${targetRow.batchName || targetRow.name || ''}`.trim()
+        : `${resolveBatchDisplayId(targetBatch?.apiRow || targetBatch)} - ${targetBatch?.batchName || targetBatch?.batchLabel || ''}`.trim()
+
       setMovingStudent(true)
       try {
         await moveEnrollment(enrollmentId, {
           batchId: targetBatchMongoId,
           transferDate: values.transferDate,
-          reason: values.reason,
-          transferAttendance: values.transferAttendance,
-          transferFee: values.transferFee,
-          transferTests: values.transferTests,
+          transferReason: values.transferReason,
+          branch: values.branch,
+          course: values.course,
+          remarks: values.remarks,
+          performedBy: adminName,
+          transferAttendance: true,
+          transferFee: true,
+          transferTests: true,
         })
+
+        const batchNameOnly =
+          targetRow?.batchName ||
+          targetRow?.name ||
+          targetBatch?.batchName ||
+          targetBatch?.batchLabel ||
+          destinationLabel
+
+        const auditMeta = {
+          studentId: student.enrollmentId,
+          studentName: student.name,
+          oldBatch: batch.displayName,
+          newBatch: destinationLabel,
+          course: values.course || batch.courseName,
+          branch: values.branch || batch.center || '',
+          transferDate: values.transferDate,
+          transferReason: values.transferReason,
+          remarks: values.remarks || '',
+          performedBy: adminName,
+        }
 
         logBatchActivity(batch.id, {
           type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
-          message: `${student.name} moved to ${targetBatch.displayName}. Reason: ${values.reason}`,
-          meta: values,
+          message: `${student.name} moved to ${destinationLabel}.`,
+          meta: auditMeta,
         })
-        logBatchActivity(targetBatch.id, {
+        logBatchActivity(targetBatch?.id || values.targetBatchId, {
           type: BATCH_AUDIT_TYPES.STUDENT_MOVED,
-          message: `${student.name} transferred from ${batch.displayName}`,
-          meta: values,
+          message: `${student.name} transferred from ${batch.displayName}.`,
+          meta: auditMeta,
         })
 
-        toast.success('Student moved successfully')
+        toast.success(`Student successfully moved to ${batchNameOnly}`, {
+          duration: TOAST_DURATION.short,
+        })
         await refetchStudentsAfterMutation()
         await refetchBatchDetails()
         await loadBatches({ silent: true })
       } catch (err) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') throw err
-        toast.error(getApiErrorMessage(err, 'Failed to move student'))
+        toast.error(getApiErrorMessage(err, 'Unable to move student. Please try again.'))
         throw err
       } finally {
         setMovingStudent(false)
@@ -505,10 +558,12 @@ export default function BatchDetailsPage() {
       allTableBatches,
       batch,
       sourceRows,
+      adminName,
       logBatchActivity,
       refetchStudentsAfterMutation,
       refetchBatchDetails,
       loadBatches,
+      getTargetStrength,
     ],
   )
 
@@ -638,7 +693,8 @@ export default function BatchDetailsPage() {
           onUpdateStudent={handleUpdateStudent}
           onDeleteStudent={handleDeleteStudent}
           onToggleStudentStatus={handleToggleStudentStatus}
-          onMoveStudent={handleMoveStudent}
+          onMoveStudent={canMoveStudent ? handleMoveStudent : undefined}
+          canMoveStudent={canMoveStudent}
           targetBatches={allTableBatches}
           getTargetStrength={getTargetStrength}
         />

@@ -1,5 +1,4 @@
-import { useCallback, useState } from 'react'
-import { LayoutDashboard, Download, RefreshCw, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { FINANCE_ROUTES } from '../../constants/financeNav'
 import PageBanner from '../../components/figma/PageBanner'
 import FinanceStatCard from '../../components/finance/FinanceStatCard'
@@ -12,8 +11,6 @@ import { useFinanceDashboard } from '../../hooks/useFinanceDashboard'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { exportFinanceCsv } from '../../utils/financeExport'
-import FinanceQuickActions from '../../components/finance/FinanceQuickActions'
 import FinanceStatsGrid from '../../components/finance/FinanceStatsGrid'
 import FinanceChartContainer from '../../components/finance/FinanceChartContainer'
 import FinanceSectionHeader from '../../components/finance/FinanceSectionHeader'
@@ -30,9 +27,6 @@ import {
   EmiAgingChart,
   DailyCollectionWidget,
 } from '../../components/finance/FinanceCharts'
-import { useFinancePermissions } from '../../hooks/useFinancePermissions'
-import { toast } from '../../utils/toast'
-import { cn } from '../../utils/cn'
 
 const DEFAULT_FILTERS = {
   course: 'all',
@@ -44,21 +38,14 @@ const DEFAULT_FILTERS = {
 }
 
 export default function PaymentDashboardPage() {
-  const [courseFilter, setCourseFilter] = useState(DEFAULT_FILTERS.course)
-  const [monthFilter, setMonthFilter] = useState(DEFAULT_FILTERS.month)
-  const [batchFilter, setBatchFilter] = useState(DEFAULT_FILTERS.batch)
-  const [courseTypeFilter, setCourseTypeFilter] = useState(DEFAULT_FILTERS.courseType)
-  const [paymentTypeFilter, setPaymentTypeFilter] = useState(DEFAULT_FILTERS.paymentType)
-  const [studentTypeFilter, setStudentTypeFilter] = useState(DEFAULT_FILTERS.studentType)
   const centerFilter = useFinanceCenterFilter()
-  const { canExport } = useFinancePermissions()
-  const { data, loading, refreshing, reload, lastUpdated } = useFinanceDashboard(
-    courseFilter,
-    monthFilter,
-    batchFilter,
-    courseTypeFilter,
-    paymentTypeFilter,
-    studentTypeFilter,
+  const { data, loading, refreshing } = useFinanceDashboard(
+    DEFAULT_FILTERS.course,
+    DEFAULT_FILTERS.month,
+    DEFAULT_FILTERS.batch,
+    DEFAULT_FILTERS.courseType,
+    DEFAULT_FILTERS.paymentType,
+    DEFAULT_FILTERS.studentType,
   )
 
   const stats = data?.stats
@@ -76,43 +63,6 @@ export default function PaymentDashboardPage() {
     { key: 'paymentStatus', label: 'Status', render: (r) => <FinanceStatusBadge status={r.paymentStatus} /> },
     { key: 'paymentDate', label: 'Date', render: (r) => formatCategoryDateTime(r.paymentDate) },
   ]
-
-  const handleExport = useCallback(() => {
-    if (!canExport) return toast.error('Export not permitted')
-    const rows = [...(data?.recentPayments || []), ...(data?.recentFailed || [])]
-    if (!rows.length) return toast.error('No data to export')
-    exportFinanceCsv(rows, 'payment-dashboard-export.csv')
-    toast.success('Dashboard exported')
-  }, [canExport, data])
-
-  const lastUpdatedLabel = lastUpdated
-    ? lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-    : null
-
-  const shellActions = (
-    <div className="flex flex-wrap items-center gap-2">
-      {lastUpdatedLabel && (
-        <span className="hidden text-xs text-white/80 sm:inline">Updated {lastUpdatedLabel}</span>
-      )}
-      <button
-        type="button"
-        onClick={reload}
-        disabled={refreshing}
-        aria-label="Refresh dashboard"
-        className="rounded-lg border border-white/30 bg-white/10 p-2 text-white disabled:opacity-60"
-      >
-        <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-      </button>
-      <button
-        type="button"
-        onClick={handleExport}
-        aria-label="Export dashboard"
-        className="rounded-lg border border-white/30 bg-white/10 p-2 text-white"
-      >
-        <Download className="h-4 w-4" />
-      </button>
-    </div>
-  )
 
   const kpiGroups = stats
     ? [
@@ -139,41 +89,12 @@ export default function PaymentDashboardPage() {
     (data?.paymentStatusBreakdown?.length ?? 0) > 0 ||
     (data?.courseWiseRevenue?.length ?? 0) > 0
 
-  const tableResetDeps = [
-    centerFilter.selectedIds,
-    courseFilter,
-    batchFilter,
-    courseTypeFilter,
-    paymentTypeFilter,
-    studentTypeFilter,
-    monthFilter,
-  ]
+  const tableResetDeps = [centerFilter.selectedIds]
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-6">
-      <PageBanner icon={LayoutDashboard} title="Payment Dashboard">
-        {shellActions}
-      </PageBanner>
-      <FinanceDashboardFilters
-        centerFilter={centerFilter}
-        courseFilter={courseFilter}
-        onCourseFilterChange={(e) => setCourseFilter(e.target.value)}
-        monthFilter={monthFilter}
-        onMonthFilterChange={(e) => setMonthFilter(e.target.value)}
-        monthOptions={data?.monthlyRevenue || []}
-        batchFilter={batchFilter}
-        onBatchFilterChange={(e) => setBatchFilter(e.target.value)}
-        courseTypeFilter={courseTypeFilter}
-        onCourseTypeFilterChange={(e) => setCourseTypeFilter(e.target.value)}
-        paymentTypeFilter={paymentTypeFilter}
-        onPaymentTypeFilterChange={(e) => setPaymentTypeFilter(e.target.value)}
-        studentTypeFilter={studentTypeFilter}
-        onStudentTypeFilterChange={(e) => setStudentTypeFilter(e.target.value)}
-        refreshing={refreshing}
-        lastUpdatedLabel={lastUpdatedLabel}
-      />
-
-      <FinanceQuickActions onExport={handleExport} />
+      <PageBanner icon={LayoutDashboard} title="Payment Dashboard" />
+      <FinanceDashboardFilters centerFilter={centerFilter} />
 
       {loading && !data ? (
         <FinanceDashboardSkeleton />

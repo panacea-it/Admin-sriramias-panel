@@ -19,7 +19,7 @@ export default function SubjectListingStatus({ status, onChange, disabled = fals
         disabled={disabled}
         onClick={handleToggle}
         className={cn(
-          'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 transition-all duration-200',
+          'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 transition-all duration-200',
           'hover:scale-[1.02] active:scale-[0.98]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40 focus-visible:ring-offset-1',
           active

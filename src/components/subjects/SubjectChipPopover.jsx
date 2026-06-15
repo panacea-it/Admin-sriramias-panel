@@ -74,11 +74,11 @@ export default function SubjectChipPopover({
 
   const chipBase =
     chipClassName ||
-    'inline-flex max-w-[108px] truncate rounded-full bg-gradient-to-r from-[#eef2fc] to-[#e8f4fc] px-2 py-0.5 text-[11px] font-semibold text-[#246392] ring-1 ring-[#55ace7]/12 transition hover:ring-[#55ace7]/30'
+    'inline-flex max-w-[5.5rem] shrink-0 truncate rounded-full bg-gradient-to-r from-[#eef2fc] to-[#e8f4fc] px-2.5 py-1 text-[11px] font-semibold leading-none text-[#246392] ring-1 ring-[#55ace7]/12 transition hover:ring-[#55ace7]/30'
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-hidden">
         {visible.map((item) => (
           <AdminTooltip key={item} label={item}>
             <span className={chipBase}>{item}</span>
@@ -94,9 +94,9 @@ export default function SubjectChipPopover({
               setOpen((v) => !v)
               requestAnimationFrame(updatePosition)
             }}
-            className="inline-flex items-center rounded-full bg-[#55ace7]/10 px-2 py-0.5 text-[11px] font-bold text-[#246392] ring-1 ring-[#55ace7]/20 transition hover:bg-[#55ace7]/15 hover:ring-[#55ace7]/35"
+            className="inline-flex shrink-0 items-center rounded-full bg-[#55ace7]/10 px-2.5 py-1 text-[11px] font-bold leading-none text-[#246392] ring-1 ring-[#55ace7]/20 transition hover:bg-[#55ace7]/15 hover:ring-[#55ace7]/35"
           >
-            +{overflow} more
+            +{overflow} More
           </button>
         )}
       </div>

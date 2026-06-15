@@ -2,6 +2,15 @@ const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partial', 'Overdue']
 const BATCH_STATUSES = ['Active', 'Inactive']
 const STUDENT_STATUSES = ['Active', 'In Active']
 
+const TRANSFER_REASONS = [
+  'Batch Completed',
+  'Schedule Change',
+  'Student Request',
+  'Faculty Change',
+  'Administrative Transfer',
+  'Other',
+]
+
 function makeStudent(
   id,
   name,
@@ -210,7 +219,7 @@ export const INITIAL_BATCHES = [
   }),
 ]
 
-export { PAYMENT_STATUSES, BATCH_STATUSES, STUDENT_STATUSES }
+export { PAYMENT_STATUSES, BATCH_STATUSES, STUDENT_STATUSES, TRANSFER_REASONS }
 
 export function formatBatchDate(iso) {
   if (!iso) return '—'

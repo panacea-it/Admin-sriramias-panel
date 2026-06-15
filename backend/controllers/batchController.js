@@ -415,6 +415,24 @@ export async function updateBatchStatus(req, res, next) {
   }
 }
 
+export async function deleteBatch(req, res, next) {
+  try {
+    const existing = await findBatchByParam(req.params.batchId)
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Batch not found' })
+    }
+
+    await Course.findByIdAndDelete(existing._id)
+
+    res.json({
+      success: true,
+      message: 'Batch deleted successfully',
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function duplicateBatch(req, res, next) {
   try {
     const source = await findBatchByParam(req.params.batchId)
@@ -461,15 +479,33 @@ export async function duplicateBatch(req, res, next) {
 
 export async function getBatchesDropdown(req, res, next) {
   try {
-    const rows = await Course.find({}).sort({ batchName: 1 }).lean()
+    const filter = {}
+    if (String(req.query.activeOnly || '').toLowerCase() === 'true') {
+      filter.status = { $in: ['Active', 'ACTIVE'] }
+    }
+
+    const rows = await Course.find(filter).sort({ batchName: 1 }).lean()
     res.json({
       success: true,
-      data: rows.map((doc) => ({
-        _id: doc._id,
-        batchId: doc.batchId,
-        batchName: doc.batchName || doc.courseName,
-        courseName: doc.linkedCourseName || doc.courseName,
-      })),
+      data: rows.map((doc) => {
+        const fd = doc.formData || {}
+        return {
+          _id: doc._id,
+          id: String(doc._id),
+          batchId: doc.batchId,
+          batchCode: doc.batchCode,
+          batchName: doc.batchName || doc.courseName,
+          courseName: doc.linkedCourseName || doc.courseName,
+          linkedCourseName: doc.linkedCourseName || doc.courseName,
+          courseId: doc.courseId || fd.courseId || '',
+          academicCourseId: doc.academicCourseId || fd.academicCourseId || '',
+          center: doc.center || fd.center || '',
+          mentorName: doc.mentorName || fd.mentorName || doc.trainerName || '',
+          status: doc.status || 'Active',
+          capacity: Number(fd.capacity) > 0 ? Number(fd.capacity) : 50,
+          totalStudents: doc.totalStudents ?? fd.totalStudents ?? 0,
+        }
+      }),
     })
   } catch (error) {
     next(error)

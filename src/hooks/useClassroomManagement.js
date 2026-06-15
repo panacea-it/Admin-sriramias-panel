@@ -1,21 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '../utils/toast'
-import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
+import { isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
 import { clearClassroomsListCache, getClassrooms } from '../services/classroomService'
 import {
   mapClassroomStatusFilterToApi,
   normalizeClassroomsListResponse,
 } from '../utils/classroomApiHelpers'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  invalidateListSession,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
+const SESSION_SCOPE = 'classrooms'
 const DEFAULT_PAGE_SIZE = 10
 
-function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centerFilter }) {
+function buildListParams({ page, pageSize, statusFilter, centerFilter }) {
   const apiStatus = mapClassroomStatusFilterToApi(statusFilter)
   const params = {
     page,
     limit: pageSize,
-    search: debouncedSearch.trim(),
   }
   if (apiStatus) params.status = apiStatus
   if (centerFilter !== 'all') params.center = centerFilter
@@ -32,49 +38,63 @@ export function useClassroomManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
-  const lastErrorToastAt = useRef(0)
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
+
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    statusFilter,
+    centerFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setClassrooms(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+  }, [])
 
   const loadClassrooms = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({
-        page,
+        page: effectivePage,
         pageSize,
-        debouncedSearch,
         statusFilter,
         centerFilter,
       })
 
-      setLoading(true)
-      try {
-        const data = await getClassrooms(params, { bypassCache })
-        if (ignoreFlag?.()) return
-        const normalized = normalizeClassroomsListResponse(data, { page, limit: pageSize })
-        setClassrooms(normalized.items)
-        setTotalItems(normalized.total)
-        setTotalPages(normalized.totalPages)
-      } catch (error) {
-        if (ignoreFlag?.()) return
-        if (import.meta.env.DEV) {
-          console.error(error)
-        }
-        const now = Date.now()
-        if (now - lastErrorToastAt.current > 4000) {
-          lastErrorToastAt.current = now
-          toast.error(getApiErrorMessage(error, 'Failed to load classrooms'))
-        }
-        if (!isRateLimitError(error)) {
-          setClassrooms([])
-          setTotalItems(0)
-          setTotalPages(1)
-        }
-      } finally {
-        if (!ignoreFlag?.()) {
-          setLoading(false)
-        }
-      }
+      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
+
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          const data = await getClassrooms(params, { bypassCache })
+          return normalizeClassroomsListResponse(data, { page: effectivePage, limit: pageSize })
+        },
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load classrooms'),
+          )
+          if (!isRateLimitError(error) && !hydratedFromSession) {
+            setClassrooms([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
     },
-    [page, pageSize, debouncedSearch, statusFilter, centerFilter],
+    [effectivePage, pageSize, statusFilter, centerFilter, fetchGuard, applyPaginated],
   )
 
   useEffect(() => {
@@ -85,12 +105,9 @@ export function useClassroomManagement() {
     }
   }, [loadClassrooms])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, centerFilter, pageSize])
-
   const refreshClassrooms = useCallback(async () => {
     clearClassroomsListCache()
+    invalidateListSession(SESSION_SCOPE)
     await loadClassrooms({ bypassCache: true })
   }, [loadClassrooms])
 

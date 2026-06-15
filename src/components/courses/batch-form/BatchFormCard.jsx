@@ -11,6 +11,7 @@ export default function BatchFormCard({
   children,
   className,
   step,
+  required = false,
 }) {
   return (
     <motion.section
@@ -42,6 +43,7 @@ export default function BatchFormCard({
             ) : null}
             <h3 className="text-base font-bold tracking-tight text-[#1a3a5c] sm:text-lg">
               {title}
+              {required ? <span className="text-red-500"> *</span> : null}
             </h3>
           </div>
           {description ? (

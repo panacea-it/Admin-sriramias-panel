@@ -7,11 +7,23 @@ import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBu
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useTeacherManagement } from '../../../../hooks/useTeacherManagement'
 import { useSubjectsDropdown } from '../../../../hooks/useSubjectsDropdown'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
-import { toast } from '../../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../../utils/masterBulkActions'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
 import {
@@ -83,7 +95,8 @@ export default function TeacherSection({ section }) {
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const subjectFilterOptions = useMemo(
     () => [{ value: 'all', label: 'Subject' }, ...subjectDropdownOptions],
@@ -101,7 +114,12 @@ export default function TeacherSection({ section }) {
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => teachersById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, teachersById),
+    [selectedIds, teachersById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, teachersById),
     [selectedIds, teachersById],
   )
 
@@ -223,24 +241,69 @@ export default function TeacherSection({ section }) {
     }
   }, [statusTarget, patchTeacherLocally, refreshTeachers])
 
-  const handleBulkDisable = useCallback(async () => {
-    const ids = selectedIds.filter((id) => teachersById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = () => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }
 
-    const apiStatus = mapUiStatusToApi('In Active')
-    setBulkDisableLoading(true)
+  const handleBulkDisableRequest = () => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }
+
+  const handleBulkDeleteRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
 
     try {
-      await Promise.all(ids.map((id) => updateTeacherStatus(id, apiStatus)))
-      ids.forEach((id) => patchTeacherLocally(id, { status: 'In Active' }))
-      toast.success(ids.length > 1 ? `${ids.length} teachers disabled` : 'Teacher disabled')
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, teachersById)
+        const apiStatus = mapUiStatusToApi('Active')
+        await bulkUpdateMasterStatus('teachers', ids, apiStatus, {
+          updateSingle: updateTeacherStatus,
+        })
+        ids.forEach((id) => patchTeacherLocally(id, { status: 'Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, teachersById)
+        const apiStatus = mapUiStatusToApi('In Active')
+        await bulkUpdateMasterStatus('teachers', ids, apiStatus, {
+          updateSingle: updateTeacherStatus,
+        })
+        ids.forEach((id) => patchTeacherLocally(id, { status: 'In Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        await Promise.all(ids.map((id) => deleteTeacher(id)))
+        ids.forEach((id) => removeTeacherLocally(id))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        await refreshTeachers()
+      }
+      setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected teachers'))
-      await refreshTeachers()
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Failed to delete selected teachers')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
+      if (bulkConfirm.type !== 'delete') {
+        await refreshTeachers()
+      }
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
-  }, [selectedIds, teachersById, patchTeacherLocally, refreshTeachers])
+  }
 
   const toggleSelect = useCallback((id) => {
     setSelectedIds((prev) =>
@@ -312,10 +375,12 @@ export default function TeacherSection({ section }) {
 
         <ProgramsBulkActionsBar
           count={selectedIds.length}
+          enableCount={enableableCount}
           disableCount={disableableCount}
           onClearSelection={() => setSelectedIds([])}
-          onDisable={handleBulkDisable}
-          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+          onEnable={handleBulkEnableRequest}
+          onDisable={handleBulkDisableRequest}
+          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (
@@ -337,7 +402,7 @@ export default function TeacherSection({ section }) {
         ) : (
           <TeacherTable
             teachers={teachers}
-            loading={loading || bulkDisableLoading}
+            loading={loading || bulkActionLoading}
             controlledPagination={controlledPagination}
             onView={handleView}
             onEdit={handleEditOpen}
@@ -389,6 +454,14 @@ export default function TeacherSection({ section }) {
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}
+        />
+
+        <MasterBulkConfirmModal
+          open={Boolean(bulkConfirm)}
+          type={bulkConfirm?.type}
+          loading={bulkActionLoading}
+          onConfirm={confirmBulkAction}
+          onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
         />
       </motion.div>
     </AnimatePresence>

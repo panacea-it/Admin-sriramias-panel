@@ -99,20 +99,47 @@ export function ProfileFeeBreakdownPanel({ profile, onDownload }) {
   )
 }
 
+function hasEnrollmentValue(value) {
+  if (value == null) return false
+  const text = String(value).trim()
+  return text.length > 0 && text !== '—' && text !== '-'
+}
+
 export function ProfileEnrollmentPanel({ profile }) {
   const meta = ENROLLMENT_SOURCES.find((s) => s.id === profile.enrollmentSource) || ENROLLMENT_SOURCES[0]
+
+  const fields = [
+    { label: 'Counselor', value: profile.counselorName },
+    { label: 'Branch', value: profile.branchMapped || profile.branch },
+    {
+      label: 'Enrollment date',
+      value: profile.enrollmentDate ? formatCategoryDateTime(profile.enrollmentDate) : null,
+    },
+    { label: 'Referred by', value: profile.referredBy },
+  ].filter(({ value }) => hasEnrollmentValue(value))
+
   return (
-    <Section title="Enrollment source">
+    <Section title="Enrollment source" className="!space-y-4">
       <span className={cn('inline-flex rounded-md px-2.5 py-1 text-xs font-semibold', meta.color)}>{meta.label}</span>
-      <dl className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-[#686868]">Referred by</dt><dd className="font-medium">{profile.referredBy || '—'}</dd></div>
-        <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-[#686868]">Counselor</dt><dd className="font-medium">{profile.counselorName || '—'}</dd></div>
-        <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-[#686868]">Branch</dt><dd className="font-medium">{profile.branchMapped || profile.branch || '—'}</dd></div>
-        <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-[#686868]">Enrollment date</dt><dd className="font-medium">{profile.enrollmentDate ? formatCategoryDateTime(profile.enrollmentDate) : '—'}</dd></div>
-        {profile.campaignNotes && (
-          <div className="sm:col-span-2 rounded-lg bg-[#fff8eb] p-3"><dt className="text-xs text-[#686868]">Campaign notes</dt><dd className="text-sm">{profile.campaignNotes}</dd></div>
-        )}
-      </dl>
+      {fields.length > 0 && (
+        <dl className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2">
+          {fields.map(({ label, value }) => (
+            <div
+              key={label}
+              className="flex h-full flex-col rounded-[12px] border border-slate-200/80 bg-white p-4 shadow-[0_5px_20px_rgba(0,0,0,0.08)]"
+            >
+              <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+              <dd className="mt-1 font-semibold text-[#111]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {profile.campaignNotes && (
+        <div className="rounded-[12px] border border-amber-200/80 bg-[#fff8eb] p-4 shadow-[0_5px_20px_rgba(0,0,0,0.06)]">
+          <dt className="text-xs font-semibold text-slate-500">Campaign notes</dt>
+          <dd className="mt-1 text-sm text-[#111]">{profile.campaignNotes}</dd>
+        </div>
+      )}
     </Section>
   )
 }

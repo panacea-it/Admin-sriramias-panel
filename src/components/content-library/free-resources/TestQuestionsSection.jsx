@@ -69,6 +69,7 @@ export default function TestQuestionsSection({
   setValue,
   errors = {},
   light = false,
+  bulkUploadOnly = false,
   previewTitle = '',
   disabled = false,
   mockTestId = null,
@@ -274,9 +275,9 @@ export default function TestQuestionsSection({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionBar title="Add Question Paper" />
+        {!bulkUploadOnly ? <SectionBar title="Add Question Paper" /> : <SectionBar title="Questions" />}
         <div className="flex flex-wrap gap-2">
-          {!light ? (
+          {!light && !bulkUploadOnly ? (
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
@@ -306,7 +307,7 @@ export default function TestQuestionsSection({
         </p>
       ) : null}
 
-      {questionCount > 0 ? (
+      {!bulkUploadOnly && questionCount > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-[#eef6fc] px-4 py-2 text-sm font-bold text-[#246392]">
             {questionCount} Question{questionCount !== 1 ? 's' : ''}
@@ -317,71 +318,92 @@ export default function TestQuestionsSection({
         </div>
       ) : null}
 
-      <FormFieldError message={errors.questions?.message || errors.questions} />
+      {!bulkUploadOnly ? (
+        <>
+          <FormFieldError message={errors.questions?.message || errors.questions} />
 
-      {questionCount > 0 ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              <AnimatePresence initial={false}>
-                {visibleFields.map((field, index) => {
-                  const q = questions[index] || field
-                  const actionKey = q.apiId || q.id || `new-${index}`
-                  const cardDisabled =
-                    sectionBusy && questionActionId != null && questionActionId !== actionKey
+          {questionCount > 0 ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  <AnimatePresence initial={false}>
+                    {visibleFields.map((field, index) => {
+                      const q = questions[index] || field
+                      const actionKey = q.apiId || q.id || `new-${index}`
+                      const cardDisabled =
+                        sectionBusy && questionActionId != null && questionActionId !== actionKey
 
-                  return (
-                    <SortableQuestion key={field.id} id={field.id}>
-                      {({ dragHandleProps }) => (
-                        <motion.div
-                          layout
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.18 }}
-                        >
-                          <QuestionCard
-                            index={index}
-                            question={q}
-                            light={light}
-                            expanded={expandedId === field.id}
-                            onToggle={() =>
-                              setExpandedId((prev) => (prev === field.id ? null : field.id))
-                            }
-                            onChange={(next) => updateQuestionAt(index, next)}
-                            onSave={() => saveQuestionAt(index)}
-                            onReset={() => resetAt(index)}
-                            onDelete={() => deleteAt(index)}
-                            onDuplicate={() => duplicateAt(index)}
-                            dragHandleProps={apiMode ? null : dragHandleProps}
-                            disabled={cardDisabled}
-                          />
-                        </motion.div>
-                      )}
-                    </SortableQuestion>
-                  )
-                })}
-              </AnimatePresence>
+                      return (
+                        <SortableQuestion key={field.id} id={field.id}>
+                          {({ dragHandleProps }) => (
+                            <motion.div
+                              layout
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.18 }}
+                            >
+                              <QuestionCard
+                                index={index}
+                                question={q}
+                                light={light}
+                                expanded={expandedId === field.id}
+                                onToggle={() =>
+                                  setExpandedId((prev) => (prev === field.id ? null : field.id))
+                                }
+                                onChange={(next) => updateQuestionAt(index, next)}
+                                onSave={() => saveQuestionAt(index)}
+                                onReset={() => resetAt(index)}
+                                onDelete={() => deleteAt(index)}
+                                onDuplicate={() => duplicateAt(index)}
+                                dragHandleProps={apiMode ? null : dragHandleProps}
+                                disabled={cardDisabled}
+                              />
+                            </motion.div>
+                          )}
+                        </SortableQuestion>
+                      )
+                    })}
+                  </AnimatePresence>
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[#cfe8f7] bg-[#fafcff] px-6 py-10 text-center text-sm text-[#246392]">
+              {apiMode && !loadingQuestions
+                ? 'No questions yet. Add questions below or use bulk upload.'
+                : 'Enter number of questions above to generate question cards.'}
             </div>
-          </SortableContext>
-        </DndContext>
-      ) : (
-        <div className="rounded-xl border border-dashed border-[#cfe8f7] bg-[#fafcff] px-6 py-10 text-center text-sm text-[#246392]">
-          {apiMode && !loadingQuestions
-            ? 'No questions yet. Add questions below or use bulk upload.'
-            : 'Enter number of questions above to generate question cards.'}
-        </div>
-      )}
+          )}
 
-      {fields.length > visibleCount ? (
-        <button
-          type="button"
-          onClick={() => setListWindow((w) => Math.min(fields.length, w + QUESTION_LIST_CHUNK))}
-          className="w-full rounded-xl border border-[#cfe8f7] bg-white py-3 text-sm font-bold text-[#246392] hover:bg-[#f8fbff]"
-        >
-          Load more ({fields.length - visibleCount} remaining)
-        </button>
-      ) : null}
+          {fields.length > visibleCount ? (
+            <button
+              type="button"
+              onClick={() => setListWindow((w) => Math.min(fields.length, w + QUESTION_LIST_CHUNK))}
+              className="w-full rounded-xl border border-[#cfe8f7] bg-white py-3 text-sm font-bold text-[#246392] hover:bg-[#f8fbff]"
+            >
+              Load more ({fields.length - visibleCount} remaining)
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <FormFieldError message={errors.bulkFileName?.message} />
+          {apiMode && questions.length > 0 ? (
+            <p className="text-sm font-medium text-[#246392]">
+              {questions.length} question{questions.length !== 1 ? 's' : ''} uploaded
+            </p>
+          ) : !apiMode && questions.length > 0 ? (
+            <p className="text-sm font-medium text-[#246392]">
+              {questions.length} question{questions.length !== 1 ? 's' : ''} ready to save
+            </p>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[#cfe8f7] bg-[#fafcff] px-6 py-10 text-center text-sm text-[#246392]">
+              Upload questions using the Bulk Upload Questions button above.
+            </div>
+          )}
+        </>
+      )}
 
       <FreeResourceBulkUploadModal
         open={bulkOpen}

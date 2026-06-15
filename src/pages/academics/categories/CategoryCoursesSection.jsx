@@ -11,6 +11,7 @@ import CourseTableActions from '../../../components/categories/CourseTableAction
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import CourseFormModal from '../../../components/categories/CourseFormModal'
 import ViewCourseManagementModal from '../../../components/categories/ViewCourseManagementModal'
+import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import {
   loadAcademicCourses,
   saveAcademicCourses,
@@ -23,7 +24,14 @@ import { syncAcademicCoursesCatalog } from '../../../api/academicCoursesAPI'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { buildCreateCourseFormData } from '../../../utils/courseApiHelpers'
 import { createCourse } from '../../../services/courseService'
-import { toast } from '../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../utils/toast'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../utils/masterBulkActions'
 import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 
 const section = CATEGORY_HUB_SECTIONS.courses
@@ -68,6 +76,8 @@ export default function CategoryCoursesSection() {
   const modal = useEditModal()
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreFilterOptions = useMemo(
     () => [
@@ -112,12 +122,17 @@ export default function CategoryCoursesSection() {
   }, [courses, filters])
 
   const coursesById = useMemo(
-    () => new Map(filtered.map((row) => [row.id, row])),
+    () => new Map(filtered.map((row) => [String(row.id), row])),
     [filtered],
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => coursesById.get(id)?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, coursesById),
+    [selectedIds, coursesById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, coursesById),
     [selectedIds, coursesById],
   )
 
@@ -212,21 +227,66 @@ export default function CategoryCoursesSection() {
     [patchCourseLocally],
   )
 
-  const handleBulkDisable = useCallback(() => {
-    const ids = selectedIds.filter((id) => coursesById.get(id)?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = useCallback(() => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }, [enableableCount])
 
-    const now = new Date().toISOString()
-    ids.forEach((id) => {
-      patchCourseLocally(id, { status: 'In Active', modifiedAt: now })
-    })
-    const stored = loadAcademicCourses()
-    const next = stored.map((c) =>
-      ids.includes(c.id) ? { ...c, status: 'In Active', modifiedAt: now } : c,
-    )
-    saveAcademicCourses(next)
-    toast.success(ids.length > 1 ? `${ids.length} courses disabled` : 'Course disabled')
-  }, [selectedIds, coursesById, patchCourseLocally])
+  const handleBulkDisableRequest = useCallback(() => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }, [disableableCount])
+
+  const handleBulkDeleteRequest = useCallback(() => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }, [selectedIds.length])
+
+  const confirmBulkAction = useCallback(async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
+
+    try {
+      const now = new Date().toISOString()
+
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, coursesById)
+        ids.forEach((id) => {
+          patchCourseLocally(id, { status: 'Active', modifiedAt: now })
+        })
+        const stored = loadAcademicCourses()
+        const next = stored.map((c) =>
+          ids.includes(c.id) ? { ...c, status: 'Active', modifiedAt: now } : c,
+        )
+        saveAcademicCourses(next)
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, coursesById)
+        ids.forEach((id) => {
+          patchCourseLocally(id, { status: 'In Active', modifiedAt: now })
+        })
+        const stored = loadAcademicCourses()
+        const next = stored.map((c) =>
+          ids.includes(c.id) ? { ...c, status: 'In Active', modifiedAt: now } : c,
+        )
+        saveAcademicCourses(next)
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        ids.forEach((id) => removeCourseLocally(id))
+        const stored = loadAcademicCourses()
+        const next = stored.filter((c) => !ids.includes(c.id))
+        saveAcademicCourses(next)
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+      }
+      setBulkConfirm(null)
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [bulkConfirm, selectedIds, coursesById, patchCourseLocally, removeCourseLocally])
 
   const handleDelete = useCallback((row) => {
     setDeleteTarget({ ids: [row.id], name: row.name })
@@ -367,10 +427,12 @@ export default function CategoryCoursesSection() {
 
       <ProgramsBulkActionsBar
         count={selectedIds.length}
+        enableCount={enableableCount}
         disableCount={disableableCount}
         onClearSelection={() => setSelectedIds([])}
-        onDisable={handleBulkDisable}
-        onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        onEnable={handleBulkEnableRequest}
+        onDisable={handleBulkDisableRequest}
+        onDelete={handleBulkDeleteRequest}
       />
 
       {loading && (
@@ -399,7 +461,7 @@ export default function CategoryCoursesSection() {
         <ProgramsTable
           columns={columns}
           data={filtered}
-          loading={loading}
+          loading={loading || bulkActionLoading}
           resetDeps={[filters]}
           emptyMessage="No courses match your filters."
           selection={{
@@ -431,6 +493,14 @@ export default function CategoryCoursesSection() {
         confirmLabel="Confirm Delete"
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
+      />
+
+      <MasterBulkConfirmModal
+        open={Boolean(bulkConfirm)}
+        type={bulkConfirm?.type}
+        loading={bulkActionLoading}
+        onConfirm={confirmBulkAction}
+        onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
       />
     </motion.div>
   )

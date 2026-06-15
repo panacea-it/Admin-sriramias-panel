@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { MapPin } from 'lucide-react'
 import Modal from '../ui/Modal'
@@ -39,6 +39,11 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
     reset(cityToForm(cityRef.current))
     clearErrors()
   })
+
+  useEffect(() => {
+    if (!open || loading) return
+    reset(cityToForm(city))
+  }, [open, city, loading, reset])
 
   const onSubmit = async (values) => {
     if (!values.centerId) {

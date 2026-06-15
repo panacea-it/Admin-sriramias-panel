@@ -5,6 +5,7 @@ export default function MockTestQuestionsSection({
   mockTestId = null,
   questionsLoading = false,
   onQuestionsRefresh,
+  bulkUploadOnly = false,
   ...props
 }) {
   return (
@@ -12,6 +13,7 @@ export default function MockTestQuestionsSection({
       {...props}
       watch={watch}
       light={false}
+      bulkUploadOnly={bulkUploadOnly}
       previewTitle={watch('mockTestTitle') || ''}
       mockTestId={mockTestId}
       questionsLoading={questionsLoading}

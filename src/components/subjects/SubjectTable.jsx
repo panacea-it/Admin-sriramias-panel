@@ -1,32 +1,60 @@
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
+import { StatusBadge } from '../academics/AcademicsUi'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
-import SubjectListingStatus from './SubjectListingStatus'
-import SubjectRowActionsMenu, { tableActionsCellClass } from './SubjectRowActionsMenu'
+import FacultySubjectTableActions from './FacultySubjectTableActions'
 import SubjectChipPopover from './SubjectChipPopover'
 import AdminTooltip from './AdminTooltip'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
+import { cn } from '../../utils/cn'
 
-function SecondaryCell({ children, title }) {
+/** Required on fixed-layout cells so truncate/overflow works correctly. */
+const OVERFLOW_CELL = 'min-w-0 max-w-0 overflow-hidden align-middle'
+
+function CellWrap({ children, className }) {
+  return <div className={cn('w-full min-w-0 overflow-hidden', className)}>{children}</div>
+}
+
+function SubjectNameCell({ name }) {
+  const text = name || '—'
   return (
-    <span className="text-xs text-slate-600" title={title}>
-      {children}
-    </span>
+    <CellWrap>
+      <span
+        className="block truncate text-sm font-bold text-[#111111]"
+        title={text !== '—' ? text : undefined}
+      >
+        {text}
+      </span>
+    </CellWrap>
+  )
+}
+
+function TeacherCell({ name }) {
+  const text = name || '—'
+  return (
+    <CellWrap>
+      <span
+        className="block truncate text-sm font-medium text-[#686868]"
+        title={name || undefined}
+      >
+        {text}
+      </span>
+    </CellWrap>
   )
 }
 
 export default function SubjectTable({
   data,
-  onAddRow,
   onView,
-  onViewList,
   onEdit,
+  onManageContent,
   onDelete,
-  onStatusChange,
+  onStatusToggle,
   search,
   statusFilter,
   selectedIds = [],
   onToggleSelect,
   onToggleSelectPage,
+  allItemIds,
   emptyMessage = `No ${facultySubjectLabels.plural.toLowerCase()} found.`,
   loading = false,
   controlledPagination,
@@ -36,80 +64,99 @@ export default function SubjectTable({
     {
       key: 'id',
       label: 'ID',
-      headerClassName: 'w-[88px]',
-      cellClassName: 'w-[88px]',
+      width: '7%',
+      headerClassName: cn(OVERFLOW_CELL, 'whitespace-nowrap'),
+      cellClassName: OVERFLOW_CELL,
+      headerTruncate: false,
       render: (row) => (
-        <AdminTooltip label={`Subject ID: ${row.displayId || row.facultySubjectId || row.id}`}>
-          <span className="font-mono text-xs font-bold tracking-tight text-[#1a3a5c]">
-            {row.displayId || row.facultySubjectId || row.id}
-          </span>
-        </AdminTooltip>
+        <CellWrap>
+          <AdminTooltip label={`Subject ID: ${row.displayId || row.facultySubjectId || row.id}`}>
+            <span className="block truncate font-mono text-xs font-bold tracking-tight text-[#1a3a5c]">
+              {row.displayId || row.facultySubjectId || row.id}
+            </span>
+          </AdminTooltip>
+        </CellWrap>
       ),
     },
     {
       key: 'subjectName',
-      label: facultySubjectLabels.singular,
-      headerClassName: 'min-w-[140px]',
-      render: (row) => (
-        <span className="text-sm font-bold text-[#111]">{row.subjectName}</span>
-      ),
+      label: 'Faculty Subject',
+      width: '19%',
+      headerClassName: OVERFLOW_CELL,
+      cellClassName: OVERFLOW_CELL,
+      render: (row) => <SubjectNameCell name={row.subjectName} />,
     },
     {
       key: 'teacher',
       label: 'Teacher',
-      headerClassName: 'min-w-[120px]',
-      render: (row) => (
-        <SecondaryCell title={row.teacher}>{row.teacher || '—'}</SecondaryCell>
-      ),
+      width: '13%',
+      headerClassName: OVERFLOW_CELL,
+      cellClassName: OVERFLOW_CELL,
+      render: (row) => <TeacherCell name={row.teacher} />,
     },
     {
       key: 'status',
       label: 'Status',
-      headerClassName: 'min-w-[130px]',
+      width: '10%',
+      align: 'center',
+      headerClassName: cn(OVERFLOW_CELL, 'text-center whitespace-nowrap'),
+      cellClassName: cn(OVERFLOW_CELL, 'text-center'),
+      headerTruncate: false,
       render: (row) => (
-        <SubjectListingStatus
-          status={row.status}
-          disabled={statusChangingId === row.id}
-          onChange={(next) => onStatusChange?.(row, next)}
-        />
+        <div className="flex w-full items-center justify-center overflow-hidden px-1">
+          <StatusBadge status={row.status} />
+        </div>
       ),
     },
     {
       key: 'topics',
       label: 'Topics',
-      headerClassName: 'min-w-[150px] hidden lg:table-cell',
-      cellClassName: 'hidden lg:table-cell',
+      width: '12%',
+      headerClassName: OVERFLOW_CELL,
+      cellClassName: OVERFLOW_CELL,
       render: (row) => (
-        <SubjectChipPopover
-          values={Array.isArray(row.topics) ? row.topics : row.topic ? [row.topic] : []}
-          tooltipLabel="All topics"
-        />
+        <CellWrap>
+          <SubjectChipPopover
+            values={Array.isArray(row.topics) ? row.topics : row.topic ? [row.topic] : []}
+            tooltipLabel="All topics"
+            maxVisible={2}
+          />
+        </CellWrap>
       ),
     },
     {
       key: 'categories',
       label: 'Categories',
-      headerClassName: 'min-w-[150px] hidden md:table-cell',
-      cellClassName: 'hidden md:table-cell',
+      width: '12%',
+      headerClassName: OVERFLOW_CELL,
+      cellClassName: OVERFLOW_CELL,
       render: (row) => (
-        <SubjectChipPopover
-          values={normalizeCategories(row.categories ?? row.category)}
-          tooltipLabel="All categories"
-        />
+        <CellWrap>
+          <SubjectChipPopover
+            values={normalizeCategories(row.categories ?? row.category)}
+            tooltipLabel="All categories"
+            maxVisible={2}
+          />
+        </CellWrap>
       ),
     },
     {
       key: 'actions',
       label: 'Actions',
-      headerClassName: 'text-right',
-      cellClassName: tableActionsCellClass,
+      width: 520,
+      align: 'center',
+      headerClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
+      cellClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
+      headerTruncate: false,
       render: (row) => (
-        <SubjectRowActionsMenu
+        <FacultySubjectTableActions
+          row={row}
           onView={() => onView?.(row)}
           onEdit={() => onEdit(row)}
-          onAdd={() => onAddRow(row)}
-          onViewList={() => onViewList(row)}
+          onManageContent={() => onManageContent?.(row)}
+          onStatusToggle={() => onStatusToggle?.(row)}
           onDelete={() => onDelete(row)}
+          statusLoading={statusChangingId === row.id}
         />
       ),
     },
@@ -122,6 +169,10 @@ export default function SubjectTable({
           onToggle: onToggleSelect,
           onTogglePage: onToggleSelectPage,
           getRowId: (row) => String(row.id),
+          allItemIds,
+          columnWidth: 44,
+          headerClassName: 'w-11 min-w-[2.75rem] max-w-[2.75rem] px-2 text-center align-middle',
+          cellClassName: 'w-11 min-w-[2.75rem] max-w-[2.75rem] px-2 text-center align-middle',
         }
       : undefined
 
@@ -132,19 +183,16 @@ export default function SubjectTable({
       emptyMessage={emptyMessage}
       itemLabel="subjects"
       resetDeps={[search, statusFilter]}
-      rowClassName="cursor-default transition-colors duration-200 hover:bg-[#eef6fc]/80"
+      rowClassName="hover:bg-[#eef6fc]/70"
       loading={loading}
       controlledPagination={controlledPagination}
       selection={selection}
-      density="compact"
-      zebraStriping
-      stickyHeader
-      stickyLastColumn
-      animateRows
+      density="comfortable"
       skeletonRowCount={8}
-      tableMinWidth={760}
-      className="overflow-hidden rounded-xl border border-slate-100/80 shadow-[0_4px_20px_rgba(15,23,42,0.06)]"
-      tableClassName="rounded-xl"
+      tableMinWidth={1680}
+      tableLayoutFixed
+      className="overflow-hidden rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
+      tableClassName="rounded-none border-0 shadow-none"
     />
   )
 }

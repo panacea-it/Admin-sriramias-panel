@@ -5,16 +5,28 @@ import ClassRoomsFilterBar from '../../../components/classrooms/ClassRoomsFilter
 import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import { buildClassroomTableColumns } from '../../../components/classrooms/ClassroomTable'
 import ClassroomFormModal from '../../../components/classrooms/ClassroomFormModal'
 import ViewClassroomModal from '../../../components/classrooms/ViewClassroomModal'
 import ConfirmClassroomStatusModal from '../../../components/classrooms/ConfirmClassroomStatusModal'
 import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
-import { buildClassroomTableColumns } from '../../../components/classrooms/ClassroomTable'
+import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useClassroomManagement } from '../../../hooks/useClassroomManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
 import { useTableRowSelection } from '../../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast } from '../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../utils/masterBulkActions'
 import {
   buildCreateClassroomPayload,
   buildUpdateClassroomPayload,
@@ -55,6 +67,11 @@ function resolveCityFilterKey(row) {
   return cityId || ''
 }
 
+function matchesClassroomSearch(row, query) {
+  const fields = [row.code, row.centerName, row.placeName]
+  return fields.some((value) => String(value || '').toLowerCase().includes(query))
+}
+
 export default function ClassRoomsPage() {
   const {
     classrooms,
@@ -85,7 +102,8 @@ export default function ClassRoomsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centerOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
@@ -107,13 +125,19 @@ export default function ClassRoomsPage() {
     ]
   }, [classrooms])
 
+  const searchedClassrooms = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return classrooms
+    return classrooms.filter((row) => matchesClassroomSearch(row, query))
+  }, [classrooms, search])
+
   const filteredClassrooms = useMemo(() => {
-    if (cityFilter === 'all') return classrooms
-    return classrooms.filter((row) => {
+    if (cityFilter === 'all') return searchedClassrooms
+    return searchedClassrooms.filter((row) => {
       const key = resolveCityFilterKey(row)
       return key === cityFilter || String(row.cityPlaceId || '') === cityFilter
     })
-  }, [classrooms, cityFilter])
+  }, [searchedClassrooms, cityFilter])
 
   const classroomsById = useMemo(
     () => new Map(filteredClassrooms.map((row) => [String(row.id), row])),
@@ -121,8 +145,12 @@ export default function ClassRoomsPage() {
   )
 
   const disableableCount = useMemo(
-    () =>
-      selectedIds.filter((id) => classroomsById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, classroomsById),
+    [selectedIds, classroomsById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, classroomsById),
     [selectedIds, classroomsById],
   )
 
@@ -265,23 +293,61 @@ export default function ClassRoomsPage() {
     }
   }, [statusTarget, refreshClassrooms])
 
-  const handleBulkDisable = useCallback(async () => {
-    const ids = selectedIds.filter((id) => classroomsById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = useCallback(() => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }, [enableableCount])
 
-    setBulkDisableLoading(true)
+  const handleBulkDisableRequest = useCallback(() => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }, [disableableCount])
+
+  const handleBulkDeleteRequest = useCallback(() => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }, [selectedIds.length])
+
+  const confirmBulkAction = useCallback(async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
+
     try {
-      await Promise.all(ids.map((id) => updateClassroomStatus(id, 'INACTIVE')))
-      toast.success(
-        ids.length > 1 ? `${ids.length} classrooms disabled` : 'Classroom disabled',
-      )
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, classroomsById)
+        await bulkUpdateMasterStatus('classrooms', ids, 'ACTIVE', {
+          updateSingle: updateClassroomStatus,
+        })
+        clearSelection()
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+        await refreshClassrooms()
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, classroomsById)
+        await bulkUpdateMasterStatus('classrooms', ids, 'INACTIVE', {
+          updateSingle: updateClassroomStatus,
+        })
+        clearSelection()
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+        await refreshClassrooms()
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        await Promise.all(ids.map((id) => deleteClassroom(id)))
+        clearSelection()
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        await refreshClassrooms()
+      }
+      setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected classrooms'))
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Failed to delete selected classrooms')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
       await refreshClassrooms()
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
-  }, [selectedIds, classroomsById, refreshClassrooms])
+  }, [bulkConfirm, selectedIds, classroomsById, refreshClassrooms, clearSelection])
 
   const handleDelete = useCallback((row) => {
     setDeleteTarget({ ids: [row.id], name: row.name })
@@ -330,7 +396,7 @@ export default function ClassRoomsPage() {
       <ClassRoomsFilterBar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search classrooms..."
+        searchPlaceholder="Search by Code, Center or City / Place..."
         cityFilter={cityFilter}
         onCityFilterChange={(e) => setCityFilter(e.target.value)}
         cityOptions={cityOptions}
@@ -344,10 +410,12 @@ export default function ClassRoomsPage() {
 
       <ProgramsBulkActionsBar
         count={selectedIds.length}
+        enableCount={enableableCount}
         disableCount={disableableCount}
         onClearSelection={clearSelection}
-        onDisable={handleBulkDisable}
-        onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        onEnable={handleBulkEnableRequest}
+        onDisable={handleBulkDisableRequest}
+        onDelete={handleBulkDeleteRequest}
       />
 
       {tableLoading ? (
@@ -386,8 +454,9 @@ export default function ClassRoomsPage() {
             itemLabel="classrooms"
             controlledPagination={controlledPagination}
             density="comfortable"
-            loading={bulkDisableLoading}
+            loading={bulkActionLoading}
             selection={selection}
+            resetDeps={[search, statusFilter, centerFilter, cityFilter]}
             tableClassName="min-w-[1120px]"
             stickyHeader
           />
@@ -430,6 +499,14 @@ export default function ClassRoomsPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         loading={deleteLoading}
+      />
+
+      <MasterBulkConfirmModal
+        open={Boolean(bulkConfirm)}
+        type={bulkConfirm?.type}
+        loading={bulkActionLoading}
+        onConfirm={confirmBulkAction}
+        onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
       />
     </div>
   )

@@ -96,7 +96,6 @@ export default function BatchDetailsSection({
             clearError('courseId')
           }}
         />
-        {fieldError('courseId')}
       </CourseFormField>
 
       <CourseFormField label="Date of Commencement" required>
@@ -205,10 +204,6 @@ export default function BatchDetailsSection({
             clearError('brochureUrl')
           }}
         />
-        <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
-          Upload batch brochure in PDF format (required)
-        </p>
-        {fieldError('brochureUrl')}
       </CourseFormField>
     </div>
   )

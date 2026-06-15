@@ -20,6 +20,7 @@ import { isStudentEnrollmentActive } from './studentStatusDisplay'
 import BatchConfirmDialog from './BatchConfirmDialog'
 import MoveStudentModal from './MoveStudentModal'
 import { PAYMENT_STATUSES, STUDENT_STATUSES } from '../../data/batchManagementData'
+import { DEMO_BATCH_STUDENTS } from '../../data/batchStudentDemoData'
 import { mapPaymentStatusToUi } from '../../utils/batchApiHelpers'
 import { cn } from '../../utils/cn'
 import { resolveEnrollmentApiId } from './enrollmentHelpers'
@@ -73,10 +74,13 @@ export default function BatchStudentPanel({
   onDeleteStudent,
   onToggleStudentStatus,
   onMoveStudent,
+  canMoveStudent = false,
   targetBatches = [],
   getTargetStrength,
 }) {
-  const students = studentsProp ?? batch.students ?? []
+  const realStudents = studentsProp ?? batch.students ?? []
+  const useDemoData = !studentsLoading && realStudents.length === 0
+  const sourceStudents = useDemoData ? DEMO_BATCH_STUDENTS : realStudents
   const isPage = variant === 'page'
 
   const [localSearch, setLocalSearch] = useState('')
@@ -94,12 +98,16 @@ export default function BatchStudentPanel({
   const search = serverPaginated ? controlledSearch : localSearch
   const paymentFilter = serverPaginated ? controlledPaymentFilter : localPaymentFilter
   const accountFilter = serverPaginated ? controlledAccountFilter : localAccountFilter
-  const viewStudent = serverPaginated ? controlledViewStudent : localViewStudent
+  const viewStudent = useDemoData || !serverPaginated ? localViewStudent : controlledViewStudent
+
+  const activeSearch = serverPaginated ? controlledSearch : localSearch
+  const activePaymentFilter = serverPaginated ? controlledPaymentFilter : localPaymentFilter
+  const activeAccountFilter = serverPaginated ? controlledAccountFilter : localAccountFilter
 
   const filteredStudents = useMemo(() => {
-    if (serverPaginated) return students
-    const q = localSearch.toLowerCase().trim()
-    return students.filter((s) => {
+    if (serverPaginated && !useDemoData) return sourceStudents
+    const q = activeSearch.toLowerCase().trim()
+    return sourceStudents.filter((s) => {
       const matchSearch =
         !q ||
         s.name.toLowerCase().includes(q) ||
@@ -107,24 +115,36 @@ export default function BatchStudentPanel({
         s.enrollmentId.toLowerCase().includes(q) ||
         s.phone.includes(q)
       const matchPayment =
-        localPaymentFilter === 'all' || s.paymentStatus === localPaymentFilter
+        activePaymentFilter === 'all' || s.paymentStatus === activePaymentFilter
       const matchAccount =
-        localAccountFilter === 'all' ||
-        (localAccountFilter === 'Active' && isStudentEnrollmentActive(s.status)) ||
-        (localAccountFilter === 'In Active' && !isStudentEnrollmentActive(s.status))
+        activeAccountFilter === 'all' ||
+        (activeAccountFilter === 'Active' && isStudentEnrollmentActive(s.status)) ||
+        (activeAccountFilter === 'In Active' && !isStudentEnrollmentActive(s.status))
       return matchSearch && matchPayment && matchAccount
     })
-  }, [students, localSearch, localPaymentFilter, localAccountFilter, serverPaginated])
+  }, [
+    sourceStudents,
+    activeSearch,
+    activePaymentFilter,
+    activeAccountFilter,
+    serverPaginated,
+    useDemoData,
+  ])
 
   const clientPagination = usePagination(filteredStudents, {
     initialPageSize: isPage ? 10 : 5,
-    resetDeps: [localSearch, localPaymentFilter, localAccountFilter, batch.id],
+    resetDeps: [activeSearch, activePaymentFilter, activeAccountFilter, batch.id, useDemoData],
   })
 
-  const displayStudents = serverPaginated ? students : clientPagination.paginatedItems
-  const enrolledCount = serverPaginated
-    ? (controlledTotalItems ?? students.length)
-    : students.length
+  const useClientDisplay = !serverPaginated || useDemoData
+  const displayStudents = useClientDisplay
+    ? clientPagination.paginatedItems
+    : sourceStudents
+  const enrolledCount = useDemoData
+    ? DEMO_BATCH_STUDENTS.length
+    : serverPaginated
+      ? (controlledTotalItems ?? realStudents.length)
+      : realStudents.length
 
   const openAdd = () => {
     setFormMode('add')
@@ -136,7 +156,7 @@ export default function BatchStudentPanel({
     setFormMode('edit')
     setEditingStudent(student)
     setFormOpen(true)
-    if (!onFetchStudentForEdit) return
+    if (useDemoData || !onFetchStudentForEdit) return
 
     setEditPreparing(true)
     try {
@@ -179,6 +199,11 @@ export default function BatchStudentPanel({
 
   const handleFormSubmit = async (form) => {
     if (saving || addStudentSaving || editStudentSaving || editPreparing) return
+    if (useDemoData) {
+      setFormOpen(false)
+      setEditingStudent(null)
+      return
+    }
     setSaving(true)
     try {
       if (formMode === 'edit' && editingStudent) {
@@ -218,6 +243,10 @@ export default function BatchStudentPanel({
   }
 
   const handleView = (student) => {
+    if (useDemoData) {
+      setLocalViewStudent(student)
+      return
+    }
     if (serverPaginated && onViewStudent) {
       void onViewStudent(student)
       return
@@ -226,6 +255,10 @@ export default function BatchStudentPanel({
   }
 
   const handleCloseView = () => {
+    if (useDemoData) {
+      setLocalViewStudent(null)
+      return
+    }
     if (serverPaginated && onCloseView) {
       onCloseView()
       return
@@ -234,9 +267,10 @@ export default function BatchStudentPanel({
   }
 
   const isEmptyWithoutFilters =
+    !useDemoData &&
     serverPaginated &&
     !studentsLoading &&
-    students.length === 0 &&
+    realStudents.length === 0 &&
     !search?.trim() &&
     paymentFilter === 'all' &&
     accountFilter === 'all'
@@ -338,7 +372,7 @@ export default function BatchStudentPanel({
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Enrollment Date</th>
                 <th className="px-4 py-3">Fee Status</th>
-                <th className="px-4 py-3">Attendance %</th>
+                <th className="px-4 py-3 text-center">Attendance %</th>
                 <th className="px-4 py-3 min-w-[120px]">Progress</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right sm:px-5">Actions</th>
@@ -350,7 +384,7 @@ export default function BatchStudentPanel({
               ) : displayStudents.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-5 py-10 text-center">
-                    {isEmptyWithoutFilters || (!serverPaginated && students.length === 0) ? (
+                    {isEmptyWithoutFilters || (!serverPaginated && realStudents.length === 0) ? (
                       <div className="flex flex-col items-center py-6">
                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef2fc]">
                           <Users className="h-7 w-7 text-[#55ace7]" strokeWidth={2} />
@@ -386,15 +420,15 @@ export default function BatchStudentPanel({
                     <tr
                       key={studentApiId || student.enrollmentId || student.id}
                       className={cn(
-                        'border-t border-slate-100 transition-colors hover:bg-[#f8fbff]',
+                        'border-t border-slate-100 align-middle transition-colors hover:bg-[#f8fbff]',
                         isInactive && 'bg-slate-50/80 opacity-75',
                         rowBusy && 'opacity-60',
                       )}
                     >
-                      <td className="px-4 py-3.5 font-mono text-xs font-medium text-[#246392] sm:px-5">
+                      <td className="px-4 py-3.5 align-middle font-mono text-xs font-medium text-[#246392] sm:px-5">
                         {student.enrollmentId}
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-[#111]">
+                      <td className="px-4 py-3.5 align-middle font-semibold text-[#111]">
                         <div className="flex items-center gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#cbeeff] text-xs font-bold text-[#246392]">
                             {student.name.slice(0, 2).toUpperCase()}
@@ -402,39 +436,46 @@ export default function BatchStudentPanel({
                           {student.name}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-[#444]">
+                      <td className="whitespace-nowrap px-4 py-3.5 align-middle text-[#444]">
                         {student.phone}
                       </td>
-                      <td className="px-4 py-3.5 text-[#444]">{student.email}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-[#444]">
+                      <td className="px-4 py-3.5 align-middle text-[#444]">{student.email}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 align-middle text-[#444]">
                         {student.enrolledAt || '—'}
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 align-middle">
                         <PaymentStatusBadge status={student.paymentStatus} />
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-[#333]">
+                      <td className="px-4 py-3.5 align-middle text-center font-semibold text-[#333]">
                         {student.attendance}%
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 align-middle">
                         <ProgressBar value={student.progress} />
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 align-middle">
                         <StudentEnrollmentStatusBadge status={student.status} />
                       </td>
-                      <td className="px-4 py-3.5 sm:px-5">
+                      <td className="px-4 py-3.5 align-middle sm:px-5">
                         <StudentTableActions
+                          demoOnly={useDemoData}
+                          canMove={canMoveStudent}
                           status={student.status ?? 'Active'}
                           onView={() => handleView(student)}
                           onEdit={() => void openEdit(student)}
                           onMove={
-                            onMoveStudent ? () => setMoveTarget(student) : undefined
+                            canMoveStudent
+                              ? () => setMoveTarget(student)
+                              : undefined
                           }
-                          onDelete={() => setDeleteTarget(student)}
-                          onToggleStatus={() =>
-                            onToggleStudentStatus?.(
-                              batch.id,
-                              resolveEnrollmentApiId(student) || student.id,
-                            )
+                          onDelete={!useDemoData ? () => setDeleteTarget(student) : undefined}
+                          onToggleStatus={
+                            !useDemoData
+                              ? () =>
+                                  onToggleStudentStatus?.(
+                                    batch.id,
+                                    resolveEnrollmentApiId(student) || student.id,
+                                  )
+                              : undefined
                           }
                         />
                       </td>
@@ -445,28 +486,25 @@ export default function BatchStudentPanel({
             </tbody>
           </table>
         </div>
-        {!studentsLoading &&
-          (serverPaginated
-            ? (controlledTotalItems ?? 0) > 0
-            : filteredStudents.length > 0) && (
+        {!studentsLoading && filteredStudents.length > 0 && (
           <TablePagination
-            page={serverPaginated ? controlledPage : clientPagination.page}
-            pageSize={serverPaginated ? controlledPageSize : clientPagination.pageSize}
+            page={useClientDisplay ? clientPagination.page : controlledPage}
+            pageSize={useClientDisplay ? clientPagination.pageSize : controlledPageSize}
             totalItems={
-              serverPaginated ? controlledTotalItems : clientPagination.totalItems
+              useClientDisplay ? clientPagination.totalItems : controlledTotalItems
             }
             totalPages={
-              serverPaginated ? controlledTotalPages : clientPagination.totalPages
+              useClientDisplay ? clientPagination.totalPages : controlledTotalPages
             }
             startIndex={
-              serverPaginated ? controlledStartIndex : clientPagination.startIndex
+              useClientDisplay ? clientPagination.startIndex : controlledStartIndex
             }
-            endIndex={serverPaginated ? controlledEndIndex : clientPagination.endIndex}
+            endIndex={useClientDisplay ? clientPagination.endIndex : controlledEndIndex}
             onPageChange={
-              serverPaginated ? onPageChange : clientPagination.setPage
+              useClientDisplay ? clientPagination.setPage : onPageChange
             }
             onPageSizeChange={
-              serverPaginated ? onPageSizeChange : clientPagination.setPageSize
+              useClientDisplay ? clientPagination.setPageSize : onPageSizeChange
             }
             itemLabel="students"
             className="bg-slate-50/50"
@@ -489,11 +527,17 @@ export default function BatchStudentPanel({
 
       <StudentViewModal
         key={viewStudent?.id ?? (viewLoading ? 'view-loading' : 'view-empty')}
-        open={serverPaginated ? controlledViewOpen : Boolean(viewStudent)}
+        open={
+          useDemoData
+            ? Boolean(localViewStudent)
+            : serverPaginated
+              ? controlledViewOpen
+              : Boolean(localViewStudent)
+        }
         onClose={handleCloseView}
         student={viewStudent}
         batch={batch}
-        loading={viewLoading}
+        loading={useDemoData ? false : viewLoading}
       />
 
       <BatchConfirmDialog
@@ -523,6 +567,10 @@ export default function BatchStudentPanel({
         getTargetStrength={getTargetStrength}
         saving={saving || moveStudentSaving}
         onSubmit={async (values) => {
+          if (useDemoData) {
+            setMoveTarget(null)
+            return
+          }
           setSaving(true)
           try {
             await onMoveStudent?.(moveTarget, values)

@@ -16,6 +16,8 @@ import testExamPatternRoutes from './routes/testExamPatternRoutes.js'
 import testSectionConfigRoutes from './routes/testSectionConfigRoutes.js'
 import youtubeVideoRoutes from './routes/youtubeVideoRoutes.js'
 import rewardsRoutes from './routes/rewardsRoutes.js'
+import masterBulkRoutes from './routes/masterBulkRoutes.js'
+import { masterApiProxy } from './middleware/masterApiProxy.js'
 import { getDashboardLegacy } from './controllers/rewardsController.js'
 import { connectDB } from './config/db.js'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
@@ -24,12 +26,21 @@ const app = express()
 
 /** Allowed browser origins (local dev + Vercel + custom domain) */
 function getAllowedOrigins() {
+  const fromEnv = [
+    process.env.CLIENT_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.CLIENT_ORIGINS,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)
+
   const origins = new Set(
     [
       'http://localhost:5173',
       'http://127.0.0.1:5173',
-      process.env.CLIENT_ORIGIN,
-      process.env.FRONTEND_URL,
+      ...fromEnv,
       process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
       process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : null,
     ].filter(Boolean),
@@ -84,6 +95,10 @@ app.get('/api/health', (req, res) => {
     env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'development',
   })
 })
+
+/** Bulk status + master-management proxy (avoids browser CORS to remote API) */
+app.use('/api', masterBulkRoutes)
+app.use(masterApiProxy)
 
 app.use('/api/courses', courseRoutes)
 app.use('/api/batches', batchRoutes)

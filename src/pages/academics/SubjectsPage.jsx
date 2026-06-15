@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Layers } from 'lucide-react'
 import SubjectHeader from '../../components/subjects/SubjectHeader'
@@ -6,10 +6,9 @@ import SubjectListingToolbar from '../../components/subjects/SubjectListingToolb
 import SubjectTable from '../../components/subjects/SubjectTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
 import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjectModal'
-import FacultySubjectViewListModal from '../../components/subjects/FacultySubjectViewListModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
-import SubjectBulkToolbar from '../../components/subjects/SubjectBulkToolbar'
 import SubjectBulkConfirmDialog from '../../components/subjects/SubjectBulkConfirmDialog'
+import CurrentAffairsBulkActionsBar from '../../components/current-affairs/CurrentAffairsBulkActionsBar'
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { useFacultySubjectsManagement } from '../../hooks/useFacultySubjectsManagement'
 import { clearFacultySubjectFormOptionsCache } from '../../hooks/useFacultySubjectFormOptions'
@@ -32,8 +31,14 @@ import {
 import { mapUiStatusToApi } from '../../utils/programHelpers'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
 import { getApiErrorMessage } from '../../utils/apiError'
-import { toast } from '../../utils/toast'
+import { toast, TOAST_DURATION } from '../../utils/toast'
+import { MASTER_BULK_TOAST } from '../../utils/masterBulkActions'
+import { getMasterBulkErrorMessage } from '../../services/masterBulkStatusService'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
+
+function nextRowStatus(status) {
+  return status === 'Active' ? 'In Active' : 'Active'
+}
 
 export default function SubjectsPage() {
   const navigate = useNavigate()
@@ -46,12 +51,9 @@ export default function SubjectsPage() {
     statusFilter,
     setStatusFilter,
     refreshSubjects,
-    retrySubjects,
     patchSubjectLocally,
     removeSubjectLocally,
   } = useFacultySubjectsManagement()
-
-  const rateLimitRetryCountRef = useRef(0)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('add')
@@ -66,7 +68,6 @@ export default function SubjectsPage() {
   const [statusChangingId, setStatusChangingId] = useState(null)
   const [viewItem, setViewItem] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
-  const [viewListItem, setViewListItem] = useState(null)
   const [teacherFilter, setTeacherFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
@@ -102,6 +103,28 @@ export default function SubjectsPage() {
     })
   }, [subjects, statusFilter, teacherFilter, categoryFilter, search])
 
+  const subjectsById = useMemo(
+    () => new Map(subjects.map((row) => [String(row.id), row])),
+    [subjects],
+  )
+
+  const disableableCount = useMemo(
+    () =>
+      selectedIds.filter((id) => subjectsById.get(String(id))?.status === 'Active').length,
+    [selectedIds, subjectsById],
+  )
+
+  const enableableCount = useMemo(
+    () =>
+      selectedIds.filter((id) => subjectsById.get(String(id))?.status === 'In Active').length,
+    [selectedIds, subjectsById],
+  )
+
+  const allItemIds = useMemo(
+    () => filteredSubjects.map((row) => String(row.id)),
+    [filteredSubjects],
+  )
+
   const hasClientFilters = teacherFilter !== 'all' || categoryFilter !== 'all'
   const hasActiveFilters =
     hasClientFilters || statusFilter !== 'all' || Boolean(search.trim())
@@ -116,23 +139,6 @@ export default function SubjectsPage() {
   const showNoResults =
     !loading && !loadError && filteredSubjects.length === 0 && !showEmpty
   const showLoadError = !loading && Boolean(loadError) && subjects.length === 0
-
-  useEffect(() => {
-    if (subjects.length > 0) {
-      rateLimitRetryCountRef.current = 0
-    }
-  }, [subjects.length])
-
-  useEffect(() => {
-    if (!loadError || loading || subjects.length > 0) return undefined
-    if (!loadError.toLowerCase().includes('too many requests')) return undefined
-    if (rateLimitRetryCountRef.current >= 2) return undefined
-    rateLimitRetryCountRef.current += 1
-    const timer = window.setTimeout(() => {
-      retrySubjects()
-    }, 5000)
-    return () => window.clearTimeout(timer)
-  }, [loadError, loading, subjects.length, retrySubjects])
 
   const openCreate = () => {
     setActiveSubject(null)
@@ -156,7 +162,15 @@ export default function SubjectsPage() {
     try {
       const detail = await loadSubjectDetail(row)
       if (detail) {
-        setViewItem(detail)
+        setViewItem({
+          ...detail,
+          teacher: row.teacher || detail.teacherMeta?.[0]?.label || detail.teacherName || detail.teacher,
+          topics:
+            detail.topicMeta?.map((entry) => entry.label).filter(Boolean) ||
+            row.topics ||
+            detail.topics,
+          topicMeta: detail.topicMeta?.length ? detail.topicMeta : row.topics?.map((label) => ({ label })),
+        })
         syncSingleFacultySubjectToLocal(detail)
       }
     } catch (error) {
@@ -164,10 +178,6 @@ export default function SubjectsPage() {
     } finally {
       setViewLoading(false)
     }
-  }
-
-  const handleViewList = (row) => {
-    setViewListItem(row)
   }
 
   const openEdit = async (row) => {
@@ -241,6 +251,10 @@ export default function SubjectsPage() {
     }
   }
 
+  const handleToggleItemStatus = async (row) => {
+    await handleStatusChange(row, nextRowStatus(row.status))
+  }
+
   const toggleSelect = (id) => {
     const sid = String(id)
     setSelectedIds((prev) =>
@@ -260,49 +274,38 @@ export default function SubjectsPage() {
     })
   }
 
-  const getSelectedSubjects = () => {
-    const idSet = new Set(selectedIds.map(String))
-    return subjects.filter((s) => idSet.has(String(s.id)))
-  }
-
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete', count: selectedIds.length })
+    setBulkConfirm({ type: 'delete' })
   }
 
   const handleBulkDisableRequest = () => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'disable', count: selectedIds.length })
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
   }
 
-  const handleBulkEnableRequest = async () => {
-    const targets = getSelectedSubjects()
-    if (!targets.length) return
-    setBulkActionLoading(true)
-    try {
-      for (const row of targets) {
-        const previousStatus = row.status
-        patchSubjectLocally(row.id, { status: 'Active' })
-        try {
-          await updateFacultySubjectStatus(row.id, mapUiStatusToApi('Active'))
-          syncSingleFacultySubjectToLocal({ ...row, status: mapUiStatusToApi('Active') })
-        } catch (error) {
-          patchSubjectLocally(row.id, { status: previousStatus })
-          throw error
-        }
-      }
-      setSelectedIds([])
-      toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} enabled`)
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Bulk enable failed'))
-    } finally {
-      setBulkActionLoading(false)
+  const handleBulkEnableRequest = () => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }
+
+  const getBulkTargets = (type) => {
+    if (type === 'enable') {
+      return selectedIds
+        .map((id) => subjectsById.get(String(id)))
+        .filter((row) => row && row.status === 'In Active')
     }
+    if (type === 'disable') {
+      return selectedIds
+        .map((id) => subjectsById.get(String(id)))
+        .filter((row) => row && row.status === 'Active')
+    }
+    return selectedIds.map((id) => subjectsById.get(String(id))).filter(Boolean)
   }
 
   const confirmBulkAction = async () => {
     if (!bulkConfirm || !selectedIds.length) return
-    const targets = getSelectedSubjects()
+    const targets = getBulkTargets(bulkConfirm.type)
     if (!targets.length) {
       setBulkConfirm(null)
       return
@@ -318,7 +321,7 @@ export default function SubjectsPage() {
           removeFacultySubjectFromLocalStorage(targetId)
         }
         setSelectedIds([])
-        toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} deleted`)
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
         await refreshSubjects()
       } else if (bulkConfirm.type === 'disable') {
         for (const row of targets) {
@@ -333,11 +336,26 @@ export default function SubjectsPage() {
           }
         }
         setSelectedIds([])
-        toast.success(`${targets.length} ${facultySubjectLabels.plural.toLowerCase()} disabled`)
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'enable') {
+        for (const row of targets) {
+          const previousStatus = row.status
+          patchSubjectLocally(row.id, { status: 'Active' })
+          try {
+            await updateFacultySubjectStatus(row.id, mapUiStatusToApi('Active'))
+            syncSingleFacultySubjectToLocal({ ...row, status: mapUiStatusToApi('Active') })
+          } catch (error) {
+            patchSubjectLocally(row.id, { status: previousStatus })
+            throw error
+          }
+        }
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
       }
       setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Bulk action failed'))
+      toast.error(getMasterBulkErrorMessage(error, bulkConfirm.type))
+      await refreshSubjects()
     } finally {
       setBulkActionLoading(false)
     }
@@ -420,13 +438,15 @@ export default function SubjectsPage() {
             onAction={clearFilters}
           />
         ) : (
-          <div className="space-y-4">
-            <SubjectBulkToolbar
-              selectedCount={selectedIds.length}
+          <>
+            <CurrentAffairsBulkActionsBar
+              count={selectedIds.length}
+              enableCount={enableableCount}
+              disableCount={disableableCount}
+              onClearSelection={() => setSelectedIds([])}
               onEnable={handleBulkEnableRequest}
               onDisable={handleBulkDisableRequest}
               onDelete={handleBulkDeleteRequest}
-              onClearSelection={() => setSelectedIds([])}
             />
             <SubjectTable
               data={filteredSubjects}
@@ -435,24 +455,18 @@ export default function SubjectsPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onToggleSelectPage={toggleSelectPage}
-              onAddRow={openContentManagement}
+              allItemIds={allItemIds}
               onView={handleView}
-              onViewList={handleViewList}
               onEdit={openEdit}
+              onManageContent={openContentManagement}
               onDelete={(row) => setDeleteTarget(row)}
-              onStatusChange={handleStatusChange}
-              loading={loading}
+              onStatusToggle={handleToggleItemStatus}
+              loading={loading || bulkActionLoading}
               statusChangingId={statusChangingId}
             />
-          </div>
+          </>
         )}
       </section>
-
-      <FacultySubjectViewListModal
-        open={Boolean(viewListItem)}
-        onClose={() => setViewListItem(null)}
-        subjectRow={viewListItem}
-      />
 
       <ViewFacultySubjectModal
         open={Boolean(viewItem) || viewLoading}
@@ -482,10 +496,11 @@ export default function SubjectsPage() {
       <SubjectBulkConfirmDialog
         open={Boolean(bulkConfirm)}
         type={bulkConfirm?.type}
-        count={bulkConfirm?.count || 0}
         loading={bulkActionLoading}
         onConfirm={confirmBulkAction}
-        onCancel={() => setBulkConfirm(null)}
+        onCancel={() => {
+          if (!bulkActionLoading) setBulkConfirm(null)
+        }}
       />
 
       <ConfirmDeleteDialog

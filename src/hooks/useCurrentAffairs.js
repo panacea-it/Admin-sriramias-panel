@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getApiErrorMessage } from '../utils/apiError'
-import { useDebouncedValue } from './useDebouncedValue'
 import {
   mapUiCategoryToApi,
   mapUiStatusFilterToApi,
 } from '../utils/currentAffairsApiHelpers'
 import { fetchAllCurrentAffairs } from '../services/currentAffairsService'
 
-function applyClientFilters(items, { categoryFilter, resourceFilter }) {
+function applyClientFilters(items, { categoryFilter, resourceFilter, search }) {
+  const query = String(search || '').trim().toLowerCase()
+
   return items.filter((row) => {
     if (categoryFilter && categoryFilter !== 'all' && row.category !== categoryFilter) {
       return false
@@ -16,17 +17,19 @@ function applyClientFilters(items, { categoryFilter, resourceFilter }) {
     if (resourceFilter && resourceFilter !== 'all' && row.category !== resourceFilter) {
       return false
     }
+    if (query) {
+      const name = String(row.name || '').toLowerCase()
+      const category = String(row.category || '').toLowerCase()
+      if (!name.includes(query) && !category.includes(query)) {
+        return false
+      }
+    }
     return true
   })
 }
 
-function buildListParams({ debouncedSearch, categoryFilter, resourceFilter, statusFilter }) {
+function buildListParams({ categoryFilter, resourceFilter, statusFilter }) {
   const params = {}
-
-  const search = debouncedSearch.trim()
-  if (search) {
-    params.search = search
-  }
 
   const typeFilter =
     resourceFilter && resourceFilter !== 'all'
@@ -50,27 +53,30 @@ function buildListParams({ debouncedSearch, categoryFilter, resourceFilter, stat
 }
 
 export function useCurrentAffairs() {
-  const [items, setItems] = useState([])
+  const [allItems, setAllItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [resourceFilter, setResourceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
+
+  const items = useMemo(
+    () => applyClientFilters(allItems, { categoryFilter, resourceFilter, search }),
+    [allItems, categoryFilter, resourceFilter, search],
+  )
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
     try {
       const params = buildListParams({
-        debouncedSearch,
         categoryFilter,
         resourceFilter,
         statusFilter,
       })
       const rows = await fetchAllCurrentAffairs(params)
-      setItems(applyClientFilters(rows, { categoryFilter, resourceFilter }))
+      setAllItems(rows)
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('[Current Affairs] Failed to load list:', error)
@@ -78,11 +84,11 @@ export function useCurrentAffairs() {
       const message = getApiErrorMessage(error, 'Failed to load current affairs')
       setLoadError(message)
       toast.error(message)
-      setItems([])
+      setAllItems([])
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, categoryFilter, resourceFilter, statusFilter])
+  }, [categoryFilter, resourceFilter, statusFilter])
 
   useEffect(() => {
     fetchItems()
@@ -90,11 +96,11 @@ export function useCurrentAffairs() {
 
   const removeItemsLocally = useCallback((ids) => {
     const idSet = new Set(ids.map(String))
-    setItems((prev) => prev.filter((row) => !idSet.has(String(row.id))))
+    setAllItems((prev) => prev.filter((row) => !idSet.has(String(row.id))))
   }, [])
 
   const patchItemLocally = useCallback((id, patch) => {
-    setItems((prev) =>
+    setAllItems((prev) =>
       prev.map((row) => (String(row.id) === String(id) ? { ...row, ...patch } : row)),
     )
   }, [])

@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
+import { isRateLimitError } from '../utils/apiError'
 import { clearProgramsListCache, getPrograms } from '../services/programService'
 import {
   mapProgramStatusFilterToApi,
   matchesProgramSearch,
   normalizeProgramsListResponse,
 } from '../utils/programHelpers'
+import {
+  createListFetchGuard,
+  invalidateListSession,
+  getListSessionCache,
+  runGuardedListFetch,
+  MASTER_LIST_RATE_LIMIT_MESSAGE,
+} from './useMasterListQuery'
+
+const SESSION_SCOPE = 'programs'
 
 function buildListParams({ statusFilter, centreFilter }) {
   const params = {}
@@ -18,49 +26,65 @@ function buildListParams({ statusFilter, centreFilter }) {
   return params
 }
 
+function buildSessionKey(params) {
+  return `${SESSION_SCOPE}:${JSON.stringify(params)}`
+}
+
+function getInitialState() {
+  const params = buildListParams({ statusFilter: 'all', centreFilter: 'all' })
+  const cached = getListSessionCache(buildSessionKey(params))
+  return {
+    programs: cached ?? [],
+    loading: cached == null,
+  }
+}
+
 export function useProgramManagement() {
-  const [programs, setPrograms] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initial = useMemo(() => getInitialState(), [])
+  const [programs, setPrograms] = useState(initial.programs)
+  const [loading, setLoading] = useState(initial.loading)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centreFilter, setCentreFilter] = useState('all')
-  const lastErrorToastAt = useRef(0)
+  const fetchGuardRef = useRef(null)
+
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
 
   const loadPrograms = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({ statusFilter, centreFilter })
+      const sessionKey = buildSessionKey(params)
 
-      setLoading(true)
-      try {
-        const data = await getPrograms(params, { bypassCache })
-        if (ignoreFlag?.()) return
-        setPrograms(normalizeProgramsListResponse(data))
-      } catch (error) {
-        if (ignoreFlag?.()) return
-        if (import.meta.env.DEV) {
-          console.error(error)
-        }
-        if (!isRateLimitError(error)) {
-          const now = Date.now()
-          if (now - lastErrorToastAt.current > 4000) {
-            lastErrorToastAt.current = now
-            toast.error(getApiErrorMessage(error, 'Failed to load programs'))
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: () => getPrograms(params, { bypassCache }),
+        applyData: (data) => setPrograms(normalizeProgramsListResponse(data)),
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) {
+            console.error(error)
           }
-          setPrograms([])
-        } else {
-          const now = Date.now()
-          if (now - lastErrorToastAt.current > 4000) {
-            lastErrorToastAt.current = now
-            toast.error('Too many requests. Please wait a moment and try again.')
+          if (isRateLimitError(error)) {
+            fetchGuard.toastListError(MASTER_LIST_RATE_LIMIT_MESSAGE)
+            return
           }
-        }
-      } finally {
-        if (!ignoreFlag?.()) {
-          setLoading(false)
-        }
-      }
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load programs'),
+          )
+          if (!hydratedFromSession) {
+            setPrograms([])
+          }
+        },
+        errorFallback: 'Failed to load programs',
+      })
     },
-    [statusFilter, centreFilter],
+    [statusFilter, centreFilter, fetchGuard],
   )
 
   useEffect(() => {
@@ -87,6 +111,7 @@ export function useProgramManagement() {
 
   const refreshPrograms = useCallback(async () => {
     clearProgramsListCache()
+    invalidateListSession(SESSION_SCOPE)
     await loadPrograms({ bypassCache: true })
   }, [loadPrograms])
 

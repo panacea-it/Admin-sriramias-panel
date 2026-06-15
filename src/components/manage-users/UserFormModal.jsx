@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { ImagePlus, UserPlus, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
+import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import {
   CourseFormField,
   CourseInput,
   CourseSelect,
 } from '../courses/CourseFormField'
-import { USER_ROLES, USER_STATUS_OPTIONS, USER_TYPE_OPTIONS } from '../../data/manageUsersConfig'
-import { useRolesDropdown } from '../../hooks/useRolesDropdown'
-import { getCreateUserRoles, normalizeCreateUserRoles } from '../../services/roleService'
+import { USER_ROLES, USER_STATUS_OPTIONS } from '../../data/manageUsersConfig'
 import { cn } from '../../utils/cn'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
@@ -35,11 +34,9 @@ const emptyForm = {
 function FormSection({ title, description, children, className }) {
   return (
     <section className={cn('space-y-4', className)}>
-      <div className="border-b border-[#e8eef5] pb-2">
-        <h3 className="text-sm font-bold tracking-wide text-[#246392]">{title}</h3>
-        {description ? (
-          <p className="mt-0.5 text-xs text-[#686868]">{description}</p>
-        ) : null}
+      <div className="border-b border-[#E7ECF5] pb-2">
+        <h3 className="text-sm font-bold text-[#1D72B8]">{title}</h3>
+        {description ? <p className="mt-0.5 text-xs text-[#667085]">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -72,9 +69,7 @@ export default function UserFormModal({
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [uploadError, setUploadError] = useState(null)
-  const [createRoleOptions, setCreateRoleOptions] = useState([])
   const fileRef = useRef(null)
-  const { options: roleCatalogOptions = [] } = useRolesDropdown()
   const editingRef = useRef(editingUser)
   editingRef.current = editingUser
   const editKey = getModalEditKey(editingUser)
@@ -182,53 +177,6 @@ export default function UserFormModal({
       onClose()
     }
   }
-  useEffect(() => {
-    let mounted = true
-
-    const loadCreateRoles = async () => {
-      try {
-        const response = await getCreateUserRoles()
-        const normalized = normalizeCreateUserRoles(response)
-        if (mounted) setCreateRoleOptions(normalized)
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.error(error)
-        }
-        if (mounted) setCreateRoleOptions([])
-      }
-    }
-
-    if (open) {
-      loadCreateRoles()
-    }
-
-    return () => {
-      mounted = false
-    }
-  }, [open])
-
-  const dynamicUserTypeOptions = useMemo(() => {
-    const fromApi = (createRoleOptions.length ? createRoleOptions : roleCatalogOptions)
-      .map((option) => {
-        const label = String(option?.label || option?.roleTitle || option?.name || '').trim()
-        const roleCode = String(option?.roleCode || option?.code || option?.value || '').trim().toUpperCase()
-        const value = roleCode || String(option?.value || option?.id || option?.roleId || '').trim().toUpperCase()
-
-        if (!label && !value) return null
-
-        return {
-          value,
-          label: label || value,
-        }
-      })
-      .filter(Boolean)
-
-    if (fromApi.length > 0) {
-      return fromApi
-    }
-
-    return USER_TYPE_OPTIONS
-  }, [createRoleOptions, roleCatalogOptions])
 
   const modalTitle = isEdit ? 'Edit User' : 'Create User'
   const subtitle = isEdit
@@ -252,177 +200,156 @@ export default function UserFormModal({
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
   }
 
+  const assignedCenterField = (
+    <CourseFormField label="Assigned Center" required className={isEdit ? undefined : 'w-full'}>
+      <CourseSelect
+        value={form.assignedCenter}
+        onChange={(e) => {
+          setForm((f) => ({ ...f, assignedCenter: e.target.value }))
+          clearError('assignedCenter')
+        }}
+      >
+        <option value="">Select center</option>
+        {(centerOptions || []).map((c) => {
+          const value = typeof c === 'string' ? c : c?.value
+          const label = typeof c === 'string' ? c : c?.label || c?.centerName || c?.name || value
+
+          return (
+            <option key={value || label} value={value || ''}>
+              {label}
+            </option>
+          )
+        })}
+      </CourseSelect>
+      {errors.assignedCenter && (
+        <p className="text-xs font-medium text-red-600">{errors.assignedCenter}</p>
+      )}
+    </CourseFormField>
+  )
+
   return (
-    <Modal open={open} onClose={onClose} size="lg" title={modalTitle}>
+    <Modal open={open} onClose={onClose} size="lg" title={modalTitle} showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[min(90vh,760px)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
+        className="flex max-h-[min(90vh,760px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
       >
         <ModalPanelHeader
           title={modalTitle}
           subtitle={subtitle}
           icon={UserPlus}
           iconClassName="text-[#246392]"
+          onClose={onClose}
+          closeVariant="icon"
+          plainCloseIcon
         />
 
-        <div
-          className={cn(
-            'min-h-0 flex-1 overflow-y-auto overscroll-contain',
-            'px-5 py-6 sm:px-8',
-            '[scrollbar-gutter:stable]',
-            '[scrollbar-width:thin]',
-            '[scrollbar-color:#c5d9eb_#f4f7fb]',
-          )}
-        >
-          <div className="space-y-8 pb-2">
-            <FormSection
-              title="Basic information"
-              description="Primary identity and contact details for this account."
-            >
+        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4 sm:px-6">
+          <FormSection
+            title="Basic information"
+            description="Primary identity and contact details for this account."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <CourseFormField label="Full Name" required className="sm:col-span-2">
+                <CourseInput
+                  value={form.fullName}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, fullName: e.target.value }))
+                    clearError('fullName')
+                  }}
+                  placeholder="e.g. Arjun Mehta"
+                />
+                {errors.fullName && (
+                  <p className="text-xs font-medium text-red-600">{errors.fullName}</p>
+                )}
+              </CourseFormField>
+
+              <CourseFormField label="Email" required>
+                <CourseInput
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                    clearError('email')
+                  }}
+                  placeholder="user@sriramias.in"
+                />
+                {errors.email && (
+                  <p className="text-xs font-medium text-red-600">{errors.email}</p>
+                )}
+              </CourseFormField>
+
+              <CourseFormField label="Phone Number" required>
+                <CourseInput
+                  inputMode="numeric"
+                  value={form.phone}
+                  onChange={(e) => {
+                    setForm((f) => ({
+                      ...f,
+                      phone: e.target.value.replace(/\D/g, '').slice(0, 10),
+                    }))
+                    clearError('phone')
+                  }}
+                  placeholder="10-digit mobile"
+                />
+                {errors.phone && (
+                  <p className="text-xs font-medium text-red-600">{errors.phone}</p>
+                )}
+              </CourseFormField>
+            </div>
+          </FormSection>
+
+          <FormSection title="Family details" description="Optional — used for student accounts.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <CourseFormField label="Parent Name">
+                <CourseInput
+                  value={form.parentName}
+                  onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))}
+                  placeholder="e.g. Rajesh Mehta"
+                />
+              </CourseFormField>
+
+              <CourseFormField label="Parent Phone Number">
+                <CourseInput
+                  inputMode="numeric"
+                  value={form.parentPhone}
+                  onChange={(e) => {
+                    setForm((f) => ({
+                      ...f,
+                      parentPhone: e.target.value.replace(/\D/g, '').slice(0, 10),
+                    }))
+                    clearError('parentPhone')
+                  }}
+                  placeholder="10-digit parent mobile"
+                />
+                {errors.parentPhone && (
+                  <p className="text-xs font-medium text-red-600">{errors.parentPhone}</p>
+                )}
+              </CourseFormField>
+            </div>
+          </FormSection>
+
+          <FormSection
+            title="Access & status"
+            description={
+              isEdit ? 'Role, center assignment, and account state.' : 'Center assignment.'
+            }
+          >
+            {isEdit ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="Full Name" required className="sm:col-span-2">
-                  <CourseInput
-                    value={form.fullName}
-                    onChange={(e) => {
-                      setForm((f) => ({ ...f, fullName: e.target.value }))
-                      clearError('fullName')
-                    }}
-                    placeholder="e.g. Arjun Mehta"
-                  />
-                  {errors.fullName && (
-                    <p className="text-xs font-medium text-red-600">{errors.fullName}</p>
-                  )}
-                </CourseFormField>
-
-                <CourseFormField label="Email" required>
-                  <CourseInput
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => {
-                      setForm((f) => ({ ...f, email: e.target.value }))
-                      clearError('email')
-                    }}
-                    placeholder="user@sriramias.in"
-                  />
-                  {errors.email && (
-                    <p className="text-xs font-medium text-red-600">{errors.email}</p>
-                  )}
-                </CourseFormField>
-
-                <CourseFormField label="Phone Number" required>
-                  <CourseInput
-                    inputMode="numeric"
-                    value={form.phone}
-                    onChange={(e) => {
-                      setForm((f) => ({
-                        ...f,
-                        phone: e.target.value.replace(/\D/g, '').slice(0, 10),
-                      }))
-                      clearError('phone')
-                    }}
-                    placeholder="10-digit mobile"
-                  />
-                  {errors.phone && (
-                    <p className="text-xs font-medium text-red-600">{errors.phone}</p>
-                  )}
-                </CourseFormField>
-              </div>
-            </FormSection>
-
-            <FormSection
-              title="Family details"
-              description="Optional — used for student accounts."
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="Parent Name">
-                  <CourseInput
-                    value={form.parentName}
-                    onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))}
-                    placeholder="e.g. Rajesh Mehta"
-                  />
-                </CourseFormField>
-
-                <CourseFormField label="Parent Phone Number">
-                  <CourseInput
-                    inputMode="numeric"
-                    value={form.parentPhone}
-                    onChange={(e) => {
-                      setForm((f) => ({
-                        ...f,
-                        parentPhone: e.target.value.replace(/\D/g, '').slice(0, 10),
-                      }))
-                      clearError('parentPhone')
-                    }}
-                    placeholder="10-digit parent mobile"
-                  />
-                  {errors.parentPhone && (
-                    <p className="text-xs font-medium text-red-600">{errors.parentPhone}</p>
-                  )}
-                </CourseFormField>
-              </div>
-            </FormSection>
-
-            <FormSection
-              title="Access & status"
-              description={
-                isEdit
-                  ? 'Role, center assignment, and account state.'
-                  : 'Center assignment and account state.'
-              }
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <CourseFormField label="User Type" required>
+                <CourseFormField label="Role" required>
                   <CourseSelect
-                    value={form.userType || 'STUDENT'}
-                    onChange={(e) => setForm((f) => ({ ...f, userType: e.target.value }))}
+                    value={form.role}
+                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                   >
-                    {dynamicUserTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
+                    {USER_ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
                       </option>
                     ))}
                   </CourseSelect>
                 </CourseFormField>
 
-                {isEdit ? (
-                  <CourseFormField label="Role" required>
-                    <CourseSelect
-                      value={form.role}
-                      onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                    >
-                      {USER_ROLES.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </CourseSelect>
-                  </CourseFormField>
-                ) : null}
-
-                <CourseFormField label="Assigned Center" required>
-                  <CourseSelect
-                    value={form.assignedCenter}
-                    onChange={(e) => {
-                      setForm((f) => ({ ...f, assignedCenter: e.target.value }))
-                      clearError('assignedCenter')
-                    }}
-                  >
-                    <option value="">Select center</option>
-                    {(centerOptions || []).map((c) => {
-                      const value = typeof c === 'string' ? c : c?.value
-                      const label = typeof c === 'string' ? c : c?.label || c?.centerName || c?.name || value
-
-                      return (
-                        <option key={value || label} value={value || ''}>
-                          {label}
-                        </option>
-                      )
-                    })}
-                  </CourseSelect>
-                  {errors.assignedCenter && (
-                    <p className="text-xs font-medium text-red-600">{errors.assignedCenter}</p>
-                  )}
-                </CourseFormField>
+                {assignedCenterField}
 
                 <CourseFormField label="Status">
                   <CourseSelect
@@ -437,82 +364,72 @@ export default function UserFormModal({
                   </CourseSelect>
                 </CourseFormField>
               </div>
-            </FormSection>
+            ) : (
+              assignedCenterField
+            )}
+          </FormSection>
 
-            {isEdit ? (
-              <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
-                <div className="flex flex-col gap-4 rounded-xl border border-[#e5eaf2] bg-[#f8fbff] p-4 sm:flex-row sm:items-center">
+          {isEdit ? (
+            <FormSection title="Profile photo" description="Optional — JPG or PNG, shown in user lists.">
+              <div className="flex flex-col gap-4 rounded-xl border border-[#E7ECF5] bg-white p-4 shadow-sm sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className={cn(
+                    'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
+                    'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
+                  )}
+                >
+                  {form.profileImage ? (
+                    <img src={form.profileImage} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
+                  )}
+                </button>
+                <div className="min-w-0 flex-1 text-center sm:text-left">
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className={cn(
-                      'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
-                      'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
-                    )}
+                    className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
                   >
-                    {form.profileImage ? (
-                      <img
-                        src={form.profileImage}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
-                    )}
+                    {form.profileImage ? 'Change photo' : 'Upload photo'}
                   </button>
-                  <div className="min-w-0 flex-1 text-center sm:text-left">
+                  <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
+                  <p className="mt-1 text-[11px] leading-relaxed text-[#667085]">
+                    Max display size 96×96 px in user lists.
+                  </p>
+                  <UploadValidationMessage message={uploadError} />
+                  {form.profileImage ? (
                     <button
                       type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
+                      onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
                     >
-                      {form.profileImage ? 'Change photo' : 'Upload photo'}
+                      <X className="h-3.5 w-3.5" />
+                      Remove image
                     </button>
-                    <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#686868]">
-                      Max display size 96×96 px in user lists.
-                    </p>
-                    <UploadValidationMessage message={uploadError} />
-                    {form.profileImage ? (
-                      <button
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        Remove image
-                      </button>
-                    ) : null}
-                  </div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleImage}
-                  />
+                  ) : null}
                 </div>
-              </FormSection>
-            ) : null}
-          </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleImage}
+                />
+              </div>
+            </FormSection>
+          ) : null}
         </div>
 
-        <div className="shrink-0 border-t border-[#e5eaf2] bg-[#f8fafc] px-5 py-4 sm:px-8">
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="h-11 rounded-xl border border-[#55ace7]/30 bg-white px-6 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef6fc]"
-            >
-              Reset
-            </button>
-            <button
-              type="submit"
-              className="h-11 min-w-[160px] rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:opacity-95"
-            >
-              {isEdit ? 'Update User' : 'Create User'}
-            </button>
-          </div>
+        <div className="sticky bottom-0 border-t border-slate-200/80 bg-[#f0f4f8] px-5 pb-5 pt-4 sm:px-6">
+          <FormModalSubmitBar
+            isEditMode={isEdit}
+            onReset={handleReset}
+            createLabel="Create User"
+            updateLabel="Update User"
+            resetLabel="Reset"
+          />
         </div>
       </form>
     </Modal>

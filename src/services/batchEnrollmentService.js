@@ -261,7 +261,12 @@ export async function moveEnrollment(enrollmentId, payload, { signal } = {}) {
   const body = {
     batchId: targetBatchId,
     transferDate: payload.transferDate,
-    reason: String(payload.reason || '').trim(),
+    transferReason: String(payload.transferReason || '').trim(),
+    branch: String(payload.branch || '').trim(),
+    course: String(payload.course || '').trim(),
+    remarks: String(payload.remarks || payload.reason || '').trim(),
+    reason: String(payload.transferReason || payload.remarks || payload.reason || '').trim(),
+    performedBy: payload.performedBy,
     transferAttendance: payload.transferAttendance !== false,
     transferFee: payload.transferFee !== false,
     transferTests: payload.transferTests !== false,

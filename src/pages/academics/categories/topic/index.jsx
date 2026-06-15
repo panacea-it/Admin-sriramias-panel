@@ -7,10 +7,22 @@ import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBu
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useTopicManagement } from '../../../../hooks/useTopicManagement'
 import { useSubjectsDropdown } from '../../../../hooks/useSubjectsDropdown'
-import { toast } from '../../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../../utils/masterBulkActions'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
 import {
@@ -82,7 +94,8 @@ export default function TopicSection({ section }) {
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [subjectNameById, setSubjectNameById] = useState({})
 
   const subjectFilterOptions = useMemo(
@@ -111,7 +124,12 @@ export default function TopicSection({ section }) {
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => topicsById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, topicsById),
+    [selectedIds, topicsById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, topicsById),
     [selectedIds, topicsById],
   )
 
@@ -241,24 +259,69 @@ export default function TopicSection({ section }) {
     }
   }, [statusTarget, patchTopicLocally, refreshTopics])
 
-  const handleBulkDisable = useCallback(async () => {
-    const ids = selectedIds.filter((id) => topicsById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = () => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }
 
-    const apiStatus = mapUiStatusToApi('In Active')
-    setBulkDisableLoading(true)
+  const handleBulkDisableRequest = () => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }
+
+  const handleBulkDeleteRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
 
     try {
-      await Promise.all(ids.map((id) => updateTopicStatus(id, apiStatus)))
-      ids.forEach((id) => patchTopicLocally(id, { status: 'In Active' }))
-      toast.success(ids.length > 1 ? `${ids.length} topics disabled` : 'Topic disabled')
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, topicsById)
+        const apiStatus = mapUiStatusToApi('Active')
+        await bulkUpdateMasterStatus('topics', ids, apiStatus, {
+          updateSingle: updateTopicStatus,
+        })
+        ids.forEach((id) => patchTopicLocally(id, { status: 'Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, topicsById)
+        const apiStatus = mapUiStatusToApi('In Active')
+        await bulkUpdateMasterStatus('topics', ids, apiStatus, {
+          updateSingle: updateTopicStatus,
+        })
+        ids.forEach((id) => patchTopicLocally(id, { status: 'In Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        await Promise.all(ids.map((id) => deleteTopic(id)))
+        ids.forEach((id) => removeTopicLocally(id))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        await refreshTopics()
+      }
+      setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected topics'))
-      await refreshTopics()
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Failed to delete selected topics')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
+      if (bulkConfirm.type !== 'delete') {
+        await refreshTopics()
+      }
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
-  }, [selectedIds, topicsById, patchTopicLocally, refreshTopics])
+  }
 
   const toggleSelect = useCallback((id) => {
     setSelectedIds((prev) =>
@@ -321,10 +384,12 @@ export default function TopicSection({ section }) {
 
         <ProgramsBulkActionsBar
           count={selectedIds.length}
+          enableCount={enableableCount}
           disableCount={disableableCount}
           onClearSelection={() => setSelectedIds([])}
-          onDisable={handleBulkDisable}
-          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+          onEnable={handleBulkEnableRequest}
+          onDisable={handleBulkDisableRequest}
+          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (
@@ -346,7 +411,7 @@ export default function TopicSection({ section }) {
         ) : (
           <TopicTable
             topics={enrichedTopics}
-            loading={loading || bulkDisableLoading}
+            loading={loading || bulkActionLoading}
             controlledPagination={controlledPagination}
             onView={handleView}
             onEdit={handleEditOpen}
@@ -398,6 +463,14 @@ export default function TopicSection({ section }) {
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}
+        />
+
+        <MasterBulkConfirmModal
+          open={Boolean(bulkConfirm)}
+          type={bulkConfirm?.type}
+          loading={bulkActionLoading}
+          onConfirm={confirmBulkAction}
+          onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
         />
       </motion.div>
     </AnimatePresence>

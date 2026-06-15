@@ -76,7 +76,7 @@ export default function AddEditTopicModal({
 
   const validate = () => {
     const next = {}
-    if (!isEdit && !form.subjectId) next.subjectId = 'Select a subject'
+    if (!form.subjectId) next.subjectId = 'Select a subject'
     if (!form.name.trim()) next.name = 'This field is required'
     if (!form.status) next.status = 'Status is required'
     setErrors(next)
@@ -132,26 +132,24 @@ export default function AddEditTopicModal({
         ) : (
           <div className="space-y-4 px-5 py-6 sm:px-6 sm:py-7">
             <div className="grid gap-4 sm:grid-cols-2">
-              {!isEdit && (
-                <Field label="Subject" required error={errors.subjectId}>
-                  <select
-                    value={form.subjectId}
-                    disabled={submitting || subjectsLoading}
-                    onChange={(e) => {
-                      setForm((f) => ({ ...f, subjectId: e.target.value }))
-                      if (errors.subjectId) setErrors((p) => ({ ...p, subjectId: undefined }))
-                    }}
-                    className={inputClass}
-                  >
-                    <option value="">Choose Subject</option>
-                    {subjectOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
+              <Field label="Subject" required error={errors.subjectId}>
+                <select
+                  value={form.subjectId}
+                  disabled={submitting || subjectsLoading}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, subjectId: e.target.value }))
+                    if (errors.subjectId) setErrors((p) => ({ ...p, subjectId: undefined }))
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Choose Subject</option>
+                  {subjectOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
               <Field label="Topic" required error={errors.name}>
                 <input

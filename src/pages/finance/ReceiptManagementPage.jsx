@@ -8,8 +8,6 @@ import FinancePageShell from '../../components/finance/FinancePageShell'
 
 import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
 
-import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
-
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
@@ -66,32 +64,6 @@ import { toast } from '../../utils/toast'
 
 
 
-const RECEIPT_EXPORT_COLUMNS = [
-
-  { key: 'receiptNumber', label: 'Receipt #' },
-
-  { key: 'invoiceNumber', label: 'Invoice #' },
-
-  { key: 'studentName', label: 'Student' },
-
-  { key: 'branchCode', label: 'Branch' },
-
-  { key: 'courseName', label: 'Course' },
-
-  { key: 'paymentMode', label: 'Payment Mode' },
-
-  { key: 'gstAmount', label: 'GST Amount' },
-
-  { key: 'totalAmount', label: 'Total Amount' },
-
-  { key: 'receiptLifecycleStatus', label: 'Receipt Status' },
-
-  { key: 'receiptGeneratedAt', label: 'Generated On' },
-
-]
-
-
-
 const PAYMENT_TYPE_OPTIONS = [
 
   { value: 'all', label: 'All types' },
@@ -108,7 +80,9 @@ const PAYMENT_TYPE_OPTIONS = [
 
 const FILTER_CLASS =
 
-  'mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20'
+  'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20'
+
+const FILTER_LABEL_CLASS = 'mb-1.5 block text-xs font-semibold text-slate-500'
 
 
 
@@ -118,7 +92,7 @@ const PAGE_SIZE = 20
 
 export default function ReceiptManagementPage() {
 
-  const { canReceipts, canExport } = useFinancePermissions()
+  const { canReceipts } = useFinancePermissions()
 
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -505,51 +479,15 @@ export default function ReceiptManagementPage() {
 
       breadcrumbs={[{ label: 'Receipt Management' }]}
 
-      actions={
-
-        <div className="flex flex-wrap items-center gap-2">
-
-          <span className="rounded-full bg-white/25 px-3 py-1 text-sm font-bold text-white ring-1 ring-white/40">
-
-            {filtered.length} receipt{filtered.length !== 1 ? 's' : ''}
-
-          </span>
-
-          <FinanceExportToolbar
-
-            rows={filtered}
-
-            filenameBase="completed-receipts"
-
-            columnDefs={RECEIPT_EXPORT_COLUMNS}
-
-            canExport={canExport}
-
-            variant="banner"
-
-          />
-
-        </div>
-
-      }
-
     >
 
-      <p className="-mt-2 text-sm text-[#686868]">
+      <div className="rounded-[12px] border border-slate-200/80 bg-white p-5 shadow-[0_5px_20px_rgba(0,0,0,0.08)] sm:p-6">
 
-        Manage completed payment receipts — auto-generated after successful payments with GST breakup, branch invoice numbering, and multi-channel delivery.
+        <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
 
-      </p>
+          <label className="block sm:col-span-2 lg:col-span-2 xl:col-span-2 2xl:col-span-2">
 
-
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-
-          <label className="block sm:col-span-2 xl:col-span-2">
-
-            <span className="text-xs font-semibold text-[#686868]">Search</span>
+            <span className={FILTER_LABEL_CLASS}>Search</span>
 
             <FinanceSearchInput
 
@@ -559,8 +497,6 @@ export default function ReceiptManagementPage() {
 
               placeholder="Receipt #, invoice #, student…"
 
-              className="mt-1"
-
               inputClassName="h-10"
 
             />
@@ -569,7 +505,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">Course</span>
+            <span className={FILTER_LABEL_CLASS}>Course</span>
 
             <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={FILTER_CLASS} aria-label="Course">
 
@@ -587,7 +523,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">Payment type</span>
+            <span className={FILTER_LABEL_CLASS}>Payment type</span>
 
             <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className={FILTER_CLASS} aria-label="Payment type">
 
@@ -603,7 +539,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">Branch</span>
+            <span className={FILTER_LABEL_CLASS}>Branch</span>
 
             <select value={branchCode} onChange={(e) => setBranchCode(e.target.value)} className={FILTER_CLASS} aria-label="Branch">
 
@@ -621,7 +557,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">Status</span>
+            <span className={FILTER_LABEL_CLASS}>Status</span>
 
             <select value={receiptStatus} onChange={(e) => setReceiptStatus(e.target.value)} className={FILTER_CLASS} aria-label="Receipt status">
 
@@ -639,7 +575,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">Center</span>
+            <span className={FILTER_LABEL_CLASS}>Center</span>
 
             <select value={centerName} onChange={(e) => setCenterName(e.target.value)} className={FILTER_CLASS} aria-label="Center">
 
@@ -657,7 +593,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">From</span>
+            <span className={FILTER_LABEL_CLASS}>From</span>
 
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={FILTER_CLASS} aria-label="From date" />
 
@@ -665,7 +601,7 @@ export default function ReceiptManagementPage() {
 
           <label className="block">
 
-            <span className="text-xs font-semibold text-[#686868]">To</span>
+            <span className={FILTER_LABEL_CLASS}>To</span>
 
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={FILTER_CLASS} aria-label="To date" />
 

@@ -172,6 +172,53 @@ html.dashboard-layout-active .app-shell {
   background: rgba(255, 255, 255, 0.32);
 }
 
+/* Batch Manager table — independent body scroll, subtle grey thumb */
+.batch-table-scrollbar {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #b8bcc4 #eceef2;
+  touch-action: pan-x pan-y;
+}
+
+.batch-table-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.batch-table-scrollbar::-webkit-scrollbar-track {
+  background: #eceef2;
+  border-radius: 6px;
+}
+
+.batch-table-scrollbar::-webkit-scrollbar-thumb {
+  background: #b8bcc4;
+  border-radius: 6px;
+}
+
+.batch-table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Reserve scrollbar gutter on header so columns stay aligned with body */
+.batch-table-header-sync {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.batch-table-header-sync::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.batch-table-header-sync::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
 @supports (scrollbar-color: auto) {
   .sidebar-nav-scroll {
     scrollbar-width: thin;

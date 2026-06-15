@@ -136,20 +136,11 @@ function validatePreviousYearPaperFields(values, { isEdit = false } = {}) {
 
 function validateMockTestFields(values, { isEdit = false } = {}) {
   const errors = {}
-  if (!isEdit && !String(values.examCategory || '').trim()) {
-    errors.examCategory = 'Exam category is required'
-  }
   if (!String(values.mockTestTitle || '').trim()) {
     errors.mockTestTitle = 'Mock test title is required'
   }
   if (!isEdit && !String(values.paperType || '').trim()) {
     errors.paperType = 'Paper type is required'
-  }
-  if (!isEdit && !String(values.subject || '').trim()) {
-    errors.subject = 'Subject is required'
-  }
-  if (!isEdit && !String(values.topic || '').trim()) {
-    errors.topic = 'Topic is required'
   }
   if (!String(values.duration || '').trim()) {
     errors.duration = 'Duration is required'
@@ -165,8 +156,7 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
     const hasBulk = hasUploadedFile(values.bulkFile)
     const hasManualQuestions = (values.questions || []).some(isFreeResourceQuestionComplete)
     if (!hasBulk && !hasManualQuestions) {
-      errors.bulkFileName =
-        'Upload a bulk questions file (CSV/XLSX) or add at least one complete question below'
+      errors.bulkFileName = 'Upload questions using Bulk Upload Questions before saving'
     }
   }
 
@@ -931,22 +921,14 @@ export default function AddFreeResourceModal({
         {showStickySave ? (
           <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[#eef2fc] bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur sm:px-6">
             <p className="text-xs font-semibold text-[#246392]">
-              {category} · {watch('numberOfQuestions') || 0} questions
+              {category}
+              {isEditMode ? '' : ` · ${(watch('questions') || []).length} questions`}
             </p>
-            <div className="flex items-center gap-2">
-              {draftSavedAt && !isEditMode ? (
-                <span className="text-[10px] text-gray-500">
-                  Draft saved {draftSavedAt.toLocaleTimeString()}
-                </span>
-              ) : null}
-              <button
-                type="submit"
-                disabled={formDisabled}
-                className="rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-5 py-2 text-xs font-bold text-white shadow disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+            {draftSavedAt && !isEditMode ? (
+              <span className="text-[10px] text-gray-500">
+                Draft saved {draftSavedAt.toLocaleTimeString()}
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -1053,8 +1035,7 @@ export default function AddFreeResourceModal({
                   studyMaterialFileRequired={!isStudyMaterialEdit}
                   ncertBookFileRequired={!isNcertEdit}
                   previousYearFileRequired={!isPreviousYearEdit}
-                  mockTestBulkFileRequired={false}
-                  mockTestBulkFileOptional={isMockTestCreate || isMockTestEdit}
+                  mockTestBulkUploadOnly={isMockTestSelected || isMockTestEdit}
                 />
               </motion.div>
             </AnimatePresence>

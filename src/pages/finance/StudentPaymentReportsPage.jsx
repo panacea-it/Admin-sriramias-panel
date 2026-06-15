@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileSpreadsheet, Eye, Pencil, SearchX, RotateCcw } from 'lucide-react'
+import { FileSpreadsheet, Eye, Pencil, SearchX, RotateCcw, MessageSquare } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import FinanceRefundBadge from '../../components/finance/FinanceRefundBadge'
@@ -7,7 +7,6 @@ import FinanceAccessStatusBadge from '../../components/finance/FinanceAccessStat
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import FinanceConfirmDialog from '../../components/finance/FinanceConfirmDialog'
 import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
-import FinanceExportMenu from '../../components/finance/FinanceExportMenu'
 import FinancePaymentModeManager from '../../components/finance/FinancePaymentModeManager'
 import FinanceGatewayFilter from '../../components/finance/FinanceGatewayFilter'
 import FinanceMobileFilters, {
@@ -18,6 +17,7 @@ import FinanceMobileFilters, {
 } from '../../components/finance/FinanceMobileFilters'
 import PaymentViewDrawer from '../../components/finance/PaymentViewDrawer'
 import PaymentEditModal from '../../components/finance/PaymentEditModal'
+import StudentCommentsDialog from '../../components/finance/StudentCommentsDialog'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import {
@@ -80,9 +80,30 @@ const COLUMN_ALIGN = {
   actions: 'center',
 }
 
-const CELL_BASE = 'px-4 py-3 align-middle text-sm'
-const TEXT_CELL = 'max-w-[180px] truncate'
-const STATUS_CELL = 'whitespace-nowrap'
+/** Fixed pixel widths for split header/body table alignment */
+const PAYMENT_COLUMN_WIDTHS = {
+  studentName: 220,
+  centerName: 180,
+  courseName: 240,
+  batchName: 200,
+  paymentStatus: 180,
+  refundStatus: 180,
+  accessStatus: 150,
+  amountPaid: 140,
+  pendingAmount: 140,
+  paymentMode: 140,
+  paymentGateway: 180,
+  paymentDate: 220,
+  editReason: 220,
+  editComment: 140,
+  actions: 150,
+}
+
+const PAYMENT_TABLE_MIN_WIDTH = Object.values(PAYMENT_COLUMN_WIDTHS).reduce((sum, w) => sum + w, 0)
+
+const CELL_BASE = 'px-5 py-4 align-middle text-sm'
+const STATUS_CELL = 'overflow-hidden'
+const BADGE_CELL = 'flex justify-center overflow-hidden px-1'
 
 const STATUS_FILTER_OPTIONS = ['Paid', 'Partial', 'Pending', 'Failed', 'Refunded', 'EMI Running']
 
@@ -106,6 +127,23 @@ function parseLatestAdminNote(row) {
   return { reason: latest.action || '', comment: raw }
 }
 
+function CommentActionCell({ comment, onOpen }) {
+  if (!comment?.trim()) {
+    return <span className="text-[#9ca0a8]">—</span>
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#246392] transition hover:bg-[#EAF4FD] hover:shadow-sm"
+      aria-label="View student comments"
+    >
+      <MessageSquare className="h-4 w-4" strokeWidth={2} />
+    </button>
+  )
+}
+
 function NoteCell({ value, variant = 'text' }) {
   if (!value?.trim()) {
     return <span className="text-[#9ca0a8]">—</span>
@@ -114,7 +152,7 @@ function NoteCell({ value, variant = 'text' }) {
   if (variant === 'reason') {
     return (
       <span
-        className="inline-flex max-w-[160px] truncate rounded-full bg-[#eef6fc] px-2.5 py-1 text-xs font-semibold text-[#246392]"
+        className="block max-w-full truncate rounded-full bg-[#eef6fc] px-2.5 py-1 text-xs font-semibold text-[#246392]"
         title={value}
       >
         {value}
@@ -123,7 +161,7 @@ function NoteCell({ value, variant = 'text' }) {
   }
 
   return (
-    <span className="block max-w-[200px] truncate text-[#444]" title={value}>
+    <span className="block max-w-full truncate text-[#444]" title={value}>
       {value}
     </span>
   )
@@ -170,7 +208,10 @@ export default function StudentPaymentReportsPage() {
   const [editRow, setEditRow] = useState(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const [editForm, setEditForm] = useState({ newStatus: 'Paid', amountAdjustment: '', reason: 'Manual Approval', comment: '' })
+  const [commentsRow, setCommentsRow] = useState(null)
   const [saving, setSaving] = useState(false)
+
+  const openComments = useCallback((row) => setCommentsRow(row), [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -386,30 +427,56 @@ export default function StudentPaymentReportsPage() {
     const defs = TABLE_COLUMNS.map((c) => {
       const base = {
         ...c,
+        width: PAYMENT_COLUMN_WIDTHS[c.key],
         align: COLUMN_ALIGN[c.key] || 'left',
-        headerClassName: cn(CELL_BASE, 'font-semibold', c.key === 'studentName' && 'pl-5 sm:pl-6'),
+      headerClassName: cn(CELL_BASE, 'font-semibold overflow-hidden', c.key === 'studentName' && 'pl-5 sm:pl-6'),
         cellClassName: cn(
           CELL_BASE,
+          'overflow-hidden',
           c.key === 'studentName' && 'pl-5 sm:pl-6',
-          ['centerName', 'courseName', 'batchName', 'paymentMode', 'paymentGateway', 'editComment'].includes(c.key) && TEXT_CELL,
-          c.key === 'editReason' && 'max-w-[160px]',
           ['paymentStatus', 'refundStatus', 'accessStatus'].includes(c.key) && STATUS_CELL,
-          ['amountPaid', 'pendingAmount'].includes(c.key) && 'tabular-nums font-medium text-[#111111] whitespace-nowrap',
+          ['amountPaid', 'pendingAmount'].includes(c.key) && 'tabular-nums whitespace-nowrap',
           c.key === 'paymentDate' && 'whitespace-nowrap tabular-nums',
         ),
       }
 
       if (c.key === 'paymentStatus') {
-        return { ...base, render: (r) => <FinanceStatusBadge status={r.paymentStatus} className="rounded-full px-3 py-1 text-xs" /> }
+        return {
+          ...base,
+          render: (r) => (
+            <div className={BADGE_CELL}>
+              <FinanceStatusBadge status={r.paymentStatus} truncate title={r.paymentStatus} />
+            </div>
+          ),
+        }
       }
       if (c.key === 'refundStatus') {
-        return { ...base, render: (r) => <FinanceRefundBadge status={r.refundStatus} className="rounded-full px-3 py-1 text-xs" /> }
+        return {
+          ...base,
+          render: (r) => (
+            <div className={BADGE_CELL}>
+              <FinanceRefundBadge status={r.refundStatus} truncate />
+            </div>
+          ),
+        }
       }
       if (c.key === 'accessStatus') {
-        return { ...base, render: (r) => <FinanceAccessStatusBadge status={r.accessStatus} className="rounded-full px-3 py-1 text-xs" /> }
+        return {
+          ...base,
+          render: (r) => (
+            <div className={BADGE_CELL}>
+              <FinanceAccessStatusBadge status={r.accessStatus} truncate />
+            </div>
+          ),
+        }
       }
       if (['amountPaid', 'pendingAmount'].includes(c.key)) {
-        return { ...base, render: (r) => formatINR(r[c.key]) }
+        return {
+          ...base,
+          render: (r) => (
+            <span className="font-bold tabular-nums text-[#1a3a5c]">{formatINR(r[c.key])}</span>
+          ),
+        }
       }
       if (c.key === 'paymentDate') {
         return {
@@ -422,10 +489,34 @@ export default function StudentPaymentReportsPage() {
         }
       }
       if (c.key === 'studentName') {
-        return { ...base, render: (r) => <span className="block truncate font-semibold text-[#111111]" title={r.studentName}>{r.studentName}</span> }
+        return {
+          ...base,
+          render: (r) => (
+            <span className="block truncate font-bold text-[#1a3a5c]" title={r.studentName}>
+              {r.studentName}
+            </span>
+          ),
+        }
       }
-      if (['centerName', 'courseName', 'batchName', 'paymentMode', 'paymentGateway'].includes(c.key)) {
-        return { ...base, render: (r) => <span className="block truncate" title={r[c.key]}>{r[c.key] || '—'}</span> }
+      if (c.key === 'centerName') {
+        return {
+          ...base,
+          render: (r) => (
+            <span className="block truncate font-medium text-[#444]" title={r.centerName}>
+              {r.centerName || '—'}
+            </span>
+          ),
+        }
+      }
+      if (['courseName', 'batchName', 'paymentMode', 'paymentGateway'].includes(c.key)) {
+        return {
+          ...base,
+          render: (r) => (
+            <span className="block truncate text-[#333]" title={r[c.key]}>
+              {r[c.key] || '—'}
+            </span>
+          ),
+        }
       }
       if (c.key === 'editReason') {
         return {
@@ -436,7 +527,12 @@ export default function StudentPaymentReportsPage() {
       if (c.key === 'editComment') {
         return {
           ...base,
-          render: (r) => <NoteCell value={parseLatestAdminNote(r).comment} />,
+          render: (r) => (
+            <CommentActionCell
+              comment={parseLatestAdminNote(r).comment}
+              onOpen={() => openComments(r)}
+            />
+          ),
         }
       }
       return base
@@ -445,14 +541,21 @@ export default function StudentPaymentReportsPage() {
     defs.push({
       key: 'actions',
       label: 'Actions',
+      width: PAYMENT_COLUMN_WIDTHS.actions,
       align: 'center',
-      headerClassName: cn(CELL_BASE, 'min-w-[88px] pr-5 sm:pr-6'),
-      cellClassName: cn(CELL_BASE, 'whitespace-nowrap pr-5 sm:pr-6'),
+      headerClassName: cn(CELL_BASE, 'min-w-[150px] overflow-hidden pr-5 sm:pr-6'),
+      cellClassName: cn(CELL_BASE, 'whitespace-nowrap overflow-hidden pr-5 sm:pr-6'),
       render: (row) => (
         <FinanceActionMenu
           className="mx-auto"
+          buttonVariant="crm"
           actions={[
             { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
+            {
+              label: 'Comments',
+              icon: MessageSquare,
+              onClick: () => openComments(row),
+            },
             {
               label: 'Edit',
               icon: Pencil,
@@ -473,7 +576,7 @@ export default function StudentPaymentReportsPage() {
       ),
     })
     return defs
-  }, [canEdit])
+  }, [canEdit, openComments])
 
   return (
     <FinancePageShell
@@ -481,24 +584,15 @@ export default function StudentPaymentReportsPage() {
       title="Student Payment Reports"
       breadcrumbs={[{ label: 'Student Payment Reports' }]}
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <FinancePaymentModeManager
-            settings={modeSettings}
-            onUpdated={setModeSettings}
-            canManage={canExport || canEdit}
-            readOnly={!canEdit}
-          />
-          <FinanceExportMenu
-            rows={filtered}
-            filenameBase="student-payment-reports"
-            title="Student Payment Reports"
-            canExport={canExport}
-            variant="banner"
-          />
-        </div>
+        <FinancePaymentModeManager
+          settings={modeSettings}
+          onUpdated={setModeSettings}
+          canManage={canExport || canEdit}
+          readOnly={!canEdit}
+        />
       }
     >
-      <div className="sticky top-0 z-10 space-y-3">
+      <div className="space-y-3">
         <div className="rounded-xl bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="flex flex-wrap items-center gap-3">
             <FinanceSearchInput
@@ -542,24 +636,28 @@ export default function StudentPaymentReportsPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-medium text-[#686868]">
-          {loading ? 'Loading…' : `${filtered.length} records`}
-        </p>
-      </div>
+      <div className="mt-6 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium text-[#686868]">
+            {loading ? 'Loading…' : `${filtered.length} records`}
+          </p>
+        </div>
 
-      {loading ? (
-        <FinanceTableSkeleton rows={8} columns={8} />
-      ) : (
-        <PaginatedFigmaTable
+        {loading ? (
+          <FinanceTableSkeleton rows={8} columns={8} />
+        ) : (
+          <PaginatedFigmaTable
           columns={columns}
           data={filtered}
           itemLabel="payments"
           resetDeps={[debouncedSearch, filters]}
           zebraStriping
           stickyHeader
-          stickyLastColumn
+          bodyMaxHeight="min(70vh, 720px)"
+          headerVariant="premium"
+          headerAlign="center"
           animateRows
+          tableMinWidth={PAYMENT_TABLE_MIN_WIDTH}
           emptyState={
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
@@ -582,11 +680,19 @@ export default function StudentPaymentReportsPage() {
               )}
             </div>
           }
-          className="overflow-hidden rounded-xl border border-slate-100"
-          tableClassName="max-h-[min(70vh,720px)] overflow-auto"
+          className="isolate overflow-hidden rounded-[12px] bg-white shadow-[0_5px_20px_rgba(0,0,0,0.08)]"
+          tableClassName="rounded-none shadow-none"
+          density="payment"
         />
-      )}
+        )}
+      </div>
 
+      <StudentCommentsDialog
+        open={!!commentsRow}
+        onClose={() => setCommentsRow(null)}
+        studentName={commentsRow?.studentName}
+        comment={commentsRow ? parseLatestAdminNote(commentsRow).comment : ''}
+      />
       <PaymentViewDrawer
         open={!!viewRow}
         payment={viewRow}

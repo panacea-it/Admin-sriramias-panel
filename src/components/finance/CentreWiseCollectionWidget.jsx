@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatINR } from '../../utils/financeFilters'
 import { cn } from '../../utils/cn'
 import {
@@ -13,6 +13,8 @@ import {
   financeCardSubtitle,
   financeCardTitle,
   financeChartCardHeader,
+  financeChartTableGroupHeadCell,
+  financeTableHeadCell,
 } from './financeCardStyles'
 import ProgramUnitPriceTable from './ProgramUnitPriceTable'
 import TopPerformingComboTable from './TopPerformingComboTable'
@@ -36,12 +38,48 @@ const DASHBOARD_CENTERS = [
   { centerName: 'Pune Center' },
 ]
 
-const wireCell =
-  'border border-slate-900 bg-white px-2 py-2 text-center text-xs font-medium text-slate-900 sm:px-3 sm:text-sm'
-const wireHeadCell =
-  'border border-slate-900 bg-white px-2 py-2 text-center text-xs font-semibold text-slate-900 sm:px-3 sm:text-sm'
-const wireGroupHeadCell =
-  'border border-slate-900 bg-white px-2 py-2 text-center text-xs font-bold uppercase text-slate-900 sm:text-sm'
+const comparisonTableBodyCell =
+  'border border-[#D9E2EC] px-3 py-3.5 text-center text-sm transition-colors'
+
+const ANALYTICS_CARD_ACCENTS = {
+  revenue: 'from-[#4FA3D9] to-[#1F5E99]',
+  collection: 'from-[#4fbf4c] to-[#2d9a4a]',
+  average: 'from-[#8b5cf6] to-[#6d28d9]',
+  topCentre: 'from-[#f59e0b] to-[#ea580c]',
+}
+
+function computeCentreAnalytics(rows) {
+  const totalRevenue = rows.reduce((sum, row) => sum + row.revenueAmount, 0)
+  const totalCollection = rows.reduce((sum, row) => sum + row.collectionAmount, 0)
+  const avgCollectionPct = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + row.collectedPct, 0) / rows.length)
+    : 0
+  const overallCollectionPct =
+    totalRevenue > 0
+      ? Math.round((totalCollection / totalRevenue) * 100)
+      : totalCollection > 0
+        ? 100
+        : 0
+  const topCentre = rows.reduce(
+    (best, row) => (row.collectionAmount > best.collectionAmount ? row : best),
+    rows[0] || { label: '—', collectionAmount: 0 },
+  )
+
+  return {
+    totalRevenue,
+    totalCollection,
+    avgCollectionPct,
+    overallCollectionPct,
+    topCentre,
+  }
+}
+
+function isAllCentreDataZero(rows) {
+  return rows.every((row) => row.revenueAmount === 0 && row.collectionAmount === 0)
+}
+
+const centreTableBodyCell =
+  'border border-[#D9E2EC] bg-white px-3 py-3.5 text-center text-sm transition-colors group-hover:bg-[#EAF4FD]'
 
 function formatBarAmount(amount) {
   if (amount >= 100000) return `${(amount / 100000).toFixed(1)}L`
@@ -51,117 +89,351 @@ function formatBarAmount(amount) {
 
 function CentreWiseCollectionTable({ rows }) {
   return (
-    <table className="w-full min-w-[640px] border-collapse border border-slate-900 bg-white text-sm">
-      <thead>
-        <tr>
-          {rows.map((row) => (
-            <th key={row.centerName} colSpan={METRIC_COLUMNS.length} className={wireGroupHeadCell}>
-              {row.label}
-            </th>
-          ))}
-        </tr>
-        <tr>
-          {rows.flatMap((row) =>
-            METRIC_COLUMNS.map((col) => (
-              <th key={`${row.centerName}-${col.key}`} className={wireHeadCell}>
-                {col.label}
-              </th>
-            )),
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          {rows.flatMap((row) =>
-            METRIC_COLUMNS.map((col) => (
-              <td key={`${row.centerName}-${col.key}-val`} className={wireCell}>
-                {col.format(row)}
-              </td>
-            )),
-          )}
-        </tr>
-      </tbody>
-    </table>
+    <div className="rounded-[10px] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
+          <thead>
+            <tr>
+              {rows.map((row) => (
+                <th
+                  key={row.centerName}
+                  colSpan={METRIC_COLUMNS.length}
+                  className={cn(financeChartTableGroupHeadCell, 'border-[#D9E2EC] px-4 py-3')}
+                >
+                  {row.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {rows.flatMap((row) =>
+                METRIC_COLUMNS.map((col) => (
+                  <th
+                    key={`${row.centerName}-${col.key}`}
+                    className={cn(
+                      financeTableHeadCell,
+                      'border-[#D9E2EC] bg-[#EAF4FD] px-3 py-3 text-xs font-semibold text-[#1F5E99]',
+                    )}
+                  >
+                    {col.label}
+                  </th>
+                )),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="group bg-[#FAFCFE] transition-colors hover:bg-[#EAF4FD]">
+              {rows.flatMap((row) =>
+                METRIC_COLUMNS.map((col) => (
+                  <td
+                    key={`${row.centerName}-${col.key}-val`}
+                    className={cn(
+                      centreTableBodyCell,
+                      col.key === 'revenueAmount' && 'font-bold text-[#1a3a5c]',
+                      col.key === 'collectionAmount' && 'font-bold text-[#1a3a5c]',
+                      col.key === 'collectedPct' && 'font-semibold text-[#246392]',
+                    )}
+                  >
+                    {col.format(row)}
+                  </td>
+                )),
+              )}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function CentreAnalyticsSummaryCard({ label, value, accent, delay = 0 }) {
+  return (
+    <div
+      className={cn(
+        'rounded-[10px] bg-gradient-to-br p-4 text-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-0.5',
+        accent,
+      )}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <p className="text-xs font-medium tracking-wide text-white/85">{label}</p>
+      <p className="mt-1.5 truncate text-xl font-bold sm:text-2xl">{value}</p>
+    </div>
+  )
+}
+
+function CentreAnalyticsSummaryCards({ analytics }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <CentreAnalyticsSummaryCard
+        label="Total Revenue"
+        value={formatINR(analytics.totalRevenue)}
+        accent={ANALYTICS_CARD_ACCENTS.revenue}
+        delay={0}
+      />
+      <CentreAnalyticsSummaryCard
+        label="Total Collection"
+        value={formatINR(analytics.totalCollection)}
+        accent={ANALYTICS_CARD_ACCENTS.collection}
+        delay={50}
+      />
+      <CentreAnalyticsSummaryCard
+        label="Average Collection %"
+        value={`${analytics.avgCollectionPct}%`}
+        accent={ANALYTICS_CARD_ACCENTS.average}
+        delay={100}
+      />
+      <CentreAnalyticsSummaryCard
+        label="Top Performing Centre"
+        value={analytics.topCentre.label}
+        accent={ANALYTICS_CARD_ACCENTS.topCentre}
+        delay={150}
+      />
+    </div>
   )
 }
 
 function CentreComparisonTable({ rows }) {
   return (
-    <table className="w-full min-w-[480px] border-collapse border border-slate-900 bg-white text-sm">
-      <thead>
-        <tr>
-          {CARD_9_COLUMNS.map((col) => (
-            <th key={col.key} className={wireHeadCell}>
-              {col.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={`compare-${row.centerName}`}>
-            {CARD_9_COLUMNS.map((col) => (
-              <td
-                key={`${row.centerName}-${col.key}`}
-                className={cn(wireCell, col.key === 'label' && 'text-left font-semibold')}
+    <div className="rounded-[10px] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse overflow-hidden rounded-lg text-sm">
+          <thead>
+            <tr>
+              <th
+                colSpan={CARD_9_COLUMNS.length}
+                className={cn(financeChartTableGroupHeadCell, 'border-[#D9E2EC] px-4 py-3')}
               >
-                {col.format ? col.format(row) : row[col.key]}
-              </td>
+                Revenue vs Collection by centre
+              </th>
+            </tr>
+            <tr>
+              {CARD_9_COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  className={cn(
+                    financeTableHeadCell,
+                    'border-[#D9E2EC] bg-[#EAF4FD] px-3 py-3 text-xs font-semibold text-[#1F5E99]',
+                  )}
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr
+                key={`compare-${row.centerName}`}
+                className={cn(
+                  'group transition-colors hover:bg-[#EAF4FD]',
+                  rowIndex % 2 === 0 ? 'bg-white' : 'bg-[#FAFCFE]',
+                )}
+              >
+                {CARD_9_COLUMNS.map((col) => (
+                  <td
+                    key={`${row.centerName}-${col.key}`}
+                    className={cn(
+                      comparisonTableBodyCell,
+                      'group-hover:bg-[#EAF4FD]',
+                      col.key === 'label' && 'text-left font-semibold text-[#1a3a5c]',
+                      col.key === 'revenueAmount' && 'font-bold text-[#1a3a5c]',
+                      col.key === 'collectionAmount' && 'font-bold text-[#2d9a4a]',
+                      col.key === 'collectedPct' && 'font-semibold text-[#246392]',
+                    )}
+                  >
+                    {col.format ? col.format(row) : row[col.key]}
+                  </td>
+                ))}
+              </tr>
             ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
-function CenterRevenueVsCollectionBarChart({ rows }) {
+function CenterRevenueVsCollectionBarChart({ rows, allZero }) {
+  const [animated, setAnimated] = useState(false)
   const max = Math.max(...rows.flatMap((row) => [row.revenueAmount, row.collectionAmount]), 1)
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAnimated(true), 80)
+    return () => window.clearTimeout(timer)
+  }, [rows])
+
   return (
-    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#686868]">
+    <div className="rounded-[10px] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">
         Bar graph — Revenue vs Collection by centre
       </p>
-      <div className="flex h-40 items-end justify-between gap-3 sm:h-48 sm:gap-5">
-        {rows.map((row) => (
-          <div key={row.centerName} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-            <div className="flex h-32 w-full items-end justify-center gap-1.5 sm:gap-2">
-              <div className="flex flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[10px] font-semibold text-[#246392] sm:text-xs">
-                  {formatBarAmount(row.revenueAmount)}
-                </span>
-                <div
-                  className="w-full max-w-[2.5rem] rounded-t-md bg-gradient-to-t from-[#1a3a5c] to-[#246392] sm:max-w-[3rem]"
-                  style={{ height: `${Math.max((row.revenueAmount / max) * 100, 6)}%` }}
-                  title={`Revenue: ${formatINR(row.revenueAmount)}`}
-                />
+      <div className="relative mt-4">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex h-44 flex-col justify-between sm:h-52">
+          {[0, 1, 2, 3, 4].map((line) => (
+            <div key={line} className="border-t border-[#D9E2EC]/70" />
+          ))}
+        </div>
+        {allZero && (
+          <p className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-4 text-center text-sm font-medium text-[#686868]">
+            No collection recorded for selected date
+          </p>
+        )}
+        <div className="flex h-44 items-end justify-between gap-3 sm:h-52 sm:gap-5">
+          {rows.map((row) => {
+            const revenuePct = allZero ? 0 : (row.revenueAmount / max) * 100
+            const collectionPct = allZero ? 0 : (row.collectionAmount / max) * 100
+
+            return (
+              <div key={row.centerName} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                <div className="flex h-36 w-full items-end justify-center gap-1.5 sm:h-44 sm:gap-2">
+                  <div className="flex flex-1 flex-col items-center justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-[#246392] sm:text-xs">
+                      {formatBarAmount(row.revenueAmount)}
+                    </span>
+                    <div
+                      className="w-full max-w-[2.5rem] rounded-t-md bg-gradient-to-t from-[#1F5E99] to-[#4FA3D9] transition-all duration-700 ease-out sm:max-w-[3rem]"
+                      style={{
+                        height: animated ? `${revenuePct}%` : '0%',
+                        minHeight: animated && revenuePct > 0 ? '4px' : '0',
+                      }}
+                      title={`Revenue: ${formatINR(row.revenueAmount)}`}
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col items-center justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-[#2d9a4a] sm:text-xs">
+                      {formatBarAmount(row.collectionAmount)}
+                    </span>
+                    <div
+                      className="w-full max-w-[2.5rem] rounded-t-md bg-gradient-to-t from-[#2d9a4a] to-[#69df66] transition-all duration-700 ease-out sm:max-w-[3rem]"
+                      style={{
+                        height: animated ? `${collectionPct}%` : '0%',
+                        minHeight: animated && collectionPct > 0 ? '4px' : '0',
+                      }}
+                      title={`Collection: ${formatINR(row.collectionAmount)}`}
+                    />
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-[#686868]">{row.label}</span>
               </div>
-              <div className="flex flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[10px] font-semibold text-[#69df66] sm:text-xs">
-                  {formatBarAmount(row.collectionAmount)}
-                </span>
-                <div
-                  className="w-full max-w-[2.5rem] rounded-t-md bg-gradient-to-t from-[#4fbf4c] to-[#69df66] sm:max-w-[3rem]"
-                  style={{ height: `${Math.max((row.collectionAmount / max) * 100, 6)}%` }}
-                  title={`Collection: ${formatINR(row.collectionAmount)}`}
-                />
-              </div>
-            </div>
-            <span className="text-xs font-semibold text-[#686868]">{row.label}</span>
-          </div>
-        ))}
+            )
+          })}
+        </div>
       </div>
-      <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs font-medium text-[#686868]">
+      <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs font-medium text-[#686868]">
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#246392]" aria-hidden="true" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#4FA3D9]" aria-hidden="true" />
           Revenue Amount
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#69df66]" aria-hidden="true" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#69df66]" aria-hidden="true" />
           Collection Amount
         </span>
       </div>
+    </div>
+  )
+}
+
+function RevenueCollectionDonutChart({ analytics, allZero }) {
+  const [animated, setAnimated] = useState(false)
+  const total = analytics.totalRevenue + analytics.totalCollection
+  const revenueShare = total > 0 ? (analytics.totalRevenue / total) * 100 : 0
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAnimated(true), 120)
+    return () => window.clearTimeout(timer)
+  }, [analytics])
+
+  const gradient = animated
+    ? allZero || total === 0
+      ? 'conic-gradient(#eef2fc 0% 100%)'
+      : `conic-gradient(#4FA3D9 0% ${revenueShare}%, #69df66 ${revenueShare}% 100%)`
+    : 'conic-gradient(#eef2fc 0% 100%)'
+
+  return (
+    <div className="rounded-[10px] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">
+        Revenue vs Collection
+      </p>
+      <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row sm:justify-center">
+        <div
+          className="relative h-40 w-40 shrink-0 rounded-full shadow-[0_4px_16px_rgba(31,94,153,0.15)] transition-all duration-700 sm:h-44 sm:w-44"
+          style={{ background: gradient }}
+        >
+          <div className="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white text-center shadow-inner">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#686868]">
+              Collection %
+            </span>
+            <span className="text-xl font-bold text-[#246392] sm:text-2xl">
+              {allZero ? '0%' : `${analytics.overallCollectionPct}%`}
+            </span>
+          </div>
+        </div>
+        <ul className="flex w-full flex-col gap-3 sm:max-w-[220px]">
+          <li className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex items-center gap-2 font-medium text-[#222]">
+              <span className="h-3 w-3 shrink-0 rounded-full bg-[#4FA3D9]" />
+              Revenue
+            </span>
+            <span className="font-semibold text-[#1a3a5c]">{formatINR(analytics.totalRevenue)}</span>
+          </li>
+          <li className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex items-center gap-2 font-medium text-[#222]">
+              <span className="h-3 w-3 shrink-0 rounded-full bg-[#69df66]" />
+              Collection
+            </span>
+            <span className="font-semibold text-[#2d9a4a]">{formatINR(analytics.totalCollection)}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+function CentreCollectionProgressBars({ rows }) {
+  const [animated, setAnimated] = useState(false)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAnimated(true), 160)
+    return () => window.clearTimeout(timer)
+  }, [rows])
+
+  return (
+    <div className="rounded-[10px] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">
+        Collection progress by centre
+      </p>
+      <ul className="mt-4 space-y-4">
+        {rows.map((row) => (
+          <li key={row.centerName}>
+            <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-[#1a3a5c]">{row.label}</span>
+              <span className="font-bold text-[#246392]">{row.collectedPct}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-[#EAF4FD]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#4FA3D9] to-[#1F5E99] transition-all duration-700 ease-out"
+                style={{ width: animated ? `${row.collectedPct}%` : '0%' }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function CentreComparisonSection({ rows }) {
+  const analytics = useMemo(() => computeCentreAnalytics(rows), [rows])
+  const allZero = isAllCentreDataZero(rows)
+
+  return (
+    <div className="mt-4 space-y-6">
+      <CentreAnalyticsSummaryCards analytics={analytics} />
+      <CentreComparisonTable rows={rows} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CenterRevenueVsCollectionBarChart rows={rows} allZero={allZero} />
+        <RevenueCollectionDonutChart analytics={analytics} allZero={allZero} />
+      </div>
+      <CentreCollectionProgressBars rows={rows} />
     </div>
   )
 }
@@ -198,11 +470,11 @@ export default function CentreWiseCollectionWidget({ payments = [], loading, cla
           </div>
 
           {loading ? (
-            <div className="h-24 animate-pulse rounded border border-slate-200 bg-slate-50" />
+            <div
+              className="h-24 animate-pulse rounded-[10px] bg-slate-50 shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <CentreWiseCollectionTable rows={rows} />
-            </div>
+            <CentreWiseCollectionTable rows={rows} />
           )}
         </div>
 
@@ -213,14 +485,9 @@ export default function CentreWiseCollectionWidget({ payments = [], loading, cla
           </p>
 
           {loading ? (
-            <div className="mt-3 h-32 animate-pulse rounded border border-slate-200 bg-slate-50" />
+            <div className="mt-3 h-48 animate-pulse rounded-[10px] bg-slate-50 shadow-[0_2px_8px_rgba(0,0,0,0.08)]" />
           ) : (
-            <>
-              <div className="mt-3 overflow-x-auto">
-                <CentreComparisonTable rows={rows} />
-              </div>
-              <CenterRevenueVsCollectionBarChart rows={rows} />
-            </>
+            <CentreComparisonSection rows={rows} />
           )}
         </section>
 

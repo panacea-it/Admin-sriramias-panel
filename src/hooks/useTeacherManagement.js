@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getTeachers } from '../services/teacherService'
 import {
   mapTeacherStatusFilterToApi,
   normalizeTeachersListResponse,
 } from '../pages/academics/categories/teachers/teacherHelpers'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -21,13 +25,33 @@ export function useTeacherManagement() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
 
-  const fetchTeachers = useCallback(async () => {
-    setLoading(true)
-    try {
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    subjectFilter,
+    centerFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setTeachers(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+  }, [])
+
+  const fetchTeachers = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = {
-        page,
+        page: effectivePage,
         limit: pageSize,
         search: debouncedSearch.trim(),
       }
@@ -37,32 +61,51 @@ export function useTeacherManagement() {
       if (subjectFilter !== 'all') params.subject = subjectFilter
       if (centerFilter !== 'all') params.centerId = centerFilter
 
-      const data = await getTeachers(params)
-      const normalized = normalizeTeachersListResponse(data, { page, limit: pageSize })
+      const sessionKey = `teachers:${JSON.stringify(params)}`
 
-      setTeachers(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load teachers'))
-      setTeachers([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          const data = await getTeachers(params)
+          return normalizeTeachersListResponse(data, { page: effectivePage, limit: pageSize })
+        },
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load teachers'),
+          )
+          if (!hydratedFromSession) {
+            setTeachers([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
+    },
+    [
+      effectivePage,
+      pageSize,
+      debouncedSearch,
+      statusFilter,
+      subjectFilter,
+      centerFilter,
+      fetchGuard,
+      applyPaginated,
+    ],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    fetchTeachers({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
     }
-  }, [page, pageSize, debouncedSearch, statusFilter, subjectFilter, centerFilter])
-
-  useEffect(() => {
-    fetchTeachers()
   }, [fetchTeachers])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, subjectFilter, centerFilter, pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -121,7 +164,7 @@ export function useTeacherManagement() {
     setPageSize,
     pagination,
     controlledPagination,
-    refreshTeachers: fetchTeachers,
+    refreshTeachers: () => fetchTeachers({ bypassCache: true }),
     patchTeacherLocally,
     removeTeacherLocally,
   }

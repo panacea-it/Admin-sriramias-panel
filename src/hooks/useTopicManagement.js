@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getTopics, getTopicsBySubject } from '../services/topicService'
 import {
   mapTopicStatusFilterToApi,
   normalizeTopicsListResponse,
 } from '../pages/academics/categories/topic/topicHelpers'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -20,69 +24,112 @@ export function useTopicManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
 
-  const fetchTopics = useCallback(async () => {
-    setLoading(true)
-    try {
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    subjectFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setTopics(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+  }, [])
+
+  const fetchTopics = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
       const apiStatus = mapTopicStatusFilterToApi(statusFilter)
       const trimmedSearch = debouncedSearch.trim()
       const useBySubjectEndpoint =
         subjectFilter !== 'all' && !trimmedSearch && !apiStatus
-      let data
 
-      if (useBySubjectEndpoint) {
-        data = await getTopicsBySubject(subjectFilter)
-      } else {
-        const params = {
-          page,
-          limit: pageSize,
-          search: trimmedSearch,
-        }
-        if (apiStatus) params.status = apiStatus
-        if (subjectFilter !== 'all') params.subject = subjectFilter
-        data = await getTopics(params)
-      }
+      const sessionKey = JSON.stringify({
+        scope: 'topics',
+        effectivePage,
+        pageSize,
+        trimmedSearch,
+        apiStatus,
+        subjectFilter,
+        useBySubjectEndpoint,
+      })
 
-      let normalized = normalizeTopicsListResponse(data, { page, limit: pageSize })
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          let data
 
-      if (useBySubjectEndpoint) {
-        const allItems = normalized.items
-        const total = allItems.length
-        const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
-        const safePage = Math.min(Math.max(1, page), totalPages)
-        const start = (safePage - 1) * pageSize
-        normalized = {
-          items: allItems.slice(start, start + pageSize),
-          total,
-          totalPages,
-          page: safePage,
-        }
-      }
+          if (useBySubjectEndpoint) {
+            data = await getTopicsBySubject(subjectFilter)
+          } else {
+            const params = {
+              page: effectivePage,
+              limit: pageSize,
+              search: trimmedSearch,
+            }
+            if (apiStatus) params.status = apiStatus
+            if (subjectFilter !== 'all') params.subject = subjectFilter
+            data = await getTopics(params)
+          }
 
-      setTopics(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load topics'))
-      setTopics([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
+          let normalized = normalizeTopicsListResponse(data, {
+            page: effectivePage,
+            limit: pageSize,
+          })
+
+          if (useBySubjectEndpoint) {
+            const allItems = normalized.items
+            const total = allItems.length
+            const computedTotalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+            const safePage = Math.min(Math.max(1, effectivePage), computedTotalPages)
+            const start = (safePage - 1) * pageSize
+            normalized = {
+              items: allItems.slice(start, start + pageSize),
+              total,
+              totalPages: computedTotalPages,
+              page: safePage,
+            }
+          }
+
+          return normalized
+        },
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load topics'),
+          )
+          if (!hydratedFromSession) {
+            setTopics([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
+    },
+    [effectivePage, pageSize, debouncedSearch, statusFilter, subjectFilter, fetchGuard, applyPaginated],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    fetchTopics({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
     }
-  }, [page, pageSize, debouncedSearch, statusFilter, subjectFilter])
-
-  useEffect(() => {
-    fetchTopics()
   }, [fetchTopics])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, subjectFilter, pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -139,7 +186,7 @@ export function useTopicManagement() {
     setPageSize,
     pagination,
     controlledPagination,
-    refreshTopics: fetchTopics,
+    refreshTopics: () => fetchTopics({ bypassCache: true }),
     patchTopicLocally,
     removeTopicLocally,
   }

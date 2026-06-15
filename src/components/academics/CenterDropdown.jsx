@@ -24,9 +24,6 @@ export default function CenterDropdown({
         disabled={disabled || loading}
         error={error}
       />
-      {error && typeof error === 'string' && (
-        <p className="text-xs font-medium text-[#dc2626]">{error}</p>
-      )}
     </CourseFormField>
   )
 }

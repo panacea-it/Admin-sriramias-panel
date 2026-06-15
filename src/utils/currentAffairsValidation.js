@@ -15,9 +15,28 @@ function isBulkFileName(name) {
   return ext === 'xlsx' || ext === 'csv'
 }
 
+function isSampleFileName(name) {
+  const ext = getFileExtension(name)
+  return ext === 'pdf' || ext === 'xls' || ext === 'xlsx'
+}
+
+const SAMPLE_FILE_MAX_BYTES = 10 * 1024 * 1024
+
 function requireField(errors, key, value, message) {
   if (!String(value ?? '').trim()) {
     errors[key] = message || 'This field is required'
+  }
+}
+
+function validatePositiveNumberField(errors, key, value, label) {
+  const raw = String(value ?? '').trim()
+  if (!raw) {
+    errors[key] = `${label} is required`
+    return
+  }
+  const num = Number(raw)
+  if (!Number.isFinite(num) || num <= 0 || !/^\d+$/.test(raw)) {
+    errors[key] = `Enter a valid positive number`
   }
 }
 
@@ -43,6 +62,16 @@ function validateRowFields(form, rowKeys, errors, options = {}) {
       validatePdfField(errors, key, form.fileName, { required, hasExistingPdf })
       continue
     }
+    if (key === 'sampleUpload') {
+      const hasExistingSample = Boolean(form.existingSampleUrl)
+      const required = !options.isEdit || !hasExistingSample
+      if (!form.sampleFileName) {
+        if (required) errors.sampleUpload = 'Sample PDF / Excel file is required'
+      } else if (!isSampleFileName(form.sampleFileName)) {
+        errors.sampleUpload = 'Allowed: PDF, XLS, XLSX'
+      }
+      continue
+    }
     if (key === 'name') {
       requireField(errors, 'name', form.name)
       continue
@@ -65,6 +94,14 @@ function validateRowFields(form, rowKeys, errors, options = {}) {
     }
     if (key === 'paperName') {
       requireField(errors, 'paperName', form.paperName)
+      continue
+    }
+    if (key === 'duration') {
+      validatePositiveNumberField(errors, 'duration', form.duration, 'Duration')
+      continue
+    }
+    if (key === 'totalMarks') {
+      validatePositiveNumberField(errors, 'totalMarks', form.totalMarks, 'Total marks')
       continue
     }
   }
@@ -109,6 +146,19 @@ export function validateCurrentAffairsPdfFile(file) {
 
 export function validateCurrentAffairsBulkFile(file) {
   return validateUploadFileSync(file, 'EXCEL_BULK')
+}
+
+export function validateCurrentAffairsSampleFile(file) {
+  if (!file) {
+    return { valid: false, message: 'Sample PDF / Excel file is required' }
+  }
+  if (!isSampleFileName(file.name)) {
+    return { valid: false, message: 'Allowed: PDF, XLS, XLSX' }
+  }
+  if (file.size > SAMPLE_FILE_MAX_BYTES) {
+    return { valid: false, message: 'File size must be 10 MB or less' }
+  }
+  return { valid: true }
 }
 
 export function mergeImportedQuestions(existing = [], imported = [], range = null) {

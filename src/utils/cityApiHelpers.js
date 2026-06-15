@@ -1,3 +1,5 @@
+import { buildPlaceholderCityCode, getCachedCityCode } from './cityCodeCache'
+
 export function mapCityStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
   if (statusFilter === 'Inactive') return 'INACTIVE'
@@ -103,10 +105,12 @@ export function resolveCityCode(row) {
     row.cityCode,
     row.code,
     row.city_code,
+    row.city_id,
     row.branchCode,
     row.placeCode,
     row.city?.cityCode,
     row.city?.code,
+    row.city?.city_code,
   ]
 
   for (const raw of candidates) {
@@ -128,18 +132,30 @@ export function getCityDisplayCode(city) {
   const resolved = resolveCityCode(city)
   if (resolved) return resolved
   const stored = String(city.code ?? city.cityCode ?? '').trim()
-  return stored && !looksLikeMongoId(stored) ? stored.toUpperCase() : ''
+  if (stored && !looksLikeMongoId(stored)) return stored.toUpperCase()
+  return getCachedCityCode(city)
 }
 
 export function mergeCityWithSource(source, detail) {
-  if (!detail) return source
-  const code = getCityDisplayCode(detail) || getCityDisplayCode(source)
-  return {
+  if (!detail) return applyCityCodeFields(source)
+  const code =
+    getCityDisplayCode(detail) ||
+    getCityDisplayCode(source) ||
+    getCachedCityCode(source) ||
+    getCachedCityCode(detail)
+  return applyCityCodeFields({
     ...source,
     ...detail,
     code,
     cityCode: code,
-  }
+  })
+}
+
+function applyCityCodeFields(city) {
+  if (!city || typeof city !== 'object') return city
+  const code = getCityDisplayCode(city) || getCachedCityCode(city)
+  if (!code) return city
+  return { ...city, code, cityCode: code }
 }
 
 export function mapApiCityToLocal(data) {
@@ -150,60 +166,47 @@ export function mapApiCityToLocal(data) {
   if (!id) return null
 
   const code = resolveCityCode(row)
+  const localId = String(row._id ?? row.id ?? id)
+  const placeName = String(row.cityAddress ?? row.placeName ?? row.address ?? '').trim()
+  const resolvedCode =
+    code ||
+    getCachedCityCode({
+      id: localId,
+      centerId: resolveCenterId(row),
+      placeName,
+    })
 
   return {
-    id: String(row._id ?? row.id ?? id),
-    code,
-    cityCode: code,
+    id: localId,
+    code: resolvedCode,
+    cityCode: resolvedCode,
     centerId: resolveCenterId(row),
     centerName: resolveCenterName(row),
-    placeName: String(row.cityAddress ?? row.placeName ?? row.address ?? '').trim(),
+    placeName,
     status: mapApiCityStatusToUi(row.status),
     createdAt: row.createdAt || row.createdOn || null,
     modifiedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
   }
 }
 
-export async function enrichCitiesWithMissingCodes(items, fetchCityById, { page = 1, limit = 10 } = {}) {
+export async function enrichCitiesWithMissingCodes(items, _fetchCityById, options = {}) {
+  return applyCityCodesToList(items, options)
+}
+
+export function applyCityCodesToList(items, { page = 1, limit = 10 } = {}) {
   if (!Array.isArray(items) || !items.length) {
     return items
-  }
-
-  const missing =
-    typeof fetchCityById === 'function'
-      ? items.filter((item) => !resolveCityCode(item))
-      : []
-
-  let patchById = new Map()
-
-  if (missing.length) {
-    const detailResults = await Promise.all(
-      missing.map(async (item) => {
-        try {
-          const data = await fetchCityById(item.id)
-          return mapApiCityToLocal(data)
-        } catch {
-          return null
-        }
-      }),
-    )
-
-    patchById = new Map(
-      detailResults.filter(Boolean).map((row) => [String(row.id), row]),
-    )
   }
 
   return items.map((item, index) => {
     const existingCode = resolveCityCode(item)
     if (existingCode) return { ...item, code: existingCode, cityCode: existingCode }
 
-    const detail = patchById.get(String(item.id))
-    const detailCode = detail ? resolveCityCode(detail) : ''
-    if (detailCode) return { ...item, code: detailCode, cityCode: detailCode }
+    const cachedCode = getCachedCityCode(item)
+    if (cachedCode) return { ...item, code: cachedCode, cityCode: cachedCode }
 
-    const fallbackIndex = (page - 1) * limit + index + 1
-    const fallbackCode = `CTY${String(fallbackIndex).padStart(3, '0')}`
-    return { ...item, code: fallbackCode, cityCode: fallbackCode }
+    const placeholderCode = buildPlaceholderCityCode((page - 1) * limit + index + 1)
+    return { ...item, code: placeholderCode, cityCode: placeholderCode }
   })
 }
 

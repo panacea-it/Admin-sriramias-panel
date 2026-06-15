@@ -140,12 +140,13 @@ export async function fetchBatchByIdResolved(batchIdOrCode, { rows = [], signal 
 }
 
 /** GET /api/batches/dropdown — all batches, or linked only when facultySubjectId is set. */
-export async function getBatchesDropdown({ facultySubjectId, signal } = {}) {
+export async function getBatchesDropdown({ facultySubjectId, activeOnly = false, signal } = {}) {
   try {
     const params = {}
     if (facultySubjectId && isMongoObjectId(facultySubjectId)) {
       params.facultySubjectId = facultySubjectId
     }
+    if (activeOnly) params.activeOnly = 'true'
     const response = await axiosInstance.get('/batches/dropdown', { params, signal })
     return response.data
   } catch (error) {
@@ -351,6 +352,28 @@ export async function updateBatchStatus(batchId, status) {
     return mapBatchFromApi(unwrapBatchDoc(response.data))
   } catch (error) {
     throw mapBatchApiError(error, 'Failed to update batch status')
+  }
+}
+
+/** DELETE /api/batches/:batchId */
+export async function deleteBatch(batchId) {
+  if (isFrontendOnly) {
+    throw new Error('Batch API is disabled in frontend-only mode')
+  }
+
+  const id = encodeURIComponent(String(batchId || '').trim())
+  if (!id) throw new Error('Batch id is required')
+
+  logBatchApiDev('deleteBatch request', { batchId: id })
+
+  try {
+    const response = await axiosInstance.delete(`/batches/${id}`, { skipAuthRedirect: true })
+    logBatchApiDev('deleteBatch response', response.data)
+    return response.data
+  } catch (error) {
+    throw mapBatchApiError(error, 'Failed to delete batch', {
+      notFoundMessage: 'Batch not found',
+    })
   }
 }
 
