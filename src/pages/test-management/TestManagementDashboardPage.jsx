@@ -73,7 +73,9 @@ export default function TestManagementDashboardPage() {
 
       <section className="w-full space-y-4">
         <h3 className="text-sm font-bold text-[#1a3a5c]">Recent Test Activities</h3>
-        <RecentTestActivitiesTable data={TM_RECENT_ACTIVITIES} initialPageSize={10} />
+        <div className="w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+          <RecentTestActivitiesTable data={TM_RECENT_ACTIVITIES} initialPageSize={10} />
+        </div>
       </section>
 
       <TestManagementAnalyticsSection />
