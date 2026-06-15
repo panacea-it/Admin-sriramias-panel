@@ -139,19 +139,25 @@ export default function HelpDeskPage() {
       label: 'Status',
       headerClassName: 'w-[140px] min-w-[140px] text-center',
       cellClassName: 'w-[140px] min-w-[140px] align-middle',
-      render: (row) => (
-        <HelpDeskStatusCell
-          status={row.status}
-          onStatusChange={(nextStatus) => handleStatusChange(row.id, nextStatus)}
-        />
-      ),
+      render: (row) => <HelpDeskStatusCell status={row.status} />,
     },
     {
       key: 'action',
       label: 'Action',
-      headerClassName: 'w-[108px] min-w-[108px] text-center',
-      cellClassName: 'w-[108px] min-w-[108px] align-middle',
-      render: (row) => <HelpDeskActionCell onReply={() => openReply(row)} />,
+      headerClassName: 'w-[168px] min-w-[168px] text-center',
+      cellClassName: 'w-[168px] min-w-[168px] align-middle',
+      render: (row) => (
+        <HelpDeskActionCell
+          status={row.status}
+          onReply={() => openReply(row)}
+          onToggleReplyStatus={() =>
+            handleStatusChange(
+              row.id,
+              row.status === 'Replied' ? 'Not Replied' : 'Replied',
+            )
+          }
+        />
+      ),
     },
   ]
 
@@ -178,7 +184,7 @@ export default function HelpDeskPage() {
           columns={columns}
           data={filtered}
           emptyMessage={emptyMessage}
-          className="min-w-[980px] rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
+          className="min-w-[1040px] rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
           itemLabel="tickets"
           initialPageSize={10}
           resetDeps={[search, dateFilter, statusFilter]}

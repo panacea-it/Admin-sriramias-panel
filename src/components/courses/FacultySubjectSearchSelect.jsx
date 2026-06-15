@@ -138,6 +138,7 @@ export default function FacultySubjectSearchSelect({
       </button>
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

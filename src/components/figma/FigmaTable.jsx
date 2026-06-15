@@ -148,15 +148,25 @@ export default function FigmaTable({
     0,
   )
 
-  const usesFluidLayout =
-    tableLayoutFixed ||
-    columns.some((col) => typeof col.width === 'string' && String(col.width).includes('%'))
+  const hasPercentageWidths = columns.some(
+    (col) => typeof col.width === 'string' && String(col.width).includes('%'),
+  )
 
-  const tableStyle = usesFluidLayout
-    ? { width: '100%', minWidth: tableMinWidth > 0 ? tableMinWidth : 0 }
-    : fixedTableWidth > 0
-      ? { width: fixedTableWidth, minWidth: fixedTableWidth }
-      : { minWidth: tableMinWidth, width: tableMinWidth > 0 ? tableMinWidth : '100%' }
+  const tableStyle = tableLayoutFixed
+    ? hasPercentageWidths || fixedTableWidth <= 0
+      ? { width: '100%', maxWidth: '100%', minWidth: tableMinWidth > 0 ? tableMinWidth : 0 }
+      : { width: fixedTableWidth, minWidth: fixedTableWidth }
+    : {
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: tableMinWidth > 0 ? tableMinWidth : 0,
+      }
+
+  const tableWrapperStyle = {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
+  }
 
   const colGroup = (
     <colgroup>
@@ -260,7 +270,7 @@ export default function FigmaTable({
           <table
             className={cn(
               'w-full border-separate border-spacing-0',
-              (tableLayoutFixed || usesFluidLayout) && 'table-fixed',
+              tableLayoutFixed && 'table-fixed',
             )}
             style={tableStyle}
           >
@@ -278,7 +288,7 @@ export default function FigmaTable({
           <table
             className={cn(
               'w-full border-separate border-spacing-0',
-              (tableLayoutFixed || usesFluidLayout) && 'table-fixed',
+              tableLayoutFixed && 'table-fixed',
             )}
             style={tableStyle}
           >
@@ -307,11 +317,11 @@ export default function FigmaTable({
         className,
       )}
     >
-      <div style={tableMinWidth > 0 ? { minWidth: tableMinWidth } : undefined}>
+      <div className="w-full max-w-full" style={tableWrapperStyle}>
         <table
           className={cn(
             'w-full border-separate border-spacing-0',
-            (tableLayoutFixed || usesFluidLayout) && 'table-fixed',
+            tableLayoutFixed && 'table-fixed',
           )}
           style={tableStyle}
         >

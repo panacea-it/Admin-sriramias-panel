@@ -33,18 +33,39 @@ export default function EnquiriesPage() {
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [counselorById, setCounselorById] = useState(() =>
-    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
+    Object.fromEntries(
+      INITIAL_ENQUIRIES.map((row) => [row.id, row.assignedCounselor ?? '']),
+    ),
   )
   const [leadStatusById, setLeadStatusById] = useState(() =>
-    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
+    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, row.leadStatus ?? ''])),
   )
+
+  const enrichEnquiry = useCallback(
+    (row) => ({
+      ...row,
+      assignedCounselor:
+        counselorById[row.id] || row.assignedCounselor || row.counselorName || '',
+      leadStatus: leadStatusById[row.id] || row.leadStatus || '',
+    }),
+    [counselorById, leadStatusById],
+  )
+
+  const handleView = useCallback((row) => setViewRow(enrichEnquiry(row)), [enrichEnquiry])
+  const handleEdit = useCallback((row) => setEditRow(enrichEnquiry(row)), [enrichEnquiry])
 
   const handleCounselorChange = useCallback((id, value) => {
     setCounselorById((prev) => ({ ...prev, [id]: value }))
+    setEnquiries((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, assignedCounselor: value } : row)),
+    )
   }, [])
 
   const handleLeadStatusChange = useCallback((id, value) => {
     setLeadStatusById((prev) => ({ ...prev, [id]: value }))
+    setEnquiries((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, leadStatus: value } : row)),
+    )
   }, [])
 
   const counselorOptions = useMemo(
@@ -96,6 +117,7 @@ export default function EnquiriesPage() {
                 center: form.center,
                 enquiryType: form.enquiryType,
                 assignedCounselor: form.assignedCounselor,
+                leadStatus: form.leadStatus,
               }
             : row,
         ),
@@ -155,8 +177,8 @@ export default function EnquiriesPage() {
           leadStatusOptions={leadStatusOptions}
           onCounselorChange={handleCounselorChange}
           onLeadStatusChange={handleLeadStatusChange}
-          onView={setViewRow}
-          onEdit={setEditRow}
+          onView={handleView}
+          onEdit={handleEdit}
         />
       </section>
 
@@ -164,16 +186,14 @@ export default function EnquiriesPage() {
         open={Boolean(viewRow)}
         onClose={() => setViewRow(null)}
         enquiry={viewRow}
-        assignedCounselor={viewRow ? counselorById[viewRow.id] : ''}
-        leadStatus={viewRow ? leadStatusById[viewRow.id] : ''}
       />
 
       <EnquiryEditModal
         open={Boolean(editRow)}
         onClose={() => setEditRow(null)}
         enquiry={editRow}
-        assignedCounselor={editRow ? counselorById[editRow.id] : ''}
-        leadStatus={editRow ? leadStatusById[editRow.id] : ''}
+        assignedCounselor={editRow?.assignedCounselor ?? ''}
+        leadStatus={editRow?.leadStatus ?? ''}
         counselorOptions={counselorOptions}
         leadStatusOptions={leadStatusOptions}
         onSave={handleEditSave}

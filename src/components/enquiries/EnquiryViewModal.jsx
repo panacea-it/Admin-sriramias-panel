@@ -14,15 +14,12 @@ function DetailField({ label, value, className }) {
   )
 }
 
-export default function EnquiryViewModal({
-  open,
-  onClose,
-  enquiry,
-  assignedCounselor,
-  leadStatus,
-}) {
+export default function EnquiryViewModal({ open, onClose, enquiry }) {
   if (!enquiry) return null
 
+  const assignedCounselor =
+    enquiry.assignedCounselor?.trim() || enquiry.counselorName?.trim() || ''
+  const leadStatus = enquiry.leadStatus || ''
   const statusLabel = leadStatus ? formatEnquiryLeadStatusLabel(leadStatus) : '—'
 
   return (

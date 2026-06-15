@@ -18,7 +18,7 @@ export const NOTIFICATION_LEAD_STATUS_OPTIONS = NOTIFICATION_STATUS_OPTIONS
 export const NOTIFICATION_STATUS_PLACEHOLDER = 'Select Status'
 
 export const NOTIFICATION_STATUS_FILTER_OPTIONS = [
-  { value: '', label: NOTIFICATION_STATUS_PLACEHOLDER },
+  { value: 'all', label: 'Status' },
   { value: 'SENT', label: 'Sent' },
   { value: 'UNSENT', label: 'Unsent' },
   { value: 'IN_PROGRESS', label: 'In Progress' },

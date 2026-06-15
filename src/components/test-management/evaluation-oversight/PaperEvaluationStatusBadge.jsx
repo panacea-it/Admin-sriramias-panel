@@ -1,23 +1,23 @@
 import { cn } from '../../../utils/cn'
 
-const STYLES = {
-  Evaluated: { wrap: 'bg-emerald-50 text-emerald-800', dot: 'bg-emerald-500' },
-  'In Progress': { wrap: 'bg-blue-50 text-blue-800', dot: 'bg-blue-500' },
-  'Not Started': { wrap: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
-  Overdue: { wrap: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+const STATUS_STYLES = {
+  Evaluated: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
+  Pending: 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
+  'In Progress': 'bg-sky-500/15 text-sky-800 ring-sky-500/25',
+  'Not Started': 'bg-slate-500/15 text-slate-600 ring-slate-400/25',
+  Overdue: 'bg-red-500/15 text-red-800 ring-red-500/25',
 }
 
 export default function PaperEvaluationStatusBadge({ status }) {
   const label = status || 'Not Started'
-  const style = STYLES[label] || STYLES['Not Started']
+
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
-        style.wrap,
+        'inline-flex min-w-[92px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset',
+        STATUS_STYLES[label] ?? STATUS_STYLES['Not Started'],
       )}
     >
-      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', style.dot)} aria-hidden />
       {label}
     </span>
   )

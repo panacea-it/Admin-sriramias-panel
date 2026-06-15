@@ -4,8 +4,6 @@ import { ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { usePortalMenuPosition } from '../ui/usePortalMenuPosition'
 
-const MENU_ANIMATION = 'origin-top transition-all duration-150 ease-out'
-
 /**
  * Searchable single-select dropdown.
  * @param {{ value: string, label: string, disabled?: boolean }[]} options
@@ -28,6 +26,7 @@ export default function SearchableSelect({
   maxMenuHeight = 280,
 }) {
   const [open, setOpen] = useState(false)
+  const [menuVisible, setMenuVisible] = useState(false)
   const [search, setSearch] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(-1)
   const rootRef = useRef(null)
@@ -48,10 +47,21 @@ export default function SearchableSelect({
   }, [options, search])
 
   const closeMenu = useCallback(() => {
+    setMenuVisible(false)
     setOpen(false)
     setSearch('')
     setHighlightIndex(-1)
   }, [])
+
+  useEffect(() => {
+    if (!open) {
+      setMenuVisible(false)
+      return undefined
+    }
+    if (!coords) return undefined
+    const t = requestAnimationFrame(() => setMenuVisible(true))
+    return () => cancelAnimationFrame(t)
+  }, [open, coords])
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -118,7 +128,7 @@ export default function SearchableSelect({
     }
   }
 
-  const listMaxHeight = coords.maxHeight - 52
+  const listMaxHeight = (coords?.maxHeight ?? maxMenuHeight) - 52
 
   const menuContent = (
     <>
@@ -177,19 +187,24 @@ export default function SearchableSelect({
 
   const menuPanelClass = cn(
     'overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.14)]',
-    MENU_ANIMATION,
+    'transition-[opacity,transform] duration-150 ease-out',
+    coords?.placement === 'top' ? 'origin-bottom' : 'origin-top',
+    menuVisible ? 'opacity-100' : 'opacity-0',
+    coords?.placement === 'bottom' && (menuVisible ? 'translate-y-0' : '-translate-y-1'),
     menuClassName,
   )
 
-  const menuStyle = {
-    position: 'fixed',
-    top: coords.top,
-    left: coords.left,
-    width: coords.width,
-    maxHeight: coords.maxHeight,
-    transform: coords.transform,
-    zIndex: usePortal ? 220 : 110,
-  }
+  const menuStyle = coords
+    ? {
+        position: 'fixed',
+        top: coords.top,
+        left: coords.left,
+        width: coords.width,
+        maxHeight: coords.maxHeight,
+        ...(coords.placement === 'top' ? { transform: coords.transform } : {}),
+        zIndex: usePortal ? 220 : 110,
+      }
+    : undefined
 
   return (
     <div ref={rootRef} className="relative w-full">
@@ -225,6 +240,8 @@ export default function SearchableSelect({
       </button>
 
       {open &&
+        coords &&
+        menuStyle &&
         (usePortal ? (
           createPortal(
             <div

@@ -1,9 +1,7 @@
-import { useMemo } from 'react'
 import { LayoutDashboard, ClipboardList, Users, BookOpen, GraduationCap, Target, Clock } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import StatCard from '../../components/dashboard/StatCard'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import { StatusBadge } from '../../components/academics/AcademicsUi'
+import RecentTestActivitiesTable from '../../components/test-management/RecentTestActivitiesTable'
 import {
   TM_DASHBOARD_STATS,
   TM_FACULTY_PERFORMANCE,
@@ -20,21 +18,6 @@ import TestManagementAnalyticsSection from '../../components/test-management/Tes
 
 export default function TestManagementDashboardPage() {
   const stats = TM_DASHBOARD_STATS
-
-  const activityColumns = useMemo(
-    () => [
-      { key: 'test', label: 'Test', render: (r) => <span className="font-medium">{r.test}</span> },
-      { key: 'faculty', label: 'Faculty' },
-      { key: 'action', label: 'Activity' },
-      { key: 'time', label: 'Time' },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (r) => <StatusBadge status={r.status} />,
-      },
-    ],
-    [],
-  )
 
   return (
     <TestManagementPageShell icon={LayoutDashboard} title="Test Management Dashboard">
@@ -88,15 +71,10 @@ export default function TestManagementDashboardPage() {
         </article>
       </div>
 
-      <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
-        <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">Recent Test Activities</h3>
-        <PaginatedFigmaTable
-          columns={activityColumns}
-          data={TM_RECENT_ACTIVITIES}
-          itemLabel="activities"
-          initialPageSize={5}
-        />
-      </article>
+      <section className="w-full space-y-4">
+        <h3 className="text-sm font-bold text-[#1a3a5c]">Recent Test Activities</h3>
+        <RecentTestActivitiesTable data={TM_RECENT_ACTIVITIES} initialPageSize={10} />
+      </section>
 
       <TestManagementAnalyticsSection />
     </TestManagementPageShell>

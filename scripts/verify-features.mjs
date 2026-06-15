@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process'
 
 const checks = [
   ['CourseMarketingSections + EditableSectionBar', 'src/components/categories/CourseMarketingSections.jsx', 'EditableSectionBar'],
-  ['Help Desk editable status', 'src/components/help-desk/HelpDeskStatusCell.jsx', 'onStatusChange'],
+  ['Help Desk reply status action', 'src/components/help-desk/helpDeskTableCells.jsx', 'onToggleReplyStatus'],
   ['Header dashboard actions', 'src/components/layout/Header.jsx', 'handleHeaderAdd'],
   ['Classroom Go Back', 'src/components/courses/ModalPanelHeader.jsx', 'onBack ?? onClose'],
 ]

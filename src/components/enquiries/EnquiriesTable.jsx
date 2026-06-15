@@ -136,7 +136,7 @@ export default function EnquiriesTable({
         cellClassName: CELL,
         render: (row) => (
           <EnquiryCounselorSelect
-            value={counselorById[row.id] || ''}
+            value={counselorById[row.id] || row.assignedCounselor || ''}
             onChange={(value) => onCounselorChange(row.id, value)}
             options={counselorOptions}
             placeholder="Select Counselor"
@@ -153,7 +153,7 @@ export default function EnquiriesTable({
         cellClassName: CELL,
         render: (row) => (
           <EnquiryLeadStatusSelect
-            value={leadStatusById[row.id] || ''}
+            value={leadStatusById[row.id] || row.leadStatus || ''}
             onChange={(value) => onLeadStatusChange(row.id, value)}
             options={leadStatusOptions}
             placeholder="Select Status"

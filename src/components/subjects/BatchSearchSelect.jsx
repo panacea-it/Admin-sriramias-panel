@@ -149,6 +149,7 @@ export default function BatchSearchSelect({
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

@@ -103,6 +103,7 @@ export default function SubjectSearchSelect({
       </button>
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

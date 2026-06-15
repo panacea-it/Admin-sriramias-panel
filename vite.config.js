@@ -155,6 +155,9 @@ export default defineConfig(({ mode }) => {
         "/api/batch-enrollments": createDevProxy(localApiTarget, {
           label: `${localApiTarget} (batch-enrollments)`,
         }),
+        '/api/evaluation-oversight': createDevProxy(localApiTarget, {
+          label: `${localApiTarget} (evaluation-oversight)`,
+        }),
         ...Object.fromEntries(
           MASTER_BULK_STATUS_PATHS.map((path) => [
             path,

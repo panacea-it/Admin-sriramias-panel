@@ -143,6 +143,7 @@ export default function CourseCatalogSelect({
       </button>
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

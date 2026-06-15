@@ -1,6 +1,5 @@
 import { isFrontendOnly } from '../config/appMode'
-import {
-  DEFAULT_WORKSPACE_RUBRIC,
+import {  DEFAULT_WORKSPACE_RUBRIC,
   OVERSIGHT_EXAM_TYPES,
   OVERSIGHT_PRIORITIES,
   OVERSIGHT_STATUSES,
@@ -18,6 +17,15 @@ import {
 const DELAY_MS = 160
 const STORE_KEY = 'ems_evaluation_papers_v2'
 
+/** In dev, use local seed unless VITE_EVALUATION_OVERSIGHT_USE_API=true (remote may lack these routes). */
+function useEvaluationOversightSeed() {
+  if (isFrontendOnly) return true
+  if (import.meta.env.VITE_EVALUATION_OVERSIGHT_USE_SEED === 'true') return true
+  if (import.meta.env.DEV && import.meta.env.VITE_EVALUATION_OVERSIGHT_USE_API !== 'true') {
+    return true
+  }
+  return false
+}
 function delay(ms = DELAY_MS) {
   return new Promise((r) => setTimeout(r, ms))
 }
@@ -214,7 +222,7 @@ function buildFilterOptions(params = {}) {
 }
 
 export async function fetchEvaluationDashboardStats(params = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.get('/evaluation-oversight/stats', { params, skipAuthRedirect: true })
@@ -230,7 +238,7 @@ export async function fetchEvaluationDashboardStats(params = {}) {
 }
 
 export async function fetchEvaluationFilterOptions(params = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.get('/evaluation-oversight/filters', { params, skipAuthRedirect: true })
@@ -243,23 +251,34 @@ export async function fetchEvaluationFilterOptions(params = {}) {
   return buildFilterOptions(params)
 }
 
+function normalizePaperRow(row) {
+  if (!row) return row
+  const normalized = {
+    ...row,
+    id: row.id || row.paperId,
+    mentorInitials: row.mentorInitials || mentorInitials(row.mentorName),
+  }
+  normalized.scoreDisplay = row.scoreDisplay ?? formatScoreDisplay(normalized)
+  return normalized
+}
+
 export async function fetchEvaluationTableData(params = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.get('/evaluation-oversight/papers', { params, skipAuthRedirect: true })
       const list = res.data?.data
-      if (Array.isArray(list)) return list
+      if (Array.isArray(list)) return list.map(normalizePaperRow)
     } catch {
       /* fallback */
     }
   }
   await delay()
-  return filterPapers(loadPapers(), params)
+  return filterPapers(loadPapers(), params).map(normalizePaperRow)
 }
 
 export async function fetchEvaluationPaperById(paperId) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.get(`/evaluation-oversight/papers/${encodeURIComponent(String(paperId))}`, {
@@ -294,7 +313,7 @@ export async function fetchMentorsForSubject(subjectId, { excludeId } = {}) {
 }
 
 export async function assignEvaluator(paperId, mentorId) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.post(
@@ -336,7 +355,7 @@ export async function assignEvaluator(paperId, mentorId) {
 }
 
 export async function saveEvaluationDraft(paperId, patch = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.post(
@@ -377,7 +396,7 @@ export async function saveEvaluationDraft(paperId, patch = {}) {
 }
 
 export async function publishEvaluationResult(paperId, patch = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.post(
@@ -425,7 +444,7 @@ export async function savePaperAnnotations(paperId, annotations = []) {
 }
 
 export async function exportEvaluationCsv(params = {}) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.get('/evaluation-oversight/export', {
@@ -683,7 +702,7 @@ export async function fetchCurrentPrimaryAssignment({
 }
 
 export async function bulkAssignEvaluator({ paperIds, mentorId, subjectId }) {
-  if (!isFrontendOnly) {
+  if (!useEvaluationOversightSeed()) {
     try {
       const { default: api } = await import('./axiosInstance')
       const res = await api.post(

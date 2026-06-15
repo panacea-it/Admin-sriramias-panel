@@ -89,6 +89,7 @@ export default function ExamFormSelect({
       </button>
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

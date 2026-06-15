@@ -112,7 +112,7 @@ export default function PaginatedFigmaTable({
     <div
       ref={tableRef}
       className={cn(
-        'overflow-hidden rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
+        'w-full max-w-full overflow-hidden rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
         bodyMaxHeight && 'flex flex-col',
         className,
       )}

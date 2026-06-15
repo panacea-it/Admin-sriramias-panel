@@ -1,7 +1,7 @@
 /** Evaluation Oversight — batches, filters, papers, mentors */
 
-export const OVERSIGHT_STATUSES = ['Evaluated', 'In Progress', 'Not Started', 'Overdue']
-export const OVERSIGHT_PRIORITIES = ['High', 'Normal', 'Low']
+export const OVERSIGHT_STATUSES = ['Evaluated', 'In Progress', 'Not Started', 'Pending', 'Overdue']
+export const OVERSIGHT_PRIORITIES = ['Urgent', 'High', 'Normal', 'Low']
 export const OVERSIGHT_EXAM_TYPES = ['Mains', 'CBT', 'Descriptive']
 
 export const SEED_OVERSIGHT_BATCHES = [

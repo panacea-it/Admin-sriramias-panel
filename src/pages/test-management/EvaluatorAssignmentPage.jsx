@@ -6,7 +6,6 @@ import SourceSelectionCard from '../../components/test-management/assignment-wor
 import CurrentAssignmentCard from '../../components/test-management/assignment-workspace/CurrentAssignmentCard'
 import FacultyAssignmentPanel from '../../components/test-management/assignment-workspace/FacultyAssignmentPanel'
 import StudentPaperSelectionTable from '../../components/test-management/assignment-workspace/StudentPaperSelectionTable'
-import AssignmentActionBar from '../../components/test-management/assignment-workspace/AssignmentActionBar'
 import {
   SEED_OVERSIGHT_BATCHES,
   SEED_OVERSIGHT_TESTS,
@@ -32,6 +31,7 @@ export default function EvaluatorAssignmentPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const incoming = location.state?.assignmentContext || {}
+  const incomingPaperIds = incoming.paperIds || []
 
   const [batchId, setBatchId] = useState(incoming.batchId || DEFAULT_BATCH)
   const [subjectId, setSubjectId] = useState(incoming.subjectId || DEFAULT_SUBJECT)
@@ -44,7 +44,7 @@ export default function EvaluatorAssignmentPage() {
   const [allFaculty, setAllFaculty] = useState([])
   const [primary, setPrimary] = useState(null)
   const [selectedFacultyId, setSelectedFacultyId] = useState('')
-  const [selectedIds, setSelectedIds] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => [...incomingPaperIds])
   const [facultySearch, setFacultySearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -148,6 +148,14 @@ export default function EvaluatorAssignmentPage() {
       }
     })
   }, [batchId, subjectId, topicId, loadTests, testId])
+
+  useEffect(() => {
+    if (!papers.length || !incomingPaperIds.length) return
+    setSelectedIds((prev) => {
+      if (prev.length) return prev
+      return incomingPaperIds.filter((id) => papers.some((p) => p.id === id))
+    })
+  }, [papers, incomingPaperIds])
 
   useEffect(() => {
     loadWorkspace()
@@ -266,7 +274,7 @@ export default function EvaluatorAssignmentPage() {
           />
         </div>
 
-        <div className="flex flex-col lg:col-span-8 xl:col-span-9">
+        <div className="flex w-full min-w-0 flex-col lg:col-span-8 xl:col-span-9">
           <StudentPaperSelectionTable
             papers={papers}
             testName={testName}
@@ -277,15 +285,12 @@ export default function EvaluatorAssignmentPage() {
             onStatusFilterChange={setStatusFilter}
             onBulkSelectAll={() => setSelectedIds(papers.map((p) => p.id))}
             loading={loading}
-          />
-          <AssignmentActionBar
             selectedCount={selectedIds.length}
             totalCount={papers.length}
             onSelectAll={() => setSelectedIds(papers.map((p) => p.id))}
             onCancel={() => navigate(TEST_MANAGEMENT_ROUTES.evaluations)}
             onConfirm={handleConfirm}
             saving={saving}
-            mode="partial"
           />
         </div>
       </div>

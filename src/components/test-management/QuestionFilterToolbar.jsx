@@ -1,14 +1,22 @@
 import { Search, ChevronDown } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
-function Select({ label, value, onChange, options, className }) {
+const CONTROL_HEIGHT = 'h-12 min-h-[48px]'
+const CONTROL_RADIUS = 'rounded-xl'
+
+function FilterSelect({ label, value, onChange, options, disabled }) {
   return (
-    <div className={cn('relative w-full sm:w-auto sm:min-w-[160px]', className)}>
+    <div className="relative w-full sm:w-[170px] sm:min-w-[160px] sm:max-w-[180px]">
       <select
         value={value}
         onChange={onChange}
+        disabled={disabled}
         aria-label={label}
-        className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 sm:text-base"
+        className={cn(
+          CONTROL_HEIGHT,
+          CONTROL_RADIUS,
+          'w-full appearance-none border-0 bg-[#55ace7] pl-4 pr-10 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 disabled:cursor-not-allowed disabled:opacity-60',
+        )}
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
@@ -16,7 +24,7 @@ function Select({ label, value, onChange, options, className }) {
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+      <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
     </div>
   )
 }
@@ -24,7 +32,7 @@ function Select({ label, value, onChange, options, className }) {
 export default function QuestionFilterToolbar({
   search,
   onSearchChange,
-  searchPlaceholder = 'Search questions',
+  searchPlaceholder = 'Search by Question ID, Subject, or Question Preview...',
   type,
   onTypeChange,
   subject,
@@ -43,53 +51,80 @@ export default function QuestionFilterToolbar({
   onTagChange,
   tagOptions = [],
   statusOptions = [],
-  onReset,
+  disabled = false,
+  className,
 }) {
   return (
-    <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
-      <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
-        <input
-          type="search"
-          value={search}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] sm:pl-11 sm:text-base"
-        />
-      </div>
+    <div
+      className={cn(
+        'w-full rounded-2xl bg-white p-5 shadow-[0_8px_20px_rgba(15,23,42,0.08)]',
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-4 lg:flex-nowrap">
+        {/* Search — first element, fixed width on desktop */}
+        <div className="relative w-full shrink-0 lg:w-[420px] lg:min-w-[380px] lg:max-w-[450px]">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180]" />
+          <input
+            type="search"
+            value={search}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            disabled={disabled}
+            className={cn(
+              CONTROL_HEIGHT,
+              CONTROL_RADIUS,
+              'w-full border-0 bg-[#eef2fc] pl-11 pr-4 text-sm text-[#222] shadow-[0_2px_8px_rgba(15,23,42,0.04)] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] disabled:cursor-not-allowed disabled:opacity-60',
+            )}
+          />
+        </div>
 
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-        <Select
-          label="Question Type"
-          value={type}
-          onChange={onTypeChange}
-          options={typeOptions}
-        />
-        <Select
-          label="Subject"
-          value={subject}
-          onChange={onSubjectChange}
-          options={[{ value: 'all', label: 'Subject' }, ...subjects.map((s) => ({ value: s, label: s }))]}
-        />
-        <Select
-          label="Topic"
-          value={topic}
-          onChange={onTopicChange}
-          options={[{ value: 'all', label: 'Topic' }, ...topics.map((t) => ({ value: t, label: t }))]}
-        />
-        <Select label="Difficulty" value={difficulty} onChange={onDifficultyChange} options={difficultyOptions} />
-        <Select label="Tag" value={tag} onChange={onTagChange} options={tagOptions} />
-        <Select label="Status" value={status} onChange={onStatusChange} options={statusOptions} />
-
-        <button
-          type="button"
-          onClick={onReset}
-          className="inline-flex h-10 min-h-[38px] items-center justify-center rounded-lg bg-[#1a3a5c] px-4 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(0,0,0,0.15)] transition hover:bg-[#152f4a]"
-        >
-          Reset
-        </button>
+        {/* Filter dropdowns — single row on desktop, wrap on tablet/mobile */}
+        <div className="flex w-full flex-wrap items-center gap-4 lg:flex-1 lg:min-w-0">
+          <FilterSelect
+            label="Type"
+            value={type}
+            onChange={onTypeChange}
+            options={typeOptions}
+            disabled={disabled}
+          />
+          <FilterSelect
+            label="Subject"
+            value={subject}
+            onChange={onSubjectChange}
+            options={[{ value: 'all', label: 'Subject' }, ...subjects.map((s) => ({ value: s, label: s }))]}
+            disabled={disabled}
+          />
+          <FilterSelect
+            label="Topic"
+            value={topic}
+            onChange={onTopicChange}
+            options={[{ value: 'all', label: 'Topic' }, ...topics.map((t) => ({ value: t, label: t }))]}
+            disabled={disabled}
+          />
+          <FilterSelect
+            label="Difficulty"
+            value={difficulty}
+            onChange={onDifficultyChange}
+            options={difficultyOptions}
+            disabled={disabled}
+          />
+          <FilterSelect
+            label="Tags"
+            value={tag}
+            onChange={onTagChange}
+            options={tagOptions}
+            disabled={disabled}
+          />
+          <FilterSelect
+            label="Status"
+            value={status}
+            onChange={onStatusChange}
+            options={statusOptions}
+            disabled={disabled}
+          />
+        </div>
       </div>
     </div>
   )
 }
-

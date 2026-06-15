@@ -1,27 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 const VIEWPORT_PADDING = 8
 
 /**
  * Computes viewport-fixed coordinates for a dropdown/menu rendered in a portal.
- * Anchors the menu directly to the trigger — bottom edge below, or top edge above.
+ * Returns null while closed or before the trigger is measured.
  */
 export function usePortalMenuPosition(triggerRef, open, offset = 8, preferredMaxHeight = 280) {
-  const [coords, setCoords] = useState({
-    top: 0,
-    left: 0,
-    width: 0,
-    maxHeight: preferredMaxHeight,
-    placement: 'bottom',
-    transform: 'none',
-  })
+  const [coords, setCoords] = useState(null)
 
   const update = useCallback(() => {
     const el = triggerRef?.current
     if (!el) return
 
     const rect = el.getBoundingClientRect()
-    const width = Math.max(0, rect.width)
+    if (rect.width <= 0 || rect.height <= 0) return
+
+    const width = rect.width
 
     let left = rect.left
     if (left + width > window.innerWidth - VIEWPORT_PADDING) {
@@ -58,7 +53,10 @@ export function usePortalMenuPosition(triggerRef, open, offset = 8, preferredMax
   }, [triggerRef, offset, preferredMaxHeight])
 
   useEffect(() => {
-    if (!open) return undefined
+    if (!open) {
+      setCoords(null)
+      return undefined
+    }
 
     update()
     const raf = requestAnimationFrame(update)
@@ -69,12 +67,19 @@ export function usePortalMenuPosition(triggerRef, open, offset = 8, preferredMax
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
 
+    const observer =
+      typeof ResizeObserver !== 'undefined' && triggerRef.current
+        ? new ResizeObserver(update)
+        : null
+    if (triggerRef.current) observer?.observe(triggerRef.current)
+
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
+      observer?.disconnect()
     }
-  }, [open, update])
+  }, [open, update, triggerRef])
 
-  return useMemo(() => coords, [coords])
+  return coords
 }

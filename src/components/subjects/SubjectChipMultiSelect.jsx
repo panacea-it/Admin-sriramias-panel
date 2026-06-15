@@ -151,6 +151,7 @@ export default function SubjectChipMultiSelect({
       </div>
 
       {open &&
+        coords &&
         createPortal(
           <div
             ref={menuRef}

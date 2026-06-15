@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Filter, Search, Trophy, TrendingDown, TrendingUp } from 'lucide-react'
-import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
+import { Trophy, TrendingDown, TrendingUp } from 'lucide-react'
+import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import StatCard from '../../dashboard/StatCard'
 import { Users, Target } from 'lucide-react'
-import { cn } from '../../../utils/cn'
+import MainsStudentResultsTable from './MainsStudentResultsTable'
 import {
   generateMainsStudentResults,
   summarizeMainsResults,
@@ -11,28 +11,10 @@ import {
 import { deriveEvaluationStats } from '../../../utils/evaluationProgressMetrics'
 
 const FILTER_OPTIONS = [
-  { value: 'all', label: 'All students' },
+  { value: 'all', label: 'All statuses' },
   { value: 'Evaluated', label: 'Evaluated' },
   { value: 'Pending', label: 'Pending' },
 ]
-
-const UPLOAD_STATUS_STYLES = {
-  Uploaded: 'bg-[#10b981]',
-  'Not Uploaded': 'bg-[#efb36d]',
-}
-
-function UploadStatusBadge({ status }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex min-w-[110px] items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold text-white',
-        UPLOAD_STATUS_STYLES[status] || 'bg-slate-400',
-      )}
-    >
-      {status}
-    </span>
-  )
-}
 
 function SummaryProgressBar({ label, value, max, color = '#55ace7' }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
@@ -89,31 +71,11 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
     return rows
   }, [allRows, search, statusFilter])
 
-  const columns = [
-    {
-      key: 'studentName',
-      label: 'Student Name',
-      render: (row) => <span className="font-medium text-[#333]">{row.studentName}</span>,
-    },
-    { key: 'registerNumber', label: 'Register Number' },
-    {
-      key: 'uploadedStatus',
-      label: 'Uploaded Status',
-      render: (row) => <UploadStatusBadge status={row.uploadedStatus} />,
-    },
-    {
-      key: 'marks',
-      label: 'Marks',
-      render: (row) => (
-        <span className="tabular-nums">
-          {typeof row.marks === 'number' ? `${row.marks}/${row.maxMarks}` : row.marks}
-        </span>
-      ),
-    },
-    { key: 'rank', label: 'Rank' },
-    { key: 'evaluatedBy', label: 'Evaluated By' },
-    { key: 'evaluationDate', label: 'Evaluation Date' },
-  ]
+  const hasActiveFilters = Boolean(search.trim() || statusFilter !== 'all')
+
+  const emptyMessage = hasActiveFilters
+    ? 'No students match your filters.'
+    : 'No student results available.'
 
   if (!test) return null
 
@@ -198,44 +160,25 @@ export default function MainsEvaluationResultsView({ test, facultyLabel }) {
         </div>
       </article>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or register number…"
-            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none"
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <CourseFilterToolbar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          searchPlaceholder="Search name or register number…"
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={FILTER_OPTIONS}
+          searchFullWidth
+        />
+
+        <div className="mt-5 w-full overflow-hidden rounded-xl border border-slate-100">
+          <MainsStudentResultsTable
+            rows={filtered}
+            resetDeps={[search, statusFilter, test.id]}
+            emptyMessage={emptyMessage}
           />
         </div>
-        <Filter className="h-4 w-4 text-slate-400" />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20"
-        >
-          {FILTER_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
       </div>
-
-      <PaginatedFigmaTable
-        columns={columns}
-        data={filtered}
-        itemLabel="students"
-        initialPageSize={10}
-        resetDeps={[search, statusFilter, test.id]}
-        stickyHeader
-        emptyMessage={
-          statusFilter === 'all' && !search.trim()
-            ? 'No student results available.'
-            : 'No students match your filters.'
-        }
-      />
     </div>
   )
 }

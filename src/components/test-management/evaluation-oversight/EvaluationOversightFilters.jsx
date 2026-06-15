@@ -5,7 +5,7 @@ import { cn } from '../../../utils/cn'
 function FilterField({ label, children, className }) {
   return (
     <div className={cn('min-w-0 flex-1 basis-[140px]', className)}>
-      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#686868]">
         {label}
       </label>
       {children}
@@ -14,7 +14,10 @@ function FilterField({ label, children, className }) {
 }
 
 const SELECT_TRIGGER =
-  'flex h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm font-medium text-[#333] shadow-sm'
+  'flex h-10 w-full min-h-[38px] items-center justify-between rounded-lg border-0 bg-[#eef2fc] px-3 text-left text-sm font-medium text-[#222] outline-none focus:ring-2 focus:ring-[#55ace7]'
+
+const DATE_INPUT =
+  'h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] px-3 text-sm font-medium text-[#222] outline-none focus:ring-2 focus:ring-[#55ace7]'
 
 export default function EvaluationOversightFilters({
   options,
@@ -26,7 +29,7 @@ export default function EvaluationOversightFilters({
   const set = (key, value) => onChange((prev) => ({ ...prev, [key]: value }))
 
   return (
-    <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)] sm:p-5">
+    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-[#55ace7]" strokeWidth={2.2} />
@@ -64,7 +67,7 @@ export default function EvaluationOversightFilters({
               triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>
-          <FilterField label="Faculty Subjects">
+          <FilterField label="Faculty Subject">
             <SearchableSelect
               options={options.subjects}
               value={values.subjectId}
@@ -73,7 +76,7 @@ export default function EvaluationOversightFilters({
               triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>
-          <FilterField label="Topics">
+          <FilterField label="Topic">
             <SearchableSelect
               options={options.subTopics}
               value={values.subTopicId}
@@ -88,7 +91,7 @@ export default function EvaluationOversightFilters({
               value={values.testId}
               onChange={(v) => set('testId', v)}
               placeholder="All tests"
-              triggerClassName={cn(SELECT_TRIGGER, 'ring-1 ring-[#55ace7]/25')}
+              triggerClassName={SELECT_TRIGGER}
             />
           </FilterField>
         </div>
@@ -147,7 +150,7 @@ export default function EvaluationOversightFilters({
               type="date"
               value={values.submittedFrom || ''}
               onChange={(e) => set('submittedFrom', e.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-[#333] shadow-sm outline-none focus:ring-2 focus:ring-[#55ace7]/30"
+              className={DATE_INPUT}
             />
           </FilterField>
           <FilterField label="Submitted To" className="lg:max-w-[220px]">
@@ -155,23 +158,23 @@ export default function EvaluationOversightFilters({
               type="date"
               value={values.submittedTo || ''}
               onChange={(e) => set('submittedTo', e.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-[#333] shadow-sm outline-none focus:ring-2 focus:ring-[#55ace7]/30"
+              className={DATE_INPUT}
             />
           </FilterField>
           <FilterField label="Search" className="sm:col-span-2 lg:col-span-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
               <input
                 type="search"
                 value={values.search || ''}
                 onChange={(e) => set('search', e.target.value)}
-                placeholder="Student name, roll no., mentor…"
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium text-[#333] shadow-sm outline-none focus:ring-2 focus:ring-[#55ace7]/30"
+                placeholder="Student name, roll no., test, subject, mentor, center…"
+                className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] sm:pl-11 sm:text-base"
               />
             </div>
           </FilterField>
         </div>
       </div>
-    </article>
+    </div>
   )
 }

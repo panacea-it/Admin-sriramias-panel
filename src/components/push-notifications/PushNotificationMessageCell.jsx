@@ -9,23 +9,36 @@ export function truncateNotificationMessage(message, max = MESSAGE_PREVIEW_LENGT
   return `${text.slice(0, max).trimEnd()}...`
 }
 
-function PushNotificationMessageCell({ message, onOpen }) {
-  const preview = truncateNotificationMessage(message)
-  const isTruncated = String(message || '').replace(/\s+/g, ' ').trim().length > MESSAGE_PREVIEW_LENGTH
+function PushNotificationMessageCell({ message }) {
+  const fullText = String(message || '').replace(/\s+/g, ' ').trim()
+  const preview = truncateNotificationMessage(fullText)
+  const isTruncated = fullText.length > MESSAGE_PREVIEW_LENGTH
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(message)}
-      title={isTruncated ? message : 'View full message'}
-      aria-label={isTruncated ? `View full message: ${preview}` : `Message: ${preview}`}
-      className={cn(
-        'block max-w-[220px] text-left text-sm text-[#333] transition sm:max-w-[280px] sm:text-base',
-        'rounded-md px-1 py-0.5 hover:bg-[#eef6fc] hover:text-[#246392] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40',
+    <div className="group/tip relative w-full min-w-0 max-w-full">
+      <span
+        className={cn(
+          'block truncate text-sm leading-snug text-[#111111]',
+          isTruncated && 'cursor-default',
+        )}
+        aria-label={fullText}
+      >
+        {preview}
+      </span>
+      {isTruncated && (
+        <span
+          role="tooltip"
+          className={cn(
+            'pointer-events-none absolute bottom-[calc(100%+6px)] left-0 z-30 max-w-[min(20rem,calc(100vw-2rem))]',
+            'rounded-lg bg-[#1a3a5c] px-3 py-2 text-left text-xs font-medium leading-snug text-white shadow-[0_8px_24px_rgba(15,23,42,0.22)]',
+            'scale-95 whitespace-normal opacity-0 transition-all duration-200 ease-out',
+            'group-hover/tip:scale-100 group-hover/tip:opacity-100',
+          )}
+        >
+          {fullText}
+        </span>
       )}
-    >
-      {preview}
-    </button>
+    </div>
   )
 }
 

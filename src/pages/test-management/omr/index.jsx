@@ -1,36 +1,24 @@
 import { useCallback, useMemo, useState } from 'react'
-import { PlusCircle, ScanLine } from 'lucide-react'
+import { Plus, ScanLine } from 'lucide-react'
 import TestManagementPageShell from '../../../components/test-management/TestManagementPageShell'
-import CategoryFilterBar from '../../../components/categories/CategoryFilterBar'
-import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
-import OmrTableSkeleton from '../../../components/test-management/omr/OmrTableSkeleton'
+import CourseFilterToolbar from '../../../components/courses/CourseFilterToolbar'
+import OmrManagementTable from '../../../components/test-management/omr/OmrManagementTable'
 import OmrErrorState from '../../../components/test-management/omr/OmrErrorState'
-import OmrStatusBadge from '../../../components/test-management/omr/OmrStatusBadge'
 import OmrTableActions from '../../../components/test-management/omr/OmrTableActions'
-import { OmrYesNoBadge } from '../../../components/test-management/omr/OmrSortableHeader'
 import ConfirmOmrDeleteModal from '../../../components/test-management/omr/ConfirmOmrDeleteModal'
 import OmrExamFormModal from '../../../components/test-management/omr/OmrExamFormModal'
 import OmrUploadResultModal from '../../../components/test-management/omr/OmrUploadResultModal'
 import { useOmrManagement } from '../../../hooks/useOmrManagement'
 import { useOmrPermissions } from '../../../hooks/useOmrPermissions'
-import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
 import { deleteOmrExam, downloadOmrResultSheet } from '../../../services/omrService'
 
 const STATUS_FILTER_OPTIONS = [
-  { value: 'all', label: 'Status' },
+  { value: 'all', label: 'All statuses' },
   { value: 'Active', label: 'Active' },
   { value: 'Inactive', label: 'Inactive' },
 ]
-
-function formatExamDate(value) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 export default function OmrManagementPage() {
   const {
@@ -49,8 +37,6 @@ export default function OmrManagementPage() {
     setSearch,
     statusFilter,
     setStatusFilter,
-    sortKey,
-    sortDirection,
     refreshExams,
     retryLoad,
     removeExamLocally,
@@ -102,72 +88,21 @@ export default function OmrManagementPage() {
     [editExamId, patchExamLocally, refreshExams],
   )
 
-  const columns = useMemo(
-    () => [
-      {
-        key: 'examName',
-        label: 'Exam Name',
-        render: (row) => <span className="font-semibold text-[#111]">{row.examName}</span>,
-      },
-      {
-        key: 'examDate',
-        label: 'Exam Date',
-        render: (row) => (
-          <span className="whitespace-nowrap text-sm">{formatExamDate(row.examDate)}</span>
-        ),
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (row) => <OmrStatusBadge status={row.status} />,
-      },
-      {
-        key: 'resultSheetUploaded',
-        label: 'Result Sheet',
-        render: (row) => <OmrYesNoBadge value={row.resultSheetUploaded} />,
-      },
-      {
-        key: 'uploadDate',
-        label: 'Upload Date',
-        render: (row) => (
-          <span className="whitespace-nowrap text-sm">
-            {row.resultSheet?.uploadedAt
-              ? formatCategoryDateTime(row.resultSheet.uploadedAt)
-              : '—'}
-          </span>
-        ),
-      },
-      {
-        key: 'createdAt',
-        label: 'Created Date',
-        render: (row) => (
-          <span className="whitespace-nowrap text-sm">
-            {formatCategoryDateTime(row.createdAt)}
-          </span>
-        ),
-      },
-      {
-        key: 'actions',
-        label: 'Actions',
-        align: 'right',
-        headerClassName: 'min-w-[12rem] text-right',
-        cellClassName: 'min-w-[12rem] text-right',
-        render: (row) => (
-          <OmrTableActions
-            hasResultSheet={row.resultSheetUploaded}
-            canEdit={canEdit}
-            canDelete={canDelete}
-            canUploadResult={canUploadResult}
-            canDownloadResult={canDownloadResult}
-            downloading={downloadingExamId === row.id}
-            onEdit={() => setEditExamId(row.id)}
-            onDelete={() => setDeleteTarget(row)}
-            onUpload={() => setUploadTarget(row)}
-            onDownload={() => handleDownload(row)}
-          />
-        ),
-      },
-    ],
+  const renderRowActions = useCallback(
+    (row) => (
+      <OmrTableActions
+        hasResultSheet={row.resultSheetUploaded}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        canUploadResult={canUploadResult}
+        canDownloadResult={canDownloadResult}
+        downloading={downloadingExamId === row.id}
+        onEdit={() => setEditExamId(row.id)}
+        onDelete={() => setDeleteTarget(row)}
+        onUpload={() => setUploadTarget(row)}
+        onDownload={() => handleDownload(row)}
+      />
+    ),
     [
       canEdit,
       canDelete,
@@ -178,14 +113,30 @@ export default function OmrManagementPage() {
     ],
   )
 
-  const showEmpty =
-    !loading && !error && exams.length === 0 && !search && statusFilter === 'all'
-  const showNoResults = !loading && !error && exams.length === 0 && !showEmpty
+  const hasActiveFilters = Boolean(search.trim() || statusFilter !== 'all')
 
-  const clearFilters = () => {
-    setSearch('')
-    setStatusFilter('all')
-  }
+  const emptyMessage = hasActiveFilters
+    ? 'No OMR exams match your filters.'
+    : 'No OMR exams to display'
+
+  const emptyState = hasActiveFilters ? undefined : (
+    <div className="px-4 py-8 text-center sm:px-6">
+      <p className="text-sm font-semibold text-slate-700">No OMR exams yet</p>
+      <p className="mt-1 text-sm text-slate-500">
+        Create offline OMR exam records and upload result sheets for storage.
+      </p>
+      {canCreate && (
+        <button
+          type="button"
+          onClick={() => setCreateModalOpen(true)}
+          className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.5} />
+          Create OMR Exam
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <TestManagementPageShell
@@ -196,55 +147,38 @@ export default function OmrManagementPage() {
           <button
             type="button"
             onClick={() => setCreateModalOpen(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-5 py-3 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:w-auto sm:py-2.5"
           >
-            <PlusCircle className="h-4 w-4" />
+            <Plus className="h-4 w-4 shrink-0" strokeWidth={2.5} />
             Create OMR Exam
           </button>
         ) : null
       }
     >
-      <div className="space-y-5 sm:space-y-6">
-        <CategoryFilterBar
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <CourseFilterToolbar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
           searchPlaceholder="Search by exam name"
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           statusOptions={STATUS_FILTER_OPTIONS}
+          disabled={loading && exams.length === 0}
         />
 
-        {loading ? (
-          <OmrTableSkeleton />
-        ) : error ? (
-          <OmrErrorState message={error} onRetry={retryLoad} loading={loading} />
-        ) : showEmpty ? (
-          <CategoryEmptyState
-            title="No OMR exams yet"
-            description="Create offline OMR exam records and upload result sheets for storage."
-            ctaLabel="Create OMR Exam"
-            onCta={() => canCreate && setCreateModalOpen(true)}
-            icon={ScanLine}
-          />
-        ) : showNoResults ? (
-          <CategoryEmptyState
-            title="No matching records"
-            description="Try adjusting your search or status filter."
-            ctaLabel="Clear filters"
-            onCta={clearFilters}
-            icon={ScanLine}
-          />
+        {error ? (
+          <div className="mt-5">
+            <OmrErrorState message={error} onRetry={retryLoad} loading={loading} />
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={exams}
-              itemLabel="OMR exams"
-              resetDeps={[search, statusFilter, sortKey, sortDirection]}
-              rowClassName="transition-colors hover:bg-[#f8fbff]"
-              tableClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
-              tableMinWidth={960}
-              stickyLastColumn
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <OmrManagementTable
+              exams={exams}
+              loading={loading}
+              resetDeps={[search, statusFilter]}
+              emptyMessage={emptyMessage}
+              emptyState={emptyState}
+              renderActions={renderRowActions}
             />
           </div>
         )}
