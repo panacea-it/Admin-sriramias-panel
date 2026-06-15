@@ -1,5 +1,5 @@
-import { Eye, Pencil, Plus, Trash2, List } from 'lucide-react'
-import TableActionMenu, { tableActionsCellClass } from '../common/TableActionMenu'
+import { Eye, List, Pencil, Plus, Trash2 } from 'lucide-react'
+import TableActionMenu from '../common/TableActionMenu'
 
 export default function SubjectRowActionsMenu({ onView, onEdit, onAdd, onViewList, onDelete }) {
   const menuItems = [
@@ -11,10 +11,8 @@ export default function SubjectRowActionsMenu({ onView, onEdit, onAdd, onViewLis
   ]
 
   return (
-    <div className="flex items-center justify-end">
+    <div className="flex items-center justify-center">
       <TableActionMenu items={menuItems} triggerLabel="Subject actions" align="end" />
     </div>
   )
 }
-
-export { tableActionsCellClass }

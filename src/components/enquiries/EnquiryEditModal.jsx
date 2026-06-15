@@ -10,16 +10,17 @@ import { ENQUIRY_CENTERS } from '../../data/enquiriesData'
 
 const ENQUIRY_TYPE_OPTIONS = ['Admission Enquiry', 'Demo']
 
-const inputClass =
-  'h-11 w-full rounded-lg border border-slate-200/90 bg-white px-4 text-sm text-[#333] shadow-sm outline-none transition placeholder:text-[#9ca0a8] focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
+const fieldClass = cn(
+  'h-11 w-full rounded-xl border border-slate-200/80 bg-[#eef2fc]/60 px-4 text-sm text-[#222] outline-none transition',
+  'focus:border-[#55ace7] focus:bg-white focus:ring-2 focus:ring-[#55ace7]/25',
+)
 
-const selectClass =
-  'h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-200/90 bg-white px-4 pr-10 text-sm font-medium text-[#333] shadow-sm outline-none transition focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
+const selectClass = cn(fieldClass, 'cursor-pointer appearance-none pr-10')
 
 function FormField({ label, children, className }) {
   return (
     <label className={cn('block space-y-1.5', className)}>
-      <span className="text-sm font-semibold text-[#333]">{label}</span>
+      <span className="text-xs font-semibold text-[#686868]">{label}</span>
       {children}
     </label>
   )
@@ -33,7 +34,7 @@ function buildFormFromEnquiry(enquiry, counselor, leadStatus) {
     center: enquiry?.center ?? '',
     enquiryType: enquiry?.enquiryType ?? '',
     assignedCounselor: counselor ?? '',
-    leadStatus: leadStatus ?? 'NEW',
+    leadStatus: leadStatus ?? '',
   }
 }
 
@@ -57,7 +58,7 @@ export default function EnquiryEditModal({
     }
   }, [open, enquiry, assignedCounselor, leadStatus])
 
-  if (!enquiry) return null
+  if (!open || !enquiry) return null
 
   const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
@@ -68,31 +69,34 @@ export default function EnquiryEditModal({
       return
     }
     onSave?.(form)
-    onClose()
+    onClose?.()
   }
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title="Edit Enquiry" showCloseButton={false}>
       <form
         onSubmit={handleSubmit}
-        className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
+        className="flex flex-col overflow-visible rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
         <ModalPanelHeader
           title="Edit Enquiry"
+          subtitle={enquiry.student || 'Update enquiry details'}
           onClose={onClose}
           icon={Pencil}
           iconClassName="text-[#246392]"
           closeVariant="icon"
+          plainCloseIcon
         />
 
-        <div className="max-h-[min(70vh,620px)] overflow-y-auto px-5 py-6 sm:px-8 sm:py-7">
-          <div className="grid gap-5 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5">
+        <div className="p-5 sm:p-6">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Student Name">
               <input
                 type="text"
                 value={form.student}
                 onChange={(e) => update('student', e.target.value)}
-                className={inputClass}
+                className={fieldClass}
+                placeholder="Enter student name"
                 required
               />
             </FormField>
@@ -114,7 +118,8 @@ export default function EnquiryEditModal({
                 type="email"
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
-                className={inputClass}
+                className={fieldClass}
+                placeholder="Enter email address"
                 required
               />
             </FormField>
@@ -123,7 +128,8 @@ export default function EnquiryEditModal({
                 type="tel"
                 value={form.phone}
                 onChange={(e) => update('phone', e.target.value)}
-                className={inputClass}
+                className={fieldClass}
+                placeholder="Enter phone number"
                 required
               />
             </FormField>
@@ -146,6 +152,7 @@ export default function EnquiryEditModal({
                 onChange={(value) => update('assignedCounselor', value)}
                 options={counselorOptions}
                 size="default"
+                usePortal={false}
               />
             </FormField>
             <FormField label="Lead Status" className="sm:col-span-2">
@@ -154,27 +161,27 @@ export default function EnquiryEditModal({
                 onChange={(value) => update('leadStatus', value)}
                 options={leadStatusOptions}
                 size="default"
-                className="sm:max-w-sm"
+                usePortal={false}
               />
             </FormField>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-8">
+        <footer className="flex shrink-0 flex-wrap justify-end gap-3 border-t border-[#eef2fc] bg-[#fafafa] px-5 py-4 sm:px-6">
           <button
             type="button"
             onClick={onClose}
-            className="min-w-[100px] rounded-lg border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50"
+            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="min-w-[100px] rounded-lg bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_14px_rgba(5,25,45,0.35)] transition hover:brightness-110"
+            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98]"
           >
             Save
           </button>
-        </div>
+        </footer>
       </form>
     </Modal>
   )

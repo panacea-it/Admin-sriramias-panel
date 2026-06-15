@@ -484,6 +484,13 @@ export default function SubjectContentFields({
               setValue('testSeries', next, { shouldDirty: true })
             }}
             errors={testSeriesErrors}
+            batches={batches}
+            batchesLoading={batchesLoading}
+            batchId={batchId}
+            onBatchChange={(id) => {
+              setValue('batchId', id, { shouldValidate: true, shouldDirty: true })
+              setValue('batchIds', id ? [id] : [], { shouldValidate: true, shouldDirty: true })
+            }}
           />
         </div>
       )}

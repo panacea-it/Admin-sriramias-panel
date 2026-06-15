@@ -1,3 +1,5 @@
+import { getCityDisplayCode } from './cityApiHelpers'
+
 export const EMPTY_CITY_FORM = {
   centerId: '',
   placeName: '',
@@ -6,10 +8,10 @@ export const EMPTY_CITY_FORM = {
 
 export function cityToForm(city) {
   if (!city) return { ...EMPTY_CITY_FORM }
-  const code = String(city.code || city.cityCode || '').trim()
+  const code = getCityDisplayCode(city)
   return {
     centerId: city.centerId || '',
     placeName: city.placeName || city.cityAddress || '',
-    code: code ? code.toUpperCase() : '',
+    code: code || '',
   }
 }

@@ -1,22 +1,53 @@
-import { AlertTriangle, Ban } from 'lucide-react'
+import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react'
 import AppModalWrapper from '../ui/AppModalWrapper'
 import { cn } from '../../utils/cn'
+
+const COPY = {
+  enable: {
+    title: 'Enable Selected Faculty Subjects',
+    message: 'Are you sure you want to enable the selected faculty subject records?',
+    confirmLabel: 'Enable',
+    loadingLabel: 'Enabling…',
+    icon: CheckCircle2,
+    iconClassName: 'bg-emerald-50 text-emerald-600',
+    buttonClassName: 'bg-emerald-600 hover:bg-emerald-700',
+  },
+  disable: {
+    title: 'Disable Selected Faculty Subjects',
+    message: 'Are you sure you want to disable the selected faculty subject records?',
+    confirmLabel: 'Disable',
+    loadingLabel: 'Disabling…',
+    icon: Ban,
+    iconClassName: 'bg-amber-50 text-amber-600',
+    buttonClassName: 'bg-amber-600 hover:bg-amber-700',
+  },
+  delete: {
+    title: 'Delete Selected Faculty Subjects',
+    message: 'Are you sure you want to permanently delete the selected faculty subject records?',
+    confirmLabel: 'Delete',
+    loadingLabel: 'Deleting…',
+    icon: AlertTriangle,
+    iconClassName: 'bg-[#fef2f2] text-[#dc2626]',
+    buttonClassName: 'bg-[#dc2626] hover:bg-[#b91c1c]',
+  },
+}
 
 export default function SubjectBulkConfirmDialog({
   open,
   type = 'delete',
-  count = 0,
   onConfirm,
   onCancel,
   loading = false,
 }) {
-  const isDelete = type === 'delete'
-  const title = isDelete ? 'Delete Selected Subjects?' : 'Disable Selected Subjects?'
-  const message = isDelete
-    ? 'This action cannot be undone.'
-    : 'Selected subjects will be deactivated and hidden from active listings.'
-  const confirmLabel = isDelete ? 'Delete' : 'Disable'
-  const Icon = isDelete ? AlertTriangle : Ban
+  const config = COPY[type] || COPY.delete
+  const Icon = config.icon
+
+  const handleConfirm = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (loading || !onConfirm) return
+    await onConfirm()
+  }
 
   return (
     <AppModalWrapper
@@ -24,14 +55,14 @@ export default function SubjectBulkConfirmDialog({
       onClose={() => {
         if (!loading) onCancel?.()
       }}
-      title={title}
+      title={config.title}
       size="md"
       role="alertdialog"
       zIndex={130}
     >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80">
         <div className="border-b border-slate-200/80 px-6 py-4 pr-14">
-          <h2 className="text-lg font-bold text-[#111111] sm:text-xl">{title}</h2>
+          <h2 className="text-lg font-bold text-[#111111] sm:text-xl">{config.title}</h2>
         </div>
 
         <div className="px-6 py-5 sm:px-8 sm:py-6">
@@ -39,20 +70,15 @@ export default function SubjectBulkConfirmDialog({
             <div
               className={cn(
                 'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-                isDelete ? 'bg-[#fef2f2] text-[#dc2626]' : 'bg-amber-50 text-amber-600',
+                config.iconClassName,
               )}
               aria-hidden
             >
               <Icon className="h-5 w-5" strokeWidth={2.25} />
             </div>
-            <div className="min-w-0 pt-0.5">
-              {count > 0 && (
-                <p className="text-sm font-semibold leading-relaxed text-[#111111] sm:text-[15px]">
-                  {count} subject{count !== 1 ? 's' : ''} selected.
-                </p>
-              )}
-              <p className={cn('text-sm text-slate-500', count > 0 && 'mt-1')}>{message}</p>
-            </div>
+            <p className="min-w-0 pt-0.5 text-sm font-semibold leading-relaxed text-[#111111] sm:text-[15px]">
+              {config.message}
+            </p>
           </div>
         </div>
 
@@ -67,16 +93,14 @@ export default function SubjectBulkConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={loading}
             className={cn(
               'inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl px-6 text-sm font-bold text-white shadow-sm transition disabled:opacity-60',
-              isDelete
-                ? 'bg-[#dc2626] hover:bg-[#b91c1c]'
-                : 'bg-amber-600 hover:bg-amber-700',
+              config.buttonClassName,
             )}
           >
-            {loading ? `${confirmLabel}…` : confirmLabel}
+            {loading ? config.loadingLabel : config.confirmLabel}
           </button>
         </div>
       </div>

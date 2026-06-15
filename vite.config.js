@@ -15,6 +15,49 @@ function normalizeApiHost(raw) {
     .replace(/\/$/, "");
 }
 
+const MASTER_API_PREFIXES = [
+  '/api/programs',
+  '/api/categories',
+  '/api/sub-categories',
+  '/api/subjects',
+  '/api/topics',
+  '/api/teachers',
+  '/api/cities',
+  '/api/legacy-categories',
+  '/api/centers',
+]
+
+const MASTER_BULK_STATUS_PATHS = MASTER_API_PREFIXES.map((prefix) => `${prefix}/bulk-status`)
+
+function createDevProxy(target, { secure = false, label = target, logAuth = false } = {}) {
+  return {
+    target,
+    changeOrigin: true,
+    secure,
+    configure: (proxy) => {
+      proxy.on('proxyReq', (proxyReq, req) => {
+        proxyReq.removeHeader('origin')
+        proxyReq.removeHeader('referer')
+        if (logAuth && req.url?.includes('/auth/login')) {
+          console.log(`[vite proxy] ${req.method} ${req.url} → ${target}${req.url}`)
+        }
+      })
+      proxy.on('error', (err, req, res) => {
+        console.error(`[vite proxy] ${req.method} ${req.url} → ${label}: ${err.message}`)
+        if (res && !res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              message: `Backend unavailable at ${label}. Start the API server or update VITE_API_BASE_URL, then restart npm run dev.`,
+            }),
+          )
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, cwd(), "");
   const apiTarget =
@@ -31,8 +74,14 @@ export default defineConfig(({ mode }) => {
 
   const isHttpsTarget = apiTarget.startsWith("https://");
 
+<<<<<<< HEAD
   if (mode === "development") {
     console.log(`[vite] /api proxy → ${apiTarget} (secure: ${isHttpsTarget})`);
+=======
+  if (mode === 'development') {
+    console.log(`[vite] bulk-status /api/* → ${localApiTarget} (optional gateway)`)
+    console.log(`[vite] other /api/* → ${apiTarget} (secure: ${isHttpsTarget})`)
+>>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
   }
 
   return {
@@ -95,6 +144,7 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: {
+<<<<<<< HEAD
         "/api/batch-enrollments": {
           target: localApiTarget,
           changeOrigin: true,
@@ -145,6 +195,24 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
+=======
+        '/api/batch-enrollments': createDevProxy(localApiTarget, {
+          label: `${localApiTarget} (batch-enrollments)`,
+        }),
+        ...Object.fromEntries(
+          MASTER_BULK_STATUS_PATHS.map((path) => [
+            path,
+            createDevProxy(localApiTarget, {
+              label: `${localApiTarget} (bulk-status gateway)`,
+            }),
+          ]),
+        ),
+        '/api': createDevProxy(apiTarget, {
+          secure: isHttpsTarget,
+          label: apiTarget,
+          logAuth: mode === 'development',
+        }),
+>>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
       },
     },
   };

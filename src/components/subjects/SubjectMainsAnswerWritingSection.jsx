@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FileText } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
+import BatchSearchSelect from './BatchSearchSelect'
 import {
   BATCH_DURATION_PRESETS,
   getTestSeriesFlat,
@@ -37,6 +38,10 @@ export default function SubjectMainsAnswerWritingSection({
   onTestSeriesChange,
   errors = {},
   disabled = false,
+  batches = [],
+  batchesLoading = false,
+  batchId = '',
+  onBatchChange,
 }) {
   const inputId = useId()
   const [uploadError, setUploadError] = useState(null)
@@ -169,6 +174,21 @@ export default function SubjectMainsAnswerWritingSection({
                 )}
               />
               {fieldErr(errors, 'testSeries_resultDate')}
+            </div>
+
+            <div>
+              <FieldLabel required>Batch</FieldLabel>
+              <BatchSearchSelect
+                batches={batches}
+                loading={batchesLoading}
+                value={batchId}
+                onChange={onBatchChange}
+                disabled={disabled}
+                error={errors.batchId}
+                required
+                placeholder="Select Batch"
+              />
+              {fieldErr(errors, 'batchId')}
             </div>
           </div>
         </div>

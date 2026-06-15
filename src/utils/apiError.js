@@ -31,7 +31,7 @@ function extractValidationDetail(error) {
 export function getApiErrorMessage(error, fallback = 'Something went wrong') {
   if (!error) return fallback
   if (error.response?.status === 429) {
-    return 'Too many requests. Please wait a moment and try again.'
+    return 'Too many requests. Please wait a few seconds and try again.'
   }
   if (error.response?.data) {
     return getApiErrorMessage(error.response.data, fallback)

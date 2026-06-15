@@ -3,6 +3,7 @@ import { cn } from '../../utils/cn'
 export default function PageBanner({
   icon: Icon,
   title,
+  subtitle,
   children,
   className,
   iconClassName = 'text-[#8b98bb]',
@@ -20,9 +21,12 @@ export default function PageBanner({
             <Icon className={cn('h-5 w-5', iconClassName)} strokeWidth={2.4} />
           </div>
         )}
-        <h1 className="truncate text-lg font-bold leading-none text-white sm:text-xl">
-          {title}
-        </h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-bold leading-none text-white sm:text-xl">{title}</h1>
+          {subtitle ? (
+            <p className="mt-1 text-sm font-medium text-white/85">{subtitle}</p>
+          ) : null}
+        </div>
       </div>
       {children && (
         <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:gap-3">

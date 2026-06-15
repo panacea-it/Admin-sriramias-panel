@@ -1,45 +1,20 @@
 import { Loader2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import { CourseFormField, CourseInput, CourseSelect, CourseTextarea } from '../../courses/CourseFormField'
+import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import {
   FREE_RESOURCE_CATEGORY,
-  BULK_QUESTION_ACCEPT,
   MAINS_CATEGORY_OPTIONS,
 } from '../../../utils/freeResourceFormConstants'
 import {
   validateNcertBookPdf,
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
-  validateMockTestBulkFile,
 } from '../../../utils/freeResourceApiHelpers'
 import FormFieldError from './FormFieldError'
 import UploadField from './UploadField'
-import { parseQuestionCount, resizeFreeResourceQuestions } from '../../../utils/freeResourceFormUtils'
 
 function Grid({ children, className = '' }) {
   return <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${className}`}>{children}</div>
-}
-
-function NumberOfQuestionsField({ register, watch, setValue, error }) {
-  const { onChange, ...field } = register('numberOfQuestions')
-  return (
-    <CourseFormField label="Number of Questions">
-      <CourseInput
-        {...field}
-        inputMode="numeric"
-        placeholder="e.g. 10"
-        onChange={(e) => {
-          onChange(e)
-          const count = parseQuestionCount(e.target.value)
-          const current = watch('questions') || []
-          setValue('questions', resizeFreeResourceQuestions(current, count), {
-            shouldDirty: true,
-          })
-        }}
-      />
-      <FormFieldError message={error} />
-    </CourseFormField>
-  )
 }
 
 export default function ResourceCategoryRenderer({
@@ -55,8 +30,6 @@ export default function ResourceCategoryRenderer({
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
-  mockTestBulkFileRequired = false,
-  mockTestBulkFileOptional = false,
 }) {
   if (!category) {
     return (
@@ -210,52 +183,16 @@ export default function ResourceCategoryRenderer({
 
     case FREE_RESOURCE_CATEGORY.MOCK_TEST: {
       const dropdowns = mockTestDropdownsProp ?? {
-        examCategoryOptions: [],
         paperTypeOptions: [],
         loading: false,
         error: null,
         retry: () => {},
       }
-      const examOptions = dropdowns.examCategoryOptions
       const paperOptions = dropdowns.paperTypeOptions
       const dropdownsLoading = dropdowns.loading
 
       return (
         <Grid>
-          <CourseFormField label="Exam Category" required>
-            <div className="relative">
-              <CourseSelect
-                {...register('examCategory')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
-              >
-                <option value="">
-                  {dropdownsLoading ? 'Loading exam categories…' : 'Choose exam'}
-                </option>
-                {examOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CourseSelect>
-              {dropdownsLoading ? (
-                <Loader2
-                  className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
-            {dropdowns.error && !dropdownsLoading && examOptions.length === 0 ? (
-              <button
-                type="button"
-                onClick={dropdowns.retry}
-                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
-              >
-                Retry loading options
-              </button>
-            ) : null}
-            <FormFieldError message={errors.examCategory?.message} />
-          </CourseFormField>
           <CourseFormField label="Mock Test Title" required>
             <CourseInput {...register('mockTestTitle')} placeholder="Mock test title" />
             <FormFieldError message={errors.mockTestTitle?.message} />
@@ -283,15 +220,16 @@ export default function ResourceCategoryRenderer({
                 />
               ) : null}
             </div>
+            {dropdowns.error && !dropdownsLoading && paperOptions.length === 0 ? (
+              <button
+                type="button"
+                onClick={dropdowns.retry}
+                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
+              >
+                Retry loading options
+              </button>
+            ) : null}
             <FormFieldError message={errors.paperType?.message} />
-          </CourseFormField>
-          <CourseFormField label="Subject" required>
-            <CourseInput {...register('subject')} placeholder="Subject" />
-            <FormFieldError message={errors.subject?.message} />
-          </CourseFormField>
-          <CourseFormField label="Topic" required>
-            <CourseInput {...register('topic')} placeholder="Topic" />
-            <FormFieldError message={errors.topic?.message} />
           </CourseFormField>
           <CourseFormField label="Duration" required>
             <CourseInput {...register('duration')} placeholder="e.g. 120 mins" />
@@ -301,45 +239,6 @@ export default function ResourceCategoryRenderer({
             <CourseInput {...register('totalMarks')} inputMode="numeric" placeholder="Total marks" />
             <FormFieldError message={errors.totalMarks?.message} />
           </CourseFormField>
-          <CourseFormField label="Negative Marking">
-            <CourseInput {...register('negativeMarking')} placeholder="e.g. 0.33" />
-          </CourseFormField>
-          <CourseFormField label="Instructions" className="sm:col-span-2 lg:col-span-3">
-            <CourseTextarea {...register('instructions')} rows={4} placeholder="Instructions" />
-          </CourseFormField>
-          <NumberOfQuestionsField
-            register={register}
-            watch={watch}
-            setValue={setValue}
-            error={errors.numberOfQuestions?.message}
-          />
-          {(mockTestBulkFileRequired || mockTestBulkFileOptional) && (
-            <UploadField
-              label={
-                mockTestBulkFileRequired
-                  ? 'Upload Questions File (CSV/XLSX)'
-                  : 'Replace Questions File (optional)'
-              }
-              required={mockTestBulkFileRequired}
-              accept={BULK_QUESTION_ACCEPT}
-              bypassValidation
-              fileName={watch('bulkFileName')}
-              className="sm:col-span-2 lg:col-span-3"
-              error={errors.bulkFileName?.message}
-              onFileNameChange={(name, file) => {
-                const result = validateMockTestBulkFile(file)
-                if (!result.valid) {
-                  toast.error(result.message)
-                  setValue('bulkFileName', '', { shouldDirty: true })
-                  setValue('bulkFile', null, { shouldDirty: true })
-                  return
-                }
-                setValue('bulkFileName', name, { shouldDirty: true, shouldValidate: true })
-                setValue('bulkFile', file, { shouldDirty: true, shouldValidate: true })
-                clearErrors?.('bulkFileName')
-              }}
-            />
-          )}
         </Grid>
       )
     }

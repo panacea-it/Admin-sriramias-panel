@@ -1,9 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { FileQuestion } from 'lucide-react'
-import BatchQuestionPaperSection from '../courses/exam/BatchQuestionPaperSection'
 import TestSeriesDetailsFields from '../courses/exam/TestSeriesDetailsFields'
 import PrelimsLanguageMultiSelect from './prelims/PrelimsLanguageMultiSelect'
-import PrelimsLanguageQuestionPapersSection from './prelims/PrelimsLanguageQuestionPapersSection'
 import PrelimsSectionManagement from './prelims/PrelimsSectionManagement'
 import { syncLanguageQuestionPapers } from '../../utils/prelimsLanguageQuestionPapers'
 import PrelimsAttemptSettings from './prelims/PrelimsAttemptSettings'
@@ -27,6 +24,7 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
   const {
     loading: masterLoading,
     error: masterError,
+    languages: languageMasterRows,
     languageOptions,
     sectionOptions,
     instructionOptions,
@@ -44,11 +42,13 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
     setValue('testSeries', normalizeTestSeriesBlock(next), { shouldDirty: true })
   }
 
-  const setTestSeries = (updater) => {
-    const prev = normalizeTestSeriesBlock(watch('testSeries') || {})
-    const next = typeof updater === 'function' ? updater(prev) : updater
-    setValue('testSeries', normalizeTestSeriesBlock(next), { shouldDirty: true })
-  }
+  const syncPapersForLanguages = (languages, existingPapers = []) =>
+    syncLanguageQuestionPapers(
+      existingPapers,
+      languages,
+      languageOptions,
+      languageMasterRows,
+    )
 
   return (
     <AnimatePresence initial={false}>
@@ -74,10 +74,9 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
             <PrelimsLanguageMultiSelect
               value={testSeries.languages}
               onChange={(languages) => {
-                const papers = syncLanguageQuestionPapers(
-                  testSeries.details?.languageQuestionPapers || [],
+                const papers = syncPapersForLanguages(
                   languages,
-                  languageOptions,
+                  testSeries.details?.languageQuestionPapers || [],
                 )
                 updateTestSeries({ languages, languageQuestionPapers: papers })
               }}
@@ -88,26 +87,6 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
             />
           </div>
         </div>
-
-        {testSeries.languages?.length > 0 ? (
-          <div className="rounded-2xl border border-[#e5eaf2] bg-white p-4 shadow-sm sm:p-6">
-            <div className="mb-4">
-              <h4 className="text-sm font-bold text-[#1a3a5c] sm:text-base">Question Papers</h4>
-              <p className="mt-0.5 text-xs text-[#686868]">
-                Upload a PDF question paper for each selected language
-              </p>
-            </div>
-            <PrelimsLanguageQuestionPapersSection
-              languages={testSeries.languages}
-              papers={testSeries.details?.languageQuestionPapers || []}
-              languageOptionOrder={languageOptions}
-              onPapersChange={(languageQuestionPapers) =>
-                updateTestSeries({ languageQuestionPapers })
-              }
-              errors={errors}
-            />
-          </div>
-        ) : null}
 
         <SectionTitle>Test Series Details</SectionTitle>
 
@@ -141,30 +120,6 @@ export default function SubjectTestSeriesSection({ watch, setValue, errors = {} 
           onTestSeriesChange={updateTestSeries}
           errors={errors}
         />
-
-        {!testSeries.sectionWiseEnabled ? (
-          <div className="rounded-2xl border border-[#e5eaf2] bg-white p-4 shadow-sm sm:p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6fc] ring-1 ring-[#cfe8f8]/80"
-                aria-hidden
-              >
-                <FileQuestion className="h-5 w-5 text-[#246392]" strokeWidth={2.1} />
-              </span>
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-[#1a3a5c] sm:text-base">Question Paper</h4>
-                <p className="text-xs text-[#686868]">
-                  Set question count and add or upload questions
-                </p>
-              </div>
-            </div>
-            <BatchQuestionPaperSection
-              testSeries={testSeries}
-              setTestSeries={setTestSeries}
-              errors={errors}
-            />
-          </div>
-        ) : null}
       </motion.section>
     </AnimatePresence>
   )

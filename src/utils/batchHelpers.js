@@ -4,6 +4,13 @@ import { DEFAULT_BATCH_CAPACITY, normalizeBatchUiStatus } from './batchOperation
 import { resolveMentorDisplayName } from './mentorEmployees'
 import { isMongoObjectId } from './facultySubjectHelpers'
 
+/** Human-readable batch identifier for tables and search (batchId, then batchCode). */
+export function resolveBatchDisplayId(row = {}) {
+  const fd = row.formData || {}
+  const id = String(row.batchId || fd.batchId || row.batchCode || fd.batchCode || '').trim()
+  return id || '—'
+}
+
 /** Case-insensitive search across batch list fields. */
 export function matchesBatchSearch(row = {}, query = '') {
   const q = String(query || '').trim().toLowerCase()
@@ -118,8 +125,8 @@ export function enrichBatchRow(row, index = 0) {
   const fd = row.formData || {}
   return {
     ...row,
-    batchId: row.batchId || fd.batchId || `BAT${String(index + 1).padStart(3, '0')}`,
-    batchCode: row.batchCode || fd.batchCode || '',
+    batchId: row.batchId || fd.batchId || row.batchCode || fd.batchCode || `BAT${String(index + 1).padStart(3, '0')}`,
+    batchCode: row.batchCode || fd.batchCode || row.batchId || fd.batchId || '',
     batchName: row.batchName || fd.batchName || row.name || '',
     courseId: row.courseId || fd.courseId || '—',
     courseName: row.courseName || row.linkedCourseName || fd.courseName,
@@ -136,6 +143,8 @@ export function enrichBatchRow(row, index = 0) {
     createdAt: row.createdAt || fd.createdAt,
     modifiedAt: row.modifiedAt || fd.modifiedAt,
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
+    center: row.center || fd.center || '',
+    academicCourseId: row.academicCourseId || fd.academicCourseId || '',
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,
     mergedIntoName: row.mergedIntoName ?? fd.mergedIntoName ?? null,
     totalStudents: row.totalStudents ?? row.studentCount ?? fd.totalStudents,
@@ -173,9 +182,12 @@ export function mapBatchRowToTableFormat(row, students = [], totalStudentsOverri
   const batchLabel = row.batchName || row.name || 'Batch'
   const totalStudents =
     totalStudentsOverride != null ? totalStudentsOverride : students.length
+  const displayBatchId = resolveBatchDisplayId(row)
   return {
     id: row.id,
-    batchId: row.batchId || fd.batchId || '—',
+    batchId: displayBatchId,
+    displayBatchId,
+    batchName: batchLabel,
     courseName,
     batchLabel,
     displayName: `${courseName} - ${batchLabel}`,
@@ -185,6 +197,9 @@ export function mapBatchRowToTableFormat(row, students = [], totalStudentsOverri
     endDate: row.batchEndTo || fd.batchEndTo || '',
     status: normalizeBatchUiStatus(row.status || fd.status || 'Active'),
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
+    center: row.center || fd.center || '',
+    academicCourseId: row.academicCourseId || fd.academicCourseId || row.courseId || fd.courseId || '',
+    courseId: row.courseId || fd.courseId || '',
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,
     mergedIntoName: row.mergedIntoName ?? fd.mergedIntoName ?? null,
     students,

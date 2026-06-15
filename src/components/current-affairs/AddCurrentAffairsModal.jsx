@@ -68,6 +68,8 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
   const [fileInputKey, setFileInputKey] = useState(0)
 
+  const [sampleFileInputKey, setSampleFileInputKey] = useState(0)
+
   const [questionSectionKey, setQuestionSectionKey] = useState(0)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -111,6 +113,8 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
   const clearFileInputs = useCallback(() => {
 
     setFileInputKey((k) => k + 1)
+
+    setSampleFileInputKey((k) => k + 1)
 
   }, [])
 
@@ -299,6 +303,44 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
       })
 
       return { ...f, fileName, file: file || null }
+
+    })
+
+  }
+
+
+
+  const onSampleFileChange = ({ fileName, file, errorMessage }) => {
+
+    setForm((f) => {
+
+      setErrors((prev) => {
+
+        const next = { ...prev }
+
+        if (errorMessage) {
+
+          next.sampleUpload = errorMessage
+
+        } else {
+
+          delete next.sampleUpload
+
+        }
+
+        return next
+
+      })
+
+      return {
+
+        ...f,
+
+        sampleFileName: fileName,
+
+        sampleFile: file || null,
+
+      }
 
     })
 
@@ -524,11 +566,15 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
                 fileInputKey={fileInputKey}
 
+                sampleFileInputKey={sampleFileInputKey}
+
                 onCategoryChange={handleCategoryChange}
 
                 onFieldChange={onFieldChange}
 
                 onFileChange={onFileChange}
+
+                onSampleFileChange={onSampleFileChange}
 
                 onClearError={onClearError}
 

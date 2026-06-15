@@ -19,7 +19,6 @@ import {
   resolveTestSeriesDurationMinutes,
   validateTestSeriesForm,
 } from '../../utils/batchTestSeriesForm'
-import { validateTestSeriesQuestions } from '../../utils/testSeriesQuestionSlots'
 import { validatePrelimsTestSeriesExtras } from '../../utils/prelimsTestSeriesValidation'
 import {
   isLiveClassCategory,
@@ -487,12 +486,12 @@ export function validateSubjectForm(
       }),
     )
     Object.assign(errors, validatePrelimsTestSeriesExtras(ts))
-    if (!ts.sectionWiseEnabled) {
-      Object.assign(errors, validateTestSeriesQuestions(ts))
-    }
   }
 
   if (needsMainsAnswerWriting && !liveClassOnly) {
+    const batchIds = normalizeBatchIds(values)
+    if (!batchIds.length) errors.batchId = 'Batch is required'
+
     const ts = normalizeTestSeriesBlock(values.testSeries || {})
     const d = ts.details
     const s = ts.schedule

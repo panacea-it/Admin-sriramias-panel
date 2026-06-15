@@ -1,25 +1,27 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Users } from 'lucide-react'
-import { usePagination } from '../../hooks/usePagination'
-import TablePagination from '../figma/TablePagination'
-import BatchStatusSelector from './BatchStatusSelector'
+import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
+import { StatusBadge } from '../academics/AcademicsUi'
 import BatchTableActions from './BatchTableActions'
 import { formatBatchDate } from '../../data/batchManagementData'
 import { batchDetailsPath } from '../../constants/batchNav'
 import { cn } from '../../utils/cn'
 
+const OVERFLOW_CELL = 'min-w-0 max-w-0 overflow-hidden align-middle'
+
 const linkClassName =
   'font-semibold text-[#246392] underline-offset-2 transition hover:text-[#1a3a5c] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/50 rounded'
 
-const thClass =
-  'px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap sm:text-base'
-const tdClass = 'px-4 py-4 align-middle text-sm text-[#444]'
+function CellWrap({ children, className }) {
+  return <div className={cn('w-full min-w-0 overflow-hidden', className)}>{children}</div>
+}
 
-function TruncatedText({ children, className }) {
+function CellText({ children, className, title }) {
   return (
     <span
-      className={cn('block max-w-[220px] truncate', className)}
-      title={typeof children === 'string' ? children : undefined}
+      className={cn('block truncate', className)}
+      title={title || (typeof children === 'string' ? children : undefined)}
     >
       {children}
     </span>
@@ -30,191 +32,263 @@ export default function BatchManagementTable({
   batches,
   onEditBatch,
   onQuickViewBatch,
+  onDeleteBatch,
   listState,
-  page: controlledPage,
-  pageSize: controlledPageSize,
-  totalItems: totalItemsProp,
-  serverPaginated = false,
+  page,
+  pageSize,
+  totalItems,
   onPageChange,
   onPageSizeChange,
   resetDeps = [],
-  onStatusChange,
   onStatusToggle,
   statusUpdatingIds,
   onDuplicate,
+  loading = false,
+  emptyMessage = 'No batches found.',
+  selectedIds = [],
+  onToggleSelect,
+  onToggleSelectPage,
 }) {
-  const isControlled =
-    controlledPage != null &&
-    controlledPageSize != null &&
-    onPageChange &&
-    onPageSizeChange
-
-  const internalPagination = usePagination(batches, {
-    initialPageSize: controlledPageSize ?? 10,
-    resetDeps,
-  })
-
-  const page = isControlled ? controlledPage : internalPagination.page
-  const pageSize = isControlled ? controlledPageSize : internalPagination.pageSize
-  const totalItems = totalItemsProp ?? batches.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1)
+  const totalPages = Math.max(1, Math.ceil((totalItems || 0) / pageSize) || 1)
   const safePage = Math.min(Math.max(1, page), totalPages)
   const startIndex = totalItems === 0 ? 0 : (safePage - 1) * pageSize
-  const endIndex = serverPaginated
-    ? Math.min(startIndex + batches.length, totalItems)
-    : Math.min(startIndex + pageSize, totalItems)
-  const paginatedItems = serverPaginated ? batches : batches.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + batches.length, totalItems || 0)
 
-  const handlePageChange = (next) => {
-    if (isControlled) onPageChange(next)
-    else internalPagination.setPage(next)
-  }
-
-  const handlePageSizeChange = (size) => {
-    if (isControlled) onPageSizeChange(size)
-    else internalPagination.setPageSize(size)
-  }
-
-  return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-      <div className="max-h-[min(70vh,720px)] overflow-auto overscroll-contain">
-        <table className="w-full min-w-[1120px] border-collapse text-left">
-          <thead className="sticky top-0 z-20 shadow-[0_2px_0_rgba(15,23,42,0.06)]">
-            <tr className="bg-gradient-to-r from-[#55ace7] to-[#246392] text-white">
-              <th className={cn(thClass, 'min-w-[100px] sm:pl-6')}>Batch ID</th>
-              <th className={cn(thClass, 'min-w-[200px]')}>Batch Name</th>
-              <th className={cn(thClass, 'min-w-[160px]')}>Course Name</th>
-              <th className={cn(thClass, 'min-w-[180px]')}>Mentor Name</th>
-              <th className={cn(thClass, 'min-w-[110px]')}>Start Date</th>
-              <th className={cn(thClass, 'min-w-[110px]')}>End Date</th>
-              <th className={cn(thClass, 'min-w-[120px] text-center')}>Total Students</th>
-              <th className={cn(thClass, 'min-w-[130px]')}>Status</th>
-              <th className={cn(thClass, 'min-w-[240px] text-right sm:pr-6')}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedItems.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="py-12 text-center text-sm font-medium text-slate-500">
-                  No batches found.
-                </td>
-              </tr>
-            ) : (
-              paginatedItems.map((batch) => (
-                <BatchTableRow
-                  key={batch.id}
-                  batch={batch}
-                  listState={listState}
-                  onEditBatch={onEditBatch}
-                  onQuickViewBatch={onQuickViewBatch}
-                  onStatusChange={onStatusChange}
-                  onStatusToggle={onStatusToggle}
-                  statusUpdating={statusUpdatingIds?.has(String(batch.id))}
-                  onDuplicate={onDuplicate}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      {batches.length > 0 && (
-        <TablePagination
-          page={safePage}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          totalPages={totalPages}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          itemLabel="batches"
-        />
-      )}
-    </div>
+  const columns = useMemo(
+    () => [
+      {
+        key: 'batchId',
+        label: 'Batch ID',
+        width: '8%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => {
+          const detailsPath = batchDetailsPath(batch)
+          const linkState = {
+            ...(listState ? { listState } : {}),
+            ...(batch.apiRow ? { batchRow: batch.apiRow } : {}),
+          }
+          const hasLinkState = Object.keys(linkState).length > 0 ? linkState : undefined
+          const batchIdLabel = batch.displayBatchId || batch.batchId || '—'
+          return (
+            <CellWrap>
+              <Link
+                to={detailsPath}
+                state={hasLinkState}
+                className={cn(linkClassName, 'block min-w-0 truncate font-mono text-xs font-bold tracking-tight text-[#1a3a5c]')}
+                title={batchIdLabel}
+              >
+                {batchIdLabel}
+              </Link>
+            </CellWrap>
+          )
+        },
+      },
+      {
+        key: 'batchName',
+        label: 'Batch Name',
+        width: '16%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => {
+          const detailsPath = batchDetailsPath(batch)
+          const linkState = {
+            ...(listState ? { listState } : {}),
+            ...(batch.apiRow ? { batchRow: batch.apiRow } : {}),
+          }
+          const hasLinkState = Object.keys(linkState).length > 0 ? linkState : undefined
+          const batchNameLabel = batch.batchName || batch.batchLabel || '—'
+          return (
+            <CellWrap>
+              <Link
+                to={detailsPath}
+                state={hasLinkState}
+                className={cn(linkClassName, 'block min-w-0')}
+                title={batchNameLabel}
+              >
+                <CellText className="text-sm font-semibold text-[#111]" title={batchNameLabel}>
+                  {batchNameLabel}
+                </CellText>
+              </Link>
+              {batch.mergedIntoName && (
+                <p
+                  className="mt-0.5 truncate text-xs font-medium text-slate-500"
+                  title={batch.mergedIntoName}
+                >
+                  Merged Into: {batch.mergedIntoName}
+                </p>
+              )}
+            </CellWrap>
+          )
+        },
+      },
+      {
+        key: 'mentor',
+        label: 'Mentor Name',
+        width: '14%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => {
+          const mentorLabel = batch.mentorName || '—'
+          return (
+            <CellWrap>
+              <CellText className="text-sm font-medium text-[#686868]" title={mentorLabel}>
+                {mentorLabel}
+              </CellText>
+            </CellWrap>
+          )
+        },
+      },
+      {
+        key: 'startDate',
+        label: 'Start Date',
+        width: '10%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => (
+          <CellWrap>
+            <span className="block truncate whitespace-nowrap text-sm text-[#444]">
+              {formatBatchDate(batch.startDate)}
+            </span>
+          </CellWrap>
+        ),
+      },
+      {
+        key: 'endDate',
+        label: 'End Date',
+        width: '10%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => (
+          <CellWrap>
+            <span className="block truncate whitespace-nowrap text-sm text-[#444]">
+              {formatBatchDate(batch.endDate)}
+            </span>
+          </CellWrap>
+        ),
+      },
+      {
+        key: 'students',
+        label: 'Students',
+        width: '8%',
+        align: 'center',
+        headerClassName: cn(OVERFLOW_CELL, 'text-center'),
+        cellClassName: cn(OVERFLOW_CELL, 'text-center'),
+        render: (batch) => {
+          const detailsPath = batchDetailsPath(batch)
+          const linkState = {
+            ...(listState ? { listState } : {}),
+            ...(batch.apiRow ? { batchRow: batch.apiRow } : {}),
+          }
+          const hasLinkState = Object.keys(linkState).length > 0 ? linkState : undefined
+          const batchNameLabel = batch.batchName || batch.batchLabel || '—'
+          return (
+            <div className="flex items-center justify-center">
+              <Link
+                to={detailsPath}
+                state={hasLinkState}
+                className="inline-flex h-9 min-w-[3.25rem] items-center justify-center gap-1.5 rounded-[9px] bg-slate-100 px-3 text-sm font-bold text-[#246392] transition hover:bg-[#eef6fc]"
+                title={`View students for ${batchNameLabel}`}
+              >
+                <Users className="h-3.5 w-3.5 shrink-0" />
+                {batch.totalStudents}
+              </Link>
+            </div>
+          )
+        },
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        width: '9%',
+        align: 'center',
+        headerClassName: cn(OVERFLOW_CELL, 'text-center'),
+        cellClassName: cn(OVERFLOW_CELL, 'text-center'),
+        render: (batch) => (
+          <div className="flex w-full items-center justify-center">
+            <StatusBadge status={batch.status} />
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        width: 520,
+        align: 'center',
+        headerClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
+        cellClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
+        headerTruncate: false,
+        render: (batch) => (
+          <BatchTableActions
+            batch={batch}
+            onView={() => onQuickViewBatch?.(batch)}
+            onEdit={() => onEditBatch?.(batch)}
+            onDuplicate={() => onDuplicate?.(batch)}
+            onStatusToggle={() => onStatusToggle?.(batch)}
+            onDelete={() => onDeleteBatch?.(batch)}
+            disabled={statusUpdatingIds?.has(String(batch.id))}
+          />
+        ),
+      },
+    ],
+    [
+      listState,
+      onDeleteBatch,
+      onDuplicate,
+      onEditBatch,
+      onQuickViewBatch,
+      onStatusToggle,
+      statusUpdatingIds,
+    ],
   )
-}
 
-function BatchTableRow({
-  batch,
-  listState,
-  onEditBatch,
-  onQuickViewBatch,
-  onStatusChange,
-  onStatusToggle,
-  statusUpdating = false,
-  onDuplicate,
-}) {
-  const detailsPath = batchDetailsPath(batch)
-  const linkState = {
-    ...(listState ? { listState } : {}),
-    ...(batch.apiRow ? { batchRow: batch.apiRow } : {}),
-  }
-  const hasLinkState = Object.keys(linkState).length > 0 ? linkState : undefined
+  const selection =
+    onToggleSelect && onToggleSelectPage
+      ? {
+          selectedIds,
+          onToggle: onToggleSelect,
+          onTogglePage: onToggleSelectPage,
+          getRowId: (row) => String(row.id),
+          columnWidth: 44,
+          headerClassName: 'w-11 min-w-[2.75rem] max-w-[2.75rem] px-2 text-center align-middle',
+          cellClassName: 'w-11 min-w-[2.75rem] max-w-[2.75rem] px-2 text-center align-middle',
+        }
+      : undefined
 
   return (
-    <tr className="border-b border-slate-100 transition-colors duration-150 hover:bg-[#f8fbff]">
-      <td className={cn(tdClass, 'sm:pl-6')}>
-        <Link
-          to={detailsPath}
-          state={hasLinkState}
-          className={cn(linkClassName, 'font-mono text-sm')}
-          title={batch.batchId}
-        >
-          {batch.batchId}
-        </Link>
-      </td>
-      <td className={tdClass}>
-        <div className="min-w-0">
-          <Link
-            to={detailsPath}
-            state={hasLinkState}
-            className={linkClassName}
-            title={batch.displayName}
-          >
-            <TruncatedText>{batch.displayName}</TruncatedText>
-          </Link>
-          {batch.mergedIntoName && (
-            <p className="mt-0.5 truncate text-xs font-medium text-slate-500" title={batch.mergedIntoName}>
-              Merged Into: {batch.mergedIntoName}
-            </p>
-          )}
-        </div>
-      </td>
-      <td className={tdClass}>
-        <TruncatedText className="font-medium">{batch.courseName}</TruncatedText>
-      </td>
-      <td className={tdClass}>
-        <TruncatedText>{batch.mentorName}</TruncatedText>
-      </td>
-      <td className={cn(tdClass, 'whitespace-nowrap')}>{formatBatchDate(batch.startDate)}</td>
-      <td className={cn(tdClass, 'whitespace-nowrap')}>{formatBatchDate(batch.endDate)}</td>
-      <td className={cn(tdClass, 'text-center')}>
-        <Link
-          to={detailsPath}
-          state={hasLinkState}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-bold text-[#246392] transition hover:bg-[#eef6fc]"
-          title={`View students for ${batch.displayName}`}
-        >
-          <Users className="h-3.5 w-3.5 shrink-0" />
-          {batch.totalStudents}
-        </Link>
-      </td>
-      <td className={tdClass}>
-        <BatchStatusSelector
-          status={batch.status}
-          disabled={statusUpdating}
-          onStatusChange={(next) => onStatusChange?.(batch, next)}
-        />
-      </td>
-      <td className={cn(tdClass, 'text-right sm:pr-6')}>
-        <BatchTableActions
-          batch={batch}
-          onView={() => onQuickViewBatch?.(batch)}
-          onEdit={() => onEditBatch?.(batch)}
-          onDuplicate={() => onDuplicate?.(batch)}
-          onStatusToggle={() => onStatusToggle?.(batch)}
-        />
-      </td>
-    </tr>
+    <PaginatedFigmaTable
+      columns={columns}
+      data={batches}
+      emptyMessage={emptyMessage}
+      itemLabel="batches"
+      resetDeps={resetDeps}
+      loading={loading}
+      rowClassName="hover:bg-[#eef6fc]/70"
+      density="comfortable"
+      skeletonRowCount={8}
+      tableMinWidth={1680}
+      tableLayoutFixed
+      className="overflow-hidden rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
+      tableClassName={cn(
+        'rounded-none border-0 shadow-none',
+        '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',
+        '[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]',
+        '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap [&_thead_th]:!bg-transparent',
+        '[&_thead_th]:text-white [&_thead_th]:text-xs [&_thead_th]:font-semibold sm:[&_thead_th]:text-sm',
+        '[&_tbody_td]:align-middle',
+      )}
+      selection={selection}
+      controlledPagination={{
+        page: safePage,
+        pageSize,
+        totalItems: totalItems || 0,
+        totalPages,
+        startIndex,
+        endIndex,
+        onPageChange,
+        onPageSizeChange,
+      }}
+      gradientActivePage
+    />
   )
 }

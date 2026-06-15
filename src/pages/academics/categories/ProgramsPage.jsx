@@ -12,11 +12,23 @@ import ProgramFormModal from '../../../components/categories/ProgramFormModal'
 import ViewProgramModal from '../../../components/categories/ViewProgramModal'
 import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import ConfirmProgramStatusModal from '../../../components/categories/ConfirmProgramStatusModal'
+import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useCenters } from '../../../contexts/CentersContext'
 import { useEditModal } from '../../../hooks/useEditModal'
 import { useProgramManagement } from '../../../hooks/useProgramManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
-import { toast } from '../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../utils/masterBulkActions'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import {
   buildProgramApiPayload,
@@ -99,7 +111,8 @@ export default function ProgramsPage() {
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreRows = useMemo(
     () =>
@@ -134,7 +147,12 @@ export default function ProgramsPage() {
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => programsById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, programsById),
+    [selectedIds, programsById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, programsById),
     [selectedIds, programsById],
   )
 
@@ -270,25 +288,67 @@ export default function ProgramsPage() {
     }
   }
 
-  const handleBulkDisable = async () => {
-    const ids = selectedIds.filter((id) => programsById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = () => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }
 
-    setBulkDisableLoading(true)
-    const apiStatus = mapUiStatusToApi('In Active')
+  const handleBulkDisableRequest = () => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }
+
+  const handleBulkDeleteRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
 
     try {
-      await Promise.all(ids.map((id) => updateProgramStatus(id, apiStatus)))
-      ids.forEach((id) => patchProgramLocally(id, { status: 'In Active' }))
-      toast.success(ids.length > 1 ? `${ids.length} programs disabled` : 'Program disabled')
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, programsById)
+        const apiStatus = mapUiStatusToApi('Active')
+        await bulkUpdateMasterStatus('programs', ids, apiStatus, {
+          updateSingle: updateProgramStatus,
+        })
+        ids.forEach((id) => patchProgramLocally(id, { status: 'Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, programsById)
+        const apiStatus = mapUiStatusToApi('In Active')
+        await bulkUpdateMasterStatus('programs', ids, apiStatus, {
+          updateSingle: updateProgramStatus,
+        })
+        ids.forEach((id) => patchProgramLocally(id, { status: 'In Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        await Promise.all(ids.map((id) => deleteProgram(id)))
+        ids.forEach((id) => removeProgramLocally(id))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        await refreshPrograms()
+      }
+      setBulkConfirm(null)
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected programs'))
-      await refreshPrograms()
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Unable to delete selected records. Please try again.')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
+      if (bulkConfirm.type !== 'delete') {
+        await refreshPrograms()
+      }
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
   }
 
@@ -421,10 +481,12 @@ export default function ProgramsPage() {
 
         <ProgramsBulkActionsBar
           count={selectedIds.length}
+          enableCount={enableableCount}
           disableCount={disableableCount}
           onClearSelection={() => setSelectedIds([])}
-          onDisable={handleBulkDisable}
-          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+          onEnable={handleBulkEnableRequest}
+          onDisable={handleBulkDisableRequest}
+          onDelete={handleBulkDeleteRequest}
         />
 
         {loading && (
@@ -449,7 +511,7 @@ export default function ProgramsPage() {
           <ProgramsTable
             columns={columns}
             data={enrichedPrograms}
-            loading={loading || bulkDisableLoading}
+            loading={loading || bulkActionLoading}
             resetDeps={[filters]}
             emptyMessage="No programs match your filters."
             selection={{
@@ -495,6 +557,14 @@ export default function ProgramsPage() {
           loading={statusLoading}
           onCancel={() => !statusLoading && setStatusTarget(null)}
           onConfirm={confirmStatusChange}
+        />
+
+        <MasterBulkConfirmModal
+          open={Boolean(bulkConfirm)}
+          type={bulkConfirm?.type}
+          loading={bulkActionLoading}
+          onConfirm={confirmBulkAction}
+          onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
         />
       </motion.div>
     </AnimatePresence>

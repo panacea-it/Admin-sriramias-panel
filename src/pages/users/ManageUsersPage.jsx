@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
@@ -10,6 +11,22 @@ import ConfirmManageUserDeleteModal from "../../components/manage-users/ConfirmM
 import ConfirmManageUserStatusModal from "../../components/manage-users/ConfirmManageUserStatusModal";
 import UserFormModal from "../../components/manage-users/UserFormModal";
 import ViewUserModal from "../../components/manage-users/ViewUserModal";
+=======
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Users } from 'lucide-react'
+import { toast } from '@/utils/toast'
+import PageBanner from '../../components/figma/PageBanner'
+import { BannerButton } from '../../components/academics/AcademicsUi'
+import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
+import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsersBulkActionsBar'
+import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
+import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
+import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
+import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
+import UserFormModal from '../../components/manage-users/UserFormModal'
+import ViewUserModal from '../../components/manage-users/ViewUserModal'
+>>>>>>> 148abf4ae797b9ad79fb025457f86005b0d24cbc
 import {
   MANAGE_USERS_STATIC_CENTERS,
   formatManageUserJoinDate,
@@ -574,29 +591,15 @@ export default function ManageUsersPage() {
   return (
     <div className="figma-admin-section min-h-screen bg-[#F5F7FB] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
       <section className="mx-auto max-w-screen-2xl space-y-6">
-        <div className="flex flex-col gap-5 rounded-2xl border border-[#E7ECF5] bg-white px-5 py-5 shadow-[0_8px_24px_rgba(7,19,63,0.06)] sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#EEF5FF] ring-1 ring-[#4CA6E8]/20">
-              <Users className="h-6 w-6 text-[#1D72B8]" strokeWidth={2} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold tracking-tight text-[#14213D] sm:text-2xl">
-                Users Management
-              </h1>
-              <p className="mt-1 text-sm text-[#667085]">
-                Manage users, permissions and assigned centers.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-[#1D72B8] to-[#07133F] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(29,114,184,0.35)] transition hover:shadow-[0_6px_20px_rgba(7,19,63,0.35)] active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
-            Add User
-          </button>
-        </div>
+        <PageBanner
+          icon={Users}
+          iconClassName="text-[#246392]"
+          title="Users Management"
+          subtitle="Manage users, permissions and assigned centers."
+          className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
+        >
+          <BannerButton onClick={openCreate}>Add User</BannerButton>
+        </PageBanner>
 
         <div className="rounded-2xl border border-[#E7ECF5] bg-white p-5 shadow-[0_8px_24px_rgba(7,19,63,0.05)] sm:p-6">
           <ManageUsersFilterToolbar

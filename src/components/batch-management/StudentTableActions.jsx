@@ -1,77 +1,97 @@
-import { ArrowRightLeft, Eye, Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Eye, Pencil, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { isStudentEnrollmentActive } from './studentStatusDisplay'
 
-function ActionBtn({ label, onClick, className, children }) {
+const actionButtonClass =
+  'inline-flex h-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition whitespace-nowrap sm:gap-1 sm:px-2 sm:text-xs'
+
+function ActionBtn({ label, onClick, disabled, className, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       title={label}
       aria-label={label}
       className={cn(
-        'inline-flex h-8 w-8 items-center justify-center rounded-lg transition',
+        actionButtonClass,
+        'disabled:cursor-not-allowed disabled:opacity-60',
         className,
       )}
     >
       {children}
+      <span>{label}</span>
     </button>
   )
 }
 
 export default function StudentTableActions({
+  studentName = 'student',
   status,
   onView,
   onEdit,
-  onMove,
   onDelete,
+  onMove,
   onToggleStatus,
+  canMove = true,
+  disabled = false,
 }) {
   const isActive = isStudentEnrollmentActive(status)
 
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div
+      role="group"
+      aria-label={`Actions for ${studentName}`}
+      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 sm:gap-1"
+    >
       <ActionBtn
-        label="View details"
+        label="View"
         onClick={onView}
-        className="text-[#246392] hover:bg-[#eef6fc]"
+        disabled={disabled}
+        className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
       >
-        <Eye className="h-4 w-4" strokeWidth={2.2} />
+        <Eye className="h-3.5 w-3.5 shrink-0" />
       </ActionBtn>
       <ActionBtn
-        label="Edit student"
+        label="Edit"
         onClick={onEdit}
-        className="text-amber-600 hover:bg-amber-50"
+        disabled={disabled}
+        className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
       >
-        <Pencil className="h-4 w-4" strokeWidth={2.2} />
+        <Pencil className="h-3.5 w-3.5 shrink-0" />
       </ActionBtn>
-      {onMove && (
+      <ActionBtn
+        label="Delete"
+        onClick={onDelete}
+        disabled={disabled}
+        className="text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]"
+      >
+        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+      </ActionBtn>
+      {canMove && onMove && (
         <ActionBtn
-          label="Move student"
+          label="Move"
           onClick={onMove}
-          className="text-[#246392] hover:bg-[#eef6fc]"
+          disabled={disabled}
+          className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
         >
-          <ArrowRightLeft className="h-4 w-4" strokeWidth={2.2} />
+          <RefreshCw className="h-3.5 w-3.5 shrink-0" />
         </ActionBtn>
       )}
-      <ActionBtn
-        label={isActive ? 'Disable' : 'Enable'}
-        onClick={onToggleStatus}
-        className="text-[#246392] hover:bg-[#eef2fc]"
-      >
-        {isActive ? (
-          <ToggleRight className="h-4 w-4" strokeWidth={2.2} />
-        ) : (
-          <ToggleLeft className="h-4 w-4" strokeWidth={2.2} />
-        )}
-      </ActionBtn>
-      <ActionBtn
-        label="Delete student"
-        onClick={onDelete}
-        className="text-rose-600 hover:bg-rose-50"
-      >
-        <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-      </ActionBtn>
+      {onToggleStatus && (
+        <ActionBtn
+          label={isActive ? 'Disable' : 'Enable'}
+          onClick={onToggleStatus}
+          disabled={disabled}
+          className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
+        >
+          {isActive ? (
+            <ToggleRight className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <ToggleLeft className="h-3.5 w-3.5 shrink-0" />
+          )}
+        </ActionBtn>
+      )}
     </div>
   )
 }

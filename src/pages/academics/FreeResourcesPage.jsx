@@ -18,11 +18,15 @@ import ConfirmFreeResourceStatusModal from '../../components/content-library/fre
 
 import FreeResourcesBulkActionsBar from '../../components/content-library/free-resources/FreeResourcesBulkActionsBar'
 
-import CategoryTableActions from '../../components/categories/CategoryTableActions'
+import FreeResourcesBulkConfirmDialog from '../../components/content-library/free-resources/FreeResourcesBulkConfirmDialog'
+
+import CourseTableActions from '../../components/categories/CourseTableActions'
 
 import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 
-import { BannerButton, ResourceNameCell, StatusBadge } from '../../components/academics/AcademicsUi'
+import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
+
+import { cn } from '../../utils/cn'
 
 import { useEditModal } from '../../hooks/useEditModal'
 
@@ -89,6 +93,27 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'Active', label: 'Active' },
   { value: 'In Active', label: 'Inactive' },
 ]
+
+const CELL = 'min-w-0 align-middle'
+
+function FreeResourceNameCell({ name }) {
+  return (
+    <span className="block truncate text-sm font-semibold text-[#111]" title={name}>
+      {name}
+    </span>
+  )
+}
+
+function CategoryCell({ label }) {
+  return (
+    <span
+      className="block truncate text-[13px] font-medium text-[#686868]"
+      title={label || undefined}
+    >
+      {label || '—'}
+    </span>
+  )
+}
 
 
 
@@ -164,7 +189,9 @@ export default function FreeResourcesPage() {
 
   const [statusTarget, setStatusTarget] = useState(null)
 
-  const [bulkDisableIds, setBulkDisableIds] = useState(null)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const [statusLoading, setStatusLoading] = useState(false)
 
@@ -340,6 +367,11 @@ export default function FreeResourcesPage() {
     [selectedIds, resolveRowById],
   )
 
+  const enableableCount = useMemo(
+    () => selectedIds.filter((id) => resolveRowById(id)?.status === 'In Active').length,
+    [selectedIds, resolveRowById],
+  )
+
 
 
   const handleSaveResource = (form, { isEdit, id } = {}) => {
@@ -504,172 +536,222 @@ export default function FreeResourcesPage() {
 
 
 
-  const confirmStatusChange = useCallback(async () => {
-
-    if (bulkDisableIds?.length) {
-      setStatusLoading(true)
+  const applyBulkStatusChange = useCallback(
+    async (ids, nextUi) => {
+      const nextApi = mapUiStatusToApi(nextUi)
       let successCount = 0
       let refreshedApi = false
-      const localIdsToDisable = []
+      const localIds = []
 
-      try {
-        await Promise.all(
-          bulkDisableIds.map(async (id) => {
-            const row = resolveRowById(id)
-            if (!row || row.status !== 'Active') return
+      await Promise.all(
+        ids.map(async (id) => {
+          const row = resolveRowById(id)
+          if (!row || row.status === nextUi) return
 
-            const isApiRow = apiItemsById.has(id)
-            if (isApiRow) {
-              await updateFreeResourceStatus(id, mapUiStatusToApi('In Active'))
-              refreshedApi = true
-            } else {
-              localIdsToDisable.push(id)
-            }
-            successCount += 1
-          }),
+          const isApiRow = apiItemsById.has(id)
+          if (isApiRow) {
+            await updateFreeResourceStatus(id, nextApi)
+            refreshedApi = true
+          } else {
+            localIds.push(id)
+          }
+          successCount += 1
+        }),
+      )
+
+      if (localIds.length) {
+        const idSet = new Set(localIds)
+        setResources((prev) =>
+          prev.map((item) => (idSet.has(item.id) ? { ...item, status: nextUi } : item)),
         )
-
-        if (localIdsToDisable.length) {
-          const idSet = new Set(localIdsToDisable)
-          setResources((prev) =>
-            prev.map((item) =>
-              idSet.has(item.id) ? { ...item, status: 'In Active' } : item,
-            ),
-          )
-        }
-
-        if (refreshedApi) await refreshAllFreeResources()
-
-        if (successCount > 0) {
-          toast.success(
-            successCount === 1
-              ? 'Resource disabled'
-              : `${successCount} resources disabled`,
-          )
-        }
-
-        setBulkDisableIds(null)
-        setSelectedIds([])
-      } catch (error) {
-        toast.error(getFreeResourceApiErrorMessage(error, 'Failed to update status'))
-      } finally {
-        setStatusLoading(false)
       }
-      return
-    }
 
+      if (refreshedApi) await refreshAllFreeResources()
+
+      return successCount
+    },
+    [apiItemsById, resolveRowById, refreshAllFreeResources],
+  )
+
+  const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
 
     const enabling = statusTarget.status !== 'Active'
-
     const nextUi = enabling ? 'Active' : 'In Active'
-
     const nextApi = mapUiStatusToApi(nextUi)
-
     const isApiRow = apiItemsById.has(statusTarget.id)
 
-
-
     setStatusLoading(true)
-
     try {
-
       if (isApiRow) {
-
         await updateFreeResourceStatus(statusTarget.id, nextApi)
-
         await refreshAllFreeResources()
-
       } else {
-
         setResources((prev) =>
-
           prev.map((row) => (row.id === statusTarget.id ? { ...row, status: nextUi } : row)),
-
         )
+      }
+      toast.success(enabling ? 'Resource enabled' : 'Resource disabled')
+      setStatusTarget(null)
+    } catch (error) {
+      toast.error(getFreeResourceApiErrorMessage(error, 'Failed to update status'))
+    } finally {
+      setStatusLoading(false)
+    }
+  }, [statusTarget, apiItemsById, refreshAllFreeResources])
 
+  const handleBulkEnable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => resolveRowById(id)?.status === 'In Active')
+    if (!ids.length) return
+
+    setBulkActionLoading(true)
+    try {
+      const successCount = await applyBulkStatusChange(ids, 'Active')
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? 'Resource enabled' : `${successCount} resources enabled`,
+        )
+      }
+      setSelectedIds([])
+    } catch (error) {
+      toast.error(getFreeResourceApiErrorMessage(error, 'Failed to enable selected resources'))
+    } finally {
+      setBulkActionLoading(false)
+      setBulkConfirm(null)
+    }
+  }, [selectedIds, resolveRowById, applyBulkStatusChange])
+
+  const handleBulkDisable = useCallback(async () => {
+    const ids = selectedIds.filter((id) => resolveRowById(id)?.status === 'Active')
+    if (!ids.length) return
+
+    setBulkActionLoading(true)
+    try {
+      const successCount = await applyBulkStatusChange(ids, 'In Active')
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? 'Resource disabled' : `${successCount} resources disabled`,
+        )
+      }
+      setSelectedIds([])
+    } catch (error) {
+      toast.error(getFreeResourceApiErrorMessage(error, 'Failed to disable selected resources'))
+    } finally {
+      setBulkActionLoading(false)
+      setBulkConfirm(null)
+    }
+  }, [selectedIds, resolveRowById, applyBulkStatusChange])
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = [...selectedIds]
+    if (!ids.length) return
+
+    setBulkActionLoading(true)
+    try {
+      const localIds = []
+      let refreshedApi = false
+
+      await Promise.all(
+        ids.map(async (id) => {
+          const row = apiItemsById.get(id)
+          const api = row ? resolveDeleteApi(row) : null
+          if (api) {
+            await api.deleteFn(id)
+            refreshedApi = true
+            return
+          }
+          localIds.push(id)
+        }),
+      )
+
+      if (localIds.length) {
+        const idSet = new Set(localIds)
+        setResources((prev) => prev.filter((r) => !idSet.has(r.id)))
       }
 
-      toast.success(enabling ? 'Resource enabled' : 'Resource disabled')
+      if (refreshedApi) await refreshAllFreeResources()
 
-      setStatusTarget(null)
-
+      toast.success(ids.length > 1 ? `${ids.length} resources deleted` : 'Resource deleted')
+      setSelectedIds([])
+      setBulkConfirm(null)
     } catch (error) {
-
-      toast.error(getFreeResourceApiErrorMessage(error, 'Failed to update status'))
-
+      const firstId = ids[0]
+      const row = apiItemsById.get(firstId)
+      const api = row ? resolveDeleteApi(row) : null
+      const message = api
+        ? api.message(error, 'Failed to delete resource.')
+        : getFreeResourceApiErrorMessage(error, 'Failed to delete resource.')
+      toast.error(message)
     } finally {
-
-      setStatusLoading(false)
-
+      setBulkActionLoading(false)
     }
+  }, [selectedIds, apiItemsById, refreshAllFreeResources])
 
-  }, [bulkDisableIds, statusTarget, apiItemsById, resolveRowById, refreshAllFreeResources])
+  const handleConfirmBulkAction = useCallback(async () => {
+    if (!bulkConfirm) return
+    if (bulkConfirm.type === 'enable') {
+      await handleBulkEnable()
+    } else if (bulkConfirm.type === 'disable') {
+      await handleBulkDisable()
+    } else if (bulkConfirm.type === 'delete') {
+      await handleBulkDelete()
+    }
+  }, [bulkConfirm, handleBulkEnable, handleBulkDisable, handleBulkDelete])
 
 
 
   const columns = useMemo(
     () => [
-
-    {
-
-      key: 'name',
-
-      label: 'Resource Name',
-
-      headerClassName: 'pl-4 sm:pl-6',
-
-      cellClassName: 'pl-4 sm:pl-6',
-
-      render: (row) => <ResourceNameCell name={row.name} />,
-
-    },
-
-    {
-
-      key: 'category',
-
-      label: 'Resource Category',
-
-      render: (row) => row.resourceCategoryLabel || row.category,
-
-    },
-
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-
-    {
-
-      key: 'actions',
-
-      label: 'Actions',
-
-      align: 'right',
-
-      headerClassName: 'min-w-[11rem] text-right',
-
-      cellClassName: 'min-w-[11rem] text-right',
-
-      render: (row) => (
-
-        <CategoryTableActions
-
-          status={row.status}
-
-          onView={() => handleView(row)}
-
-          onEdit={() => modal.openEdit(row)}
-
-          onDelete={() => setDeleteTarget({ ids: [row.id], name: row.name })}
-
-          onToggleStatus={() => setStatusTarget(row)}
-
-        />
-
-      ),
-
-    },
-
-  ],
+      {
+        key: 'name',
+        label: 'Resource Name',
+        width: '28%',
+        headerClassName: CELL,
+        cellClassName: CELL,
+        render: (row) => <FreeResourceNameCell name={row.name} />,
+      },
+      {
+        key: 'category',
+        label: 'Resource Category',
+        width: '24%',
+        headerClassName: CELL,
+        cellClassName: CELL,
+        render: (row) => (
+          <CategoryCell label={row.resourceCategoryLabel || row.category} />
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        width: '14%',
+        align: 'center',
+        headerClassName: cn(CELL, 'text-center whitespace-nowrap'),
+        cellClassName: cn(CELL, 'text-center'),
+        headerTruncate: false,
+        render: (row) => (
+          <div className="flex items-center justify-center">
+            <StatusBadge status={row.status} />
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        align: 'right',
+        headerClassName: 'min-w-[200px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[200px] whitespace-nowrap align-middle pr-4 sm:pr-6',
+        render: (row) => (
+          <CourseTableActions
+            row={row}
+            status={row.status}
+            onView={() => handleView(row)}
+            onEdit={() => modal.openEdit(row)}
+            onDelete={() => setDeleteTarget({ ids: [row.id], name: row.name })}
+            onToggleStatus={() => setStatusTarget(row)}
+          />
+        ),
+      },
+    ],
     [handleView, modal],
   )
 
@@ -745,41 +827,41 @@ export default function FreeResourcesPage() {
 
         <FreeResourcesBulkActionsBar
           count={selectedIds.length}
+          enableCount={enableableCount}
           disableCount={disableableCount}
           onClearSelection={() => setSelectedIds([])}
-          onDisable={() => {
-            const ids = selectedIds.filter((id) => resolveRowById(id)?.status === 'Active')
-            if (ids.length) setBulkDisableIds(ids)
-          }}
-          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+          onEnable={() => setBulkConfirm({ type: 'enable' })}
+          onDisable={() => setBulkConfirm({ type: 'disable' })}
+          onDelete={() => setBulkConfirm({ type: 'delete' })}
         />
 
-
-
         <PaginatedFigmaTable
-
           columns={columns}
-
           data={filtered}
-
           emptyMessage={emptyMessage}
-
           itemLabel="resources"
-
           resetDeps={[search, categoryFilter, statusFilter]}
-
-          loading={listLoading || (mockTestsEnabled && mockTestsLoading)}
-
+          loading={listLoading || (mockTestsEnabled && mockTestsLoading) || bulkActionLoading}
+          rowClassName="hover:bg-[#eef6fc]/70"
+          density="comfortable"
+          skeletonRowCount={8}
+          tableMinWidth={960}
+          tableLayoutFixed
+          className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
+          tableClassName={cn(
+            'rounded-none border-0 shadow-none',
+            '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',
+            '[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]',
+            '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap [&_thead_th]:!bg-transparent',
+            '[&_tbody_td]:align-middle',
+          )}
           selection={{
-
             selectedIds,
-
             onToggle: toggleSelect,
-
             onTogglePage: toggleSelectPage,
-
+            getRowId: (row) => String(row.id),
+            columnWidth: '4%',
           }}
-
         />
 
       </section>
@@ -827,31 +909,24 @@ export default function FreeResourcesPage() {
 
 
       <ConfirmFreeResourceStatusModal
-
-        open={Boolean(statusTarget) || Boolean(bulkDisableIds?.length)}
-
+        open={Boolean(statusTarget)}
         resourceName={statusTarget?.name || 'this resource'}
-
-        enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'Active'}
-
-        bulkCount={bulkDisableIds?.length || 0}
-
+        enabling={statusTarget?.status !== 'Active'}
         loading={statusLoading}
-
         onCancel={() => {
-
-          if (!statusLoading) {
-
-            setStatusTarget(null)
-
-            setBulkDisableIds(null)
-
-          }
-
+          if (!statusLoading) setStatusTarget(null)
         }}
-
         onConfirm={confirmStatusChange}
+      />
 
+      <FreeResourcesBulkConfirmDialog
+        open={Boolean(bulkConfirm)}
+        type={bulkConfirm?.type}
+        onConfirm={handleConfirmBulkAction}
+        onCancel={() => {
+          if (!bulkActionLoading) setBulkConfirm(null)
+        }}
+        loading={bulkActionLoading}
       />
 
 

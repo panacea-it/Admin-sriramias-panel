@@ -185,7 +185,7 @@ export default function BrochurePdfUpload({
                   Drag & drop brochure PDF here
                 </span>
                 <span className="max-w-sm text-sm text-gray-500">
-                  Upload batch brochure in PDF format
+                  Upload batch brochure in PDF format (required)
                 </span>
                 <button
                   type="button"

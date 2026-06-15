@@ -37,7 +37,7 @@ export default function SubjectBulkToolbar({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:scale-[1.02] hover:bg-emerald-50 hover:shadow active:scale-[0.98]"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Enable
+                Enable Selected
               </button>
               <button
                 type="button"
@@ -45,7 +45,7 @@ export default function SubjectBulkToolbar({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 shadow-sm transition hover:scale-[1.02] hover:bg-amber-50 hover:shadow active:scale-[0.98]"
               >
                 <Ban className="h-3.5 w-3.5" />
-                Disable
+                Disable Selected
               </button>
               <button
                 type="button"
@@ -53,7 +53,7 @@ export default function SubjectBulkToolbar({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-[#c96565] shadow-sm transition hover:scale-[1.02] hover:bg-red-50 hover:shadow active:scale-[0.98]"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Delete
+                Delete Selected
               </button>
               <button
                 type="button"

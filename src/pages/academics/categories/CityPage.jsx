@@ -9,16 +9,29 @@ import AddCityModal from '../../../components/cities/AddCityModal'
 import ViewCityModal from '../../../components/cities/ViewCityModal'
 import ConfirmCityStatusModal from '../../../components/cities/ConfirmCityStatusModal'
 import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
+import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useCityManagement } from '../../../hooks/useCityManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast } from '../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../utils/masterBulkActions'
 import {
   buildCreateCityPayload,
   buildUpdateCityPayload,
   mapApiCityToLocal,
   mergeCityWithSource,
 } from '../../../utils/cityApiHelpers'
+import { setCachedCityCode } from '../../../utils/cityCodeCache'
 import {
   createCity,
   deleteCity,
@@ -59,6 +72,7 @@ export default function CityPage() {
     setCenterFilter,
     controlledPagination,
     refreshCities,
+    patchCityLocally,
   } = useCityManagement()
 
   const { options: centreDropdownOptions } = useCentersDropdownOptions()
@@ -76,7 +90,8 @@ export default function CityPage() {
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centerOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
@@ -89,7 +104,12 @@ export default function CityPage() {
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => citiesById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, citiesById),
+    [selectedIds, citiesById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, citiesById),
     [selectedIds, citiesById],
   )
 
@@ -153,6 +173,10 @@ export default function CityPage() {
 
   const handleSave = async (form) => {
     const isEdit = Boolean(editRow?.id)
+    const normalizedCode = String(form.code || '')
+      .trim()
+      .toUpperCase()
+
     if (isEdit) {
       setUpdateLoading(true)
     } else {
@@ -162,9 +186,19 @@ export default function CityPage() {
     try {
       if (isEdit) {
         await updateCity(editRow.id, buildUpdateCityPayload(form))
+        setCachedCityCode(editRow.id, normalizedCode, {
+          centerId: form.centerId || editRow.centerId,
+          placeName: form.placeName,
+        })
+        patchCityLocally(editRow.id, { code: normalizedCode, cityCode: normalizedCode })
         toast.success('City updated')
       } else {
-        await createCity(buildCreateCityPayload(form))
+        const data = await createCity(buildCreateCityPayload(form))
+        const created = mapApiCityToLocal(data)
+        setCachedCityCode(created?.id || '', normalizedCode, {
+          centerId: form.centerId,
+          placeName: form.placeName,
+        })
         toast.success('City added successfully')
       }
       setModalOpen(false)
@@ -223,22 +257,61 @@ export default function CityPage() {
     }
   }, [statusTarget, refreshCities])
 
-  const handleBulkDisable = useCallback(async () => {
-    const ids = selectedIds.filter((id) => citiesById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = useCallback(() => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }, [enableableCount])
 
-    setBulkDisableLoading(true)
+  const handleBulkDisableRequest = useCallback(() => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }, [disableableCount])
+
+  const handleBulkDeleteRequest = useCallback(() => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }, [selectedIds.length])
+
+  const confirmBulkAction = useCallback(async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
+
     try {
-      await Promise.all(ids.map((id) => updateCityStatus(id, 'INACTIVE')))
-      toast.success(ids.length > 1 ? `${ids.length} cities disabled` : 'City disabled')
-      await refreshCities()
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, citiesById)
+        await bulkUpdateMasterStatus('cities', ids, 'ACTIVE', {
+          updateSingle: updateCityStatus,
+        })
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+        await refreshCities()
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, citiesById)
+        await bulkUpdateMasterStatus('cities', ids, 'INACTIVE', {
+          updateSingle: updateCityStatus,
+        })
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+        await refreshCities()
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        await Promise.all(ids.map((id) => deleteCity(id)))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        await refreshCities()
+      }
+      setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected cities'))
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Failed to delete selected cities')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
       await refreshCities()
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
-  }, [selectedIds, citiesById, refreshCities])
+  }, [bulkConfirm, selectedIds, citiesById, refreshCities])
 
   const handleToggle = useCallback((row) => {
     setStatusTarget(row)
@@ -306,10 +379,12 @@ export default function CityPage() {
 
       <ProgramsBulkActionsBar
         count={selectedIds.length}
+        enableCount={enableableCount}
         disableCount={disableableCount}
         onClearSelection={() => setSelectedIds([])}
-        onDisable={handleBulkDisable}
-        onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+        onEnable={handleBulkEnableRequest}
+        onDisable={handleBulkDisableRequest}
+        onDelete={handleBulkDeleteRequest}
       />
 
       {tableLoading ? (
@@ -343,7 +418,7 @@ export default function CityPage() {
         <CityTable
           cities={cities}
           columns={columns}
-          loading={tableLoading || bulkDisableLoading}
+          loading={tableLoading || bulkActionLoading}
           controlledPagination={controlledPagination}
           resetDeps={[search, statusFilter, centerFilter]}
           selection={{
@@ -390,6 +465,14 @@ export default function CityPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         loading={deleteLoading}
+      />
+
+      <MasterBulkConfirmModal
+        open={Boolean(bulkConfirm)}
+        type={bulkConfirm?.type}
+        loading={bulkActionLoading}
+        onConfirm={confirmBulkAction}
+        onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
       />
     </div>
   )

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
+import { isRateLimitError } from '../utils/apiError'
 import { createCachedRequest } from '../utils/apiRequestCache'
 import { getFacultySubjects } from '../api/facultySubjectsAPI'
 import {
@@ -9,9 +8,17 @@ import {
 } from '../utils/facultySubjectHelpers'
 import { loadAcademicsSubjects } from '../utils/academicsSubjectsStorage'
 import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  invalidateListSession,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
 const DEFAULT_PAGE_SIZE = 10
 const LIST_FETCH_LIMIT = 100
+const SESSION_SCOPE = 'faculty-subjects'
 const facultySubjectsListCache = createCachedRequest({ ttlMs: 60_000 })
 
 function loadSyncedLocalSubjects() {
@@ -68,10 +75,15 @@ export function useFacultySubjectsManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loadError, setLoadError] = useState(null)
-  const lastErrorToastAt = useRef(0)
-  const loadSeqRef = useRef(0)
-  const abortRef = useRef(null)
-  const lastRequestKeyRef = useRef('')
+  const fetchGuardRef = useRef(null)
+
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([pageSize])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
   const applyLocalFallback = useCallback(() => {
     const local = loadSyncedLocalSubjects()
@@ -83,86 +95,57 @@ export function useFacultySubjectsManagement() {
     return true
   }, [pageSize])
 
+  const applyPaginated = useCallback(
+    (data) => {
+      const normalized = normalizeFacultySubjectsListResponse(data, {
+        page: effectivePage,
+        limit: pageSize,
+      })
+      if (!normalized.items.length && normalized.total > 0 && applyLocalFallback()) {
+        return normalized
+      }
+      setSubjects(normalized.items)
+      setTotalItems(normalized.total)
+      setTotalPages(normalized.totalPages)
+      if (normalized.items.length) {
+        syncFacultySubjectsToLocalStorage(normalized.items)
+      }
+      setLoadError(null)
+      return normalized
+    },
+    [effectivePage, pageSize, applyLocalFallback],
+  )
+
   const loadSubjects = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams()
-      const requestKey = JSON.stringify(params)
+      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
 
-      if (!bypassCache && requestKey === lastRequestKeyRef.current) {
-        const cached = facultySubjectsListCache.getCached(params)
-        if (cached !== undefined) {
-          const normalized = normalizeFacultySubjectsListResponse(cached, {
-            page,
-            limit: pageSize,
-          })
-          setSubjects(normalized.items)
-          setTotalItems(normalized.total)
-          setTotalPages(normalized.totalPages)
-          setLoadError(null)
-          setLoading(false)
-          return
-        }
-      }
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: ({ signal }) => fetchFacultySubjectsList(params, { bypassCache, signal }),
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          const message = fetchGuard.getListErrorMessage(error, 'Failed to load faculty subjects')
+          setLoadError(message)
+          fetchGuard.toastListError(message)
 
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-      const seq = ++loadSeqRef.current
-      lastRequestKeyRef.current = requestKey
-
-      setLoading(true)
-      setLoadError(null)
-
-      try {
-        const data = await fetchFacultySubjectsList(params, {
-          bypassCache,
-          signal: controller.signal,
-        })
-        if (ignoreFlag?.() || seq !== loadSeqRef.current || controller.signal.aborted) return
-
-        const normalized = normalizeFacultySubjectsListResponse(data, {
-          page,
-          limit: pageSize,
-        })
-        if (!normalized.items.length && normalized.total > 0 && applyLocalFallback()) {
-          return
-        }
-        setSubjects(normalized.items)
-        setTotalItems(normalized.total)
-        setTotalPages(normalized.totalPages)
-        if (normalized.items.length) {
-          syncFacultySubjectsToLocalStorage(normalized.items)
-        }
-        setLoadError(null)
-      } catch (error) {
-        if (ignoreFlag?.() || seq !== loadSeqRef.current || controller.signal.aborted) return
-        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-
-        if (import.meta.env.DEV) console.error(error)
-
-        const message = getApiErrorMessage(error, 'Failed to load faculty subjects')
-        setLoadError(message)
-
-        const now = Date.now()
-        if (now - lastErrorToastAt.current > 4000) {
-          lastErrorToastAt.current = now
-          toast.error(message)
-        }
-
-        if (isRateLimitError(error)) {
-          applyLocalFallback()
-        } else {
-          setSubjects([])
-          setTotalItems(0)
-          setTotalPages(1)
-        }
-      } finally {
-        if (!ignoreFlag?.() && seq === loadSeqRef.current) {
-          setLoading(false)
-        }
-      }
+          if (isRateLimitError(error)) {
+            applyLocalFallback()
+          } else if (!hydratedFromSession) {
+            setSubjects([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
     },
-    [pageSize, applyLocalFallback],
+    [fetchGuard, applyPaginated, applyLocalFallback],
   )
 
   useEffect(() => {
@@ -170,13 +153,8 @@ export function useFacultySubjectsManagement() {
     loadSubjects({ ignoreFlag: () => ignore })
     return () => {
       ignore = true
-      abortRef.current?.abort()
     }
   }, [loadSubjects])
-
-  useEffect(() => {
-    setPage(1)
-  }, [pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -209,12 +187,8 @@ export function useFacultySubjectsManagement() {
 
   const refreshSubjects = useCallback(async () => {
     clearFacultySubjectsListCache()
-    lastRequestKeyRef.current = ''
+    invalidateListSession(SESSION_SCOPE)
     await loadSubjects({ bypassCache: true })
-  }, [loadSubjects])
-
-  const retrySubjects = useCallback(async () => {
-    await loadSubjects({ bypassCache: false })
   }, [loadSubjects])
 
   const patchSubjectLocally = useCallback((subjectId, patch) => {
@@ -243,7 +217,6 @@ export function useFacultySubjectsManagement() {
     pagination,
     controlledPagination,
     refreshSubjects,
-    retrySubjects,
     patchSubjectLocally,
     removeSubjectLocally,
   }

@@ -20,8 +20,7 @@ export default function DynamicFormRenderer({
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
-  mockTestBulkFileRequired = false,
-  mockTestBulkFileOptional = false,
+  mockTestBulkUploadOnly = false,
 }) {
   const showMock = category === FREE_RESOURCE_CATEGORY.MOCK_TEST
 
@@ -48,8 +47,6 @@ export default function DynamicFormRenderer({
             studyMaterialFileRequired={studyMaterialFileRequired}
             ncertBookFileRequired={ncertBookFileRequired}
             previousYearFileRequired={previousYearFileRequired}
-            mockTestBulkFileRequired={mockTestBulkFileRequired}
-            mockTestBulkFileOptional={mockTestBulkFileOptional}
           />
         </motion.div>
       </AnimatePresence>
@@ -63,6 +60,7 @@ export default function DynamicFormRenderer({
           mockTestId={mockTestId}
           questionsLoading={questionsLoading}
           onQuestionsRefresh={onQuestionsRefresh}
+          bulkUploadOnly={mockTestBulkUploadOnly}
         />
       ) : null}
 

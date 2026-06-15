@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { UserCircle, Eye, RotateCcw } from 'lucide-react'
+import { UserCircle, Eye } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
@@ -7,7 +7,6 @@ import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
 import FinanceStatCard from '../../components/finance/FinanceStatCard'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
-import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import ProfileListMobileCard from '../../components/finance/student-profiles/ProfileListMobileCard'
@@ -16,16 +15,14 @@ import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { filterStudentProfiles, filterProfilesByFinanceCenters } from '../../utils/studentFinanceProfile'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { FINANCE_COURSES } from '../../data/financeMockData'
-import { ENROLLMENT_SOURCES, LOAN_STATUSES, PROFILE_EXPORT_COLUMNS } from '../../constants/studentFinanceProfiles'
+import { ENROLLMENT_SOURCES, LOAN_STATUSES } from '../../constants/studentFinanceProfiles'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
 export default function StudentFinanceProfilesPage() {
-  const { canExport } = useFinancePermissions()
   const { openStudentProfile } = useFinanceOperations()
   const financeCenterFilter = useFinanceCenterFilter()
   const [profiles, setProfiles] = useState([])
@@ -76,16 +73,6 @@ export default function StudentFinanceProfilesPage() {
     openStudentProfile(profile.id, profile)
   }
 
-  const resetFilters = () => {
-    setSearch('')
-    setCourseFilter('all')
-    setStatusFilter('all')
-    setSourceFilter('all')
-    setLoanFilter('all')
-    setDateFrom('')
-    setDateTo('')
-  }
-
   const profileColumns = [
     { key: 'id', label: 'Student ID', render: (r) => <span className="font-mono text-xs text-[#246392]">{r.id}</span> },
     { key: 'studentName', label: 'Student', render: (r) => <span className="font-medium">{r.studentName}</span> },
@@ -126,22 +113,13 @@ export default function StudentFinanceProfilesPage() {
   ]
 
   const selectClass =
-    'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20'
+    'h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm transition focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20'
 
   return (
     <FinancePageShell
       icon={UserCircle}
       title="Student Finance Profiles"
       breadcrumbs={[{ label: 'Student Finance Profiles' }]}
-      actions={
-        <FinanceExportToolbar
-          rows={filtered}
-          filenameBase="student-finance-profiles"
-          columnDefs={PROFILE_EXPORT_COLUMNS}
-          canExport={canExport}
-          variant="banner"
-        />
-      }
     >
       <FinanceCenterFilterBar className="mb-1" />
 
@@ -167,24 +145,16 @@ export default function StudentFinanceProfilesPage() {
         />
       </div>
 
-      <div className="sticky top-0 z-10 -mx-1 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <FinanceSearchInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search student, ID, course…"
-              className="max-w-md flex-1"
-            />
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-[#686868] hover:bg-slate-50"
-            >
-              <RotateCcw className="h-4 w-4" /> Reset
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="sticky top-0 z-10 -mx-1 rounded-[12px] border border-slate-200/80 bg-white/95 p-4 shadow-[0_5px_20px_rgba(0,0,0,0.08)] backdrop-blur sm:static sm:border sm:bg-white sm:p-5">
+        <div className="flex flex-col gap-4">
+          <FinanceSearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search student, ID, course…"
+            className="w-full"
+            inputClassName="h-10"
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass} aria-label="Course">
               <option value="all">All courses</option>
               {FINANCE_COURSES.map((c) => (

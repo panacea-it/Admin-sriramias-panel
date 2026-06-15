@@ -5,6 +5,7 @@ import SubjectStatusToggle from './SubjectStatusToggle'
 import TableValueChips from './TableValueChips'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import { isMongoObjectId } from '../../utils/facultySubjectHelpers'
 
 function DetailItem({ label, children }) {
   return (
@@ -13,6 +14,44 @@ function DetailItem({ label, children }) {
       <div className="mt-1 text-sm font-semibold text-[#111]">{children}</div>
     </div>
   )
+}
+
+function resolveTeacherDisplay(item) {
+  if (item?.teacherMeta?.length) {
+    const label = String(item.teacherMeta[0]?.label || '').trim()
+    if (label) return label
+  }
+  if (item?.teacherName) return String(item.teacherName).trim()
+  const teacher = item?.teacher
+  if (teacher && typeof teacher === 'object') {
+    return String(teacher.teacherName || teacher.name || '').trim() || '—'
+  }
+  if (typeof teacher === 'string' && teacher.trim() && !isMongoObjectId(teacher)) {
+    return teacher.trim()
+  }
+  return '—'
+}
+
+function resolveTopicLabels(item) {
+  if (Array.isArray(item?.topicMeta) && item.topicMeta.length) {
+    return item.topicMeta.map((entry) => String(entry?.label || '').trim()).filter(Boolean)
+  }
+
+  const raw = Array.isArray(item?.topics) && item.topics.length
+    ? item.topics
+    : item?.topic
+      ? [item.topic]
+      : []
+
+  return raw
+    .map((entry) => {
+      if (entry && typeof entry === 'object') {
+        return String(entry.topicName || entry.name || entry.label || '').trim()
+      }
+      const text = String(entry || '').trim()
+      return isMongoObjectId(text) ? '' : text
+    })
+    .filter(Boolean)
 }
 
 export default function ViewFacultySubjectModal({ open, onClose, item, loading = false }) {
@@ -30,11 +69,8 @@ export default function ViewFacultySubjectModal({ open, onClose, item, loading =
 
   if (!item) return null
 
-  const topicLabels = Array.isArray(item.topics) && item.topics.length
-    ? item.topics
-    : item.topic
-      ? [item.topic]
-      : []
+  const teacherName = resolveTeacherDisplay(item)
+  const topicLabels = resolveTopicLabels(item)
 
   return (
     <Modal open={open} onClose={onClose} size="md" title={`View ${item.subjectName || 'Subject'}`} showCloseButton={false}>
@@ -63,13 +99,13 @@ export default function ViewFacultySubjectModal({ open, onClose, item, loading =
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailItem label="Subject Name">{item.subjectName || '—'}</DetailItem>
             <DetailItem label="Subject">{item.subjectLabel || item.subject || '—'}</DetailItem>
-            <DetailItem label="Teacher">{item.teacher || '—'}</DetailItem>
+            <DetailItem label="Teacher">{teacherName}</DetailItem>
             <DetailItem label="Status">
               <SubjectStatusToggle status={item.status} disabled />
             </DetailItem>
             <DetailItem label="Topics">
               {topicLabels.length ? (
-                <TableValueChips values={topicLabels} />
+                <TableValueChips values={topicLabels} moreLabel="More" />
               ) : (
                 '—'
               )}

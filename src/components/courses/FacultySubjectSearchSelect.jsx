@@ -11,6 +11,7 @@ export default function FacultySubjectSearchSelect({
   onSelect,
   disabled = false,
   placeholder = 'Search and select a subject…',
+  error,
   className,
 }) {
   const listboxId = useId()
@@ -112,6 +113,7 @@ export default function FacultySubjectSearchSelect({
         className={cn(
           'flex h-12 min-h-[48px] w-full items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 text-left text-sm shadow-sm transition',
           'hover:border-[#93c5fd] focus:border-[#55ace7] focus:ring-2 focus:ring-blue-400/35',
+          error && 'border-red-300 ring-2 ring-red-400/40',
           (disabled || loading || empty) && 'cursor-not-allowed opacity-60',
           !disabled && !loading && !empty && 'text-gray-400',
         )}
@@ -216,6 +218,8 @@ export default function FacultySubjectSearchSelect({
           </div>,
           document.body,
         )}
+
+      {error ? <p className="mt-1 text-xs font-medium text-red-600">{error}</p> : null}
     </div>
   )
 }

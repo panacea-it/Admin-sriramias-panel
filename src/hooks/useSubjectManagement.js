@@ -1,31 +1,67 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getSubjects } from '../services/subjectService'
 import {
   mapSubjectStatusFilterToApi,
   normalizeSubjectsListResponse,
 } from '../pages/academics/categories/subject/subjectHelpers'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  getListSessionCache,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
+const SESSION_SCOPE = 'category-subjects'
 const DEFAULT_PAGE_SIZE = 10
 
+function buildSessionKey(params) {
+  return `${SESSION_SCOPE}:${JSON.stringify(params)}`
+}
+
+function getInitialPaginatedState() {
+  const params = { page: 1, limit: DEFAULT_PAGE_SIZE, search: '', status: undefined }
+  const cached = getListSessionCache(buildSessionKey(params))
+  return {
+    items: cached?.items ?? [],
+    totalItems: cached?.total ?? 0,
+    totalPages: cached?.totalPages ?? 1,
+    loading: cached == null,
+  }
+}
+
 export function useSubjectManagement() {
-  const [subjects, setSubjects] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initial = useMemo(() => getInitialPaginatedState(), [])
+  const [subjects, setSubjects] = useState(initial.items)
+  const [loading, setLoading] = useState(initial.loading)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(initial.totalItems)
+  const [totalPages, setTotalPages] = useState(initial.totalPages)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
 
-  const fetchSubjects = useCallback(async () => {
-    setLoading(true)
-    try {
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([debouncedSearch, statusFilter, pageSize])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setSubjects(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+  }, [])
+
+  const fetchSubjects = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = {
-        page,
+        page: effectivePage,
         limit: pageSize,
         search: debouncedSearch.trim(),
       }
@@ -33,32 +69,42 @@ export function useSubjectManagement() {
       const apiStatus = mapSubjectStatusFilterToApi(statusFilter)
       if (apiStatus) params.status = apiStatus
 
-      const data = await getSubjects(params)
-      const normalized = normalizeSubjectsListResponse(data, { page, limit: pageSize })
+      const sessionKey = buildSessionKey(params)
 
-      setSubjects(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load subjects'))
-      setSubjects([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          const data = await getSubjects(params)
+          return normalizeSubjectsListResponse(data, { page: effectivePage, limit: pageSize })
+        },
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load subjects'),
+          )
+          if (!hydratedFromSession) {
+            setSubjects([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
+    },
+    [effectivePage, pageSize, debouncedSearch, statusFilter, fetchGuard, applyPaginated],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    fetchSubjects({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
     }
-  }, [page, pageSize, debouncedSearch, statusFilter])
-
-  useEffect(() => {
-    fetchSubjects()
   }, [fetchSubjects])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, pageSize])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -113,7 +159,7 @@ export function useSubjectManagement() {
     setPageSize,
     pagination,
     controlledPagination,
-    refreshSubjects: fetchSubjects,
+    refreshSubjects: () => fetchSubjects({ bypassCache: true }),
     patchSubjectLocally,
     removeSubjectLocally,
   }

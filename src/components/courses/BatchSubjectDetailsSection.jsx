@@ -46,7 +46,7 @@ function SubjectChip({ link, onRemove }) {
 }
 
 /** Multi-select faculty subjects for Add/Edit Batch — synced with faculty-subjects API */
-export default function BatchSubjectDetailsSection({ form, setForm }) {
+export default function BatchSubjectDetailsSection({ form, setForm, errors = {}, setErrors }) {
   const { subjects: localSubjects } = useAcademicsSubjects()
   const [apiSubjects, setApiSubjects] = useState([])
   const [loading, setLoading] = useState(!isFrontendOnly)
@@ -105,6 +105,9 @@ export default function BatchSubjectDetailsSection({ form, setForm }) {
       ...f,
       linkedSubjects: [...normalizeLinkedSubjects(f), link],
     }))
+    if (errors.linkedSubjects) {
+      setErrors?.((e) => ({ ...e, linkedSubjects: undefined }))
+    }
   }
 
   const removeSubject = (subjectId) => {
@@ -118,20 +121,12 @@ export default function BatchSubjectDetailsSection({ form, setForm }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3 rounded-xl border border-[#eef2fc] bg-[#f8fbff] px-4 py-3.5">
-        <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-[#246392]" strokeWidth={2.1} />
-        <p className="text-sm leading-relaxed text-[#686868]">
-          Add one or more {facultySubjectLabels.plural.toLowerCase()} to this batch. Options load
-          from Academics → {facultySubjectLabels.plural} and store subject ID, name, and assigned
-          faculty.
-        </p>
-      </div>
-
-      <CourseFormField label={`Add ${facultySubjectLabels.singular}`}>
+      <CourseFormField label={`Add ${facultySubjectLabels.singular}`} required>
         <FacultySubjectSearchSelect
           subjects={availableSubjects}
           loading={loading}
           disabled={loading || availableSubjects.length === 0}
+          error={errors.linkedSubjects}
           placeholder={
             loading
               ? 'Loading faculty subjects…'

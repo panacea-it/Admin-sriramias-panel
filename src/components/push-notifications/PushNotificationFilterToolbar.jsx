@@ -1,5 +1,6 @@
 import { Search, ChevronDown } from 'lucide-react'
 import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
+import { NOTIFICATION_STATUS_FILTER_OPTIONS } from '../../data/pushNotificationsData'
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -26,6 +27,8 @@ export default function PushNotificationFilterToolbar({
   onSearchChange,
   center,
   onCenterChange,
+  status,
+  onStatusChange,
   selectedDate,
   onDateChange,
 }) {
@@ -52,6 +55,12 @@ export default function PushNotificationFilterToolbar({
             { value: 'Hyderabad', label: 'Hyderabad' },
             { value: 'Pune', label: 'Pune' },
           ]}
+        />
+        <FilterSelect
+          label="Status"
+          value={status}
+          onChange={onStatusChange}
+          options={NOTIFICATION_STATUS_FILTER_OPTIONS}
         />
         <CrmDateFilterPicker value={selectedDate} onChange={onDateChange} className="sm:min-w-[120px]" />
       </div>

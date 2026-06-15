@@ -11,6 +11,7 @@ export default function FinanceActionMenu({
   className,
   inlineFrom = 'md',
   menuLabel = 'Row actions',
+  buttonVariant = 'default',
 }) {
   const visible = actions.filter((a) => a.show !== false)
   const [open, setOpen] = useState(false)
@@ -33,12 +34,17 @@ export default function FinanceActionMenu({
     danger: 'text-[#df8284] hover:bg-red-50',
   }
 
+  const buttonShellClass =
+    buttonVariant === 'crm'
+      ? 'border border-[#E5E7EB] bg-white text-[#246392] hover:border-[#1F5E99] hover:bg-[#1F5E99] hover:text-white hover:shadow-md'
+      : ''
+
   const inlineCls = inlineFrom === 'sm' ? 'hidden sm:flex' : inlineFrom === 'lg' ? 'hidden lg:flex' : 'hidden md:flex'
   const menuCls = inlineFrom === 'sm' ? 'sm:hidden' : inlineFrom === 'lg' ? 'lg:hidden' : 'md:hidden'
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <div className={cn('flex flex-nowrap items-center justify-center gap-1.5', inlineCls)}>
+      <div className={cn('flex flex-nowrap items-center justify-center gap-[10px]', inlineCls)}>
         {visible.map((a) => {
           const Icon = a.icon
           return (
@@ -49,8 +55,10 @@ export default function FinanceActionMenu({
               title={a.label}
               aria-label={a.ariaLabel || a.label}
               className={cn(
-                'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
-                variantClass[a.variant || 'default'],
+                'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200',
+                buttonVariant === 'crm' ? 'hover:scale-105' : 'hover:scale-110 hover:shadow-sm',
+                buttonShellClass,
+                buttonVariant !== 'crm' && variantClass[a.variant || 'default'],
               )}
             >
               {Icon ? <Icon className="h-4 w-4" strokeWidth={2} /> : <span className="text-xs font-semibold">{a.label[0]}</span>}

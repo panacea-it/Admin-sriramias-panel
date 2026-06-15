@@ -6,6 +6,7 @@ export default function TableValueChips({
   values = [],
   maxVisible = MAX_VISIBLE,
   emptyLabel = '—',
+  moreLabel = 'more',
   className,
   variant = 'default',
 }) {
@@ -49,7 +50,7 @@ export default function TableValueChips({
           )}
           title={list.slice(maxVisible).join(', ')}
         >
-          +{overflow} more
+          +{overflow} {moreLabel}
         </span>
       )}
     </div>

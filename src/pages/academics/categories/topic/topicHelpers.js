@@ -17,6 +17,7 @@ export function buildCreateTopicPayload(form) {
 
 export function buildUpdateTopicPayload(form) {
   return {
+    subjectId: String(form.subjectId || '').trim(),
     topicName: String(form.name || '').trim(),
     description: String(form.description || '').trim(),
     status: mapUiStatusToApi(form.status),

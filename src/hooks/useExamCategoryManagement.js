@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { isRateLimitError } from '../utils/apiError'
 import {
   clearExamCategoriesListCache,
   getExamCategories,
@@ -10,12 +9,15 @@ import {
   normalizeExamCategoriesListResponse,
 } from '../utils/examCategoryApiHelpers'
 import { matchesExamCategorySearch } from '../utils/examCategoryHelpers'
+import {
+  createListFetchGuard,
+  getListSessionCache,
+  invalidateListSession,
+  runGuardedListFetch,
+  MASTER_LIST_RATE_LIMIT_MESSAGE,
+} from './useMasterListQuery'
 
-function isRateLimited(error) {
-  if (error?.response?.status === 429) return true
-  const message = getApiErrorMessage(error, '').toLowerCase()
-  return message.includes('too many requests')
-}
+const SESSION_SCOPE = 'exam-categories'
 
 function buildListParams({ statusFilter, centerFilter }) {
   const params = {}
@@ -27,46 +29,60 @@ function buildListParams({ statusFilter, centerFilter }) {
   return params
 }
 
+function buildSessionKey(params) {
+  return `${SESSION_SCOPE}:${JSON.stringify(params)}`
+}
+
+function getInitialState() {
+  const params = buildListParams({ statusFilter: 'all', centerFilter: 'all' })
+  const cached = getListSessionCache(buildSessionKey(params))
+  return {
+    categories: cached ?? [],
+    loading: cached == null,
+  }
+}
+
 export function useExamCategoryManagement() {
-  const [categories, setCategories] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initial = useMemo(() => getInitialState(), [])
+  const [categories, setCategories] = useState(initial.categories)
+  const [loading, setLoading] = useState(initial.loading)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const lastErrorToastAt = useRef(0)
+  const fetchGuardRef = useRef(null)
+
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
 
   const loadCategories = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({
-        statusFilter,
-        centerFilter,
-      })
+      const params = buildListParams({ statusFilter, centerFilter })
+      const sessionKey = buildSessionKey(params)
 
-      setLoading(true)
-      try {
-        const data = await getExamCategories(params, { bypassCache })
-        if (ignoreFlag?.()) return
-        setCategories(normalizeExamCategoriesListResponse(data))
-      } catch (error) {
-        if (ignoreFlag?.()) return
-        if (import.meta.env.DEV) {
-          console.error(error)
-        }
-        if (!isRateLimited(error)) {
-          const now = Date.now()
-          if (now - lastErrorToastAt.current > 4000) {
-            lastErrorToastAt.current = now
-            toast.error(getApiErrorMessage(error, 'Failed to load exam categories'))
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: () => getExamCategories(params, { bypassCache }),
+        applyData: (data) => setCategories(normalizeExamCategoriesListResponse(data)),
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          if (isRateLimitError(error)) {
+            fetchGuard.toastListError(MASTER_LIST_RATE_LIMIT_MESSAGE)
+            return
           }
-          setCategories([])
-        }
-      } finally {
-        if (!ignoreFlag?.()) {
-          setLoading(false)
-        }
-      }
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load exam categories'),
+          )
+          if (!hydratedFromSession) setCategories([])
+        },
+      })
     },
-    [statusFilter, centerFilter],
+    [statusFilter, centerFilter, fetchGuard],
   )
 
   const filteredCategories = useMemo(
@@ -84,6 +100,7 @@ export function useExamCategoryManagement() {
 
   const refreshCategories = useCallback(async () => {
     clearExamCategoriesListCache()
+    invalidateListSession(SESSION_SCOPE)
     await loadCategories({ bypassCache: true })
   }, [loadCategories])
 

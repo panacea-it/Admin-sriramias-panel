@@ -26,6 +26,10 @@ export default function PaginatedFigmaTable({
   animateRows = false,
   onRowClick,
   tableMinWidth = 720,
+  bodyMaxHeight,
+  headerVariant = 'default',
+  headerAlign,
+  tableLayoutFixed = false,
   /** { selectedIds, onToggle(id), onTogglePage(pageIds, select), getRowId? } */
   selection,
   /** Server-driven pagination — skips client-side slicing */
@@ -44,9 +48,12 @@ export default function PaginatedFigmaTable({
     if (!selection) return columns
     const getRowId = selection.getRowId ?? ((row) => row.id)
     const pageIds = tableRows.map((row) => getRowId(row))
-    const allPageSelected =
-      pageIds.length > 0 && pageIds.every((id) => selection.selectedIds.includes(id))
-    const somePageSelected = pageIds.some((id) => selection.selectedIds.includes(id))
+    const selectableIds = selection.allItemIds ?? pageIds
+    const allSelected =
+      selectableIds.length > 0 &&
+      selectableIds.every((id) => selection.selectedIds.includes(id))
+    const someSelected = selectableIds.some((id) => selection.selectedIds.includes(id))
+    const dataColumns = columns.filter((col) => col.key !== '__select')
 
     return [
       {
@@ -54,14 +61,17 @@ export default function PaginatedFigmaTable({
         label: (
           <TableSelectionCheckbox
             variant="header"
-            checked={allPageSelected}
-            indeterminate={somePageSelected && !allPageSelected}
-            onChange={() => selection.onTogglePage?.(pageIds, !allPageSelected)}
-            aria-label="Select all on this page"
+            checked={allSelected}
+            indeterminate={someSelected && !allSelected}
+            onChange={() => selection.onTogglePage?.(selectableIds, !allSelected)}
+            aria-label="Select all"
           />
         ),
-        headerClassName: 'w-10 pl-5 sm:pl-6',
-        cellClassName: 'w-10 pl-5 sm:pl-6',
+        headerTruncate: false,
+        width: selection.columnWidth ?? 44,
+        align: 'center',
+        headerClassName: cn('text-center', selection.headerClassName),
+        cellClassName: cn('text-center', selection.cellClassName),
         render: (row) => {
           const id = getRowId(row)
           return (
@@ -73,7 +83,7 @@ export default function PaginatedFigmaTable({
           )
         },
       },
-      ...columns,
+      ...dataColumns,
     ]
   }, [columns, selection, tableRows])
 
@@ -103,6 +113,7 @@ export default function PaginatedFigmaTable({
       ref={tableRef}
       className={cn(
         'overflow-hidden rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
+        bodyMaxHeight && 'flex flex-col',
         className,
       )}
     >
@@ -113,7 +124,11 @@ export default function PaginatedFigmaTable({
         emptyState={emptyState}
         rowClassName={rowClassName}
         density={density}
-        className={cn('rounded-none shadow-none', tableClassName)}
+        className={cn(
+          'min-h-0 shrink-0 rounded-none shadow-none',
+          bodyMaxHeight && 'flex-1',
+          tableClassName,
+        )}
         zebraStriping={zebraStriping}
         loading={loading}
         skeletonRowCount={skeletonRowCount}
@@ -122,6 +137,10 @@ export default function PaginatedFigmaTable({
         animateRows={animateRows}
         onRowClick={onRowClick}
         tableMinWidth={tableMinWidth}
+        bodyMaxHeight={bodyMaxHeight}
+        headerVariant={headerVariant}
+        headerAlign={headerAlign}
+        tableLayoutFixed={tableLayoutFixed}
       />
       {showPagination && (
         <TablePagination
@@ -134,7 +153,7 @@ export default function PaginatedFigmaTable({
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
-          className={paginationClassName}
+          className={cn('shrink-0 border-t border-[#E5E7EB] bg-white', paginationClassName)}
           gradientActivePage={gradientActivePage}
         />
       )}

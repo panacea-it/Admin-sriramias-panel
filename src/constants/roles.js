@@ -11,6 +11,13 @@ export const ROLES = {
 
 export const ALL_ROLES = Object.values(ROLES)
 
+/** Roles allowed to move students between batches (Admin + Branch/Center Manager) */
+export const STUDENT_MOVE_ROLES = [
+  ROLES.SUPER_ADMIN,
+  ROLES.OPERATION_ADMIN,
+  ROLES.CENTER_ADMIN,
+]
+
 export const ROLE_LABELS = {
   [ROLES.SUPER_ADMIN]: 'Super Admin',
   [ROLES.CENTER_ADMIN]: 'Center Admin',

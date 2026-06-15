@@ -20,9 +20,13 @@ const STATUS_CHIP_STYLES = {
   LOST: 'border-rose-200 bg-rose-50 text-rose-700',
   DUPLICATE: 'border-slate-200 bg-slate-50 text-slate-600',
   CLOSED: 'border-slate-300 bg-slate-100 text-slate-800',
+  SENT: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  UNSENT: 'border-[#55ace7]/40 bg-[#eef6fc] text-[#246392]',
+  IN_PROGRESS: 'border-amber-200 bg-amber-50 text-amber-800',
 }
 
 export function getLeadStatusChipClass(status) {
+  if (!status) return 'border-slate-200/90 bg-white text-[#8b98bb]'
   return STATUS_CHIP_STYLES[status] ?? 'border-slate-200 bg-white text-[#1a3a5c]'
 }
 

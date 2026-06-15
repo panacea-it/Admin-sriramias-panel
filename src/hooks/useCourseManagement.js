@@ -1,32 +1,65 @@
-import { useCallback, useEffect, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCourses } from '../services/courseService'
 import { normalizeCoursesListResponse } from '../utils/courseApiHelpers'
+import {
+  createListFetchGuard,
+  getListSessionCache,
+  invalidateListSession,
+  runGuardedListFetch,
+} from './useMasterListQuery'
+
+const SESSION_SCOPE = 'courses'
+const SESSION_KEY = `${SESSION_SCOPE}:list`
+
+function getInitialState() {
+  const cached = getListSessionCache(SESSION_KEY)
+  return {
+    courses: cached ?? [],
+    loading: cached == null,
+  }
+}
 
 export function useCourseManagement() {
-  const [courses, setCourses] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [courses, setCourses] = useState(() => getInitialState().courses)
+  const [loading, setLoading] = useState(() => getInitialState().loading)
+  const fetchGuardRef = useRef(null)
 
-  const fetchCourses = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await getCourses({ page: 1, limit: 500 })
-      const normalized = normalizeCoursesListResponse(data, { page: 1, limit: 500 })
-      setCourses(normalized.items)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load courses'))
-      setCourses([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const fetchCourses = useCallback(
+    async ({ bypassCache = false, ignoreFlag } = {}) => {
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey: SESSION_KEY,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          const data = await getCourses({ page: 1, limit: 500 })
+          return normalizeCoursesListResponse(data, { page: 1, limit: 500 }).items
+        },
+        applyData: setCourses,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(
+            fetchGuard.getListErrorMessage(error, 'Failed to load courses'),
+          )
+          if (!hydratedFromSession) setCourses([])
+        },
+      })
+    },
+    [fetchGuard],
+  )
 
   useEffect(() => {
-    fetchCourses()
+    let ignore = false
+    fetchCourses({ ignoreFlag: () => ignore })
+    return () => {
+      ignore = true
+    }
   }, [fetchCourses])
 
   const patchCourseLocally = useCallback((id, patch) => {
@@ -42,7 +75,10 @@ export function useCourseManagement() {
   return {
     courses,
     loading,
-    refreshCourses: fetchCourses,
+    refreshCourses: () => {
+      invalidateListSession(SESSION_SCOPE)
+      return fetchCourses({ bypassCache: true })
+    },
     patchCourseLocally,
     removeCourseLocally,
   }

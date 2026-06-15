@@ -43,18 +43,19 @@ const STYLES = {
   'Access Extended': 'bg-[#8b98bb] text-white',
 }
 
-export default function FinanceStatusBadge({ status, className, title }) {
+export default function FinanceStatusBadge({ status, className, title, truncate = false }) {
   const label = status || '—'
   return (
     <span
-      title={title}
+      title={title ?? label}
       className={cn(
-        'inline-flex w-fit min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold leading-none sm:text-sm',
+        'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium leading-none min-h-[28px] whitespace-nowrap sm:text-sm',
+        truncate ? 'max-w-full min-w-0 overflow-hidden' : 'w-fit min-w-fit shrink-0',
         STYLES[label] || 'bg-slate-200 text-slate-700',
         className,
       )}
     >
-      {label}
+      <span className={cn(truncate && 'truncate')}>{label}</span>
     </span>
   )
 }

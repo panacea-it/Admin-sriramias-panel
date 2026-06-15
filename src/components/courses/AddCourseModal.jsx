@@ -15,6 +15,7 @@ import {
   createEmptyBatchForm,
   validateBatchFee,
 } from '../../utils/batchFormMappers'
+import { normalizeLinkedSubjects } from '../../utils/batchHelpers'
 import {
   isBatchCodeTaken,
   isBatchIdTaken,
@@ -115,6 +116,9 @@ export default function AddCourseModal({
     }
     if (!form.brochureUrl && !form.brochureFileName && !form.brochureFile) {
       next.brochureUrl = 'Batch brochure is required'
+    }
+    if (!normalizeLinkedSubjects(form).length) {
+      next.linkedSubjects = 'Please select at least one subject'
     }
     Object.assign(next, validateBatchFee(form))
 
@@ -245,8 +249,14 @@ export default function AddCourseModal({
               icon={GraduationCap}
               title="Subject Details"
               description="Link faculty subjects from Academics to this batch for scheduling."
+              required
             >
-              <BatchSubjectDetailsSection form={form} setForm={setForm} />
+              <BatchSubjectDetailsSection
+                form={form}
+                setForm={setForm}
+                errors={errors}
+                setErrors={setErrors}
+              />
             </BatchFormCard>
           </div>
         </div>

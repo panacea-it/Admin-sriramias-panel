@@ -13,13 +13,25 @@ import ExamSubCategoryTableSkeleton from '../../../../components/categories/Exam
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
 import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamSubCategoryManagement } from '../../../../hooks/useExamSubCategoryManagement'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
 import { useTableRowSelection } from '../../../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
-import { toast } from '../../../../utils/toast'
+import { toast, TOAST_DURATION } from '../../../../utils/toast'
+import {
+  bulkUpdateMasterStatus,
+  getMasterBulkErrorMessage,
+} from '../../../../services/masterBulkStatusService'
+import {
+  MASTER_BULK_TOAST,
+  countDisableableSelected,
+  countEnableableSelected,
+  filterDisableableIds,
+  filterEnableableIds,
+} from '../../../../utils/masterBulkActions'
 import { cn } from '../../../../utils/cn'
 import {
   buildExamSubCategoryApiPayload,
@@ -85,7 +97,8 @@ export default function ExamSubCategorySection({ section }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [bulkDisableLoading, setBulkDisableLoading] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
@@ -134,7 +147,12 @@ export default function ExamSubCategorySection({ section }) {
   )
 
   const disableableCount = useMemo(
-    () => selectedIds.filter((id) => subCategoriesById.get(String(id))?.status === 'Active').length,
+    () => countDisableableSelected(selectedIds, subCategoriesById),
+    [selectedIds, subCategoriesById],
+  )
+
+  const enableableCount = useMemo(
+    () => countEnableableSelected(selectedIds, subCategoriesById),
     [selectedIds, subCategoriesById],
   )
 
@@ -288,28 +306,91 @@ export default function ExamSubCategorySection({ section }) {
     }
   }, [statusTarget, patchSubCategoryLocally])
 
-  const handleBulkDisable = useCallback(async () => {
-    const ids = selectedIds.filter((id) => subCategoriesById.get(String(id))?.status === 'Active')
-    if (!ids.length) return
+  const handleBulkEnableRequest = () => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }
 
-    setBulkDisableLoading(true)
-    const apiStatus = mapUiStatusToApi('In Active')
+  const handleBulkDisableRequest = () => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }
+
+  const handleBulkDeleteRequest = () => {
+    if (!selectedIds.length) return
+    setBulkConfirm({ type: 'delete' })
+  }
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
 
     try {
-      await Promise.all(ids.map((id) => updateSubCategoryStatus(id, apiStatus)))
-      ids.forEach((id) => patchSubCategoryLocally(id, { status: 'In Active' }))
-      toast.success(ids.length > 1 ? `${ids.length} sub-categories disabled` : 'Sub-category disabled')
-      clearSelection()
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, subCategoriesById)
+        const apiStatus = mapUiStatusToApi('Active')
+        await bulkUpdateMasterStatus('sub-categories', ids, apiStatus, {
+          updateSingle: updateSubCategoryStatus,
+        })
+        ids.forEach((id) => patchSubCategoryLocally(id, { status: 'Active' }))
+        clearSelection()
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, subCategoriesById)
+        const apiStatus = mapUiStatusToApi('In Active')
+        await bulkUpdateMasterStatus('sub-categories', ids, apiStatus, {
+          updateSingle: updateSubCategoryStatus,
+        })
+        ids.forEach((id) => patchSubCategoryLocally(id, { status: 'In Active' }))
+        clearSelection()
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'delete') {
+        const ids = [...selectedIds]
+        let successCount = 0
+        let failCount = 0
+
+        for (const id of ids) {
+          try {
+            await deleteSubCategory(id)
+            removeSubCategoryLocally(id)
+            successCount += 1
+          } catch (error) {
+            failCount += 1
+            if (import.meta.env.DEV) {
+              console.error(error)
+            }
+          }
+        }
+
+        if (successCount > 0) {
+          toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
+        }
+        if (failCount > 0) {
+          toast.error(
+            failCount === 1
+              ? 'Failed to delete 1 sub-category'
+              : `Failed to delete ${failCount} sub-categories`,
+          )
+        }
+        clearSelection()
+      }
+      setBulkConfirm(null)
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected sub-categories'))
-      await refreshSubCategories()
+      toast.error(
+        bulkConfirm.type === 'delete'
+          ? getApiErrorMessage(error, 'Failed to delete selected sub-categories')
+          : getMasterBulkErrorMessage(error, bulkConfirm.type),
+      )
+      if (bulkConfirm.type !== 'delete') {
+        await refreshSubCategories()
+      }
     } finally {
-      setBulkDisableLoading(false)
+      setBulkActionLoading(false)
     }
-  }, [selectedIds, subCategoriesById, patchSubCategoryLocally, clearSelection, refreshSubCategories])
+  }
 
   const columns = useMemo(
     () => [
@@ -462,10 +543,12 @@ export default function ExamSubCategorySection({ section }) {
 
         <ProgramsBulkActionsBar
           count={selectedIds.length}
+          enableCount={enableableCount}
           disableCount={disableableCount}
           onClearSelection={clearSelection}
-          onDisable={handleBulkDisable}
-          onDelete={() => setDeleteTarget({ ids: [...selectedIds], name: null })}
+          onEnable={handleBulkEnableRequest}
+          onDisable={handleBulkDisableRequest}
+          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (
@@ -495,7 +578,7 @@ export default function ExamSubCategorySection({ section }) {
               resetDeps={[search, statusFilter, centerFilter, programFilter, categoryFilter]}
               selection={selection}
               density="comfortable"
-              loading={bulkDisableLoading}
+              loading={bulkActionLoading}
               rowClassName="hover:bg-[#eef6fc]/70"
               tableClassName="rounded-none border-0 shadow-none"
               tableMinWidth={960}
@@ -552,6 +635,14 @@ export default function ExamSubCategorySection({ section }) {
           confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
           onCancel={() => !deleteLoading && setDeleteTarget(null)}
           onConfirm={confirmDelete}
+        />
+
+        <MasterBulkConfirmModal
+          open={Boolean(bulkConfirm)}
+          type={bulkConfirm?.type}
+          loading={bulkActionLoading}
+          onConfirm={confirmBulkAction}
+          onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
         />
       </motion.div>
     </AnimatePresence>

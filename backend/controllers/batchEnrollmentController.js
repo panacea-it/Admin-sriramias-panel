@@ -1,6 +1,77 @@
 import mongoose from 'mongoose'
 import BatchEnrollment from '../models/BatchEnrollment.js'
 import Course from '../models/Course.js'
+import EnrollmentTransferAudit from '../models/EnrollmentTransferAudit.js'
+
+const INACTIVE_BATCH_STATUSES = new Set([
+  'INACTIVE',
+  'IN_ACTIVE',
+  'DISABLED',
+  'ARCHIVED',
+  'CANCELLED',
+  'COMPLETED',
+  'DRAFT',
+])
+
+function isActiveBatchStatus(status) {
+  const upper = String(status || 'Active')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+  return !INACTIVE_BATCH_STATUSES.has(upper)
+}
+
+function batchDisplayLabel(doc) {
+  if (!doc) return '—'
+  const fd = doc.formData || {}
+  const batchId = doc.batchId || fd.batchId || doc.batchCode || fd.batchCode || ''
+  const batchName = doc.batchName || doc.courseName || ''
+  return batchId && batchName ? `${batchId} - ${batchName}` : batchName || batchId || '—'
+}
+
+async function syncBatchStudentCount(batchMongoId) {
+  if (!batchMongoId) return 0
+  const count = await BatchEnrollment.countDocuments({
+    batchId: batchMongoId,
+    status: 'ACTIVE',
+  })
+  await Course.findByIdAndUpdate(
+    batchMongoId,
+    {
+      $set: {
+        totalStudents: count,
+        'formData.totalStudents': count,
+      },
+    },
+    { strict: false },
+  )
+  return count
+}
+
+async function findDuplicateInTargetBatch(enrollment, targetMongoId) {
+  const baseFilter = {
+    batchId: targetMongoId,
+    status: 'ACTIVE',
+    _id: { $ne: enrollment._id },
+  }
+
+  const email = String(enrollment.email || '').trim().toLowerCase()
+  const mobile = String(enrollment.mobileNumber || '').trim()
+  const or = []
+  if (email) or.push({ email: new RegExp(`^${escapeRegex(email)}$`, 'i') })
+  if (mobile) or.push({ mobileNumber: mobile })
+
+  if (or.length) {
+    return BatchEnrollment.findOne({ ...baseFilter, $or: or }).lean()
+  }
+
+  const name = String(enrollment.studentName || '').trim()
+  if (!name) return null
+  return BatchEnrollment.findOne({
+    ...baseFilter,
+    studentName: new RegExp(`^${escapeRegex(name)}$`, 'i'),
+  }).lean()
+}
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -167,6 +238,8 @@ export async function createEnrollment(req, res, next) {
       status: 'ACTIVE',
     })
 
+    await syncBatchStudentCount(batchMongoId)
+
     res.status(201).json({
       success: true,
       message: 'Student enrolled successfully',
@@ -264,12 +337,99 @@ export async function moveEnrollment(req, res, next) {
       return res.status(404).json({ success: false, message: 'Target batch not found' })
     }
 
+    const sourceMongoId = doc.batchId
+    if (String(sourceMongoId) === String(targetMongoId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot move student to the same batch',
+      })
+    }
+
+    const [sourceBatch, targetBatch] = await Promise.all([
+      Course.findById(sourceMongoId).lean(),
+      Course.findById(targetMongoId).lean(),
+    ])
+
+    if (!targetBatch) {
+      return res.status(404).json({ success: false, message: 'Target batch not found' })
+    }
+
+    if (!isActiveBatchStatus(targetBatch.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot move student to an inactive batch',
+      })
+    }
+
+    const duplicate = await findDuplicateInTargetBatch(doc, targetMongoId)
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: 'Student already exists in the destination batch',
+      })
+    }
+
+    const targetFd = targetBatch.formData || {}
+    const capacity = Number(targetFd.capacity) > 0 ? Number(targetFd.capacity) : 50
+    const activeInTarget = await BatchEnrollment.countDocuments({
+      batchId: targetMongoId,
+      status: 'ACTIVE',
+    })
+    if (activeInTarget >= capacity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Target batch has no available seats',
+      })
+    }
+
+    const remarks = String(req.body?.remarks || '').trim()
+    const transferReason = String(req.body?.transferReason || req.body?.reason || remarks || '').trim()
+    const branch = String(req.body?.branch || req.body?.center || '').trim()
+    const course = String(req.body?.course || '').trim()
+    const performedBy = String(req.body?.performedBy || req.headers['x-admin-name'] || 'Admin')
+      .trim()
+    const transferDate =
+      String(req.body?.transferDate || '').slice(0, 10) ||
+      new Date().toISOString().slice(0, 10)
+
     doc.batchId = targetMongoId
-    if (req.body?.transferDate) doc.transferDate = String(req.body.transferDate).slice(0, 10)
-    if (req.body?.reason) doc.transferReason = String(req.body.reason).trim()
+    doc.transferDate = transferDate
+    if (transferReason) doc.transferReason = transferReason
     await doc.save()
 
-    res.json({ success: true, data: mapEnrollmentToApi(doc) })
+    await EnrollmentTransferAudit.create({
+      enrollmentMongoId: doc._id,
+      studentId: doc.enrollmentId || String(doc._id),
+      studentName: doc.studentName || '',
+      oldBatchId: sourceMongoId,
+      oldBatchLabel: batchDisplayLabel(sourceBatch),
+      newBatchId: targetMongoId,
+      newBatchLabel: batchDisplayLabel(targetBatch),
+      performedBy,
+      remarks,
+      transferReason,
+      transferDate,
+      branch,
+      course,
+      transferAttendance: req.body?.transferAttendance !== false,
+      transferFee: req.body?.transferFee !== false,
+      transferTests: req.body?.transferTests !== false,
+    })
+
+    await Promise.all([
+      syncBatchStudentCount(sourceMongoId),
+      syncBatchStudentCount(targetMongoId),
+    ])
+
+    res.json({
+      success: true,
+      message: 'Student moved successfully',
+      data: mapEnrollmentToApi(doc),
+      meta: {
+        oldBatchLabel: batchDisplayLabel(sourceBatch),
+        newBatchLabel: batchDisplayLabel(targetBatch),
+      },
+    })
   } catch (error) {
     next(error)
   }
@@ -286,6 +446,8 @@ export async function deleteEnrollment(req, res, next) {
     if (!doc) {
       return res.status(404).json({ success: false, message: 'Enrollment not found' })
     }
+
+    await syncBatchStudentCount(doc.batchId)
 
     res.json({ success: true, message: 'Enrollment deleted' })
   } catch (error) {

@@ -23,7 +23,7 @@ export default function EnquiryViewModal({
 }) {
   if (!enquiry) return null
 
-  const statusLabel = formatEnquiryLeadStatusLabel(leadStatus)
+  const statusLabel = leadStatus ? formatEnquiryLeadStatusLabel(leadStatus) : '—'
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title="Enquiry Details" showCloseButton={false}>

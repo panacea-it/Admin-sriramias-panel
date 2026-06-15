@@ -44,9 +44,6 @@ export default function ClassroomLocationFields({
           disabled={dropdownLoading}
           error={errors.centerId}
         />
-        {errors.centerId && (
-          <p className="text-xs font-medium text-[#dc2626]">{errors.centerId}</p>
-        )}
       </CourseFormField>
 
       <CourseFormField label="Select City / Place" required>
@@ -61,9 +58,6 @@ export default function ClassroomLocationFields({
           disabled={!centerId || dropdownLoading || cityDropdownLoading}
           error={errors.cityPlaceId}
         />
-        {errors.cityPlaceId && (
-          <p className="text-xs font-medium text-[#dc2626]">{errors.cityPlaceId}</p>
-        )}
       </CourseFormField>
 
       {preview && (

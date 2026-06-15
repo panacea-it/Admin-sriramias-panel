@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@/utils/toast'
-import { getApiErrorMessage, isRateLimitError } from '../utils/apiError'
+import { isRateLimitError } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { clearCitiesListCache, getCities, getCityById } from '../services/cityService'
+import { clearCitiesListCache, getCities } from '../services/cityService'
 import {
-  enrichCitiesWithMissingCodes,
+  applyCityCodesToList,
   mapCityStatusFilterToApi,
   normalizeCitiesListResponse,
 } from '../utils/cityApiHelpers'
+import {
+  buildFilterSignature,
+  createListFetchGuard,
+  invalidateListSession,
+  runGuardedListFetch,
+  useEffectivePage,
+} from './useMasterListQuery'
 
+const SESSION_SCOPE = 'cities'
 const DEFAULT_PAGE_SIZE = 10
 
 function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centerFilter }) {
@@ -33,54 +40,71 @@ export function useCityManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 500)
-  const lastErrorToastAt = useRef(0)
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
+
+  if (!fetchGuardRef.current) {
+    fetchGuardRef.current = createListFetchGuard()
+  }
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    centerFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setCities(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+  }, [])
 
   const loadCities = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
       const params = buildListParams({
-        page,
+        page: effectivePage,
         pageSize,
         debouncedSearch,
         statusFilter,
         centerFilter,
       })
 
-      setLoading(true)
-      try {
-        const data = await getCities(params, { bypassCache })
-        if (ignoreFlag?.()) return
-        const normalized = normalizeCitiesListResponse(data, { page, limit: pageSize })
-        const enriched = await enrichCitiesWithMissingCodes(normalized.items, getCityById, {
-          page,
-          limit: pageSize,
-        })
-        if (ignoreFlag?.()) return
-        setCities(enriched)
-        setTotalItems(normalized.total)
-        setTotalPages(normalized.totalPages)
-      } catch (error) {
-        if (ignoreFlag?.()) return
-        if (import.meta.env.DEV) {
-          console.error(error)
-        }
-        const now = Date.now()
-        if (now - lastErrorToastAt.current > 4000) {
-          lastErrorToastAt.current = now
-          toast.error(getApiErrorMessage(error, 'Failed to load cities'))
-        }
-        if (!isRateLimitError(error)) {
-          setCities([])
-          setTotalItems(0)
-          setTotalPages(1)
-        }
-      } finally {
-        if (!ignoreFlag?.()) {
-          setLoading(false)
-        }
-      }
+      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
+
+      await runGuardedListFetch({
+        fetchGuard,
+        sessionKey,
+        bypassCache,
+        ignoreFlag,
+        setLoading,
+        fetchFn: async () => {
+          const data = await getCities(params, { bypassCache })
+          const normalized = normalizeCitiesListResponse(data, {
+            page: effectivePage,
+            limit: pageSize,
+          })
+          const items = applyCityCodesToList(normalized.items, {
+            page: effectivePage,
+            limit: pageSize,
+          })
+          return { ...normalized, items }
+        },
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          fetchGuard.toastListError(fetchGuard.getListErrorMessage(error, 'Failed to load cities'))
+          if (!isRateLimitError(error) && !hydratedFromSession) {
+            setCities([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+      })
     },
-    [page, pageSize, debouncedSearch, statusFilter, centerFilter],
+    [effectivePage, pageSize, debouncedSearch, statusFilter, centerFilter, fetchGuard, applyPaginated],
   )
 
   useEffect(() => {
@@ -91,14 +115,26 @@ export function useCityManagement() {
     }
   }, [loadCities])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, centerFilter, pageSize])
-
   const refreshCities = useCallback(async () => {
     clearCitiesListCache()
+    invalidateListSession(SESSION_SCOPE)
     await loadCities({ bypassCache: true })
   }, [loadCities])
+
+  const patchCityLocally = useCallback((id, patch) => {
+    setCities((prev) =>
+      prev.map((row) => {
+        if (String(row.id) !== String(id)) return row
+        const code = patch.code ?? patch.cityCode ?? row.code
+        return {
+          ...row,
+          ...patch,
+          code,
+          cityCode: code ?? row.cityCode,
+        }
+      }),
+    )
+  }, [])
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -141,5 +177,6 @@ export function useCityManagement() {
     debouncedSearch,
     controlledPagination,
     refreshCities,
+    patchCityLocally,
   }
 }
