@@ -1,38 +1,34 @@
-import { UserRound } from 'lucide-react'
-import Modal from '../ui/Modal'
-import ModalPanelHeader from '../courses/ModalPanelHeader'
-import { formatLeadStatusLabel } from '../../data/leadsData'
+import { UserRound } from "lucide-react";
+import Modal from "../ui/Modal";
+import ModalPanelHeader from "../courses/ModalPanelHeader";
+import { formatLeadStatusLabel } from "../../data/leadsData";
 
 function DetailItem({ label, children, className }) {
   return (
     <div className={className}>
       <p className="text-xs font-medium text-[#686868]">{label}</p>
-      <div className="mt-1 text-sm font-semibold text-[#111]">{children || '—'}</div>
+      <div className="mt-1 text-sm font-semibold text-[#111]">
+        {children || "—"}
+      </div>
     </div>
-  )
-}
-
-function formatCourseVisited(lead) {
-  if (!lead) return '—'
-  const parts = [lead.course, lead.courseSub].filter(Boolean)
-  return parts.length ? parts.join(' ') : '—'
-}
-
-function formatLeadDate(lead) {
-  if (!lead?.date) return '—'
-  const time = lead.time ? `${lead.time}, ` : ''
-  return `${time}${lead.date}`
+  );
 }
 
 export default function LeadViewModal({ open, onClose, lead }) {
-  if (!open || !lead) return null
+  if (!open || !lead) return null;
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="Lead Details" showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title="Lead Details"
+      showCloseButton={false}
+    >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <ModalPanelHeader
           title="Lead Details"
-          subtitle={lead.userName !== '—' ? lead.userName : 'Lead information'}
+          subtitle={lead.userName !== "—" ? lead.userName : "Lead information"}
           onClose={onClose}
           icon={UserRound}
           iconClassName="text-[#246392]"
@@ -47,12 +43,28 @@ export default function LeadViewModal({ open, onClose, lead }) {
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailItem label="User Name">{lead.userName}</DetailItem>
             <DetailItem label="Email">{lead.email}</DetailItem>
-            <DetailItem label="Mobile Number">{lead.mobile}</DetailItem>
-            <DetailItem label="Course Visited">{formatCourseVisited(lead)}</DetailItem>
-            <DetailItem label="Assigned Counselor">{lead.assignedCounselor}</DetailItem>
-            <DetailItem label="Status">{formatLeadStatusLabel(lead.status)}</DetailItem>
-            <DetailItem label="Date">{formatLeadDate(lead)}</DetailItem>
-            <DetailItem label="Center">{lead.center || '—'}</DetailItem>
+            <DetailItem label="Mobile Number">
+              {lead.mobileNumber || lead.mobile}
+            </DetailItem>
+
+            {/* The FIX: Read courseVisited directly from the API output */}
+            <DetailItem label="Course Visited">
+              {lead.courseVisited || "—"}
+            </DetailItem>
+
+            {/* The FIX: Ensure we print assignedCounselorName instead of the ID */}
+            <DetailItem label="Assigned Counselor">
+              {lead.assignedCounselorName || lead.assignedCounselor || "—"}
+            </DetailItem>
+
+            <DetailItem label="Status">
+              {formatLeadStatusLabel(lead.status)}
+            </DetailItem>
+
+            {/* The FIX: Print the pre-formatted date string we pass in */}
+            <DetailItem label="Date">{lead.date || "—"}</DetailItem>
+
+            <DetailItem label="Center">{lead.center || "—"}</DetailItem>
           </dl>
         </div>
 
@@ -67,5 +79,5 @@ export default function LeadViewModal({ open, onClose, lead }) {
         </footer>
       </div>
     </Modal>
-  )
+  );
 }

@@ -1,23 +1,56 @@
-import { useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
-import { FileText, X } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { FileText, X, MessageSquareQuote } from "lucide-react";
+import { fetchHelpDeskDetails } from "../../api/helpDeskAPI";
 
 export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
-  useEffect(() => {
-    if (!open) return undefined
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, onClose])
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  if (typeof document === 'undefined') return null
+  // 1. Handle Escape key and body scroll lock
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  // 2. Fetch the live details (including the reply) when the modal opens
+  useEffect(() => {
+    if (!open || !ticket?._id) return;
+
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const getDetails = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchHelpDeskDetails(ticket._id, controller.signal);
+        if (isMounted) setDetails(data);
+      } catch (error) {
+        if (error?.name !== "CanceledError")
+          console.error("Failed to load ticket details:", error);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    getDetails();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [open, ticket?._id]);
+
+  if (typeof document === "undefined") return null;
 
   return createPortal(
     <AnimatePresence>
@@ -49,7 +82,10 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
             <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-[#f8fbff] to-white px-5 py-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6fc]">
-                  <FileText className="h-5 w-5 text-[#55ace7]" strokeWidth={2.2} />
+                  <FileText
+                    className="h-5 w-5 text-[#55ace7]"
+                    strokeWidth={2.2}
+                  />
                 </span>
                 <h2
                   id="help-desk-description-title"
@@ -69,11 +105,34 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
             </header>
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+              {/* ORIGINAL DESCRIPTION BOX */}
               <div className="rounded-xl border border-slate-100 bg-[#f8fbff]/80 px-4 py-4 sm:px-5 sm:py-5">
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#333] sm:text-base sm:leading-7">
                   {ticket.description}
                 </p>
               </div>
+
+              {/* NEW LIVE REPLY HISTORY BOX */}
+              {loading ? (
+                <div className="mt-6 animate-pulse rounded-xl bg-slate-100/60 h-24 w-full" />
+              ) : details?.replyMessage ? (
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <MessageSquareQuote className="h-5 w-5 text-[#55ace7]" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Admin Reply
+                    </h3>
+                  </div>
+                  <div className="rounded-xl border border-[#e8f4fc] bg-[#f8fbff] px-4 py-4 sm:px-5 sm:py-5 relative">
+                    <span className="mb-2 block text-[11px] font-bold text-[#246392] uppercase tracking-wider">
+                      By: {details.repliedBy || "Admin"}
+                    </span>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#333] sm:text-base sm:leading-7">
+                      {details.replyMessage}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <footer className="flex shrink-0 justify-end border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
@@ -90,5 +149,5 @@ export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {
       )}
     </AnimatePresence>,
     document.body,
-  )
+  );
 }

@@ -1,117 +1,135 @@
-import { useCallback, useRef, useState } from 'react'
-import { Download, FileSpreadsheet, Upload, UploadCloud } from 'lucide-react'
-import * as XLSX from 'xlsx'
-import { toast } from '@/utils/toast'
-import Modal from '../ui/Modal'
-import ModalPanelHeader from '../courses/ModalPanelHeader'
-import { cn } from '../../utils/cn'
+import { useCallback, useRef, useState } from "react";
+import { Download, FileSpreadsheet, Upload, UploadCloud } from "lucide-react";
+import { toast } from "@/utils/toast";
+import Modal from "../ui/Modal";
+import ModalPanelHeader from "../courses/ModalPanelHeader";
+import { cn } from "../../utils/cn";
 
-const ACCEPT = '.xlsx,.xls'
+// Import both APIs!
+import {
+  bulkUploadLeadsAPI,
+  downloadSampleTemplateAPI,
+} from "../../api/leadsAPI";
 
-const SAMPLE_HEADERS = [
-  'User Name',
-  'Email ID',
-  'Mobile Number',
-  'Course Visited',
-  'Center',
-  'Assigned Counselor',
-  'Status',
-]
-
-const SAMPLE_ROW = [
-  'John Doe',
-  'john@example.com',
-  '9876543210',
-  '2 Years GS Foundation Course',
-  'New Delhi',
-  'Rahul',
-  'NEW',
-]
+const ACCEPT = ".xlsx,.xls";
 
 function validateExcelFile(file) {
-  if (!file) return { valid: false, message: 'No file selected' }
-  const name = file.name.toLowerCase()
-  if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) {
-    return { valid: false, message: 'Only Excel files (.xlsx, .xls) are supported' }
+  if (!file) return { valid: false, message: "No file selected" };
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+    return {
+      valid: false,
+      message: "Only Excel files (.xlsx, .xls) are supported",
+    };
   }
-  return { valid: true }
-}
-
-function downloadSampleTemplate() {
-  const worksheet = XLSX.utils.aoa_to_sheet([SAMPLE_HEADERS, SAMPLE_ROW])
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads Template')
-  XLSX.writeFile(workbook, 'leads-upload-template.xlsx')
+  return { valid: true };
 }
 
 export default function LeadBulkUploadModal({ open, onClose }) {
-  const inputRef = useRef(null)
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [fileError, setFileError] = useState('')
-  const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileError, setFileError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false); // Track download state
 
   const reset = useCallback(() => {
-    setSelectedFile(null)
-    setFileError('')
-    setDragOver(false)
-    setUploading(false)
-    if (inputRef.current) inputRef.current.value = ''
-  }, [])
+    setSelectedFile(null);
+    setFileError("");
+    setDragOver(false);
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
 
   const handleClose = useCallback(() => {
-    reset()
-    onClose?.()
-  }, [onClose, reset])
+    reset();
+    onClose?.();
+  }, [onClose, reset]);
 
   const acceptFile = useCallback((file) => {
-    const check = validateExcelFile(file)
+    const check = validateExcelFile(file);
     if (!check.valid) {
-      setFileError(check.message)
-      setSelectedFile(null)
-      if (inputRef.current) inputRef.current.value = ''
-      return
+      setFileError(check.message);
+      setSelectedFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
     }
-    setFileError('')
-    setSelectedFile(file)
-  }, [])
+    setFileError("");
+    setSelectedFile(file);
+  }, []);
 
   const handleFileInput = (e) => {
-    acceptFile(e.target.files?.[0])
-  }
+    acceptFile(e.target.files?.[0]);
+  };
 
   const handleDrop = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    acceptFile(e.dataTransfer.files?.[0])
-  }
+    e.preventDefault();
+    setDragOver(false);
+    acceptFile(e.dataTransfer.files?.[0]);
+  };
 
-  const handleDownloadTemplate = () => {
+  // INTEGRATED: Download Template API
+  const handleDownloadTemplate = async () => {
     try {
-      downloadSampleTemplate()
-      toast.success('Sample template downloaded')
-    } catch {
-      toast.error('Could not download template')
-    }
-  }
+      setDownloading(true);
+      const blob = await downloadSampleTemplateAPI();
 
+      // Create a temporary URL for the Blob and trigger download
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "leads-upload-template.xlsx");
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Sample template downloaded successfully");
+    } catch (error) {
+      console.error("Template download error:", error);
+      toast.error("Could not download template. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // INTEGRATED: Bulk Upload API
   const handleUpload = async () => {
     if (!selectedFile) {
-      setFileError('Please choose an Excel file to upload')
-      return
+      setFileError("Please choose an Excel file to upload");
+      return;
     }
 
-    setUploading(true)
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 600)
-    })
-    toast.success(`"${selectedFile.name}" ready for upload (preview only)`)
-    setUploading(false)
-    handleClose()
-  }
+    try {
+      setUploading(true);
+      const result = await bulkUploadLeadsAPI(selectedFile);
+
+      if (result?.success) {
+        toast.success(result.message || "Leads uploaded successfully!");
+        handleClose(); // Close the modal on success
+        // Note: You can trigger a table refresh here later if needed!
+      } else {
+        toast.error(
+          result?.message || "Upload failed. Please check the file format.",
+        );
+      }
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      toast.error("An error occurred during upload.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
-    <Modal open={open} onClose={handleClose} size="md" title="Bulk Upload Leads" showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      size="md"
+      title="Bulk Upload Leads"
+      showCloseButton={false}
+    >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
         <ModalPanelHeader
           title="Bulk Upload Leads"
@@ -125,30 +143,31 @@ export default function LeadBulkUploadModal({ open, onClose }) {
           <button
             type="button"
             onClick={handleDownloadTemplate}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff]"
+            disabled={downloading}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#55ace7]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#f0f9ff] disabled:opacity-60"
           >
             <Download className="h-4 w-4" />
-            Download Sample Template
+            {downloading ? "Downloading..." : "Download Sample Template"}
           </button>
 
           <div
             role="button"
             tabIndex={0}
             onDragOver={(e) => {
-              e.preventDefault()
-              setDragOver(true)
+              e.preventDefault();
+              setDragOver(true);
             }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click()
+              if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
             }}
             className={cn(
-              'flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 text-center transition',
+              "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 text-center transition",
               dragOver
-                ? 'border-[#55ace7] bg-[#eef6fc]'
-                : 'border-[#55ace7]/45 bg-[#fafcff] hover:border-[#55ace7] hover:bg-white',
+                ? "border-[#55ace7] bg-[#eef6fc]"
+                : "border-[#55ace7]/45 bg-[#fafcff] hover:border-[#55ace7] hover:bg-white",
             )}
           >
             {selectedFile ? (
@@ -160,17 +179,19 @@ export default function LeadBulkUploadModal({ open, onClose }) {
               <p className="text-sm font-semibold text-[#1a3a5c]">
                 {selectedFile
                   ? selectedFile.name
-                  : 'Drag & drop your Excel file here'}
+                  : "Drag & drop your Excel file here"}
               </p>
               {!selectedFile && (
-                <p className="text-xs text-[#686868]">or use the button below</p>
+                <p className="text-xs text-[#686868]">
+                  or use the button below
+                </p>
               )}
             </div>
             <button
               type="button"
               onClick={(e) => {
-                e.stopPropagation()
-                inputRef.current?.click()
+                e.stopPropagation();
+                inputRef.current?.click();
               }}
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#3d8fd4] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-[#4a9fd8] hover:to-[#3589c8]"
             >
@@ -193,7 +214,7 @@ export default function LeadBulkUploadModal({ open, onClose }) {
           {selectedFile && (
             <div className="rounded-lg border border-[#55ace7]/20 bg-[#f0f9ff] px-4 py-3">
               <p className="text-sm text-[#246392]">
-                <span className="font-semibold">Selected file:</span>{' '}
+                <span className="font-semibold">Selected file:</span>{" "}
                 {selectedFile.name}
               </p>
             </div>
@@ -220,11 +241,11 @@ export default function LeadBulkUploadModal({ open, onClose }) {
               disabled={uploading || !selectedFile}
               className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] hover:shadow-[0_6px_18px_rgba(3,4,94,0.4)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
-              {uploading ? 'Uploading…' : 'Upload'}
+              {uploading ? "Uploading…" : "Upload"}
             </button>
           </div>
         </div>
       </div>
     </Modal>
-  )
+  );
 }

@@ -1,29 +1,52 @@
-import { UserRound } from 'lucide-react'
-import Modal from '../ui/Modal'
-import ModalPanelHeader from '../courses/ModalPanelHeader'
-import { cn } from '../../utils/cn'
-import { formatEnquiryLeadStatusLabel } from '../../data/enquiriesData'
-import { getLeadStatusChipClass } from './EnquiryTableSelect'
+import { UserRound } from "lucide-react";
+import Modal from "../ui/Modal";
+import ModalPanelHeader from "../courses/ModalPanelHeader";
+import { cn } from "../../utils/cn";
+import { formatEnquiryLeadStatusLabel } from "../../data/enquiriesData";
+import { getLeadStatusChipClass } from "./EnquiryTableSelect";
 
 function DetailField({ label, value, className }) {
   return (
-    <div className={cn('space-y-1', className)}>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">{label}</dt>
-      <dd className="text-sm font-medium text-[#111] sm:text-base">{value || '—'}</dd>
+    <div className={cn("space-y-1", className)}>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+        {label}
+      </dt>
+      <dd className="text-sm font-medium text-[#111] sm:text-base">
+        {value || "—"}
+      </dd>
     </div>
-  )
+  );
 }
 
 export default function EnquiryViewModal({ open, onClose, enquiry }) {
-  if (!enquiry) return null
+  if (!enquiry) return null;
 
+  // THE FIX: Explicitly use assignedCounselorName. assignedCounselor holds the ID!
   const assignedCounselor =
-    enquiry.assignedCounselor?.trim() || enquiry.counselorName?.trim() || ''
-  const leadStatus = enquiry.leadStatus || ''
-  const statusLabel = leadStatus ? formatEnquiryLeadStatusLabel(leadStatus) : '—'
+    enquiry.assignedCounselorName?.trim() || "Not Assigned";
+
+  const leadStatus = enquiry.leadStatus || "";
+  const statusLabel = leadStatus
+    ? formatEnquiryLeadStatusLabel(leadStatus)
+    : "—";
+
+  // THE FIX: Expertly format the raw ISO date string into a beautiful readable date
+  let formattedDate = enquiry.enquiryDate || "—";
+  if (enquiry.enquiryDate) {
+    const d = new Date(enquiry.enquiryDate);
+    if (!isNaN(d)) {
+      formattedDate = `${d.toLocaleDateString("en-GB")} at ${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+    }
+  }
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" title="Enquiry Details" showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title="Enquiry Details"
+      showCloseButton={false}
+    >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
         <ModalPanelHeader
           title="Enquiry Details"
@@ -40,8 +63,13 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
             <DetailField label="Email" value={enquiry.email} />
             <DetailField label="Phone" value={enquiry.phone} />
             <DetailField label="Center" value={enquiry.center} />
-            <DetailField label="Date" value={enquiry.enquiryDate} />
+
+            {/* Display the newly formatted date */}
+            <DetailField label="Date" value={formattedDate} />
+
+            {/* Display the actual Counselor Name */}
             <DetailField label="Assigned Counselor" value={assignedCounselor} />
+
             <div className="space-y-1">
               <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
                 Lead Status
@@ -49,7 +77,7 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
               <dd>
                 <span
                   className={cn(
-                    'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold',
+                    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold",
                     getLeadStatusChipClass(leadStatus),
                   )}
                 >
@@ -57,9 +85,11 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
                 </span>
               </dd>
             </div>
+
+            {/* Fallback to ACTIVE just in case it is missing from the payload */}
             <DetailField
               label="Opened Status"
-              value={enquiry.status}
+              value={enquiry.status || "ACTIVE"}
               className="sm:col-span-2"
             />
           </dl>
@@ -76,5 +106,5 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
         </div>
       </div>
     </Modal>
-  )
+  );
 }

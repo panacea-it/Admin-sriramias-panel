@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
-import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
-import EnquiryCounselorSelect from './EnquiryCounselorSelect'
-import EnquiryLeadStatusSelect from './EnquiryLeadStatusSelect'
-import EnquiryTableActions from './EnquiryTableActions'
-import { cn } from '../../utils/cn'
+import { useMemo } from "react";
+import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
+import EnquiryCounselorSelect from "./EnquiryCounselorSelect";
+import EnquiryLeadStatusSelect from "./EnquiryLeadStatusSelect";
+import EnquiryTableActions from "./EnquiryTableActions";
+import { cn } from "../../utils/cn";
 
-const ENQUIRIES_TABLE_MIN_WIDTH = 1320
+const ENQUIRIES_TABLE_MIN_WIDTH = 1320;
 
 const COLUMN = {
   student: 160,
@@ -16,23 +16,23 @@ const COLUMN = {
   counselor: 180,
   leadStatus: 180,
   actions: 120,
-}
+};
 
-const CELL = 'align-middle'
+const CELL = "align-middle";
 
 function TextCell({ value, className }) {
-  const text = value?.trim() ? value : '—'
+  const text = value?.trim() ? value : "—";
   return (
     <span
       className={cn(
-        'block text-sm leading-snug [overflow-wrap:anywhere]',
-        text === '—' ? 'text-[#9ca0a8]' : 'text-[#111111]',
+        "block text-sm leading-snug [overflow-wrap:anywhere]",
+        text === "—" ? "text-[#9ca0a8]" : "text-[#111111]",
         className,
       )}
     >
       {text}
     </span>
-  )
+  );
 }
 
 function ContactCell({ email, phone }) {
@@ -42,17 +42,17 @@ function ContactCell({ email, phone }) {
       <span className="text-[#9ca0a8]"> | </span>
       {phone}
     </span>
-  )
+  );
 }
 
 const TABLE_CLASS = cn(
-  'rounded-none border-0 shadow-none',
-  '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',
-  '[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]',
-  '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap [&_thead_th]:!bg-transparent',
-  '[&_thead_th]:text-white [&_thead_th]:text-xs [&_thead_th]:font-semibold sm:[&_thead_th]:text-sm',
-  '[&_tbody_td]:align-middle',
-)
+  "rounded-none border-0 shadow-none",
+  "[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]",
+  "[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]",
+  "[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap [&_thead_th]:!bg-transparent",
+  "[&_thead_th]:text-white [&_thead_th]:text-xs [&_thead_th]:font-semibold sm:[&_thead_th]:text-sm",
+  "[&_tbody_td]:align-middle",
+);
 
 export default function EnquiriesTable({
   data,
@@ -61,7 +61,7 @@ export default function EnquiriesTable({
   resetDeps,
   counselorById,
   leadStatusById,
-  counselorOptions,
+  counselorsByCenter, // NEW: The dictionary from the parent
   leadStatusOptions,
   onCounselorChange,
   onLeadStatusChange,
@@ -71,17 +71,19 @@ export default function EnquiriesTable({
   const columns = useMemo(
     () => [
       {
-        key: 'student',
-        label: 'Student',
+        key: "student",
+        label: "Student",
         width: COLUMN.student,
         headerTruncate: false,
         headerClassName: CELL,
         cellClassName: CELL,
-        render: (row) => <TextCell value={row.student} className="font-semibold" />,
+        render: (row) => (
+          <TextCell value={row.student} className="font-semibold" />
+        ),
       },
       {
-        key: 'contact',
-        label: 'Contact Details',
+        key: "contact",
+        label: "Contact Details",
         width: COLUMN.contact,
         headerTruncate: false,
         headerClassName: CELL,
@@ -89,8 +91,8 @@ export default function EnquiriesTable({
         render: (row) => <ContactCell email={row.email} phone={row.phone} />,
       },
       {
-        key: 'enquiryType',
-        label: 'Enquiry Type',
+        key: "enquiryType",
+        label: "Enquiry Type",
         width: COLUMN.enquiryType,
         headerTruncate: false,
         headerClassName: CELL,
@@ -102,8 +104,8 @@ export default function EnquiriesTable({
         ),
       },
       {
-        key: 'center',
-        label: 'Center',
+        key: "center",
+        label: "Center",
         width: COLUMN.center,
         headerTruncate: false,
         headerClassName: CELL,
@@ -115,8 +117,8 @@ export default function EnquiriesTable({
         ),
       },
       {
-        key: 'enquiryDate',
-        label: 'Enquiry Date',
+        key: "enquiryDate",
+        label: "Enquiry Date",
         width: COLUMN.enquiryDate,
         headerTruncate: false,
         headerClassName: CELL,
@@ -128,32 +130,37 @@ export default function EnquiriesTable({
         ),
       },
       {
-        key: 'assignedCounselor',
-        label: 'Assigned Counselor',
+        key: "assignedCounselor",
+        label: "Assigned Counselor",
         width: COLUMN.counselor,
         headerTruncate: false,
         headerClassName: CELL,
         cellClassName: CELL,
         render: (row) => (
           <EnquiryCounselorSelect
-            value={counselorById[row.id] || row.assignedCounselor || ''}
+            value={counselorById[row.id] || row.assignedCounselor || ""}
             onChange={(value) => onCounselorChange(row.id, value)}
-            options={counselorOptions}
+            // DYNAMIC LOOKUP: Get options for this specific row's centerId
+            options={
+              counselorsByCenter[row.centerId] || [
+                { value: "", label: "No Counselors", disabled: true },
+              ]
+            }
             placeholder="Select Counselor"
             ariaLabel={`Assigned counselor for ${row.student}`}
           />
         ),
       },
       {
-        key: 'leadStatus',
-        label: 'Lead Status',
+        key: "leadStatus",
+        label: "Lead Status",
         width: COLUMN.leadStatus,
         headerTruncate: false,
         headerClassName: CELL,
         cellClassName: CELL,
         render: (row) => (
           <EnquiryLeadStatusSelect
-            value={leadStatusById[row.id] || row.leadStatus || ''}
+            value={leadStatusById[row.id] || row.leadStatus || ""}
             onChange={(value) => onLeadStatusChange(row.id, value)}
             options={leadStatusOptions}
             placeholder="Select Status"
@@ -162,29 +169,32 @@ export default function EnquiriesTable({
         ),
       },
       {
-        key: 'actions',
-        label: 'Actions',
+        key: "actions",
+        label: "Actions",
         width: COLUMN.actions,
-        align: 'center',
+        align: "center",
         headerTruncate: false,
-        headerClassName: cn(CELL, 'text-center'),
-        cellClassName: cn(CELL, 'text-center'),
+        headerClassName: cn(CELL, "text-center"),
+        cellClassName: cn(CELL, "text-center"),
         render: (row) => (
-          <EnquiryTableActions onView={() => onView(row)} onEdit={() => onEdit(row)} />
+          <EnquiryTableActions
+            onView={() => onView(row)}
+            onEdit={() => onEdit(row)}
+          />
         ),
       },
     ],
     [
       counselorById,
       leadStatusById,
-      counselorOptions,
+      counselorsByCenter, // Updated dependency
       leadStatusOptions,
       onCounselorChange,
       onLeadStatusChange,
       onView,
       onEdit,
     ],
-  )
+  );
 
   return (
     <PaginatedFigmaTable
@@ -204,5 +214,5 @@ export default function EnquiriesTable({
       tableClassName={TABLE_CLASS}
       paginationClassName="border-t border-[#E5E7EB] bg-white"
     />
-  )
+  );
 }
