@@ -148,7 +148,6 @@ export const RBAC_MODULE_FEATURES = {
         { id: 'studentFinanceProfiles', label: 'Student Finance Profiles' },
         { id: 'paymentAttemptLogs', label: 'Payment Attempt Logs' },
         { id: 'offlinePaymentApproval', label: 'Offline Payment Approval' },
-        { id: 'paymentCommunicationLogs', label: 'Payment Communication Logs' },
         { id: 'gstInvoiceSettings', label: 'GST & Invoice Settings' },
       ],
     },

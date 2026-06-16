@@ -1,4 +1,4 @@
-import { Eye, Receipt, ShieldCheck, UserCircle, History, MessageSquare } from 'lucide-react'
+import { Eye, Receipt, ShieldCheck, UserCircle, History } from 'lucide-react'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { cn } from '../../utils/cn'
 
@@ -48,14 +48,6 @@ export default function FinanceLinkedActions({ row, className, onView, compact =
         title="Attempt logs"
       >
         <History className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => goToFinance('communication', { student: studentId })}
-        className={btn}
-        title="Communication"
-      >
-        <MessageSquare className="h-4 w-4" />
       </button>
     </div>
   )

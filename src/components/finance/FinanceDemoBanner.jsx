@@ -6,7 +6,7 @@ export default function FinanceDemoBanner() {
       <Info className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
       <p>
         <span className="font-bold">Finance Operations (demo data).</span> All modules are linked — student
-        profiles, verification, receipts, EMI, and communication share the same records. Connect APIs to go live.
+        profiles, verification, receipts, and EMI share the same records. Connect APIs to go live.
       </p>
     </div>
   )

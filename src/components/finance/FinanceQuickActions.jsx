@@ -1,4 +1,4 @@
-import { Plus, ShieldCheck, Receipt, Bell, Download } from 'lucide-react'
+import { Plus, ShieldCheck, Receipt, Download } from 'lucide-react'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 
@@ -9,7 +9,6 @@ export default function FinanceQuickActions({ onExport }) {
   const actions = [
     { label: 'Verify Payment', icon: ShieldCheck, onClick: () => goToFinance('verification'), show: canApprove },
     { label: 'Receipts', icon: Receipt, onClick: () => goToFinance('receipts'), show: canReceipts },
-    { label: 'Send Reminder', icon: Bell, onClick: () => goToFinance('communication'), show: true },
     { label: 'Reports', icon: Download, onClick: () => goToFinance('reports'), show: canExport },
     { label: 'Add Payment', icon: Plus, onClick: () => goToFinance('verification', { addOffline: '1' }), show: canApprove || canEdit },
   ].filter((a) => a.show)

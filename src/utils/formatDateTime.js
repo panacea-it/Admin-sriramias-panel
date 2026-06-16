@@ -15,3 +15,22 @@ export function formatCategoryDateTime(iso) {
   })
   return `${time}, ${date}`
 }
+
+/** Format last attempt as two lines: time, then date */
+export function formatLastAttemptDisplay(iso) {
+  if (!iso) return { time: '—', date: '—' }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return { time: '—', date: '—' }
+  return {
+    time: d.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }),
+    date: d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }),
+  }
+}

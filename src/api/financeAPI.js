@@ -6,9 +6,6 @@ import {
   MOCK_OFFLINE_REQUESTS,
   MOCK_EMI_PLANS,
   MOCK_STUDENT_PROFILES,
-  MOCK_COMMUNICATION_LOGS,
-  MOCK_COMMUNICATION_TEMPLATES,
-  MOCK_COMMUNICATION_AUTOMATION_RULES,
   MOCK_GST_SETTINGS,
   DEFAULT_EMI_MGMT_SETTINGS,
   buildFinanceDashboardPayload,
@@ -40,9 +37,6 @@ import {
   buildReceiptEditAuditEntry,
 } from '../utils/receiptCompletion'
 import {
-  buildCommunicationAlerts,
-} from '../utils/paymentCommunicationAnalytics'
-import {
   appendOfflineAudit,
   buildDailyOfflineSummary,
   computeCashReconciliation,
@@ -57,10 +51,6 @@ let mockVerificationQueue = JSON.parse(JSON.stringify(INITIAL_VERIFICATION_QUEUE
 let mockOffline = [...MOCK_OFFLINE_REQUESTS]
 let mockEmi = JSON.parse(JSON.stringify(MOCK_EMI_PLANS))
 let mockGst = { ...MOCK_GST_SETTINGS, branchGst: [...MOCK_GST_SETTINGS.branchGst] }
-let mockComm = JSON.parse(JSON.stringify(MOCK_COMMUNICATION_LOGS))
-let mockCommTemplates = JSON.parse(JSON.stringify(MOCK_COMMUNICATION_TEMPLATES))
-let mockCommRules = JSON.parse(JSON.stringify(MOCK_COMMUNICATION_AUTOMATION_RULES))
-let mockCommAlertRead = new Set()
 let mockVerificationNotifications = []
 let mockEmiSettings = JSON.parse(JSON.stringify(DEFAULT_EMI_MGMT_SETTINGS))
 let mockEmiReminderLogs = []
@@ -70,8 +60,10 @@ let mockAbandonedOverrides = {}
 let mockAttemptAlertRead = new Set()
 let mockOfflineNotifications = []
 
+import { buildPaymentAttemptDummyLogs } from '../data/paymentAttemptDummyData'
+
 function buildMockAttemptLogs() {
-  return enrichAttemptLogsFromPayments(MOCK_PAYMENT_REPORTS, mockAttemptOverrides)
+  return buildPaymentAttemptDummyLogs()
 }
 
 function buildMockAttemptAnalytics() {
@@ -129,16 +121,6 @@ function appendVerificationNotification(row, { channel, statusUpdate, message, a
     triggeredBy: adminName || 'System',
   }
   mockVerificationNotifications = [entry, ...mockVerificationNotifications]
-  if (channel === 'Email' || channel === 'SMS') {
-    mockComm.unshift({
-      id: entry.id,
-      recipient: row.student,
-      type: 'Verification Update',
-      channel,
-      status: channel === 'Email' ? 'Email trigger placeholder' : 'SMS trigger placeholder',
-      timestamp: entry.timestamp,
-    })
-  }
   return entry
 }
 
@@ -401,16 +383,6 @@ function appendOfflineNotification(row, { type, message, channel = 'In-app' }) {
     timestamp: new Date().toISOString(),
   }
   mockOfflineNotifications = [entry, ...mockOfflineNotifications]
-  if (channel === 'Email' || channel === 'SMS') {
-    mockComm.unshift({
-      id: entry.id,
-      recipient: row.studentName,
-      type: 'Offline Payment',
-      channel,
-      status: channel === 'Email' ? 'Email trigger placeholder' : 'SMS trigger placeholder',
-      timestamp: entry.timestamp,
-    })
-  }
   return entry
 }
 
@@ -573,6 +545,45 @@ export async function approveOfflinePayment(id, payload) {
         appendOfflineNotification(next, { type: status.toLowerCase(), message: status, channel: 'Email' })
         appendOfflineNotification(next, { type: status.toLowerCase(), message: status, channel: 'SMS' })
         return next
+      })
+      return enrichOfflineApprovalRow(mockOffline.find((o) => o.id === id), {
+        existingPayments: getExistingPaymentsForDuplicateCheck(),
+      })
+    },
+  )
+}
+
+export async function disableOfflinePayment(id, payload = {}) {
+  return tryApi(
+    () => api.post(`/finance/offline-approvals/${id}/disable`, payload),
+    () => {
+      const row = mockOffline.find((o) => o.id === id)
+      if (!row) throw new Error('Request not found')
+      const now = new Date().toISOString()
+      mockOffline = mockOffline.map((o) => {
+        if (o.id !== id) return o
+        return appendOfflineAudit(
+          {
+            ...o,
+            status: 'Disabled',
+            workflowStatus: 'Disabled',
+            disabled: true,
+            disabledAt: now,
+            disabledBy: payload.adminName || 'Admin',
+            updatedAt: now,
+          },
+          {
+            by: payload.adminName || 'Admin',
+            action: 'Disabled',
+            remark: payload.comment || 'Offline payment request disabled',
+            branch: o.branchCode,
+          },
+        )
+      })
+      appendOfflineNotification(mockOffline.find((o) => o.id === id), {
+        type: 'disabled',
+        message: 'Offline payment request disabled',
+        channel: 'In-app',
       })
       return enrichOfflineApprovalRow(mockOffline.find((o) => o.id === id), {
         existingPayments: getExistingPaymentsForDuplicateCheck(),
@@ -778,366 +789,9 @@ export async function assignPaymentAttemptCounselor(payload) {
           ...(mockAttemptOverrides[id] || {}),
           counselorId: payload.counselorId,
           counselorName: payload.counselorName,
-          leadStatus: payload.leadStatus || 'Assigned',
-          priority: payload.priority,
         }
       })
       return { success: true, data: buildMockAttemptLogs() }
-    },
-  )
-}
-
-export async function blockPaymentAttemptDevice(payload) {
-  return tryApi(
-    () => api.post('/finance/attempts/block', payload),
-    () => {
-      const id = payload.attemptId
-      const adminName = payload.adminName || 'Admin'
-      const prev = mockAttemptOverrides[id] || {}
-      mockAttemptOverrides[id] = {
-        ...prev,
-        fraudStatus: 'Blocked',
-        isBlocked: true,
-        fraudAudit: [
-          ...(prev.fraudAudit || []),
-          { id: `AUD-${Date.now()}`, action: 'Blocked device/IP', by: adminName, at: new Date().toISOString() },
-        ],
-      }
-      return { success: true }
-    },
-  )
-}
-
-export async function unblockPaymentAttemptDevice(payload) {
-  return tryApi(
-    () => api.post('/finance/attempts/unblock', payload),
-    () => {
-      const id = payload.attemptId
-      const adminName = payload.adminName || 'Admin'
-      const prev = mockAttemptOverrides[id] || {}
-      mockAttemptOverrides[id] = {
-        ...prev,
-        fraudStatus: 'Safe',
-        isBlocked: false,
-        fraudAudit: [
-          ...(prev.fraudAudit || []),
-          { id: `AUD-${Date.now()}`, action: 'Unblocked device/IP', by: adminName, at: new Date().toISOString() },
-        ],
-      }
-      return { success: true }
-    },
-  )
-}
-
-export async function sendPaymentAttemptRecoveryMessage(payload) {
-  return tryApi(
-    () => api.post('/finance/attempts/recovery-message', payload),
-    () => {
-      const id = payload.attemptId
-      const prev = mockAttemptOverrides[id] || {}
-      const entry = {
-        id: `COM-ATT-${Date.now()}`,
-        channel: payload.channel,
-        type: payload.template,
-        status: `${payload.channel} trigger placeholder`,
-        message: 'Recovery message queued',
-        timestamp: new Date().toISOString(),
-      }
-      mockAttemptOverrides[id] = {
-        ...prev,
-        communications: [...(prev.communications || []), entry],
-      }
-      mockComm.unshift({
-        id: entry.id,
-        recipient: payload.mobile || payload.email || 'Student',
-        type: 'Payment Recovery',
-        channel: payload.channel,
-        status: entry.status,
-        timestamp: entry.timestamp,
-      })
-      return { success: true, data: entry }
-    },
-  )
-}
-
-export async function markPaymentAttemptAlertRead(alertId) {
-  return tryApi(
-    () => api.post('/finance/attempts/alerts/read', { alertId }),
-    () => {
-      mockAttemptAlertRead.add(alertId)
-      return { success: true }
-    },
-  )
-}
-
-export async function fetchCommunicationLogs(params = {}) {
-  return tryApi(
-    () => api.get('/finance/communication-logs/enriched', { params }),
-    () => {
-      if (params.studentId) return mockComm.filter((l) => l.studentId === params.studentId)
-      return [...mockComm]
-    },
-  )
-}
-
-export async function fetchCommunicationAnalytics() {
-  return tryApi(
-    () => api.get('/finance/communication/analytics'),
-    () => ({
-      logs: [...mockComm],
-      templates: [...mockCommTemplates],
-      rules: [...mockCommRules],
-      alerts: buildCommunicationAlerts(mockComm, mockCommRules).map((a) => ({
-        ...a,
-        read: mockCommAlertRead.has(a.id),
-      })),
-    }),
-  )
-}
-
-export async function tagCommunicationCounselor(commId, payload) {
-  return tryApi(
-    () => api.post(`/finance/communication/${commId}/counselor`, payload),
-    () => {
-      const idx = mockComm.findIndex((l) => l.id === commId)
-      if (idx === -1) throw new Error('Not found')
-      mockComm[idx] = {
-        ...mockComm[idx],
-        ...payload,
-        followUpTag: payload.followUpTag || 'Follow-up assigned',
-        auditTrail: [
-          ...(mockComm[idx].auditTrail || []),
-          { action: 'counselor_tagged', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() },
-        ],
-      }
-      return { success: true, data: mockComm[idx] }
-    },
-  )
-}
-
-export async function bulkCommunicationAction({ ids, action, adminName }) {
-  return tryApi(
-    () => api.post('/finance/communication/bulk', { ids, action, adminName }),
-    () => {
-      const results = []
-      ids.forEach((id) => {
-        const idx = mockComm.findIndex((l) => l.id === id)
-        if (idx === -1) return
-        if (action === 'resend') {
-          mockComm[idx] = {
-            ...mockComm[idx],
-            status: 'Queued',
-            deliveryStatus: 'Pending',
-            tracking: {
-              ...(mockComm[idx].tracking || {}),
-              retryCount: (mockComm[idx].tracking?.retryCount || 0) + 1,
-            },
-            auditTrail: [
-              ...(mockComm[idx].auditTrail || []),
-              { action: 'resent', by: adminName || 'Finance Admin', at: new Date().toISOString() },
-            ],
-          }
-        } else if (action === 'mark_delivered') {
-          mockComm[idx] = {
-            ...mockComm[idx],
-            deliveryStatus: 'Delivered',
-            tracking: { ...(mockComm[idx].tracking || {}), deliveredAt: new Date().toISOString() },
-          }
-        }
-        results.push(mockComm[idx])
-      })
-      return { success: true, count: results.length, data: results }
-    },
-  )
-}
-
-export async function fetchCommunicationTemplates() {
-  return tryApi(
-    () => api.get('/finance/communication/templates'),
-    () => [...mockCommTemplates],
-  )
-}
-
-export async function saveCommunicationTemplate(payload, id) {
-  const path = id ? `/finance/communication/templates/${id}` : '/finance/communication/templates'
-  const method = id ? 'put' : 'post'
-  return tryApi(
-    () => api[method](path, payload),
-    () => {
-      if (id) {
-        const idx = mockCommTemplates.findIndex((t) => t.id === id)
-        if (idx >= 0) {
-          mockCommTemplates[idx] = {
-            ...mockCommTemplates[idx],
-            ...payload,
-            lastModified: new Date().toISOString(),
-            auditTrail: [
-              ...(mockCommTemplates[idx].auditTrail || []),
-              { action: 'updated', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() },
-            ],
-          }
-          return { success: true, data: mockCommTemplates[idx] }
-        }
-      }
-      const entry = {
-        id: `TPL-${Date.now()}`,
-        ...payload,
-        lastModified: new Date().toISOString(),
-        createdBy: payload.adminName || 'Finance Admin',
-        auditTrail: [{ action: 'created', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() }],
-      }
-      mockCommTemplates.unshift(entry)
-      return { success: true, data: entry }
-    },
-  )
-}
-
-export async function deleteCommunicationTemplate(id) {
-  return tryApi(
-    () => api.delete(`/finance/communication/templates/${id}`),
-    () => {
-      mockCommTemplates = mockCommTemplates.filter((t) => t.id !== id)
-      return { success: true }
-    },
-  )
-}
-
-export async function testSendCommunicationTemplate(payload) {
-  return tryApi(
-    () => api.post('/finance/communication/templates/test-send', payload),
-    () => {
-      const entry = {
-        id: `COM-${Date.now()}`,
-        studentName: payload.studentName || 'Test Student',
-        recipient: payload.recipient || payload.email || payload.mobile,
-        type: payload.type || 'Manual Follow-up',
-        channel: payload.channel || 'Email',
-        status: 'Queued',
-        deliveryStatus: 'Pending',
-        sentBy: payload.adminName || 'Finance Admin',
-        timestamp: new Date().toISOString(),
-        templateId: payload.templateId,
-        tracking: { sentAt: new Date().toISOString(), retryCount: 0 },
-        auditTrail: [{ action: 'test_send', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() }],
-      }
-      mockComm.unshift(entry)
-      return { success: true, data: entry }
-    },
-  )
-}
-
-export async function fetchCommunicationAutomationRules() {
-  return tryApi(
-    () => api.get('/finance/communication/automation'),
-    () => [...mockCommRules],
-  )
-}
-
-export async function saveCommunicationAutomationRule(payload, id) {
-  const path = id ? `/finance/communication/automation/${id}` : '/finance/communication/automation'
-  const method = id ? 'put' : 'post'
-  return tryApi(
-    () => api[method](path, payload),
-    () => {
-      if (id) {
-        const idx = mockCommRules.findIndex((r) => r.id === id)
-        if (idx >= 0) {
-          mockCommRules[idx] = {
-            ...mockCommRules[idx],
-            ...payload,
-            auditTrail: [
-              ...(mockCommRules[idx].auditTrail || []),
-              { action: 'updated', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() },
-            ],
-          }
-          return { success: true, data: mockCommRules[idx] }
-        }
-      }
-      const entry = {
-        id: `RULE-${Date.now()}`,
-        active: true,
-        priority: mockCommRules.length + 1,
-        executionLogs: [],
-        ...payload,
-        auditTrail: [{ action: 'created', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() }],
-      }
-      mockCommRules.push(entry)
-      return { success: true, data: entry }
-    },
-  )
-}
-
-export async function deleteCommunicationAutomationRule(id) {
-  return tryApi(
-    () => api.delete(`/finance/communication/automation/${id}`),
-    () => {
-      mockCommRules = mockCommRules.filter((r) => r.id !== id)
-      return { success: true }
-    },
-  )
-}
-
-export async function toggleCommunicationAutomationRule(id, adminName) {
-  return tryApi(
-    () => api.post(`/finance/communication/automation/${id}/toggle`, { adminName }),
-    () => {
-      const idx = mockCommRules.findIndex((r) => r.id === id)
-      if (idx === -1) throw new Error('Not found')
-      mockCommRules[idx] = {
-        ...mockCommRules[idx],
-        active: !mockCommRules[idx].active,
-        auditTrail: [
-          ...(mockCommRules[idx].auditTrail || []),
-          {
-            action: mockCommRules[idx].active ? 'enabled' : 'disabled',
-            by: adminName || 'Finance Admin',
-            at: new Date().toISOString(),
-          },
-        ],
-      }
-      return { success: true, data: mockCommRules[idx] }
-    },
-  )
-}
-
-export async function markCommunicationAlertRead(alertId) {
-  return tryApi(
-    () => api.post('/finance/communication/alerts/read', { alertId }),
-    () => {
-      mockCommAlertRead.add(alertId)
-      return { success: true }
-    },
-  )
-}
-
-export async function sendPaymentReminder(payload) {
-  return tryApi(
-    () => api.post('/finance/reminders', payload),
-    () => {
-      const course = FINANCE_COURSES.find((c) => c.id === payload.courseId)
-      const batch = FINANCE_BATCHES.find((b) => b.id === payload.batchId)
-      const entry = {
-        id: `COM-${Date.now()}`,
-        studentId: payload.studentId,
-        studentName: payload.studentName || payload.mobile || payload.email,
-        paymentReference: payload.paymentReference,
-        recipient: payload.mobile || payload.email,
-        type: 'Due Reminder',
-        channel: payload.channel === 'all' ? 'Multi-channel' : (payload.channel || 'WhatsApp'),
-        status: 'Queued',
-        deliveryStatus: 'Pending',
-        sentBy: payload.adminName || 'Finance Admin',
-        timestamp: new Date().toISOString(),
-        centerName: payload.centerName !== 'all' ? payload.centerName : undefined,
-        courseId: course?.id,
-        courseName: course?.name,
-        batchId: batch?.id,
-        batchName: batch?.name,
-        tracking: { sentAt: new Date().toISOString(), retryCount: 0 },
-        auditTrail: [{ action: 'manual_send', by: payload.adminName || 'Finance Admin', at: new Date().toISOString() }],
-      }
-      mockComm.unshift(entry)
-      return { success: true, data: entry }
     },
   )
 }
@@ -1715,18 +1369,6 @@ export async function sendReceiptCommunication(paymentId, { channel, mobile, ema
           sentBy: 'Finance Admin',
           deliveredAt: now,
         }
-        mockComm = [
-          {
-            id: `COM-RCP-${Date.now()}`,
-            recipient: channelKey === 'email' ? email || base.email : mobile || base.mobile,
-            type: 'Payment Receipt',
-            channel: channel.charAt(0).toUpperCase() + channel.slice(1).toLowerCase(),
-            status: 'Delivered',
-            timestamp: now,
-            message,
-          },
-          ...mockComm,
-        ]
         const updated = mapReceiptCenterRow(
           {
             ...base,
@@ -1922,14 +1564,6 @@ export async function sendEmiReminder(payload) {
         }))
       }
       mockEmiReminderLogs.unshift({ ...entry, planId: payload.planId, studentName: payload.studentName })
-      mockComm.unshift({
-        id: entry.id,
-        recipient: payload.mobile || payload.email,
-        type: 'EMI Reminder',
-        channel: entry.channel,
-        status: entry.status === 'Sent' ? 'Queued (provider placeholder)' : 'Failed',
-        timestamp: now,
-      })
       return { success: true, log: entry }
     },
   )

@@ -1,141 +1,124 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  History,
-  Eye,
-  RotateCcw,
-  Clock,
-  UserPlus,
-  Shield,
-} from 'lucide-react'
-import FinancePageShell from '../../components/finance/FinancePageShell'
+import { useCallback, useMemo, useState } from 'react'
+import { Eye, History, MessageSquarePlus, UserPlus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import PageBanner from '../../components/figma/PageBanner'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
-import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
-import FinanceSectionHeader from '../../components/finance/FinanceSectionHeader'
-import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
-import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
-import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
-import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import PaymentAttemptOverview from '../../components/finance/payment-attempts/PaymentAttemptOverview'
 import PaymentAttemptFilters from '../../components/finance/payment-attempts/PaymentAttemptFilters'
-import PaymentAttemptFailureBadge from '../../components/finance/payment-attempts/PaymentAttemptFailureBadge'
-import PaymentAttemptFraudBadge from '../../components/finance/payment-attempts/PaymentAttemptFraudBadge'
-import PaymentAttemptFailureModal from '../../components/finance/payment-attempts/PaymentAttemptFailureModal'
-import PaymentAttemptTimelineDrawer from '../../components/finance/payment-attempts/PaymentAttemptTimelineDrawer'
+import PaymentAttemptTable from '../../components/finance/payment-attempts/PaymentAttemptTable'
+import CounselorRemarksTable from '../../components/finance/payment-attempts/CounselorRemarksTable'
+import PaymentAttemptViewModal from '../../components/finance/payment-attempts/PaymentAttemptViewModal'
 import PaymentAttemptCounselorModal from '../../components/finance/payment-attempts/PaymentAttemptCounselorModal'
-import PaymentAttemptFraudModal from '../../components/finance/payment-attempts/PaymentAttemptFraudModal'
+import PaymentAttemptAddRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptAddRemarkModal'
+import PaymentAttemptViewRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptViewRemarkModal'
+import ConfirmCounselorRemarkDeleteModal from '../../components/finance/payment-attempts/ConfirmCounselorRemarkDeleteModal'
 import {
-  fetchPaymentAttemptAnalytics,
-  assignPaymentAttemptCounselor,
-  blockPaymentAttemptDevice,
-  unblockPaymentAttemptDevice,
-} from '../../api/financeAPI'
-import { filterAttemptLogs, filterAttemptsByFinanceCenters, computeAttemptSummary } from '../../utils/paymentAttemptAnalytics'
-import { PAYMENT_ATTEMPT_TABS, PAYMENT_ATTEMPT_EXPORT_COLUMNS } from '../../constants/paymentAttemptConstants'
-import { formatINR } from '../../utils/financeFilters'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { useFinancePermissions } from '../../hooks/useFinancePermissions'
+  filterAttemptLogs,
+  filterAttemptsByFinanceCenters,
+  sortAttemptLogs,
+} from '../../utils/paymentAttemptAnalytics'
+import { isCounselorAssigned } from '../../utils/paymentAttemptRemarks'
+import { usePaymentAttemptLogs } from '../../contexts/PaymentAttemptLogsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
-import { useAuth } from '../../contexts/AuthContext'
-import { toast } from '../../utils/toast'
+import { FINANCE_ROUTES } from '../../constants/financeNav'
 import { cn } from '../../utils/cn'
 
-function ContactCell({ row }) {
+const actionButtonClass =
+  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+
+function PaymentAttemptTableActions({ row, hasRemark, onView, onAssignCounselor, onAddRemark }) {
+  const assigned = isCounselorAssigned(row)
+
   return (
-    <div className="min-w-[120px] text-xs">
-      <p className="font-medium text-[#222]">{row.mobile || '—'}</p>
-      <p className="truncate text-[#686868]" title={row.email}>{row.email || '—'}</p>
+    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
+      <button
+        type="button"
+        onClick={onView}
+        title="View"
+        aria-label={`View attempt ${row.attemptId || row.id}`}
+        className={cn(
+          actionButtonClass,
+          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
+        )}
+      >
+        <Eye className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">View</span>
+      </button>
+      {assigned && !hasRemark ? (
+        <button
+          type="button"
+          onClick={onAddRemark}
+          title="Counselor Remark"
+          aria-label={`Add counselor remark for ${row.student}`}
+          className={cn(
+            actionButtonClass,
+            'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
+          )}
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Counselor Remark</span>
+        </button>
+      ) : null}
+      {!assigned ? (
+        <button
+          type="button"
+          onClick={onAssignCounselor}
+          title="Assign Counselor"
+          aria-label={`Assign counselor for ${row.student}`}
+          className={cn(
+            actionButtonClass,
+            'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
+          )}
+        >
+          <UserPlus className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Assign Counselor</span>
+        </button>
+      ) : null}
     </div>
   )
 }
 
-function AttemptMobileCard({ row, actions }) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-mono text-xs text-[#246392]">{row.attemptId || row.id}</p>
-          <p className="font-semibold text-[#222]">{row.student}</p>
-          <ContactCell row={row} />
-        </div>
-        <FinanceStatusBadge status={row.status} />
-      </div>
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div><dt className="text-[#686868]">Amount</dt><dd className="font-semibold">{formatINR(row.amount)}</dd></div>
-        <div><dt className="text-[#686868]">Retries</dt><dd>{row.retryCount}</dd></div>
-        <div className="col-span-2"><dt className="text-[#686868]">Failure</dt><dd><PaymentAttemptFailureBadge category={row.failureCategory} /></dd></div>
-        <div><dt className="text-[#686868]">Fraud</dt><dd><PaymentAttemptFraudBadge status={row.fraudStatus} riskScore={row.ipRiskScore} /></dd></div>
-      </dl>
-      <div className="mt-3 flex justify-end">{actions}</div>
-    </article>
-  )
-}
-
 export default function PaymentAttemptLogsPage() {
-  const { canExport, canEdit } = useFinancePermissions()
   const financeCenterFilter = useFinanceCenterFilter()
-  const { user } = useAuth()
-  const adminName = user?.name || user?.email || 'Finance Admin'
+  const {
+    logs,
+    loading,
+    sortedRemarks,
+    pendingAssignedLogs,
+    assignCounselor,
+    saveRemark,
+    deleteRemark,
+    getRemarkForAttempt,
+  } = usePaymentAttemptLogs()
 
-  const [analytics, setAnalytics] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [modeFilter, setModeFilter] = useState('all')
   const [gatewayFilter, setGatewayFilter] = useState('all')
   const [failureFilter, setFailureFilter] = useState('all')
-  const [fraudFilter, setFraudFilter] = useState('all')
-  const [fraudOnly, setFraudOnly] = useState(false)
+  const [counselorAssignmentFilter, setCounselorAssignmentFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [detailRow, setDetailRow] = useState(null)
-  const [failureRow, setFailureRow] = useState(null)
-  const [timelineRow, setTimelineRow] = useState(null)
+  const [sortKey, setSortKey] = useState('lastAttempt')
+  const [sortDir, setSortDir] = useState('desc')
+  const [viewRow, setViewRow] = useState(null)
   const [counselorRow, setCounselorRow] = useState(null)
-  const [fraudRow, setFraudRow] = useState(null)
-  const [saving, setSaving] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      setAnalytics(await fetchPaymentAttemptAnalytics())
-    } catch {
-      toast.error('Failed to load attempt logs')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const logs = analytics?.logs ?? []
-  const centerScopedLogs = useMemo(
-    () => filterAttemptsByFinanceCenters(logs, financeCenterFilter),
-    [logs, financeCenterFilter],
-  )
-  const summary = useMemo(
-    () => (centerScopedLogs.length ? computeAttemptSummary(centerScopedLogs) : analytics?.summary ?? {}),
-    [centerScopedLogs, analytics?.summary],
-  )
+  const [remarkRow, setRemarkRow] = useState(null)
+  const [viewRemark, setViewRemark] = useState(null)
+  const [deleteRemarkTarget, setDeleteRemarkTarget] = useState(null)
 
   const filterState = useMemo(
     () => ({
-      search: debouncedSearch,
-      statusFilter,
-      modeFilter,
+      search,
       gatewayFilter,
       failureFilter,
-      fraudFilter,
-      fraudOnly,
+      counselorAssignmentFilter,
       dateFrom,
       dateTo,
     }),
-    [debouncedSearch, statusFilter, modeFilter, gatewayFilter, failureFilter, fraudFilter, fraudOnly, dateFrom, dateTo],
+    [search, gatewayFilter, failureFilter, counselorAssignmentFilter, dateFrom, dateTo],
+  )
+
+  const centerScopedLogs = useMemo(
+    () => filterAttemptsByFinanceCenters(logs, financeCenterFilter),
+    [logs, financeCenterFilter],
   )
 
   const filtered = useMemo(
@@ -143,207 +126,165 @@ export default function PaymentAttemptLogsPage() {
     [centerScopedLogs, filterState],
   )
 
-  const buildActions = (row) => (
-    <FinanceActionMenu
-      actions={[
-        { label: 'View failure details', icon: Eye, onClick: () => setFailureRow(row), show: row.status === 'Failed' },
-        { label: 'View timeline', icon: Clock, onClick: () => setTimelineRow(row) },
-        { label: 'Assign counselor', icon: UserPlus, onClick: () => setCounselorRow(row), show: row.status === 'Failed' },
-        { label: 'Device / IP details', icon: Shield, onClick: () => setFraudRow(row) },
-        {
-          label: 'Retry payment',
-          icon: RotateCcw,
-          onClick: () => toast.success('Retry queued (UI placeholder — awaiting gateway API)'),
-          show: row.status === 'Failed',
-          variant: 'accent',
-        },
-      ]}
-    />
+  const sorted = useMemo(
+    () => sortAttemptLogs(filtered, sortKey, sortDir),
+    [filtered, sortKey, sortDir],
   )
 
-  const attemptColumns = [
-    { key: 'id', label: 'Attempt ID', render: (r) => <span className="font-mono text-xs">{r.attemptId || r.id}</span> },
-    { key: 'student', label: 'Student', render: (r) => <span className="font-medium">{r.student}</span> },
-    { key: 'contact', label: 'Contact', render: (r) => <ContactCell row={r} /> },
-    { key: 'course', label: 'Course', render: (r) => <span className="max-w-[140px] truncate" title={r.course}>{r.course}</span> },
-    { key: 'amount', label: 'Amount', render: (r) => formatINR(r.amount) },
-    {
-      key: 'failureCategory',
-      label: 'Failure reason',
-      render: (r) => (
-        <PaymentAttemptFailureBadge
-          category={r.failureCategory}
-          rawMessage={r.gatewayMessage}
-          onClick={r.failureCategory ? () => setFailureRow(r) : undefined}
-        />
-      ),
-    },
-    { key: 'retryCount', label: 'Retries', render: (r) => r.retryCount ?? 0 },
-    { key: 'counselorName', label: 'Counselor', render: (r) => r.counselorName || '—' },
-    {
-      key: 'fraudStatus',
-      label: 'Device/IP',
-      render: (r) => (
-        <PaymentAttemptFraudBadge status={r.fraudStatus} riskScore={r.ipRiskScore} onClick={() => setFraudRow(r)} />
-      ),
-    },
-    { key: 'dateTime', label: 'Last attempt', render: (r) => formatCategoryDateTime(r.lastAttemptDate || r.dateTime) },
-    { key: 'actions', label: 'Action', render: (row) => buildActions(row) },
-  ]
+  const handleSort = useCallback((key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }, [sortKey])
 
-  const handleAssignCounselor = async (payload) => {
-    setSaving(true)
-    try {
-      await assignPaymentAttemptCounselor(payload)
-      toast.success('Counselor assigned')
+  const handleAssignCounselor = useCallback(
+    (payload) => {
+      assignCounselor(payload)
       setCounselorRow(null)
-      await load()
-    } catch {
-      toast.error('Assignment failed')
-    } finally {
-      setSaving(false)
-    }
-  }
+    },
+    [assignCounselor],
+  )
 
-  const handleBlock = async (row) => {
-    setSaving(true)
-    try {
-      await blockPaymentAttemptDevice({ attemptId: row.id, adminName })
-      toast.success('Device/IP blocked')
-      setFraudRow(null)
-      await load()
-    } catch {
-      toast.error('Block action failed')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const handleSaveRemark = useCallback(
+    ({ subject, failureAnalysis, remark }) => {
+      if (!remarkRow) return
+      saveRemark(remarkRow, { subject, failureAnalysis, remark })
+      setRemarkRow(null)
+    },
+    [remarkRow, saveRemark],
+  )
 
-  const handleUnblock = async (row) => {
-    setSaving(true)
-    try {
-      await unblockPaymentAttemptDevice({ attemptId: row.id, adminName })
-      toast.success('Device/IP unblocked')
-      setFraudRow(null)
-      await load()
-    } finally {
-      setSaving(false)
+  const handleRequestDeleteRemark = useCallback((remark) => {
+    setDeleteRemarkTarget(remark)
+  }, [])
+
+  const handleCancelDeleteRemark = useCallback(() => {
+    setDeleteRemarkTarget(null)
+  }, [])
+
+  const handleConfirmDeleteRemark = useCallback(() => {
+    if (!deleteRemarkTarget) return
+    deleteRemark(deleteRemarkTarget.id)
+    if (viewRemark?.id === deleteRemarkTarget.id) {
+      setViewRemark(null)
     }
-  }
+    setDeleteRemarkTarget(null)
+  }, [deleteRemark, deleteRemarkTarget, viewRemark?.id])
+
+  const showCounselorRemarksTable = counselorAssignmentFilter === 'all'
+
+  const renderRowActions = useCallback(
+    (row) => (
+      <PaymentAttemptTableActions
+        row={row}
+        hasRemark={Boolean(getRemarkForAttempt(row.id))}
+        onView={() => setViewRow(row)}
+        onAssignCounselor={() => setCounselorRow(row)}
+        onAddRemark={() => setRemarkRow(row)}
+      />
+    ),
+    [getRemarkForAttempt],
+  )
+
+  const emptyState = (
+    <div className="px-4 py-10 text-center sm:px-6">
+      <p className="text-base font-semibold text-slate-700">No Payment Attempts Found</p>
+      <p className="mt-1 text-sm text-slate-500">Try changing filters or search criteria.</p>
+    </div>
+  )
 
   return (
-    <FinancePageShell
-      icon={History}
-      title="Payment Attempt Logs"
-      breadcrumbs={[{ label: 'Payment Attempt Logs' }]}
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <FinanceExportToolbar
-            rows={filtered}
-            filenameBase={`payment-attempts-${activeTab}`}
-            columnDefs={PAYMENT_ATTEMPT_EXPORT_COLUMNS}
-            canExport={canExport}
-            variant="banner"
-          />
-        </div>
-      }
-    >
-      <FinanceCenterFilterBar className="mb-4" />
-
-      <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200">
-        {PAYMENT_ATTEMPT_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'relative px-4 py-2.5 text-sm font-semibold transition',
-              activeTab === tab.id ? 'text-[#246392]' : 'text-[#686868] hover:text-[#222]',
-            )}
+    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
+      <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+        <PageBanner icon={History} title="Payment Attempt Logs">
+          <Link
+            to={FINANCE_ROUTES.attemptsAssigned}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/25 sm:w-auto"
           >
-            {tab.label}
-            {activeTab === tab.id && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#246392]" />}
-          </button>
-        ))}
-      </div>
+            Assigned Counselor
+            {pendingAssignedLogs.length > 0 && (
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-[#246392]">
+                {pendingAssignedLogs.length}
+              </span>
+            )}
+          </Link>
+        </PageBanner>
 
-      {activeTab === 'overview' && (
-        <PaymentAttemptOverview summary={summary} loading={loading} />
-      )}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <FinanceCenterFilterBar className="mb-4" sticky={false} />
 
-      {activeTab === 'attempts' && (
-        <>
-          <div className="rounded-xl bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-            <PaymentAttemptFilters
-              search={search}
-              onSearchChange={setSearch}
-              statusFilter={statusFilter}
-              onStatusChange={setStatusFilter}
-              modeFilter={modeFilter}
-              onModeChange={setModeFilter}
-              gatewayFilter={gatewayFilter}
-              onGatewayChange={setGatewayFilter}
-              failureFilter={failureFilter}
-              onFailureChange={setFailureFilter}
-              fraudFilter={fraudFilter}
-              onFraudChange={setFraudFilter}
-              fraudOnly={fraudOnly}
-              onFraudOnlyChange={setFraudOnly}
-              dateFrom={dateFrom}
-              onDateFromChange={setDateFrom}
-              dateTo={dateTo}
-              onDateToChange={setDateTo}
+          <PaymentAttemptFilters
+            search={search}
+            onSearchChange={setSearch}
+            gatewayFilter={gatewayFilter}
+            onGatewayChange={setGatewayFilter}
+            failureFilter={failureFilter}
+            onFailureChange={setFailureFilter}
+            counselorAssignmentFilter={counselorAssignmentFilter}
+            onCounselorAssignmentChange={setCounselorAssignmentFilter}
+            dateFrom={dateFrom}
+            onDateFromChange={setDateFrom}
+            dateTo={dateTo}
+            onDateToChange={setDateTo}
+            disabled={loading && logs.length === 0}
+          />
+
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <PaymentAttemptTable
+              rows={sorted}
+              loading={loading}
+              resetDeps={[filterState, sortKey, sortDir, financeCenterFilter.selectedIds, sortedRemarks.length]}
+              emptyMessage="No Payment Attempts Found"
+              emptyState={emptyState}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              renderActions={renderRowActions}
             />
           </div>
-          <FinanceSectionHeader title="Gateway attempt log" subtitle={`${filtered.length} records`} />
-          {loading ? (
-            <FinanceTableSkeleton rows={8} columns={10} />
-          ) : filtered.length === 0 ? (
-            <FinanceEmptyState title="No attempt logs" description="Payment gateway attempts will appear here." />
-          ) : (
-            <>
-              <div className="hidden lg:block">
-                <PaginatedFigmaTable
-                  columns={attemptColumns}
-                  data={filtered}
-                  itemLabel="attempts"
-                  resetDeps={[filterState]}
-                  tableClassName="overflow-x-auto"
-                  stickyHeader
+
+          {showCounselorRemarksTable ? (
+            <div className="mt-8">
+              <h2 className="mb-4 text-lg font-bold text-[#1a3a5c] sm:text-xl">Counselor Remarks</h2>
+              <div className="overflow-hidden rounded-xl border border-slate-100">
+                <CounselorRemarksTable
+                  remarks={sortedRemarks}
+                  onViewRemark={setViewRemark}
+                  onRequestDeleteRemark={handleRequestDeleteRemark}
+                  resetDeps={[sortedRemarks.length]}
                 />
               </div>
-              <div className="space-y-3 lg:hidden">
-                {filtered.map((row) => (
-                  <AttemptMobileCard key={row.id} row={row} actions={buildActions(row)} />
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      )}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
-      <PaymentAttemptFailureModal open={!!failureRow} row={failureRow} onClose={() => setFailureRow(null)} />
-      <PaymentAttemptTimelineDrawer open={!!timelineRow} row={timelineRow} onClose={() => setTimelineRow(null)} />
+      <PaymentAttemptViewModal open={!!viewRow} row={viewRow} onClose={() => setViewRow(null)} />
       <PaymentAttemptCounselorModal
         open={!!counselorRow}
         row={counselorRow}
         onClose={() => setCounselorRow(null)}
         onAssign={handleAssignCounselor}
-        saving={saving}
       />
-      <PaymentAttemptFraudModal
-        open={!!fraudRow}
-        row={fraudRow}
-        onClose={() => setFraudRow(null)}
-        onBlock={handleBlock}
-        onUnblock={handleUnblock}
-        canBlock={canEdit}
-        saving={saving}
+      <PaymentAttemptAddRemarkModal
+        open={!!remarkRow}
+        row={remarkRow}
+        onClose={() => setRemarkRow(null)}
+        onSave={handleSaveRemark}
       />
-      {/* Legacy gateway response modal — preserved for quick raw view */}
-      {detailRow && (
-        <PaymentAttemptFailureModal open={!!detailRow} row={detailRow} onClose={() => setDetailRow(null)} />
-      )}
-    </FinancePageShell>
+      <PaymentAttemptViewRemarkModal
+        open={!!viewRemark}
+        remark={viewRemark}
+        onClose={() => setViewRemark(null)}
+      />
+      <ConfirmCounselorRemarkDeleteModal
+        open={!!deleteRemarkTarget}
+        onCancel={handleCancelDeleteRemark}
+        onConfirm={handleConfirmDeleteRemark}
+      />
+    </div>
   )
 }

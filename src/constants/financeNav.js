@@ -7,7 +7,6 @@ import {
   UserCircle,
   History,
   Banknote,
-  MessageSquare,
   Settings2,
 } from 'lucide-react'
 
@@ -21,8 +20,8 @@ export const FINANCE_ROUTES = {
   receipts: `${FINANCE_BASE}/receipts`,
   profiles: `${FINANCE_BASE}/profiles`,
   attempts: `${FINANCE_BASE}/attempts`,
+  attemptsAssigned: `${FINANCE_BASE}/attempts/assigned`,
   offlineApproval: `${FINANCE_BASE}/offline-approval`,
-  communication: `${FINANCE_BASE}/communication`,
   gstSettings: `${FINANCE_BASE}/gst-settings`,
 }
 
@@ -35,7 +34,6 @@ export const FINANCE_NAV_ITEMS = [
   { label: 'Student Finance Profiles', path: FINANCE_ROUTES.profiles, icon: UserCircle },
   { label: 'Payment Attempt Logs', path: FINANCE_ROUTES.attempts, icon: History },
   { label: 'Offline Payment Approval', path: FINANCE_ROUTES.offlineApproval, icon: Banknote },
-  { label: 'Payment Communication Logs', path: FINANCE_ROUTES.communication, icon: MessageSquare },
   { label: 'GST & Invoice Settings', path: FINANCE_ROUTES.gstSettings, icon: Settings2 },
 ]
 

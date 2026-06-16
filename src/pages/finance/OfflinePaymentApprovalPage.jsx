@@ -1,162 +1,118 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Banknote,
-  Bell,
-  Check,
-  Clock,
-  Eye,
-  ShieldAlert,
-  X,
-} from 'lucide-react'
-import FinancePageShell from '../../components/finance/FinancePageShell'
-import FinanceStatCard from '../../components/finance/FinanceStatCard'
-import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
-import FinanceFilterPanel from '../../components/finance/FinanceFilterPanel'
-import FinanceExportToolbar from '../../components/finance/FinanceExportToolbar'
-import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
-import FinanceConfirmDialog from '../../components/finance/FinanceConfirmDialog'
-import FinanceInfoBanner from '../../components/finance/FinanceInfoBanner'
-import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
-import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
-import VerificationRejectDialog from '../../components/finance/VerificationRejectDialog'
-import VerificationDuplicateDialog from '../../components/finance/VerificationDuplicateDialog'
-import { ProofThumbnail } from '../../components/finance/ProofViewerModal'
+import { Ban, Banknote, ChevronDown, Eye, FileText, Search } from 'lucide-react'
+import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import OfflineBranchBadge from '../../components/finance/offline-approval/OfflineBranchBadge'
-import OfflineBranchAccessDialog from '../../components/finance/offline-approval/OfflineBranchAccessDialog'
-import OfflineDuplicateBadge from '../../components/finance/offline-approval/OfflineDuplicateBadge'
-import OfflineReconciliationCards, {
-  OfflineReconciliationBadge,
-} from '../../components/finance/offline-approval/OfflineReconciliationCards'
-import OfflineDailySummaryPanel from '../../components/finance/offline-approval/OfflineDailySummaryPanel'
-import OfflineWorkflowTracker, {
-  OfflineWorkflowChip,
-} from '../../components/finance/offline-approval/OfflineWorkflowTracker'
-import OfflineNotificationsPanel from '../../components/finance/offline-approval/OfflineNotificationsPanel'
-import OfflineApprovalProofModal from '../../components/finance/offline-approval/OfflineApprovalProofModal'
-import OfflineApprovalMobileCard from '../../components/finance/offline-approval/OfflineApprovalMobileCard'
-import {
-  fetchOfflineApprovals,
-  approveOfflinePayment,
-  fetchOfflineDailySummary,
-  fetchOfflineNotifications,
-  markOfflineNotificationRead,
-  uploadOfflineProof,
-  overrideOfflineDuplicate,
-} from '../../api/financeAPI'
-import {
-  FINANCE_OFFLINE_STATUSES,
-  FINANCE_PAYMENT_MODES,
-} from '../../constants/financeConstants'
-import {
-  OFFLINE_TABLE_EXPORT_COLUMNS,
-  OFFLINE_WORKFLOW_STATUSES,
-} from '../../constants/offlinePaymentApproval'
+import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
+import ConfirmOfflineDisableModal from '../../components/finance/offline-approval/ConfirmOfflineDisableModal'
+import ProofViewerModal, { ProofThumbnail } from '../../components/finance/ProofViewerModal'
+import { disableOfflinePayment, fetchOfflineApprovals } from '../../api/financeAPI'
+import { FINANCE_PAYMENT_MODES } from '../../constants/financeConstants'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import {
-  canApproveOfflineRow,
-  evaluateBranchAccess,
-  filterOfflineByFinanceCenters,
-} from '../../utils/offlinePaymentApproval'
+import { filterOfflineByFinanceCenters, resolveOfflineApprovedBy } from '../../utils/offlinePaymentApproval'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
-import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
+const actionButtonClass =
+  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+
+const MODE_OPTIONS = [
+  { value: 'all', label: 'All Modes' },
+  ...FINANCE_PAYMENT_MODES.map((mode) => ({ value: mode, label: mode })),
+]
+
+function OfflineTableActions({ row, onPreview, onViewVerification, onDisable }) {
+  const isDisabled = row.disabled || row.status === 'Disabled' || row.workflowStatus === 'Disabled'
+
+  return (
+    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
+      <button
+        type="button"
+        onClick={onPreview}
+        title="Preview"
+        aria-label={`Preview proof for ${row.id}`}
+        className={cn(
+          actionButtonClass,
+          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
+        )}
+      >
+        <Eye className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">Preview</span>
+      </button>
+      <button
+        type="button"
+        onClick={onViewVerification}
+        title="View Verification"
+        aria-label={`View verification for ${row.id}`}
+        className={cn(
+          actionButtonClass,
+          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
+        )}
+      >
+        <FileText className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">View Verification</span>
+      </button>
+      {!isDisabled ? (
+        <button
+          type="button"
+          onClick={onDisable}
+          title="Disable"
+          aria-label={`Disable ${row.id}`}
+          className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+        >
+          <Ban className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Disable</span>
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function adminDisplayName(user) {
   return user?.name || user?.email || 'Finance Admin'
 }
 
-function isPendingRow(row) {
-  const st = row.workflowStatus || row.status
-  return ['Pending', 'Under Verification', 'Pending Approval', 'Uploaded', 'Reconciliation Pending'].includes(st)
-}
-
-function exportSummaryCsv(summary, rows) {
-  const header = ['Metric', 'Value']
-  const lines = [
-    header.join(','),
-    ['Total offline', summary.totalOffline].join(','),
-    ['Approved collections', summary.totalCollections].join(','),
-    ['Cash', summary.cashCollections].join(','),
-    ['Bank', summary.bankCollections].join(','),
-    ['Cheque', summary.chequeCollections].join(','),
-    ['Pending approvals', summary.pendingApprovals].join(','),
-    ['Rejected', summary.rejectedPayments].join(','),
-    '',
-    OFFLINE_TABLE_EXPORT_COLUMNS.map((c) => c.label).join(','),
-    ...rows.map((r) =>
-      OFFLINE_TABLE_EXPORT_COLUMNS.map((c) => {
-        const v = r[c.key]
-        return `"${String(v ?? '').replace(/"/g, '""')}"`
-      }).join(','),
-    ),
-  ]
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `offline-summary-${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+function isRowDisabled(row) {
+  return row.disabled || row.status === 'Disabled' || row.workflowStatus === 'Disabled'
 }
 
 export default function OfflinePaymentApprovalPage() {
   const { user } = useAuth()
-  const { canApprove, canExport, canFinanceHeadApprove } = useFinancePermissions()
-  const { bumpRefresh, goToFinance } = useFinanceOperations()
+  const { goToFinance } = useFinanceOperations()
   const centerFilter = useFinanceCenterFilter()
 
   const [requests, setRequests] = useState([])
-  const [summary, setSummary] = useState(null)
-  const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
-  const [statusFilter, setStatusFilter] = useState('Pending Approval')
   const [modeFilter, setModeFilter] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [showNotifications, setShowNotifications] = useState(false)
-
-  const [proofModalRow, setProofModalRow] = useState(null)
-  const [approveRow, setApproveRow] = useState(null)
-  const [rejectRow, setRejectRow] = useState(null)
-  const [duplicateRow, setDuplicateRow] = useState(null)
-  const [branchBlockRow, setBranchBlockRow] = useState(null)
-  const [branchBlockAccess, setBranchBlockAccess] = useState(null)
-  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false)
+  const [filterDate, setFilterDate] = useState('')
+  const [previewRow, setPreviewRow] = useState(null)
+  const [disableRow, setDisableRow] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   const filterParams = useMemo(
     () => ({
       paymentMode: modeFilter,
-      status: statusFilter,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      status: 'all',
+      dateFrom: filterDate || undefined,
+      dateTo: filterDate || undefined,
       ...(centerFilter.apiParams?.centerNames?.length
         ? { centerNames: centerFilter.apiParams.centerNames.join(',') }
         : {}),
     }),
-    [modeFilter, statusFilter, dateFrom, dateTo, centerFilter.apiParams],
+    [modeFilter, filterDate, centerFilter.apiParams],
   )
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [rows, sum, notifs] = await Promise.all([
-        fetchOfflineApprovals(filterParams),
-        fetchOfflineDailySummary(filterParams),
-        fetchOfflineNotifications(),
-      ])
+      const rows = await fetchOfflineApprovals(filterParams)
       setRequests(rows)
-      setSummary(sum)
-      setNotifications(notifs)
     } catch {
       toast.error('Failed to load offline requests')
     } finally {
@@ -168,16 +124,6 @@ export default function OfflinePaymentApprovalPage() {
     load()
   }, [load])
 
-  const getRowAccess = useCallback(
-    (row) =>
-      evaluateBranchAccess(row, {
-        user,
-        role: user?.role,
-        canFinanceHeadApprove,
-      }),
-    [user, canFinanceHeadApprove],
-  )
-
   const centerScopedRequests = useMemo(
     () => filterOfflineByFinanceCenters(requests, centerFilter),
     [requests, centerFilter],
@@ -187,479 +133,264 @@ export default function OfflinePaymentApprovalPage() {
     const q = debouncedSearch.trim().toLowerCase()
     return centerScopedRequests.filter((row) => {
       if (!q) return true
-      return `${row.studentName} ${row.course} ${row.id} ${row.utrNumber} ${row.receiptNumber} ${row.branchCode}`
-        .toLowerCase()
-        .includes(q)
+      return `${row.id} ${row.studentName}`.toLowerCase().includes(q)
     })
   }, [centerScopedRequests, debouncedSearch])
 
-  const pendingCount = centerScopedRequests.filter(isPendingRow).length
-  const unreadNotifications = notifications.filter((n) => !n.read).length
-
-  const tryApprove = (row, override = false) => {
-    const access = getRowAccess(row)
-    const check = canApproveOfflineRow(row, access, { canApprove, canFinanceHeadApprove })
-    if (!check.ok && !override) {
-      if (!access.canAct) {
-        setBranchBlockRow(row)
-        setBranchBlockAccess(access)
-        return
-      }
-      toast.error(check.reason)
-      return
-    }
-    setApproveRow(row)
-  }
-
-  const handleDecision = async (row, approved, payload = {}) => {
-    if (!canApprove) {
-      toast.error('Not permitted')
-      return
-    }
-    const access = getRowAccess(row)
+  const handleDisable = async () => {
+    if (!disableRow) return
     setActionLoading(true)
     try {
-      await approveOfflinePayment(row.id, {
-        newStatus: approved ? 'Approved' : 'Rejected',
-        comment: approved ? payload.comment || 'Proof verified' : payload.comment,
-        reason: payload.reason,
+      await disableOfflinePayment(disableRow.id, {
         adminName: adminDisplayName(user),
-        forceOverride: access.status === 'Override Approved' || canFinanceHeadApprove,
-        financeHeadOverride: canFinanceHeadApprove,
-        overrideDuplicate: row.duplicateOverride,
+        comment: 'Disabled from Offline Payment Approval',
       })
-      toast.success(approved ? 'Payment approved' : 'Request rejected')
-      setApproveRow(null)
-      setRejectRow(null)
-      setProofModalRow(null)
+      toast.success('Offline payment request disabled')
+      setDisableRow(null)
       load()
-      bumpRefresh()
     } catch (err) {
-      toast.error(err?.message || 'Action failed')
+      toast.error(err?.message || 'Failed to disable request')
     } finally {
       setActionLoading(false)
     }
   }
 
-  const handleProofUpload = async (row, files) => {
-    setActionLoading(true)
-    try {
-      await uploadOfflineProof(row.id, files, { adminName: adminDisplayName(user) })
-      toast.success('Receipt uploaded')
-      load()
-    } catch {
-      toast.error('Upload failed')
-    } finally {
-      setActionLoading(false)
-    }
-  }
+  const renderRowActions = useCallback(
+    (row) => (
+      <OfflineTableActions
+        row={row}
+        onPreview={() => setPreviewRow(row)}
+        onViewVerification={() => goToFinance('verification', { q: row.id || '' })}
+        onDisable={() => setDisableRow(row)}
+      />
+    ),
+    [goToFinance],
+  )
 
-  const handleDuplicateOverride = async (row) => {
-    setActionLoading(true)
-    try {
-      await overrideOfflineDuplicate(row.id, {
-        adminName: adminDisplayName(user),
-        comment: 'Finance Head duplicate override',
-      })
-      toast.success('Duplicate override saved')
-      setDuplicateModalOpen(false)
-      setDuplicateRow(null)
-      load()
-    } catch {
-      toast.error('Override failed')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const rowActions = (row) => {
-    const access = getRowAccess(row)
-    const pending = isPendingRow(row)
-    const check = canApproveOfflineRow(row, access, { canApprove, canFinanceHeadApprove })
-    const actions = [
-      { label: 'Preview & verify', icon: Eye, onClick: () => setProofModalRow(row) },
-    ]
-    if (row.isDuplicate) {
-      actions.push({
-        label: 'Review duplicate',
-        icon: ShieldAlert,
-        onClick: () => {
-          setDuplicateRow(row)
-          setDuplicateModalOpen(true)
-        },
-      })
-    }
-    if (pending && canApprove) {
-      actions.push(
-        {
-          label: check.ok ? 'Approve' : 'Approve (restricted)',
-          icon: Check,
-          onClick: () => tryApprove(row),
-          disabled: !check.ok && !canFinanceHeadApprove,
-        },
-        { label: 'Reject', icon: X, onClick: () => setRejectRow(row), variant: 'danger' },
-      )
-    }
-    return actions
-  }
-
-  const columns = [
-    {
-      key: 'id',
-      label: 'Payment ID',
-      render: (r) => (
-        <span className="font-mono text-xs">{r.id}</span>
-      ),
-    },
-    {
-      key: 'studentName',
-      label: 'Student Name',
-      render: (r) => <span className="font-medium">{r.studentName}</span>,
-    },
-    {
-      key: 'branchCode',
-      label: 'Branch',
-      render: (r) => {
-        const access = getRowAccess(r)
-        return (
-          <OfflineBranchBadge
-            branchCode={r.branchCode}
-            accessStatus={access.status}
-            showAccess={!access.canAct || access.status !== 'Allowed'}
-          />
-        )
-      },
-    },
-    { key: 'paymentMode', label: 'Payment Mode' },
-    {
-      key: 'receiptNumber',
-      label: 'Receipt Number',
-      render: (r) => (
-        <span className="font-mono text-xs">{r.receiptNumber || r.utrNumber || '—'}</span>
-      ),
-    },
-    {
-      key: 'proof',
-      label: 'Uploaded Proof',
-      render: (r) =>
-        r.proofFiles?.[0] ? (
-          <ProofThumbnail proof={r.proofFiles[0]} onClick={() => setProofModalRow(r)} />
-        ) : r.paymentProof ? (
-          <button
-            type="button"
-            onClick={() => setProofModalRow(r)}
-            className="text-xs font-semibold text-[#246392] hover:underline"
-          >
-            {r.paymentProof.split(',')[0]}
-          </button>
-        ) : (
-          <span className="text-xs font-semibold text-[#df8284]">Required</span>
+  const columns = useMemo(
+    () => [
+      {
+        key: 'id',
+        label: 'Payment ID',
+        headerClassName: 'min-w-[120px]',
+        cellClassName: 'min-w-[120px] align-middle',
+        render: (row) => (
+          <span className="font-mono text-xs font-semibold text-[#246392]">{row.id}</span>
         ),
-    },
-    {
-      key: 'status',
-      label: 'Approval Status',
-      render: (r) => (
-        <div className="flex flex-col gap-1">
-          <FinanceStatusBadge status={r.status} />
-          <OfflineWorkflowChip status={r.workflowStatus || r.status} />
-        </div>
-      ),
-    },
-    {
-      key: 'reconciliationStatus',
-      label: 'Reconciliation',
-      render: (r) => <OfflineReconciliationBadge status={r.reconciliationStatus} />,
-    },
-    {
-      key: 'duplicateStatus',
-      label: 'Duplicate',
-      render: (r) => (
-        <OfflineDuplicateBadge
-          status={r.duplicateStatus}
-          onClick={
-            r.isDuplicate
-              ? () => {
-                  setDuplicateRow(r)
-                  setDuplicateModalOpen(true)
-                }
-              : undefined
-          }
-        />
-      ),
-    },
-    {
-      key: 'approvedBy',
-      label: 'Approved By',
-      render: (r) => <span className="text-xs">{r.approvedBy || '—'}</span>,
-    },
-    {
-      key: 'updatedAt',
-      label: 'Updated On',
-      render: (r) => formatCategoryDateTime(r.updatedAt || r.requestedDate),
-    },
-    {
-      key: 'amount',
-      label: 'Amount',
-      render: (r) => formatINR(r.amount),
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => {
-        const suspicious = row.isDuplicate || row.reconciliationStatus === 'Mismatch Detected'
-        return (
-          <div className={cn(suspicious && 'rounded-lg ring-1 ring-amber-200')}>
-            <FinanceActionMenu actions={rowActions(row)} />
-          </div>
-        )
       },
-    },
-  ]
+      {
+        key: 'studentName',
+        label: 'Student Name',
+        headerClassName: 'min-w-[160px]',
+        cellClassName: 'min-w-[160px] align-middle',
+        render: (row) => (
+          <span className="font-semibold text-slate-900">{row.studentName}</span>
+        ),
+      },
+      {
+        key: 'branchCode',
+        label: 'Branch',
+        headerClassName: 'min-w-[100px] whitespace-nowrap',
+        cellClassName: 'min-w-[100px] whitespace-nowrap align-middle',
+        render: (row) => (
+          <span className="font-medium text-[#111]">{row.branchCode || '—'}</span>
+        ),
+      },
+      {
+        key: 'paymentMode',
+        label: 'Payment Mode',
+        headerClassName: 'min-w-[130px] whitespace-nowrap',
+        cellClassName: 'min-w-[130px] whitespace-nowrap align-middle',
+        render: (row) => (
+          <span className="font-medium text-[#111]">{row.paymentMode || '—'}</span>
+        ),
+      },
+      {
+        key: 'receiptNumber',
+        label: 'Receipt Number',
+        headerClassName: 'min-w-[130px]',
+        cellClassName: 'min-w-[130px] align-middle',
+        render: (row) => (
+          <span className="font-mono text-xs text-[#111]">
+            {row.receiptNumber || row.utrNumber || '—'}
+          </span>
+        ),
+      },
+      {
+        key: 'proof',
+        label: 'Uploaded Proof / PDF',
+        headerClassName: 'min-w-[140px]',
+        cellClassName: 'min-w-[140px] align-middle',
+        render: (row) => {
+          if (row.proofFiles?.[0]) {
+            return (
+              <ProofThumbnail proof={row.proofFiles[0]} onClick={() => setPreviewRow(row)} />
+            )
+          }
+          if (row.paymentProof) {
+            return (
+              <button
+                type="button"
+                onClick={() => setPreviewRow(row)}
+                className="max-w-[160px] truncate text-left text-xs font-medium text-[#246392] hover:underline"
+              >
+                {row.paymentProof.split(',')[0]}
+              </button>
+            )
+          }
+          return <span className="text-xs text-[#686868]">—</span>
+        },
+      },
+      {
+        key: 'approvedBy',
+        label: 'Approved By',
+        headerClassName: 'min-w-[130px]',
+        cellClassName: 'min-w-[130px] align-middle',
+        render: (row) => (
+          <span className="text-[13px] font-medium text-[#111]">
+            {resolveOfflineApprovedBy(row)}
+          </span>
+        ),
+      },
+      {
+        key: 'updatedAt',
+        label: 'Updated On',
+        headerClassName: 'min-w-[150px] whitespace-nowrap',
+        cellClassName: 'min-w-[150px] whitespace-nowrap align-middle',
+        render: (row) => (
+          <span className="text-[13px] font-medium text-[#686868]">
+            {formatCategoryDateTime(row.updatedAt || row.requestedDate)}
+          </span>
+        ),
+      },
+      {
+        key: 'amount',
+        label: 'Amount',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] whitespace-nowrap align-middle',
+        render: (row) => (
+          <span className="font-semibold text-[#111]">{formatINR(row.amount)}</span>
+        ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        align: 'right',
+        headerClassName: 'min-w-[280px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[280px] whitespace-nowrap align-middle pr-4 sm:pr-6',
+        render: (row) => renderRowActions(row),
+      },
+    ],
+    [renderRowActions],
+  )
+
+  const emptyState = (
+    <div className="px-4 py-10 text-center sm:px-6">
+      <p className="text-base font-semibold text-slate-700">No offline payment requests found</p>
+      <p className="mt-1 text-sm text-slate-500">Try changing filters or search criteria.</p>
+    </div>
+  )
 
   return (
-    <FinancePageShell
-      icon={Banknote}
-      title="Offline Payment Approval"
-      breadcrumbs={[{ label: 'Offline Payment Approval' }]}
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNotifications((v) => !v)}
-            className="relative inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-[#444] hover:bg-slate-50"
-          >
-            <Bell className="h-4 w-4" />
-            Alerts
-            {unreadNotifications > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#df8284] px-1 text-[10px] font-bold text-white">
-                {unreadNotifications}
-              </span>
-            )}
-          </button>
-          <FinanceExportToolbar
-            rows={filtered}
-            filenameBase="offline-approvals"
-            columnDefs={OFFLINE_TABLE_EXPORT_COLUMNS}
-            canExport={canExport}
-            variant="banner"
-          />
-        </div>
-      }
-    >
-      <FinanceInfoBanner
-        title="How this differs from Verification Center"
-        message="This page handles pre-submitted offline payment requests awaiting approval. To enter a new offline payment with EMI setup, use Payment Verification Center → Add Offline Payment."
-        actionLabel="Add Offline Payment"
-        onAction={() => goToFinance('verification', { addOffline: '1' })}
-      />
+    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
+      <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+        <PageBanner icon={Banknote} title="Offline Payment Approval" />
 
-      <FinanceCenterFilterBar className="mb-4" />
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <FinanceCenterFilterBar className="mb-4" sticky={false} />
 
-      {showNotifications && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-bold text-[#222]">Notification logs</h2>
-          <OfflineNotificationsPanel
-            notifications={notifications}
-            onMarkRead={async (id) => {
-              await markOfflineNotificationRead(id)
-              load()
-            }}
-          />
-        </section>
-      )}
+          <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
+            <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search Payment ID / Student Name"
+                disabled={loading && requests.length === 0}
+                className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] disabled:opacity-60 sm:pl-11 sm:text-base"
+              />
+            </div>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                aria-label="Filter date"
+                title="MM/DD/YYYY"
+                disabled={loading && requests.length === 0}
+                className="h-10 w-full min-h-[38px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-[#222] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 disabled:opacity-60 sm:min-w-[150px] sm:w-auto"
+              />
+              <div className="relative w-full sm:w-auto sm:min-w-[150px]">
+                <select
+                  value={modeFilter}
+                  onChange={(e) => setModeFilter(e.target.value)}
+                  aria-label="Payment mode"
+                  disabled={loading && requests.length === 0}
+                  className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 disabled:opacity-60 sm:text-base"
+                >
+                  {MODE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+              </div>
+            </div>
+          </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <FinanceStatCard label="Pending approval" value={pendingCount} icon={Banknote} />
-        <FinanceStatCard label="Total requests" value={centerScopedRequests.length} icon={Clock} />
-        <FinanceStatCard
-          label="Approved"
-          value={centerScopedRequests.filter((r) => r.status === 'Approved').length}
-          accent="from-[#69df66] to-[#55ace7]"
-        />
-        <FinanceStatCard
-          label="Mismatch / duplicate flags"
-          value={
-            centerScopedRequests.filter(
-              (r) => r.reconciliationStatus === 'Mismatch Detected' || r.isDuplicate,
-            ).length
-          }
-          accent="from-[#df8284] to-[#b94b4b]"
-        />
-      </div>
-
-      <OfflineReconciliationCards summary={summary} />
-
-      <OfflineDailySummaryPanel
-        summary={summary}
-        onExport={() => summary && exportSummaryCsv(summary, filtered)}
-      />
-
-      <FinanceFilterPanel
-        search={search}
-        onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search student, receipt, UTR, payment ID…"
-        dateFrom={dateFrom}
-        onDateFromChange={(e) => setDateFrom(e.target.value)}
-        dateTo={dateTo}
-        onDateToChange={(e) => setDateTo(e.target.value)}
-        selects={[
-          {
-            key: 'status',
-            label: 'Approval status',
-            value: statusFilter,
-            onChange: (e) => setStatusFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All statuses' },
-              ...FINANCE_OFFLINE_STATUSES.map((s) => ({ value: s, label: s })),
-              ...OFFLINE_WORKFLOW_STATUSES.filter((s) => !FINANCE_OFFLINE_STATUSES.includes(s)).map((s) => ({
-                value: s,
-                label: s,
-              })),
-            ],
-          },
-          {
-            key: 'mode',
-            label: 'Payment mode',
-            value: modeFilter,
-            onChange: (e) => setModeFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All modes' },
-              ...FINANCE_PAYMENT_MODES.map((m) => ({ value: m, label: m })),
-            ],
-          },
-        ]}
-        onReset={() => {
-          setSearch('')
-          setStatusFilter('Pending Approval')
-          setModeFilter('all')
-          setDateFrom('')
-          setDateTo('')
-          centerFilter.selectAll()
-        }}
-      />
-
-      {loading ? (
-        <FinanceTableSkeleton rows={6} columns={10} />
-      ) : filtered.length === 0 ? (
-        <FinanceEmptyState
-          title="No offline requests"
-          description="Pending offline payment approvals will appear here."
-          ctaLabel="Add Offline Payment"
-          onCta={() => goToFinance('verification', { addOffline: '1' })}
-        />
-      ) : (
-        <>
-          <div className="hidden lg:block">
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
             <PaginatedFigmaTable
               columns={columns}
               data={filtered}
+              loading={loading}
+              emptyMessage="No offline payment requests found"
+              emptyState={emptyState}
               itemLabel="requests"
-              resetDeps={[debouncedSearch, statusFilter, modeFilter, dateFrom, dateTo, centerFilter.selectedIds]}
-              tableClassName="overflow-x-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-white"
-              rowClassName={(r) =>
+              skeletonRowCount={8}
+              resetDeps={[debouncedSearch, modeFilter, filterDate, centerFilter.selectedIds]}
+              density="comfortable"
+              rowClassName={(row) =>
                 cn(
-                  (r.isDuplicate || r.reconciliationStatus === 'Mismatch Detected') &&
-                    'bg-amber-50/40',
+                  'hover:bg-[#eef6fc]/70',
+                  isRowDisabled(row) && 'opacity-60',
                 )
               }
+              tableClassName="rounded-none border-0 shadow-none"
+              tableMinWidth={1180}
+              paginationClassName={cn(
+                '[&>div:last-child]:items-center',
+                '[&_nav]:items-center',
+                '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
+                '[&_form_input]:h-9 [&_form_input]:leading-none',
+                '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
+              )}
             />
           </div>
-          <div className="space-y-3 lg:hidden">
-            {filtered.map((row) => (
-              <OfflineApprovalMobileCard
-                key={row.id}
-                row={row}
-                access={getRowAccess(row)}
-                actions={rowActions(row)}
-                suspicious={row.isDuplicate || row.reconciliationStatus === 'Mismatch Detected'}
-                onProofClick={setProofModalRow}
-                onDuplicateClick={() => {
-                  setDuplicateRow(row)
-                  setDuplicateModalOpen(true)
-                }}
-              />
-            ))}
-          </div>
-        </>
-      )}
+        </div>
+      </section>
 
-      <OfflineApprovalProofModal
-        open={!!proofModalRow}
-        row={proofModalRow}
-        access={proofModalRow ? getRowAccess(proofModalRow) : null}
-        canApprove={canApprove}
-        canFinanceHeadApprove={canFinanceHeadApprove}
-        actionLoading={actionLoading}
-        onClose={() => setProofModalRow(null)}
-        onApprove={(row) => tryApprove(row)}
-        onReject={(row) => setRejectRow(row)}
-        onProofChange={handleProofUpload}
-        onDuplicateOverride={handleDuplicateOverride}
-        duplicateOpen={duplicateModalOpen && !!proofModalRow}
-        setDuplicateOpen={setDuplicateModalOpen}
+      <ProofViewerModal
+        open={!!previewRow}
+        onClose={() => setPreviewRow(null)}
+        title="Uploaded proof"
+        proofFiles={previewRow?.proofFiles}
+        proofName={previewRow?.paymentProof?.split(',')[0]}
+        utr={previewRow?.utrNumber || previewRow?.receiptNumber}
+        row={previewRow}
       />
 
-      <OfflineBranchAccessDialog
-        open={!!branchBlockRow}
-        row={branchBlockRow}
-        access={branchBlockAccess}
-        onClose={() => {
-          setBranchBlockRow(null)
-          setBranchBlockAccess(null)
+      <ConfirmOfflineDisableModal
+        open={!!disableRow}
+        paymentId={disableRow?.id}
+        studentName={disableRow?.studentName}
+        loading={actionLoading}
+        onCancel={() => {
+          if (!actionLoading) setDisableRow(null)
         }}
-        onOverride={
-          canFinanceHeadApprove
-            ? (row) => {
-                setBranchBlockRow(null)
-                setBranchBlockAccess(null)
-                tryApprove(row, true)
-              }
-            : undefined
-        }
+        onConfirm={handleDisable}
       />
-
-      <VerificationDuplicateDialog
-        open={duplicateModalOpen && !!duplicateRow && !proofModalRow}
-        row={
-          duplicateRow
-            ? {
-                ...duplicateRow,
-                student: duplicateRow.studentName,
-                utrNumber: duplicateRow.utrNumber || duplicateRow.receiptNumber,
-              }
-            : null
-        }
-        onClose={() => {
-          setDuplicateModalOpen(false)
-          setDuplicateRow(null)
-        }}
-        onMarkValid={canFinanceHeadApprove ? handleDuplicateOverride : undefined}
-        canMarkValid={canFinanceHeadApprove}
-        loading={actionLoading}
-      />
-
-      <FinanceConfirmDialog
-        open={!!approveRow}
-        title="Approve offline payment?"
-        message={
-          approveRow
-            ? `Confirm approval for ${approveRow.studentName} (${formatINR(approveRow.amount)}) at branch ${approveRow.branchCode}. Receipt proof will be locked after approval.`
-            : ''
-        }
-        confirmLabel="Approve"
-        loading={actionLoading}
-        onConfirm={() => approveRow && handleDecision(approveRow, true, { comment: 'Proof verified' })}
-        onCancel={() => setApproveRow(null)}
-      />
-
-      <VerificationRejectDialog
-        open={!!rejectRow}
-        row={rejectRow ? { student: rejectRow.studentName, id: rejectRow.id } : null}
-        onClose={() => setRejectRow(null)}
-        onConfirm={(payload) => rejectRow && handleDecision(rejectRow, false, payload)}
-        loading={actionLoading}
-      />
-    </FinancePageShell>
+    </div>
   )
 }

@@ -14,6 +14,42 @@ import {
   normalizeProofFiles,
 } from './financeVerificationWorkflow'
 
+export const OFFLINE_APPROVED_BY_DUMMY_NAMES = [
+  'Priya Sharma',
+  'Rahul Verma',
+  'Ankit Gupta',
+  'Sneha Reddy',
+  'Arjun Mehta',
+  'Kavya Nair',
+  'Rohit Singh',
+  'Neha Agarwal',
+  'Vivek Kumar',
+  'Pooja Mishra',
+]
+
+function isMissingApprovedBy(value) {
+  if (value == null) return true
+  const trimmed = String(value).trim()
+  if (!trimmed) return true
+  if (['—', '-', 'N/A', 'n/a', 'null', 'undefined'].includes(trimmed)) return true
+  if (trimmed.includes('â€') || trimmed.includes('\uFFFD')) return true
+  return false
+}
+
+export function resolveOfflineApprovedBy(row = {}) {
+  if (!isMissingApprovedBy(row.approvedBy)) {
+    return String(row.approvedBy).trim()
+  }
+  const id = String(row.id || '')
+  const match = id.match(/(\d+)$/)
+  const num = match ? parseInt(match[1], 10) : 0
+  const index =
+    Number.isFinite(num) && num > 0
+      ? (num - 1) % OFFLINE_APPROVED_BY_DUMMY_NAMES.length
+      : 0
+  return OFFLINE_APPROVED_BY_DUMMY_NAMES[index]
+}
+
 export function resolveBranchCode(row = {}) {
   if (row.branchCode) return row.branchCode
   if (row.branch && OFFLINE_BRANCH_CODES.includes(row.branch)) return row.branch
@@ -91,7 +127,7 @@ export function enrichOfflineApprovalRow(row, { existingPayments = [] } = {}) {
       row.reconciliationStatus ||
       (row.paymentMode === 'Cash' ? 'Pending Verification' : 'Matched'),
     updatedAt: row.updatedAt || row.requestedDate,
-    approvedBy: row.approvedBy || '—',
+    approvedBy: resolveOfflineApprovedBy(row),
   }
 
   const [withDup] = detectDuplicates([enriched], existingPayments)
