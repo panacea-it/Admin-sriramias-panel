@@ -55,6 +55,7 @@ const ROLE_ROUTE_PREFIXES = {
     '/marketing/seo-landing',
     '/marketing/banners',
     '/marketing/website',
+    '/marketing/rank-management',
     '/content-library',
     '/academics/content-library',
     '/admin/bookstore/*',

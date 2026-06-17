@@ -101,7 +101,7 @@ export function WebsiteUrlInput({ value, onChange, id }) {
   )
 }
 
-export function WebsiteImageInput({ value, onChange, id }) {
+export function WebsiteImageInput({ value, onChange, id, invalid }) {
   const [uploadError, setUploadError] = useState(null)
 
   const handleFile = async (e) => {
@@ -125,7 +125,11 @@ export function WebsiteImageInput({ value, onChange, id }) {
           type="text"
           readOnly
           value={value || '312×214 Kb'}
-          className={cn(websiteInputClass, 'cursor-pointer pr-11')}
+          className={cn(
+            websiteInputClass,
+            'cursor-pointer pr-11',
+            invalid && 'ring-2 ring-[#EF4444]/60 bg-red-50/40',
+          )}
           onClick={() => document.getElementById(`${id}-file`)?.click()}
         />
         <input
@@ -147,14 +151,14 @@ export function WebsiteStatusBadge({ status }) {
   return <StatusBadge status={status} />
 }
 
-export function WebsiteStatusSelect({ value, onChange, id, required }) {
+export function WebsiteStatusSelect({ value, onChange, id, required, className }) {
   return (
     <select
       id={id}
       value={value}
       onChange={onChange}
       required={required}
-      className={cn(websiteInputClass, 'cursor-pointer')}
+      className={cn(websiteInputClass, 'cursor-pointer', className)}
     >
       <option value="Active">Active</option>
       <option value="Inactive">Inactive</option>

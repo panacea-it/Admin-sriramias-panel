@@ -1,19 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ShoppingCart } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
-import BookstoreFilterToolbar from '../../components/bookstore/BookstoreFilterToolbar'
-import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
 import OrderDetailDrawer from '../../components/bookstore/OrderDetailDrawer'
+import OrdersTable from '../../components/bookstore/OrdersTable'
+import OrderRowActions from '../../components/bookstore/OrderRowActions'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
+import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import Button from '../../components/ui/Button'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import { fetchBookstoreOrders, updateBookstoreOrderStatus } from '../../api/bookstoreAPI'
-import { formatINR } from '../../utils/financeFilters'
 import { toast } from '../../utils/toast'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
 
+const ORDER_STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'Pending', label: 'Pending' },
+  { value: 'Confirmed', label: 'Confirmed' },
+  { value: 'Packed', label: 'Packed' },
+  { value: 'Shipped', label: 'Shipped' },
+  { value: 'Delivered', label: 'Delivered' },
+  { value: 'Cancelled', label: 'Cancelled' },
+]
+
 export default function BookstoreOrdersPage() {
   const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected] = useState(null)
@@ -23,8 +33,10 @@ export default function BookstoreOrdersPage() {
   const [shipmentId, setShipmentId] = useState('')
 
   const load = useCallback(async () => {
+    setLoading(true)
     const res = await fetchBookstoreOrders()
     setOrders(res?.items || [])
+    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -61,39 +73,36 @@ export default function BookstoreOrdersPage() {
     setShipmentId('')
   }
 
-  const columns = [
-    { key: 'id', label: 'Order ID' },
-    { key: 'customerName', label: 'Customer' },
-    { key: 'total', label: 'Total', render: (r) => formatINR(r.total) },
-    { key: 'status', label: 'Status', render: (r) => <BookstoreStatusBadge status={r.status} /> },
-    { key: 'paymentStatus', label: 'Payment', render: (r) => <BookstoreStatusBadge status={r.paymentStatus} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <button type="button" onClick={() => setSelected(row)} className="text-sm font-semibold text-[#7c5cbf]">
-          View details
-        </button>
-      ),
-    },
-  ]
+  const renderRowActions = useCallback(
+    (row) => (
+      <OrderRowActions orderId={row.id} onView={() => setSelected(row)} />
+    ),
+    [],
+  )
 
   return (
     <BookstorePageShell icon={ShoppingCart} title="Order Management">
-      <BookstoreFilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search orders…"
-        filters={
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-            <option value="all">All statuses</option>
-            {['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        }
-      />
-      <PaginatedFigmaTable columns={columns} data={filtered} itemLabel="orders" />
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <CourseFilterToolbar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          searchPlaceholder="Search orders by ID or customer…"
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={ORDER_STATUS_OPTIONS}
+          disabled={loading && orders.length === 0}
+        />
+
+        <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+          <OrdersTable
+            orders={filtered}
+            loading={loading}
+            resetDeps={[search, statusFilter]}
+            renderActions={renderRowActions}
+          />
+        </div>
+      </div>
+
       <OrderDetailDrawer
         order={selected}
         onClose={() => setSelected(null)}

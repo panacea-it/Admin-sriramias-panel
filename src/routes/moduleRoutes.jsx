@@ -19,7 +19,7 @@ import {
   StudentDetailPage,
   AnalyticsPage,
   BooksPage,
-  WebsitePage,
+  HomePageManagementLayout,
   BlogsPage,
   ContentLibraryPage,
   ContentLibraryLayout,
@@ -129,7 +129,7 @@ export const MODULE_ROUTE_ELEMENTS = [
   { path: 'enquiries', element: <EnquiriesPage /> },
   { path: 'crm/help-desk', element: <HelpDeskPage /> },
   { path: 'crm/push-notifications', element: <PushNotificationsPage /> },
-  { path: 'marketing/website', element: <WebsitePage /> },
+  { path: 'marketing/*', element: <HomePageManagementLayout /> },
   {
     path: 'marketing/seo-landing',
     element: module(FileSearch, 'SEO Landing Pages', 'Add Landing Page', 'Search pages'),

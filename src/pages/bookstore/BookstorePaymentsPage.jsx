@@ -1,49 +1,63 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CreditCard } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
+import PaymentsTable from '../../components/bookstore/PaymentsTable'
+import PaymentRowActions from '../../components/bookstore/PaymentRowActions'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
 import Button from '../../components/ui/Button'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import { fetchBookstorePayments } from '../../api/bookstoreAPI'
 import { formatINR } from '../../utils/financeFilters'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { toast } from '../../utils/toast'
+import { withPaymentsDisplayFields } from '../../utils/bookstorePaymentDisplay'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
+
+function PaymentDetailField({ label, children }) {
+  return (
+    <div className="min-w-0">
+      <dt className={BOOKSTORE_LABEL_CLASS}>{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium text-[#111]">{children}</dd>
+    </div>
+  )
+}
 
 export default function BookstorePaymentsPage() {
   const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
   const [details, setDetails] = useState(null)
   const [refundTarget, setRefundTarget] = useState(null)
   const [refundAmount, setRefundAmount] = useState('')
 
   useEffect(() => {
-    fetchBookstorePayments().then((res) => setPayments(res?.items || []))
+    setLoading(true)
+    fetchBookstorePayments()
+      .then((res) => setPayments(res?.items || []))
+      .finally(() => setLoading(false))
   }, [])
 
-  const columns = [
-    { key: 'id', label: 'Txn ID' },
-    { key: 'orderId', label: 'Order' },
-    { key: 'gateway', label: 'Gateway' },
-    { key: 'amount', label: 'Amount', render: (r) => formatINR(r.amount) },
-    { key: 'status', label: 'Status', render: (r) => <BookstoreStatusBadge status={r.status} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex gap-2 text-sm font-semibold">
-          <button type="button" className="text-[#7c5cbf]" onClick={() => setDetails(row)}>Details</button>
-          {row.status === 'Success' && (
-            <button type="button" className="text-red-600" onClick={() => { setRefundTarget(row); setRefundAmount(String(row.amount)) }}>Refund</button>
-          )}
-        </div>
-      ),
-    },
-  ]
+  const displayPayments = useMemo(
+    () => withPaymentsDisplayFields(payments),
+    [payments],
+  )
+
+  const renderRowActions = useCallback(
+    (row) => (
+      <PaymentRowActions
+        paymentId={row.id}
+        canRefund={row.status === 'Success'}
+        onDetails={() => setDetails(row)}
+        onRefund={() => {
+          setRefundTarget(row)
+          setRefundAmount(String(row.amount))
+        }}
+      />
+    ),
+    [],
+  )
 
   return (
     <BookstorePageShell icon={CreditCard} title="Payment Management">
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-[#e5e0f0] bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold text-[#686868]">Razorpay</p>
           <p className="text-sm text-[#111]">Integration placeholder — configure keys in System → API Integrations</p>
@@ -53,17 +67,46 @@ export default function BookstorePaymentsPage() {
           <p className="text-sm text-[#111]">Webhook & refund flows ready for wiring</p>
         </div>
       </div>
-      <PaginatedFigmaTable columns={columns} data={payments} itemLabel="transactions" />
 
-      <BookstoreModal open={Boolean(details)} onClose={() => setDetails(null)} title="Payment details" subtitle={details?.id} size="md">
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <div className="overflow-hidden rounded-xl border border-slate-100">
+          <PaymentsTable
+            payments={displayPayments}
+            loading={loading}
+            renderActions={renderRowActions}
+          />
+        </div>
+      </div>
+
+      <BookstoreModal
+        open={Boolean(details)}
+        onClose={() => setDetails(null)}
+        title="Payment details"
+        subtitle={details?.id}
+        size="md"
+        footer={
+          details && (
+            <BookstoreModalFooter>
+              <Button variant="ghost" onClick={() => setDetails(null)}>Close</Button>
+            </BookstoreModalFooter>
+          )
+        }
+      >
         {details && (
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div><dt className={BOOKSTORE_LABEL_CLASS}>Order</dt><dd>{details.orderId}</dd></div>
-            <div><dt className={BOOKSTORE_LABEL_CLASS}>Gateway</dt><dd>{details.gateway}</dd></div>
-            <div><dt className={BOOKSTORE_LABEL_CLASS}>Amount</dt><dd className="font-bold">{formatINR(details.amount)}</dd></div>
-            <div><dt className={BOOKSTORE_LABEL_CLASS}>Status</dt><dd><BookstoreStatusBadge status={details.status} /></dd></div>
-            <div className="sm:col-span-2"><dt className={BOOKSTORE_LABEL_CLASS}>Reference</dt><dd className="font-mono text-xs">{details.txnId}</dd></div>
-            <div className="sm:col-span-2"><dt className={BOOKSTORE_LABEL_CLASS}>Date</dt><dd>{formatCategoryDateTime(details.createdAt)}</dd></div>
+          <dl className="grid gap-5 sm:grid-cols-2">
+            <PaymentDetailField label="Transaction ID">
+              <span className="font-semibold text-[#246392]">{details.id}</span>
+            </PaymentDetailField>
+            <PaymentDetailField label="Order ID">{details.orderId}</PaymentDetailField>
+            <PaymentDetailField label="Customer Name">{details.customerName}</PaymentDetailField>
+            <PaymentDetailField label="Book Name">{details.bookName}</PaymentDetailField>
+            <PaymentDetailField label="Payment Gateway">{details.gateway}</PaymentDetailField>
+            <PaymentDetailField label="Amount">
+              <span className="font-bold tabular-nums">{formatINR(details.amount)}</span>
+            </PaymentDetailField>
+            <PaymentDetailField label="Payment Status">
+              <BookstoreStatusBadge status={details.status} />
+            </PaymentDetailField>
           </dl>
         )}
       </BookstoreModal>

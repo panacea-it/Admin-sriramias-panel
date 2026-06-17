@@ -1,53 +1,71 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, Download, Filter } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
-import BookstoreBarChart from '../../components/bookstore/BookstoreBarChart'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
 import Button from '../../components/ui/Button'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
+import { BannerButton } from '../../components/academics/AcademicsUi'
+import ReportsSalesTable from '../../components/bookstore/reports/ReportsSalesTable'
+import {
+  ReportsCategoryRevenueSection,
+  ReportsDateWiseSalesSection,
+  ReportsSummaryCards,
+} from '../../components/bookstore/reports/BookstoreReportsCharts'
 import { fetchBookstoreReports } from '../../api/bookstoreAPI'
 import { exportToCsv } from '../../utils/financeExport'
-import { formatINR } from '../../utils/financeFilters'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
 
 export default function BookstoreReportsPage() {
   const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [exportOpen, setExportOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
-    fetchBookstoreReports({ dateFrom, dateTo }).then(setData)
+    setLoading(true)
+    fetchBookstoreReports({ dateFrom, dateTo })
+      .then(setData)
+      .finally(() => setLoading(false))
   }, [dateFrom, dateTo])
 
-  const columns = [
-    { key: 'productId', label: 'SKU' },
-    { key: 'name', label: 'Product' },
-    { key: 'units', label: 'Units' },
-    { key: 'revenue', label: 'Revenue', render: (r) => formatINR(r.revenue) },
-  ]
+  const productSales = data?.productSales || []
 
   return (
     <BookstorePageShell
       icon={BarChart3}
       title="Reports & Analytics"
       actions={
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setFilterOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-semibold text-white">
-            <Filter className="h-3.5 w-3.5" /> Filters
-          </button>
-          <button type="button" onClick={() => setExportOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1.5 text-xs font-semibold text-white">
-            <Download className="h-3.5 w-3.5" /> Export
-          </button>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <BannerButton showPlusIcon={false} onClick={() => setFilterOpen(true)}>
+            <Filter className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+            Filters
+          </BannerButton>
+          <BannerButton showPlusIcon={false} onClick={() => setExportOpen(true)}>
+            <Download className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+            Export
+          </BannerButton>
         </div>
       }
     >
-      <div className="rounded-xl bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-bold">Date-wise sales</h3>
-        <BookstoreBarChart data={data?.dateWise || []} valueKey="amount" labelKey="label" formatValue={formatINR} />
+      <div className="space-y-5 sm:space-y-6">
+        <ReportsSummaryCards />
+
+        <ReportsDateWiseSalesSection />
+
+        <ReportsCategoryRevenueSection />
+
+        <section className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+          <h3 className="mb-5 text-sm font-bold text-[#111] sm:text-base">Product sales</h3>
+          <div className="overflow-hidden rounded-xl border border-slate-100">
+            <ReportsSalesTable
+              rows={productSales}
+              loading={loading}
+              resetDeps={[dateFrom, dateTo]}
+            />
+          </div>
+        </section>
       </div>
-      <PaginatedFigmaTable columns={columns} data={data?.productSales || []} itemLabel="rows" />
 
       <BookstoreModal
         open={exportOpen}
@@ -58,7 +76,7 @@ export default function BookstoreReportsPage() {
         footer={
           <BookstoreModalFooter>
             <Button variant="ghost" onClick={() => setExportOpen(false)}>Cancel</Button>
-            <Button onClick={() => { exportToCsv(data?.productSales || [], 'bookstore-product-sales.csv'); setExportOpen(false) }}>Export CSV</Button>
+            <Button onClick={() => { exportToCsv(productSales, 'bookstore-product-sales.csv'); setExportOpen(false) }}>Export CSV</Button>
           </BookstoreModalFooter>
         }
       >

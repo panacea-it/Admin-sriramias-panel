@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export default function WebsiteFormShell({
@@ -11,6 +12,7 @@ export default function WebsiteFormShell({
   onSave,
   saving,
   saveLabel = 'Save',
+  closeVariant = 'back',
   children,
 }) {
   const sectionParts = sectionTitle.split(' ')
@@ -32,9 +34,19 @@ export default function WebsiteFormShell({
         <button
           type="button"
           onClick={onGoBack}
-          className="shrink-0 text-sm font-medium text-white underline decoration-white/90 underline-offset-[3px] transition hover:text-white/90"
+          aria-label={closeVariant === 'icon' ? 'Close dialog' : 'Go back'}
+          className={cn(
+            'shrink-0 transition',
+            closeVariant === 'icon'
+              ? 'flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25'
+              : 'text-sm font-medium text-white underline decoration-white/90 underline-offset-[3px] hover:text-white/90',
+          )}
         >
-          Go Back
+          {closeVariant === 'icon' ? (
+            <X className="h-5 w-5" strokeWidth={2.25} />
+          ) : (
+            'Go Back'
+          )}
         </button>
       </header>
 

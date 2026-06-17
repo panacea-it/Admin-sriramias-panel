@@ -1,202 +1,170 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PlusCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Globe, PlusCircle } from 'lucide-react'
+import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import WebsiteFilterToolbar from './WebsiteFilterToolbar'
 import WebsiteFormShell from './WebsiteFormShell'
 import WebsiteFormModal from './WebsiteFormModal'
 import YoutubeIcon from './YoutubeIcon'
 import YoutubePriorityBadge from './YoutubePriorityBadge'
-import YoutubePriorityManager from './YoutubePriorityManager'
-import YoutubeSortablePaginatedTable from './YoutubeSortablePaginatedTable'
 import YoutubeVideoTitleCell from './YoutubeVideoTitleCell'
 import YoutubeRowActions from './YoutubeRowActions'
 import YoutubePriorityPicker from './YoutubePriorityPicker'
-import YoutubeDragHandle from './YoutubeDragHandle'
+import YoutubeRankManagementSection from './YoutubeRankManagementSection'
 import ConfirmDeleteDialog from '../subjects/ConfirmDeleteDialog'
 import {
   DateTimeInline,
   WebsiteField,
   WebsiteStatusBadge,
   WebsiteStatusSelect,
-  WebsiteUrlInput,
   YoutubeUrlLink,
   websiteInputClass,
 } from './websiteUi'
 import { buildYoutubePriorityFilterOptions } from '../../constants/youtubeVideoConstants'
+import { useYoutubeVideos } from '../../contexts/YoutubeVideosContext'
 import {
-  fetchYoutubeVideos,
-  createYoutubeVideo,
-  updateYoutubeVideo,
-  deleteYoutubeVideo,
-  assignYoutubeRank,
-  removeYoutubeRank,
-  reorderYoutubeRanks,
-  recalculateYoutubeRanks,
-  reorderYoutubeVideos,
-} from '../../api/youtubeVideosAPI'
-import {
-  applyExpiredPriorityCleanup,
   filterVideosByPriority,
-  getRankRowClassName,
   normalizeRankInput,
-  normalizeYoutubeVideos,
   sortYoutubeVideos,
 } from '../../utils/youtubeVideoPriority'
-import {
-  getAutoCompactEnabled,
-  setAutoCompactEnabled,
-  getAllowGapsEnabled,
-  setAllowGapsEnabled,
-} from '../../utils/youtubePrioritySettings'
+import { validateYoutubeVideoForm } from '../../utils/youtubeFormValidation'
+import { isSameCalendarDay, startOfDay } from '../../utils/dailyCollectionUtils'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
 
 const emptyYoutubeForm = () => ({
-  id: String(56565 + Math.floor(Math.random() * 1000)),
   name: '',
   url: '',
   status: 'Active',
   priorityOrder: '',
   priorityExpiryDate: '',
-  isFeatured: false,
 })
 
 function formFromRow(row) {
   return {
-    id: row.id,
     name: row.name,
     url: row.url,
     status: row.status || 'Active',
     priorityOrder: row.priorityOrder ? String(row.priorityOrder) : '',
     priorityExpiryDate: row.priorityExpiryDate || '',
-    isFeatured: Boolean(row.isFeatured),
   }
 }
 
-function payloadFromForm(form, existing) {
+function payloadFromForm(form, existing, generatedId) {
   const rank = normalizeRankInput(form.priorityOrder)
   return {
-    id: form.id,
+    id: existing?.id || generatedId,
     name: form.name.trim(),
     url: form.url.trim(),
     status: form.status,
     priorityOrder: rank,
     priorityLevel: rank ?? 0,
-    isFeatured: form.isFeatured,
     priorityExpiryDate: form.priorityExpiryDate || null,
     time: existing?.time || '10 AM',
     date: existing?.date || '14 May 2026',
     dateBucket: existing?.dateBucket || 'Today',
-    analyticsLabels: existing?.analyticsLabels || (form.isFeatured ? ['Featured'] : []),
   }
 }
 
+function matchesSelectedDate(row, selectedDate) {
+  if (!selectedDate) return true
+  const created = row.createdAt ? new Date(row.createdAt) : null
+  if (!created || Number.isNaN(created.getTime())) return false
+  return isSameCalendarDay(created, selectedDate)
+}
+
+function nextVideoId() {
+  return String(Date.now())
+}
+
+const inputErrorClass = 'ring-2 ring-[#EF4444]/60 bg-red-50/40'
+
+function FieldError({ message }) {
+  if (!message) return null
+  return <p className="mt-1.5 text-xs font-medium text-[#EF4444]">{message}</p>
+}
+
 export default function YoutubeManagementTab() {
-  const [videos, setVideos] = useState([])
-  const [loading, setLoading] = useState(true)
+  const {
+    videos,
+    loading,
+    assignRank,
+    removeRank,
+    createVideo,
+    updateVideo,
+    deleteVideo,
+    updateStatus,
+  } = useYoutubeVideos()
+
   const [search, setSearch] = useState('')
-  const [dateFilter, setDateFilter] = useState('all')
+  const [selectedDate, setSelectedDate] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
-  const [priorityMin, setPriorityMin] = useState('')
-  const [priorityMax, setPriorityMax] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyYoutubeForm)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
-  const [autoCompact, setAutoCompact] = useState(() => getAutoCompactEnabled())
-  const [allowGaps, setAllowGaps] = useState(() => getAllowGapsEnabled())
+  const [saving, setSaving] = useState(false)
+  const [formErrors, setFormErrors] = useState({})
 
-  const mergeVideosFromResult = useCallback((result) => {
-    if (result?.videos?.length) {
-      setVideos(normalizeYoutubeVideos(result.videos))
-    }
-  }, [])
+  const clearFieldError = (field) => {
+    if (!formErrors[field]) return
+    setFormErrors((prev) => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      try {
-        const rows = await fetchYoutubeVideos({
-          search,
-          status: statusFilter,
-          dateBucket: dateFilter,
-          priority: priorityFilter,
-          priorityMin: priorityMin || undefined,
-          priorityMax: priorityMax || undefined,
-          topN: priorityFilter === 'top' ? 10 : undefined,
-        })
-        if (!cancelled) {
-          setVideos(sortYoutubeVideos(normalizeYoutubeVideos(rows)))
-        }
-      } catch {
-        if (!cancelled) toast.error('Failed to load videos')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [search, statusFilter, dateFilter, priorityFilter, priorityMin, priorityMax])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVideos((prev) => applyExpiredPriorityCleanup(prev))
-    }, 60_000)
-    return () => clearInterval(interval)
-  }, [])
+  const clearFormErrors = () => setFormErrors({})
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let rows = filterVideosByPriority(videos, priorityFilter, {
-      min: priorityMin,
-      max: priorityMax,
-    })
+    let rows = filterVideosByPriority(videos, priorityFilter)
     return rows.filter((row) => {
       const matchSearch =
         !q ||
         row.id.includes(q) ||
-        row.name.toLowerCase().includes(q) ||
-        row.url.toLowerCase().includes(q)
-      const matchDate = dateFilter === 'all' || row.dateBucket === dateFilter
+        (row.name || '').toLowerCase().includes(q) ||
+        (row.url || '').toLowerCase().includes(q)
+      const matchDate = matchesSelectedDate(row, selectedDate)
       const matchStatus = statusFilter === 'all' || row.status === statusFilter
       return matchSearch && matchDate && matchStatus
     })
-  }, [videos, search, dateFilter, statusFilter, priorityFilter, priorityMin, priorityMax])
+  }, [videos, search, selectedDate, statusFilter, priorityFilter])
 
   const sortedFiltered = useMemo(() => sortYoutubeVideos(filtered), [filtered])
+
+  const rankSignature = useMemo(
+    () => sortedFiltered.map((v) => `${v.id}:${v.priorityOrder ?? 'x'}:${v.status}`).join('|'),
+    [sortedFiltered],
+  )
 
   const openAdd = () => {
     setEditingId(null)
     setForm(emptyYoutubeForm())
+    clearFormErrors()
     setFormOpen(true)
   }
 
   const openEdit = (row) => {
     setEditingId(row.id)
     setForm(formFromRow(row))
+    clearFormErrors()
     setFormOpen(true)
   }
 
   const closeForm = () => {
     setFormOpen(false)
     setEditingId(null)
-  }
-
-  const requestDelete = (row) => setDeleteTarget(row)
-
-  const cancelDelete = () => {
-    if (!deleting) setDeleteTarget(null)
+    clearFormErrors()
   }
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await deleteYoutubeVideo(deleteTarget.id)
-      setVideos((prev) => prev.filter((v) => v.id !== deleteTarget.id))
+      await deleteVideo(deleteTarget.id)
       toast.success('Video deleted')
       setDeleteTarget(null)
     } catch {
@@ -208,161 +176,129 @@ export default function YoutubeManagementTab() {
 
   const runAssignRank = async (videoId, rank) => {
     try {
-      const result = await assignYoutubeRank(videoId, rank, { allowGaps })
-      mergeVideosFromResult(result)
-      toast.success(result?.message || 'Priority rank updated successfully')
+      await assignRank(videoId, rank)
+      toast.success('Priority rank updated successfully')
     } catch {
       toast.error('Failed to update priority rank')
+      throw new Error('assign failed')
     }
   }
 
   const runRemoveRank = async (videoId) => {
     try {
-      const result = await removeYoutubeRank(videoId, autoCompact)
-      mergeVideosFromResult(result)
-      toast.success(result?.message || 'Priority removed successfully')
+      await removeRank(videoId)
+      toast.success('Priority removed successfully')
     } catch {
       toast.error('Failed to remove priority')
+      throw new Error('remove failed')
+    }
+  }
+
+  const handleStatusChange = async (row, newStatus) => {
+    try {
+      await updateStatus(row, newStatus)
+      toast.success(`Status updated to ${newStatus}`)
+    } catch {
+      /* handled in context */
     }
   }
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.url.trim()) {
-      toast.error('Please fill required fields')
+    const errors = validateYoutubeVideoForm(form)
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      toast.error('Please fix the highlighted fields')
       return
     }
-    if (!form.status) {
-      toast.error('Please select a status')
-      return
-    }
-    const existing = videos.find((v) => v.id === editingId)
-    const payload = payloadFromForm(form, existing)
 
+    const existing = videos.find((v) => v.id === editingId)
+    const generatedId = nextVideoId()
+    const payload = payloadFromForm(form, existing, generatedId)
+
+    setSaving(true)
     try {
       if (editingId) {
-        const result = await updateYoutubeVideo(editingId, payload)
-        if (result?.videos) mergeVideosFromResult(result)
-        else {
-          setVideos((prev) =>
-            sortYoutubeVideos(
-              prev.map((v) => (v.id === editingId ? { ...v, ...result } : v)),
-            ),
-          )
-        }
+        await updateVideo(editingId, payload)
         toast.success('Video updated successfully')
       } else {
-        const result = await createYoutubeVideo(payload)
-        if (result?.videos) mergeVideosFromResult(result)
-        else setVideos((prev) => sortYoutubeVideos([result, ...prev]))
+        await createVideo(payload)
         toast.success('Video added successfully')
       }
       closeForm()
     } catch {
       toast.error('Failed to save video')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleDropOnSlot = (videoId, rank) => {
-    runAssignRank(videoId, rank)
-  }
-
-  const handleReorderRanks = async (orderedIds) => {
-    try {
-      const result = await reorderYoutubeRanks(orderedIds)
-      mergeVideosFromResult(result)
-      toast.success(result?.message || 'Priority list reordered')
-    } catch {
-      toast.error('Failed to reorder priorities')
-    }
-  }
-
-  const handleRecalculate = async () => {
-    try {
-      const result = await recalculateYoutubeRanks()
-      mergeVideosFromResult(result)
-      toast.success(result?.message || 'Ranks recalculated successfully')
-    } catch {
-      toast.error('Failed to recalculate ranks')
-    }
-  }
-
-  const handleReorder = async (orderedIds) => {
-    try {
-      await reorderYoutubeVideos(orderedIds)
-      setVideos((prev) => {
-        const orderMap = new Map(orderedIds.map((id, i) => [id, i]))
-        const updated = prev.map((v) =>
-          orderMap.has(v.id) ? { ...v, customOrder: orderMap.get(v.id) } : v,
-        )
-        return sortYoutubeVideos(updated)
-      })
-      toast.success('Video reordered successfully')
-    } catch {
-      toast.error('Failed to reorder videos')
-    }
-  }
-
-  const columns = [
-    {
-      key: 'id',
-      label: 'ID',
-      headerClassName: 'w-[90px]',
-      cellClassName: 'w-[90px] font-medium text-[#111]',
-    },
-    {
-      key: 'name',
-      label: 'Name',
-      cellClassName: 'min-w-[180px] max-w-[280px]',
-      render: (row) => (
-        <YoutubeVideoTitleCell
-          name={row.name}
-          isFeatured={row.isFeatured}
-          analyticsLabels={row.analyticsLabels}
-        />
-      ),
-    },
-    {
-      key: 'url',
-      label: 'URL',
-      cellClassName: 'min-w-[200px] max-w-[260px]',
-      render: (row) => <YoutubeUrlLink url={row.url} />,
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      cellClassName: 'whitespace-nowrap',
-      render: (row) => <WebsiteStatusBadge status={row.status} />,
-    },
-    {
-      key: 'priority',
-      label: 'Priority Rank',
-      cellClassName: 'whitespace-nowrap',
-      render: (row) => (
-        <YoutubePriorityBadge priorityOrder={row.priorityOrder} stacked />
-      ),
-    },
-    {
-      key: 'created',
-      label: 'Created On',
-      cellClassName: 'whitespace-nowrap',
-      render: (row) => <DateTimeInline time={row.time} date={row.date} />,
-    },
-    {
-      key: 'actions',
-      label: 'Action',
-      cellClassName: 'w-[240px] min-w-[200px]',
-      render: (row) => (
-        <YoutubeRowActions
-          compact
-          priorityOrder={row.priorityOrder}
-          onEdit={() => openEdit(row)}
-          onDelete={() => requestDelete(row)}
-          onSetRank={(rank) => runAssignRank(row.id, rank)}
-          onRemoveRank={() => runRemoveRank(row.id)}
-        />
-      ),
-    },
-  ]
+  const columns = useMemo(
+    () => [
+      {
+        key: 'id',
+        label: 'ID',
+        headerClassName: 'min-w-[88px] pl-4 sm:pl-6',
+        cellClassName: 'min-w-[88px] pl-4 align-middle font-mono text-xs font-bold tracking-tight text-[#1a3a5c] sm:pl-6',
+      },
+      {
+        key: 'name',
+        label: 'Name',
+        headerClassName: 'min-w-[180px]',
+        cellClassName: 'min-w-[180px] align-middle',
+        render: (row) => <YoutubeVideoTitleCell name={row.name} />,
+      },
+      {
+        key: 'url',
+        label: 'URL',
+        headerClassName: 'min-w-[200px]',
+        cellClassName: 'min-w-[200px] align-middle',
+        render: (row) => <YoutubeUrlLink url={row.url} />,
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap',
+        render: (row) => <WebsiteStatusBadge status={row.status} />,
+      },
+      {
+        key: 'priority',
+        label: 'Priority Rank',
+        headerClassName: 'min-w-[120px] whitespace-nowrap',
+        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap',
+        render: (row) => (
+          <YoutubePriorityBadge priorityOrder={row.priorityOrder} stacked />
+        ),
+      },
+      {
+        key: 'created',
+        label: 'Created On',
+        headerClassName: 'min-w-[150px] whitespace-nowrap',
+        cellClassName: 'min-w-[150px] align-middle whitespace-nowrap',
+        render: (row) => <DateTimeInline time={row.time} date={row.date} />,
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        align: 'right',
+        headerClassName: 'min-w-[320px] whitespace-nowrap pr-4 text-right sm:pr-6',
+        cellClassName: 'min-w-[320px] align-middle whitespace-nowrap pr-4 text-right sm:pr-6',
+        render: (row) => (
+          <YoutubeRowActions
+            rowName={row.name}
+            status={row.status}
+            priorityOrder={row.priorityOrder}
+            onEdit={() => openEdit(row)}
+            onDelete={() => setDeleteTarget(row)}
+            onSetRank={(rank) => runAssignRank(row.id, rank)}
+            onRemoveRank={() => runRemoveRank(row.id)}
+            onStatusChange={(newStatus) => handleStatusChange(row, newStatus)}
+          />
+        ),
+      },
+    ],
+    [videos],
+  )
 
   return (
     <div className="space-y-6">
@@ -377,7 +313,7 @@ export default function YoutubeManagementTab() {
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
             <YoutubeIcon className="h-6 w-6" />
           </span>
-          <h1 className="text-xl font-bold leading-none text-white">Youtube</h1>
+          <h1 className="text-xl font-bold leading-none text-white">Youtube Management</h1>
         </div>
         <button
           type="button"
@@ -393,8 +329,9 @@ export default function YoutubeManagementTab() {
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
         searchPlaceholder="Search youtube video"
-        dateRange={dateFilter}
-        onDateRangeChange={(e) => setDateFilter(e.target.value)}
+        useDatePicker
+        selectedDate={selectedDate}
+        onDateChange={(date) => setSelectedDate(date ? startOfDay(date) : null)}
         statusFilter={statusFilter}
         onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
         showStatusFilter
@@ -407,115 +344,100 @@ export default function YoutubeManagementTab() {
         }))}
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-sm">
-        <span className="text-xs font-semibold text-[#686868]">Rank range</span>
-        <input
-          type="number"
-          min={1}
-          placeholder="Min"
-          value={priorityMin}
-          onChange={(e) => setPriorityMin(e.target.value)}
-          className={cn(websiteInputClass, 'h-9 w-24 text-sm')}
-        />
-        <span className="text-[#9ca0a8]">–</span>
-        <input
-          type="number"
-          min={1}
-          placeholder="Max"
-          value={priorityMax}
-          onChange={(e) => setPriorityMax(e.target.value)}
-          className={cn(websiteInputClass, 'h-9 w-24 text-sm')}
-        />
-      </div>
-
-      <YoutubePriorityManager
-        videos={videos}
-        autoCompact={autoCompact}
-        onAutoCompactChange={(v) => {
-          setAutoCompact(v)
-          setAutoCompactEnabled(v)
-        }}
-        allowGaps={allowGaps}
-        onAllowGapsChange={(v) => {
-          setAllowGaps(v)
-          setAllowGapsEnabled(v)
-        }}
-        onDropVideo={handleDropOnSlot}
-        onReorderRanks={handleReorderRanks}
-        onRemoveRank={runRemoveRank}
-        onRecalculate={handleRecalculate}
+      <PaginatedFigmaTable
+        columns={columns}
+        data={sortedFiltered}
+        emptyMessage="No youtube videos found."
+        itemLabel="videos"
+        initialPageSize={6}
+        loading={loading}
+        skeletonRowCount={6}
+        resetDeps={[search, selectedDate, statusFilter, priorityFilter, rankSignature]}
+        density="comfortable"
+        rowClassName="hover:bg-[#eef6fc]/70"
+        className="rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
+        tableClassName="rounded-none border-0 shadow-none"
+        tableMinWidth={1040}
+        gradientActivePage
+        paginationClassName={cn(
+          '[&>div:last-child]:items-center',
+          '[&_nav]:items-center',
+          '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
+          '[&_form_input]:h-9 [&_form_input]:leading-none',
+          '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
+        )}
       />
 
-      {loading ? (
-        <div className="rounded-xl bg-white px-6 py-16 text-center text-sm font-medium text-[#686868] shadow-[0_11px_25px_rgba(15,23,42,0.07)]">
-          Loading videos…
-        </div>
-      ) : (
-        <YoutubeSortablePaginatedTable
-          columns={columns}
-          data={sortedFiltered}
-          renderPriorityDrag={(row) => <YoutubeDragHandle videoId={row.id} />}
-          onReorder={handleReorder}
-          emptyMessage="No youtube videos found."
-          itemLabel="videos"
-          initialPageSize={6}
-          resetDeps={[search, dateFilter, statusFilter, priorityFilter, priorityMin, priorityMax]}
-          className="rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
-          getRowClassName={(row) =>
-            getRankRowClassName(row.priorityOrder, row.isFeatured)
-          }
-        />
-      )}
+      {!loading && <YoutubeRankManagementSection />}
 
       <WebsiteFormModal open={formOpen} onClose={closeForm}>
         <WebsiteFormShell
           iconNode={<YoutubeIcon className="h-5 w-5" />}
-          title="Youtube Video"
+          title={editingId ? 'Edit Youtube Video' : 'Add Youtube Video'}
           sectionTitle="Video Details"
+          closeVariant="icon"
           onGoBack={closeForm}
-          onReset={() => setForm(emptyYoutubeForm())}
+          onReset={() => {
+            clearFormErrors()
+            setForm(
+              editingId
+                ? formFromRow(videos.find((v) => v.id === editingId) || {})
+                : emptyYoutubeForm(),
+            )
+          }}
           onSave={handleSave}
+          saving={saving}
         >
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <WebsiteField label="ID">
-              <input
-                type="text"
-                value={form.id}
-                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
-                className={websiteInputClass}
-                disabled={Boolean(editingId)}
-              />
-            </WebsiteField>
-            <WebsiteField label="Name" required>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <WebsiteField label="Name" required className="sm:col-span-2">
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className={websiteInputClass}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                  clearFieldError('name')
+                }}
+                aria-invalid={Boolean(formErrors.name)}
+                className={cn(websiteInputClass, formErrors.name && inputErrorClass)}
               />
+              <FieldError message={formErrors.name} />
             </WebsiteField>
-            <WebsiteField label="Youtube URL" required>
-              <WebsiteUrlInput
-                id="youtube-url"
-                value={form.url}
-                onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-              />
+            <WebsiteField label="Youtube URL" required className="sm:col-span-2">
+              <div className="relative">
+                <input
+                  id="youtube-url"
+                  type="url"
+                  value={form.url}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, url: e.target.value }))
+                    clearFieldError('url')
+                  }}
+                  aria-invalid={Boolean(formErrors.url)}
+                  className={cn(
+                    websiteInputClass,
+                    'pr-11',
+                    formErrors.url && inputErrorClass,
+                  )}
+                  placeholder="https://youtube.com/..."
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#69df66]">
+                  <Globe className="h-4 w-4 text-white" strokeWidth={2.2} />
+                </span>
+              </div>
+              <FieldError message={formErrors.url} />
             </WebsiteField>
             <WebsiteField label="Status" required>
               <WebsiteStatusSelect
                 id="youtube-status"
                 value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, status: e.target.value }))
+                  clearFieldError('status')
+                }}
                 required
+                className={formErrors.status ? inputErrorClass : undefined}
               />
-            </WebsiteField>
-            <WebsiteField label="Priority Order" className="sm:col-span-2 lg:col-span-4">
-              <YoutubePriorityPicker
-                value={form.priorityOrder}
-                onChange={(priorityOrder) =>
-                  setForm((f) => ({ ...f, priorityOrder }))
-                }
-              />
+              <FieldError message={formErrors.status} />
             </WebsiteField>
             <WebsiteField label="Priority Expiry Date">
               <input
@@ -526,22 +448,17 @@ export default function YoutubeManagementTab() {
                 }
                 className={websiteInputClass}
               />
-              <p className="mt-1 text-xs text-[#9ca0a8]">Optional — auto-removes priority after date</p>
             </WebsiteField>
-            <WebsiteField label="Featured Video" className="sm:col-span-2">
-              <label className="inline-flex cursor-pointer items-center gap-3 rounded-lg bg-[#eef6fc] px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={form.isFeatured}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, isFeatured: e.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-[#55ace7]/40 text-[#246392] accent-[#246392]"
-                />
-                <span className="text-sm font-medium text-[#333]">
-                  Mark as featured video
-                </span>
-              </label>
+            <WebsiteField label="Priority Order" className="sm:col-span-2">
+              <YoutubePriorityPicker
+                value={form.priorityOrder}
+                onChange={(priorityOrder) => {
+                  setForm((f) => ({ ...f, priorityOrder }))
+                  clearFieldError('priorityOrder')
+                }}
+                error={formErrors.priorityOrder}
+                onClearError={() => clearFieldError('priorityOrder')}
+              />
             </WebsiteField>
           </div>
         </WebsiteFormShell>
@@ -550,13 +467,18 @@ export default function YoutubeManagementTab() {
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         title="Delete Video"
-        message="Are you sure you want to delete this video?"
-        onCancel={cancelDelete}
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this video?'
+        }
+        onCancel={() => {
+          if (!deleting) setDeleteTarget(null)
+        }}
         onConfirm={confirmDelete}
         loading={deleting}
         confirmLabel="Delete"
       />
-
     </div>
   )
 }

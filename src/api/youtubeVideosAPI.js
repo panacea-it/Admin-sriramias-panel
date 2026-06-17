@@ -21,8 +21,7 @@ let mockStore = applyExpiredPriorityCleanup(
       ...row,
       priorityOrder: i < 8 ? i + 1 : null,
       customOrder: i,
-      analyticsLabels: i === 0 ? ['Featured', 'Trending'] : i === 1 ? ['Most Watched'] : [],
-      createdAt: new Date(Date.now() - i * 86400000).toISOString(),
+      createdAt: row.createdAt || new Date(Date.now() - i * 86400000).toISOString(),
     }),
   ),
 )
@@ -191,7 +190,23 @@ export async function deleteYoutubeVideo(id) {
   return tryApi(
     () => api.delete(`/youtube-videos/${id}`),
     () => {
-      syncMockStore(mockStore.filter((v) => v.id !== id))
+      const target = mockStore.find((v) => v.id === id)
+      let next = mockStore.filter((v) => v.id !== id)
+      if (target?.priorityOrder) {
+        const removed = target.priorityOrder
+        next = next.map((v) => {
+          if (v.priorityOrder != null && v.priorityOrder > removed) {
+            return {
+              ...v,
+              priorityOrder: v.priorityOrder - 1,
+              priorityLevel: v.priorityOrder - 1,
+              isPinned: v.priorityOrder - 1 === 1,
+            }
+          }
+          return v
+        })
+      }
+      syncMockStore(next)
       return { success: true }
     },
   )

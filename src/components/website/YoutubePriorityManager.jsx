@@ -19,7 +19,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Search, Trash2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { getRankedVideos, getRankBadgeClass, getRankLabel, youtubeThumbnailUrl } from '../../utils/youtubeVideoPriority'
-import { YOUTUBE_DRAG_MIME } from './YoutubeDragHandle'
 
 const PAGE = 20
 
@@ -78,41 +77,23 @@ function RankedRow({ video, onRemove }) {
 
 export default function YoutubePriorityManager({
   videos = [],
-  autoCompact,
-  onAutoCompactChange,
-  allowGaps,
-  onAllowGapsChange,
-  onDropVideo,
   onReorderRanks,
   onRemoveRank,
-  onRecalculate,
 }) {
   const [search, setSearch] = useState('')
-  const [jumpRank, setJumpRank] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
-  const [dropHighlight, setDropHighlight] = useState(false)
 
   const ranked = useMemo(() => getRankedVideos(videos), [videos])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let list = ranked
-    if (q) {
-      list = list.filter(
-        (v) =>
-          v.name.toLowerCase().includes(q) ||
-          String(v.priorityOrder).includes(q) ||
-          v.id.includes(q),
-      )
-    }
-    if (jumpRank) {
-      const target = parseInt(jumpRank, 10)
-      if (target >= 1) {
-        list = list.filter((v) => v.priorityOrder === target)
-      }
-    }
-    return list
-  }, [ranked, search, jumpRank])
+    if (!q) return ranked
+    return ranked.filter(
+      (v) =>
+        (v.name || '').toLowerCase().includes(q) ||
+        (v.url || '').toLowerCase().includes(q),
+    )
+  }, [ranked, search])
 
   const visible = filtered.slice(0, visibleCount)
   const ids = visible.map((v) => v.id)
@@ -135,63 +116,15 @@ export default function YoutubePriorityManager({
 
   return (
     <section className="rounded-2xl border border-[#e2ebf5] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-[#111]">Priority Manager</h2>
-          <p className="text-xs text-[#686868]">
-            {ranked.length} ranked video{ranked.length === 1 ? '' : 's'} — unlimited dynamic ranks
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#333]">
-            <input
-              type="checkbox"
-              checked={autoCompact}
-              onChange={(e) => onAutoCompactChange?.(e.target.checked)}
-              className="accent-[#246392]"
-            />
-            Auto compact priorities
-          </label>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#333]">
-            <input
-              type="checkbox"
-              checked={allowGaps}
-              onChange={(e) => onAllowGapsChange?.(e.target.checked)}
-              className="accent-[#246392]"
-            />
-            Manual gaps allowed
-          </label>
-        </div>
-      </div>
-
-      <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDropHighlight(true)
-        }}
-        onDragLeave={() => setDropHighlight(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDropHighlight(false)
-          const videoId = e.dataTransfer.getData(YOUTUBE_DRAG_MIME)
-          const rank = parseInt(e.dataTransfer.getData('text/rank') || jumpRank || String(ranked.length + 1), 10)
-          if (videoId && rank >= 1) onDropVideo?.(videoId, rank)
-        }}
-        className={cn(
-          'mb-4 rounded-xl border-2 border-dashed px-4 py-6 text-center transition',
-          dropHighlight
-            ? 'border-[#55ace7] bg-[#eef6fc]'
-            : 'border-[#d0d8e4] bg-[#fafcff]',
-        )}
-      >
-        <p className="text-sm font-semibold text-[#246392]">Drop video here to assign rank</p>
-        <p className="mt-1 text-xs text-[#9ca0a8]">
-          Or use Priority Order field / table actions — ranks shift automatically on insert
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-[#111]">Priority Manager</h2>
+        <p className="text-xs text-[#686868]">
+          {ranked.length} ranked video{ranked.length === 1 ? '' : 's'} — unlimited dynamic ranks
         </p>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        <div className="relative min-w-[200px] flex-1">
+      <div className="mb-3">
+        <div className="relative min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca0a8]" />
           <input
             type="search"
@@ -200,25 +133,10 @@ export default function YoutubePriorityManager({
               setSearch(e.target.value)
               setVisibleCount(PAGE)
             }}
-            placeholder="Search ranked videos or rank #"
+            placeholder="Search by video name or URL"
             className="h-10 w-full rounded-lg bg-[#eef2fc] pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40"
           />
         </div>
-        <input
-          type="number"
-          min={1}
-          value={jumpRank}
-          onChange={(e) => setJumpRank(e.target.value)}
-          placeholder="Jump to rank #"
-          className="h-10 w-32 rounded-lg bg-[#eef2fc] px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#55ace7]/40"
-        />
-        <button
-          type="button"
-          onClick={onRecalculate}
-          className="h-10 rounded-lg bg-[#eef6fc] px-4 text-xs font-bold text-[#246392] ring-1 ring-[#d8e8f5] hover:bg-[#dfeefb]"
-        >
-          Recalculate ranks
-        </button>
       </div>
 
       {filtered.length === 0 ? (

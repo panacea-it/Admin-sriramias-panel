@@ -19,7 +19,6 @@ import {
   MessageCircle,
   Headphones,
   BellRing,
-  Globe,
   FileSearch,
   FileText,
   Tv,
@@ -134,7 +133,14 @@ export const SIDEBAR_GROUPS = [
     label: 'Marketing',
     icon: LibraryBig,
     children: [
-      { label: 'Website', path: '/marketing/website', icon: Globe },
+      {
+        id: 'home-page-management',
+        label: 'Home Page Management',
+        children: [
+          { label: 'Youtube Management', path: '/marketing/website', icon: Tv },
+          { label: 'Rank Management', path: '/marketing/rank-management', icon: ListOrdered },
+        ],
+      },
       { label: 'SEO Landing page', path: '/marketing/seo-landing', icon: FileSearch },
       { label: 'Blogs', path: '/marketing/blogs', icon: FileText },
     ],

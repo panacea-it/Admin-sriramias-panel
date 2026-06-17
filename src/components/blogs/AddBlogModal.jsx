@@ -15,6 +15,12 @@ import {
 import { cn } from '../../utils/cn'
 import { slugifyTitle } from '../../utils/blogSlug'
 import {
+  BLOG_FORM_CATEGORIES,
+  BLOG_LANGUAGES,
+  BLOG_READ_TIMES,
+  isBlogActive,
+} from '../../constants/blogManagementConstants'
+import {
   createEmptyBlog,
   createEmptySection,
   FOCUS_KEYWORD_SUGGESTIONS,
@@ -135,9 +141,14 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
       metaDescription: (form.metaDescription || '').trim(),
       focusKeywords: form.focusKeywords || [],
       tags: form.tags || [],
+      category: form.category || '',
+      language: form.language || 'English',
+      readTime: form.readTime || '',
+      isMainBlog: Boolean(form.isMainBlog),
+      youtubeVideoUrl: (form.youtubeVideoUrl || '').trim(),
       publishedAt:
         status === 'published'
-          ? form.publishedAt && form.status === 'published'
+          ? form.publishedAt && isBlogActive(form.status)
             ? form.publishedAt
             : now
           : form.publishedAt || now,
@@ -161,6 +172,14 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
       toast.error('Blog title is required')
       return false
     }
+    if (!form.category) {
+      toast.error('Please select a category')
+      return false
+    }
+    if (!form.readTime) {
+      toast.error('Please select read time')
+      return false
+    }
     if (!form.backgroundImageName && !form.backgroundImage) {
       toast.error('Background image is required')
       return false
@@ -168,7 +187,7 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
     return true
   }
 
-  const handleUpdate = async (e) => {
+  const handleSave = async (e) => {
     e.preventDefault()
     if (!validate() || submitting) return
 
@@ -190,27 +209,30 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
       open={open}
       onClose={handleClose}
       size="full"
-      title={isEdit ? 'Edit Blog' : 'Create Blog'}
+      title={isEdit ? 'Edit Blog' : 'Add Blog'}
       showCloseButton={false}
+      className="!flex !max-h-[90dvh] !min-h-0 !flex-col !overflow-hidden"
     >
       <form
-        onSubmit={handleUpdate}
-        className="flex max-h-[min(92vh,880px)] flex-col overflow-hidden rounded-xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
+        onSubmit={handleSave}
+        className="flex min-h-0 max-h-[90dvh] flex-col overflow-hidden rounded-xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
-        <ModalPanelHeader
-          title={isEdit ? 'Edit Blog' : 'Create Blog'}
-          icon={FileText}
-          iconClassName="text-[#246392]"
-          onClose={handleClose}
-          closeVariant="icon"
-        />
+        <div className="shrink-0">
+          <ModalPanelHeader
+            title={isEdit ? 'Edit Blog' : 'Add Blog'}
+            icon={FileText}
+            iconClassName="text-[#246392]"
+            onClose={handleClose}
+            closeVariant="icon"
+          />
+        </div>
 
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-5">
             <SectionBar title="Blog Details" />
 
-            <div className="space-y-5">
-              <CourseFormField label="Title" required>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <CourseFormField label="Title" required className="sm:col-span-2">
                 <CourseInput
                   value={form.title}
                   onChange={(e) => setField('title', e.target.value)}
@@ -218,17 +240,58 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
                 />
               </CourseFormField>
 
+              <CourseFormField label="Language" required>
+                <CourseSelect
+                  value={form.language || 'English'}
+                  onChange={(e) => setField('language', e.target.value)}
+                >
+                  {BLOG_LANGUAGES.map((lang) => (
+                    <option key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </CourseSelect>
+              </CourseFormField>
+
               <CourseFormField label="Status" required>
                 <CourseSelect
                   value={form.status === 'published' ? 'published' : 'draft'}
                   onChange={(e) => setField('status', e.target.value)}
                 >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
+                  <option value="draft">Inactive</option>
+                  <option value="published">Active</option>
                 </CourseSelect>
               </CourseFormField>
 
-              <CourseFormField label="Background Image" required>
+              <CourseFormField label="Read Time" required>
+                <CourseSelect
+                  value={form.readTime || ''}
+                  onChange={(e) => setField('readTime', e.target.value)}
+                >
+                  <option value="">Select read time</option>
+                  {BLOG_READ_TIMES.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </CourseSelect>
+              </CourseFormField>
+
+              <CourseFormField label="Category" required>
+                <CourseSelect
+                  value={form.category || ''}
+                  onChange={(e) => setField('category', e.target.value)}
+                >
+                  <option value="">Select category</option>
+                  {BLOG_FORM_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </CourseSelect>
+              </CourseFormField>
+
+              <CourseFormField label="Background Image" required className="sm:col-span-2">
                 <CourseMediaSlot
                   placeholder="312*214 Kb"
                   fileName={form.backgroundImageName || form.backgroundImage}
@@ -237,14 +300,22 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
                 />
               </CourseFormField>
 
-              <CourseFormField label="Main Content">
-                <BlogRichEditor
-                  value={form.bodyHtml}
-                  onChange={(html) => setField('bodyHtml', html)}
-                  placeholder="Write your article with headings, lists, links, and images…"
-                  minHeight={220}
-                />
-              </CourseFormField>
+              <div className="sm:col-span-2">
+                <label className="inline-flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200/80 bg-violet-50/60 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isMainBlog)}
+                    onChange={(e) => setField('isMainBlog', e.target.checked)}
+                    className="h-4 w-4 accent-violet-600"
+                  />
+                  <span className="text-sm font-semibold text-violet-900">
+                    Mark as Main Blog
+                  </span>
+                  <span className="text-xs text-violet-700/80">
+                    Appears at the top of the Blogs page
+                  </span>
+                </label>
+              </div>
             </div>
 
             <SectionBar title="SEO Settings" />
@@ -259,7 +330,7 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
 
             <SectionBar title="Table Of Content" />
 
-            <div className="space-y-8">
+            <div className="space-y-6">
               {form.sections.map((section, index) => (
                 <div key={section.id} className="space-y-5">
                   <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
@@ -272,9 +343,9 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
                         placeholder={`Topic ${index + 1}`}
                       />
                     </CourseFormField>
-                    <CourseFormField label="Image">
+                    <CourseFormField label="Image (optional)">
                       <CourseMediaSlot
-                        placeholder="Upload image"
+                        placeholder="Upload image (optional)"
                         fileName={section.imageName || section.image}
                         onFileChange={(e) => handleSectionFile(section.id, e)}
                         accept="image/*"
@@ -296,10 +367,20 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
                 <CourseAddMoreLink onClick={addSection} />
               </div>
             </div>
+
+            <SectionBar title="Youtube Video" />
+            <CourseFormField label="Youtube Video URL" className="pb-0">
+              <CourseInput
+                type="url"
+                value={form.youtubeVideoUrl || ''}
+                onChange={(e) => setField('youtubeVideoUrl', e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+            </CourseFormField>
           </div>
         </div>
 
-        <div className="sticky bottom-0 shrink-0 border-t border-slate-200/80 bg-[#f0f4f8] px-4 py-4 sm:px-6">
+        <div className="shrink-0 border-t border-slate-200/80 bg-[#f0f4f8] px-4 py-4 sm:px-6">
           <div
             className={cn(
               'flex flex-col-reverse items-stretch justify-center gap-3',
@@ -320,7 +401,7 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
               aria-busy={submitting}
               className="min-w-[120px] rounded-full bg-[#55ace7] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#3d96d4] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? 'Saving…' : 'Update'}
+              {submitting ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>

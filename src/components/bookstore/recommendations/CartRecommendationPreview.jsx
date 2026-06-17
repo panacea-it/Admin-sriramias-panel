@@ -67,7 +67,7 @@ export default function CartRecommendationPreview({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f8f9fb] shadow-[0_12px_40px_rgba(15,23,42,0.08)]',
+        'overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.06)]',
         className,
       )}
     >

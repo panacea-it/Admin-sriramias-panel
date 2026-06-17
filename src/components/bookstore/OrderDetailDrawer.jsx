@@ -1,6 +1,5 @@
 import Button from '../ui/Button'
-import BookstoreDrawer from './modal/BookstoreDrawer'
-import { BookstoreModalFooter } from './modal/BookstoreModal'
+import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import BookstoreStatusBadge from './BookstoreStatusBadge'
 import { formatINR } from '../../utils/financeFilters'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
@@ -13,14 +12,18 @@ export default function OrderDetailDrawer({
   onOpenStatusDialog,
 }) {
   return (
-    <BookstoreDrawer
+    <BookstoreModal
       open={Boolean(order)}
       onClose={onClose}
-      title={order ? `Order ${order.id}` : 'Order'}
+      title={order ? `Order ${order.id}` : 'Order details'}
       subtitle={order?.customerName}
+      size="lg"
       footer={
         order && (
           <BookstoreModalFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Close
+            </Button>
             <Button type="button" variant="secondary" onClick={onOpenStatusDialog}>
               Update status
             </Button>
@@ -80,6 +83,6 @@ export default function OrderDetailDrawer({
           </label>
         </div>
       )}
-    </BookstoreDrawer>
+    </BookstoreModal>
   )
 }

@@ -1,25 +1,64 @@
-const makeYoutubeRows = () =>
-  Array.from({ length: 18 }, (_, i) => ({
-    id: String(56565 + i),
-    name: 'UPSC Preparation Youtube',
-    url:
-      i === 0
-        ? 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-        : 'www.upscpreaparationvideo.com',
-    time: '10 AM',
+const DEMO_TITLES = [
+  'UPSC Current Affairs',
+  'IAS Motivation',
+  'Economy Lecture',
+  'Polity Lecture',
+  'History Marathon',
+  'Geography Revision',
+  'CSAT Tips',
+  'Interview Guidance',
+  'Ethics Lecture',
+  'Daily Editorial Analysis',
+]
+
+const SAMPLE_YOUTUBE_IDS = [
+  'dQw4w9WgXcQ',
+  'jNQXAC9IVRw',
+  '9bZkp7q19f0',
+  'kJQP7kiw5Fk',
+  'RgKAFK5djSk',
+  'fJ9rUzIMcZQ',
+  'y6120QOlsfU',
+  'L_jWHffIx5E',
+  'OPf0YbXqDm0',
+  'CevxZvSJLk8',
+]
+
+const EXTRA_TITLES = [
+  'UPSC Preparation Youtube',
+  'Science & Tech Update',
+  'Environment & Ecology',
+  'International Relations',
+  'Essay Writing Tips',
+  'Answer Writing Practice',
+  'Previous Year Analysis',
+  'Mock Interview Series',
+]
+
+function demoUrl(index) {
+  const videoId = SAMPLE_YOUTUBE_IDS[index % SAMPLE_YOUTUBE_IDS.length]
+  return `https://www.youtube.com/watch?v=${videoId}`
+}
+
+const makeYoutubeRows = () => {
+  const allTitles = [...DEMO_TITLES, ...EXTRA_TITLES]
+  return allTitles.map((name, i) => ({
+    id: String(57001 + i),
+    name,
+    url: demoUrl(i),
+    time: `${9 + (i % 4)} AM`,
     date: '14 May 2026',
     dateBucket: i < 6 ? 'Today' : i < 12 ? 'This Week' : 'This Month',
-    status: i % 3 === 0 ? 'Inactive' : 'Active',
+    status: i % 4 === 0 ? 'Inactive' : 'Active',
     priorityOrder: i < 8 ? i + 1 : null,
     priorityLevel: 0,
-    isFeatured: i < 2,
-    isPinned: i === 0,
     customOrder: i,
-    priorityExpiryDate: i === 1 ? '2026-12-31' : null,
-    analyticsLabels:
-      i === 0 ? ['Featured', 'Trending'] : i === 1 ? ['Most Watched'] : [],
+    priorityExpiryDate: i === 2 ? '2026-12-31' : null,
     createdAt: new Date(Date.now() - i * 86400000).toISOString(),
   }))
+}
+
+export const INITIAL_YOUTUBE_VIDEOS = makeYoutubeRows()
 
 const makeRankRows = () =>
   Array.from({ length: 18 }, (_, i) => ({
@@ -33,18 +72,4 @@ const makeRankRows = () =>
     status: i % 4 === 0 ? 'Inactive' : 'Active',
   }))
 
-const makeReviewRows = () =>
-  Array.from({ length: 18 }, (_, i) => ({
-    id: String(56565 + i),
-    name: 'Darshan Kotla',
-    mobile: '6300662566',
-    rating: '4.5',
-    review: 'Good',
-    time: '10 AM',
-    date: '14 May 2026',
-    dateBucket: i < 6 ? 'Today' : i < 12 ? 'This Week' : 'This Month',
-  }))
-
-export const INITIAL_YOUTUBE_VIDEOS = makeYoutubeRows()
 export const INITIAL_RANKERS = makeRankRows()
-export const INITIAL_APP_REVIEWS = makeReviewRows()

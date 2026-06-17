@@ -38,7 +38,7 @@ export default function RecommendationRuleModal({
       }
       size="7xl"
       loading={saving}
-      bodyClassName="bg-[#f4f6f9]"
+      bodyClassName="bg-[#fafbfc]"
       footer={
         <BookstoreModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
@@ -50,8 +50,8 @@ export default function RecommendationRuleModal({
         </BookstoreModalFooter>
       }
     >
-      <div className="grid gap-5 lg:grid-cols-5 lg:gap-6">
-        <div className="space-y-5 lg:col-span-3">
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="space-y-6 lg:col-span-3">
           <RecommendationMappingForm
             form={form}
             onChange={onChange}

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Package, Trash2 } from 'lucide-react'
+import { Package } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
-import BookstoreFilterToolbar from '../../components/bookstore/BookstoreFilterToolbar'
-import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
+import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
+import ProductsTable from '../../components/bookstore/ProductsTable'
+import ProductRowActions from '../../components/bookstore/ProductRowActions'
 import ProductFormModal from '../../components/bookstore/ProductFormModal'
 import ProductPreviewModal from '../../components/bookstore/ProductPreviewModal'
 import BookstoreConfirmDialog from '../../components/bookstore/modal/BookstoreConfirmDialog'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import EditButton from '../../components/common/EditButton'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import {
   fetchBookstoreProducts,
@@ -15,8 +14,13 @@ import {
   updateBookstoreProduct,
   deleteBookstoreProduct,
 } from '../../api/bookstoreAPI'
-import { formatINR } from '../../utils/financeFilters'
 import { toast } from '../../utils/toast'
+
+const PRODUCT_STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+]
 
 export default function BookstoreProductsPage() {
   const [products, setProducts] = useState([])
@@ -24,13 +28,10 @@ export default function BookstoreProductsPage() {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortKey, setSortKey] = useState('name')
-  const [selected, setSelected] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [preview, setPreview] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,18 +46,16 @@ export default function BookstoreProductsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let rows = products.filter((p) => {
-      const matchQ = !q || [p.name, p.subject, p.id].some((v) => String(v).toLowerCase().includes(q))
+    return products.filter((p) => {
+      const matchQ =
+        !q ||
+        [p.name, p.subject, p.id, p.authorName].some((v) =>
+          String(v || '').toLowerCase().includes(q),
+        )
       const matchStatus = statusFilter === 'all' || p.status === statusFilter
       return matchQ && matchStatus
     })
-    rows = [...rows].sort((a, b) => {
-      if (sortKey === 'price') return b.discountPrice - a.discountPrice
-      if (sortKey === 'stock') return b.stockQuantity - a.stockQuantity
-      return String(a[sortKey]).localeCompare(String(b[sortKey]))
-    })
-    return rows
-  }, [products, search, statusFilter, sortKey])
+  }, [products, search, statusFilter])
 
   const handleSave = async (form) => {
     setSaving(true)
@@ -84,100 +83,82 @@ export default function BookstoreProductsPage() {
     load()
   }
 
-  const confirmBulkDelete = async () => {
-    await Promise.all(selected.map((id) => deleteBookstoreProduct(id)))
-    setSelected([])
-    setBulkDeleteOpen(false)
-    toast.success('Products deleted')
-    load()
-  }
-
-  const toggleStatus = async (row) => {
+  const toggleStatus = useCallback(async (row) => {
     const next = row.status === 'active' ? 'inactive' : 'active'
     await updateBookstoreProduct(row.id, { status: next })
     toast.success('Status updated')
     load()
-  }
+  }, [load])
 
-  const columns = [
-    {
-      key: 'select',
-      label: '',
-      render: (row) => (
-        <input
-          type="checkbox"
-          checked={selected.includes(row.id)}
-          onChange={(e) => {
-            setSelected((prev) =>
-              e.target.checked ? [...prev, row.id] : prev.filter((id) => id !== row.id),
-            )
-          }}
-        />
-      ),
-    },
-    { key: 'id', label: 'Product ID' },
-    { key: 'name', label: 'Product Name', render: (r) => <span className="font-medium">{r.name}</span> },
-    { key: 'subject', label: 'Subject' },
-    { key: 'discountPrice', label: 'Price', render: (r) => formatINR(r.discountPrice) },
-    { key: 'stockQuantity', label: 'Stock' },
-    { key: 'status', label: 'Status', render: (r) => <BookstoreStatusBadge status={r.status} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setPreview(row)} className="text-[#7c5cbf]" aria-label="Preview product">
-            <Eye className="h-4 w-4" />
-          </button>
-          <EditButton onClick={() => { setEditing(row); setModalOpen(true) }} />
-          <button type="button" onClick={() => toggleStatus(row)} className="text-xs font-semibold text-[#7c5cbf]">Toggle</button>
-          <button type="button" onClick={() => setDeleteTarget(row.id)} className="text-[#c96565]" aria-label="Delete product">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ),
-    },
-  ]
+  const renderRowActions = useCallback(
+    (row) => (
+      <ProductRowActions
+        name={row.name}
+        status={row.status}
+        loading={saving}
+        onView={() => setPreview(row)}
+        onEdit={() => {
+          setEditing(row)
+          setModalOpen(true)
+        }}
+        onStatusToggle={() => toggleStatus(row)}
+        onDelete={() => setDeleteTarget(row.id)}
+      />
+    ),
+    [saving, toggleStatus],
+  )
 
   return (
     <BookstorePageShell
       icon={Package}
       title="Products"
-      actions={<BannerButton onClick={() => { setEditing(null); setModalOpen(true) }}>Add Product</BannerButton>}
+      actions={
+        <BannerButton
+          onClick={() => {
+            setEditing(null)
+            setModalOpen(true)
+          }}
+        >
+          Add Product
+        </BannerButton>
+      }
     >
-      <BookstoreFilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search products…"
-        filters={
-          <>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-              <option value="all">All status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-              <option value="name">Sort: Name</option>
-              <option value="price">Sort: Price</option>
-              <option value="stock">Sort: Stock</option>
-            </select>
-          </>
-        }
-        actions={
-          selected.length > 0 && (
-            <button type="button" onClick={() => setBulkDeleteOpen(true)} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-              Bulk delete ({selected.length})
-            </button>
-          )
-        }
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <CourseFilterToolbar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          searchPlaceholder="Search products by name, ID, category, or author…"
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={PRODUCT_STATUS_OPTIONS}
+          disabled={loading && products.length === 0}
+        />
+
+        <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+          <ProductsTable
+            products={filtered}
+            loading={loading}
+            resetDeps={[search, statusFilter]}
+            renderActions={renderRowActions}
+          />
+        </div>
+      </div>
+
+      <ProductFormModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setEditing(null)
+        }}
+        initial={editing}
+        onSubmit={handleSave}
+        loading={saving}
       />
-      {loading ? (
-        <div className="h-64 animate-pulse rounded-xl bg-white" />
-      ) : (
-        <PaginatedFigmaTable columns={columns} data={filtered} itemLabel="products" />
-      )}
-      <ProductFormModal open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null) }} initial={editing} onSubmit={handleSave} loading={saving} />
-      <ProductPreviewModal open={Boolean(preview)} onClose={() => setPreview(null)} product={preview} />
+      <ProductPreviewModal
+        open={Boolean(preview)}
+        onClose={() => setPreview(null)}
+        product={preview}
+      />
       <BookstoreConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
@@ -185,14 +166,6 @@ export default function BookstoreProductsPage() {
         title="Delete product"
         message="This product will be removed from the bookstore catalog. This action cannot be undone."
         confirmLabel="Delete"
-      />
-      <BookstoreConfirmDialog
-        open={bulkDeleteOpen}
-        onClose={() => setBulkDeleteOpen(false)}
-        onConfirm={confirmBulkDelete}
-        title="Delete selected products"
-        message={`Remove ${selected.length} products from the catalog?`}
-        confirmLabel="Delete all"
       />
     </BookstorePageShell>
   )

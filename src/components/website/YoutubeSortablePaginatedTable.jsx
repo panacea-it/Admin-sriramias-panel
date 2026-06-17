@@ -20,6 +20,16 @@ import { GripVertical } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { usePagination } from '../../hooks/usePagination'
 import TablePagination from '../figma/TablePagination'
+
+const TABLE_CLASS = cn(
+  'rounded-none border-0 shadow-none',
+  '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',
+  '[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]',
+  '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap [&_thead_th]:!bg-transparent',
+  '[&_thead_th]:text-white [&_thead_th]:text-xs [&_thead_th]:font-semibold sm:[&_thead_th]:text-sm',
+  '[&_tbody_td]:align-middle',
+)
+
 function SortableRow({ row, rowId, columns, rowClassName, renderPriorityDrag }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: rowId,
@@ -34,13 +44,13 @@ function SortableRow({ row, rowId, columns, rowClassName, renderPriorityDrag }) 
       ref={setNodeRef}
       style={style}
       className={cn(
-        'border-b border-slate-100/90 text-[#111111] min-h-[44px] text-sm font-medium',
-        'hover:bg-[#eef6fc]/70',
+        'border-b border-[#E5E7EB] text-[#111111] min-h-[52px] text-sm font-medium',
+        'transition-colors duration-200 hover:bg-[#eef6fc]/70',
         rowClassName?.(row),
         isDragging && 'z-10 bg-white opacity-95 shadow-lg ring-2 ring-[#55ace7]/40',
       )}
     >
-      <td className="w-[4.5rem] px-2 py-2 align-middle sm:px-3">
+      <td className="w-[4.5rem] px-3 py-2.5 align-middle sm:px-4">
         <div className="flex items-center gap-0.5">
           {renderPriorityDrag?.(row)}
           <button
@@ -57,7 +67,8 @@ function SortableRow({ row, rowId, columns, rowClassName, renderPriorityDrag }) 
       {columns.map((col) => (
         <td
           key={col.key}
-          className={cn('px-3 py-2 align-middle sm:px-4 first:pl-2', col.cellClassName)}
+          className={cn('px-3 py-2.5 align-middle sm:px-4', col.cellClassName)}
+          style={col.width ? { width: `${col.width}px` } : undefined}
         >
           {col.render ? col.render(row) : row[col.key]}
         </td>
@@ -77,6 +88,7 @@ export default function YoutubeSortablePaginatedTable({
   className,
   getRowClassName,
   renderPriorityDrag,
+  tableMinWidth,
 }) {
   const tableRef = useRef(null)
   const pagination = usePagination(data, { initialPageSize, resetDeps })
@@ -116,10 +128,16 @@ export default function YoutubeSortablePaginatedTable({
         label: '',
         headerClassName: 'w-[4.5rem]',
         cellClassName: 'w-[4.5rem]',
+        width: 72,
       },
       ...columns,
     ],
     [columns],
+  )
+
+  const resolvedMinWidth = useMemo(
+    () => tableMinWidth ?? allColumns.reduce((sum, col) => sum + (col.width || 120), 0),
+    [allColumns, tableMinWidth],
   )
 
   const handlePageChange = (nextPage) => {
@@ -131,22 +149,23 @@ export default function YoutubeSortablePaginatedTable({
     <div
       ref={tableRef}
       className={cn(
-        'overflow-hidden rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
+        'w-full max-w-full overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]',
         className,
       )}
     >
-      <div className="w-full overflow-x-auto rounded-t-md">
-        <div style={{ minWidth: 800 }}>
-          <table className="w-full border-collapse">
+      <div className={cn('w-full overflow-x-auto', TABLE_CLASS)}>
+        <div style={{ minWidth: resolvedMinWidth }}>
+          <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead>
-              <tr className="h-10 min-h-[40px] bg-gradient-to-r from-[#55ace7] to-[#246392] text-xs font-semibold text-white sm:text-sm">
+              <tr className="h-11 min-h-[44px]">
                 {allColumns.map((col) => (
                   <th
                     key={col.key}
                     className={cn(
-                      'whitespace-nowrap px-3 py-2 text-left align-middle first:pl-4 sm:px-4',
+                      'whitespace-nowrap px-3 py-2.5 text-left align-middle first:pl-4 sm:px-4',
                       col.headerClassName,
                     )}
+                    style={col.width ? { width: `${col.width}px` } : undefined}
                   >
                     {col.label}
                   </th>
@@ -156,13 +175,18 @@ export default function YoutubeSortablePaginatedTable({
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={pageIds} strategy={verticalListSortingStrategy}>
                 <tbody>
-                  {pagination.paginatedItems.map((row) => (
+                  {pagination.paginatedItems.map((row, idx) => (
                     <SortableRow
                       key={row.id}
                       row={row}
                       rowId={row.id}
                       columns={columns}
-                      rowClassName={getRowClassName}
+                      rowClassName={(r) =>
+                        cn(
+                          getRowClassName?.(r),
+                          idx % 2 === 1 && 'bg-[#F8FBFF]',
+                        )
+                      }
                       renderPriorityDrag={renderPriorityDrag}
                     />
                   ))}
@@ -171,7 +195,7 @@ export default function YoutubeSortablePaginatedTable({
             </DndContext>
           </table>
           {data.length === 0 && (
-            <p className="py-8 text-center text-sm font-medium text-slate-500">{emptyMessage}</p>
+            <p className="py-10 text-center text-sm font-medium text-slate-500">{emptyMessage}</p>
           )}
         </div>
       </div>
@@ -186,6 +210,8 @@ export default function YoutubeSortablePaginatedTable({
           onPageChange={handlePageChange}
           onPageSizeChange={pagination.setPageSize}
           itemLabel={itemLabel}
+          className="shrink-0 border-t border-[#E5E7EB] bg-white"
+          gradientActivePage
         />
       )}
     </div>

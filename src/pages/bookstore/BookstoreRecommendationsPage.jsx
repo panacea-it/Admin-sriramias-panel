@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
-import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
 import BookstoreConfirmDialog from '../../components/bookstore/modal/BookstoreConfirmDialog'
 import RecommendationRuleModal from '../../components/bookstore/recommendations/RecommendationRuleModal'
+import RecommendationViewModal from '../../components/bookstore/recommendations/RecommendationViewModal'
+import RecommendationsTable from '../../components/bookstore/recommendations/RecommendationsTable'
+import RecommendationRowActions from '../../components/bookstore/recommendations/RecommendationRowActions'
 import CartRecommendationPreview from '../../components/bookstore/recommendations/CartRecommendationPreview'
-import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import EditButton from '../../components/common/EditButton'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import {
   fetchBookstoreProducts,
@@ -32,6 +32,7 @@ export default function BookstoreRecommendationsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyRecommendationRule())
   const [editingId, setEditingId] = useState(null)
+  const [viewRule, setViewRule] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [previewRuleId, setPreviewRuleId] = useState(null)
 
@@ -89,6 +90,20 @@ export default function BookstoreRecommendationsPage() {
     setModalOpen(true)
   }
 
+  const openView = (row) => {
+    setViewRule(row)
+    setPreviewRuleId(row.id)
+  }
+
+  const toggleRuleStatus = (row) => {
+    const nextStatus = row.status === 'active' ? 'disabled' : 'active'
+    setRules((prev) =>
+      prev.map((rule) => (rule.id === row.id ? { ...rule, status: nextStatus } : rule)),
+    )
+    setViewRule((prev) => (prev?.id === row.id ? { ...prev, status: nextStatus } : prev))
+    toast.success(nextStatus === 'active' ? 'Rule enabled' : 'Rule disabled')
+  }
+
   const validate = () => {
     if (!form.sourceProductId) {
       toast.error('Select a source book.')
@@ -140,90 +155,45 @@ export default function BookstoreRecommendationsPage() {
     toast.success('Rule deleted')
     if (editingId === deleteTarget) closeModal()
     if (previewRuleId === deleteTarget) setPreviewRuleId(null)
+    if (viewRule?.id === deleteTarget) setViewRule(null)
     setDeleteTarget(null)
     load()
   }
 
-  const columns = [
-    {
-      key: 'sourceProductId',
-      label: 'Source book',
-      render: (r) => (
-        <button
-          type="button"
-          onClick={() => setPreviewRuleId(r.id)}
-          className="text-left font-medium text-[#111] transition hover:text-[#7c5cbf]"
-        >
-          {productDisplayName(products, r.sourceProductId)}
-        </button>
-      ),
-    },
-    {
-      key: 'recommendationType',
-      label: 'Type',
-      render: (r) => r.recommendationType || r.type,
-    },
-    {
-      key: 'recommendedProductIds',
-      label: 'Recommended books',
-      render: (r) => {
-        const ids = r.recommendedProductIds || r.targetProductIds || []
-        return (
-          <span className="text-xs text-[#444]">
-            {ids.map((id) => productDisplayName(products, id)).join(' · ')}
-          </span>
-        )
-      },
-    },
-    { key: 'placement', label: 'Placement' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (r) => <BookstoreStatusBadge status={r.status} />,
-    },
-    {
-      key: 'priorityOrder',
-      label: 'Priority',
-      render: (r) => <span className="font-mono text-sm">{r.priorityOrder ?? '—'}</span>,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex flex-wrap items-center gap-3">
-          <EditButton onClick={() => openEdit(row)} />
-          <button
-            type="button"
-            onClick={() => setDeleteTarget(row.id)}
-            className="text-[#c96565]"
-            aria-label="Delete rule"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ),
-    },
-  ]
+  const renderRowActions = useCallback(
+    (row) => (
+      <RecommendationRowActions
+        label={productDisplayName(products, row.sourceProductId)}
+        status={row.status}
+        onView={() => openView(row)}
+        onEdit={() => openEdit(row)}
+        onStatusToggle={() => toggleRuleStatus(row)}
+        onDelete={() => setDeleteTarget(row.id)}
+      />
+    ),
+    [products],
+  )
+
+  const handleSourceClick = useCallback((row) => {
+    setPreviewRuleId(row.id)
+  }, [])
 
   return (
     <BookstorePageShell
       icon={Sparkles}
       title="Cart & cross-sell recommendations"
       actions={
-        <BannerButton onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add rule
-        </BannerButton>
+        <BannerButton onClick={openCreate}>Add Rule</BannerButton>
       }
     >
-      <p className="rounded-xl border border-[#e8ecf2] bg-white px-4 py-3 text-sm leading-relaxed text-[#555] shadow-sm">
+      <p className="rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-sm leading-relaxed text-[#555] shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
         Configure which books appear as <strong className="text-[#111]">“You May Also Like”</strong> in the
         student portal cart drawer. Changes sync via{' '}
         <code className="rounded bg-[#f4f6f9] px-1.5 py-0.5 text-xs">GET /api/bookstore/recommendations/cart?sourceProductId=…</code>
       </p>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
+      <section className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
           <h2 className="text-sm font-bold uppercase tracking-wide text-[#686868]">
             Recommendation rules
           </h2>
@@ -231,32 +201,46 @@ export default function BookstoreRecommendationsPage() {
             <button
               type="button"
               onClick={openCreate}
-              className="text-sm font-semibold text-[#7c5cbf] hover:underline"
+              className="text-sm font-semibold text-[#246392] hover:underline"
             >
               Create your first rule
             </button>
           )}
         </div>
-        {loading ? (
-          <div className="h-48 animate-pulse rounded-xl bg-white" />
-        ) : (
-          <PaginatedFigmaTable columns={columns} data={rules} itemLabel="rules" />
-        )}
+        <div className="overflow-hidden rounded-xl border border-slate-100">
+          <RecommendationsTable
+            rules={rules}
+            products={products}
+            loading={loading}
+            resetDeps={[]}
+            onSourceClick={handleSourceClick}
+            renderActions={renderRowActions}
+          />
+        </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-[#686868]">
-          Cart preview simulator
-        </h2>
-        <p className="text-xs text-[#686868]">
-          Click a source book in the table to preview its rule, or use Add rule / Edit to configure in the dialog.
-        </p>
+      <section className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+        <div className="mb-4 space-y-1">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[#686868]">
+            Cart preview simulator
+          </h2>
+          <p className="text-xs text-[#686868]">
+            Click a source book in the table to preview its rule, or use Add Rule / Edit to configure in the dialog.
+          </p>
+        </div>
         <CartRecommendationPreview
           sourceProduct={pagePreviewSource}
           recommendedProducts={pagePreviewProducts}
-          emptyMessage="No rules yet. Click Add rule to configure cart recommendations."
+          emptyMessage="No rules yet. Click Add Rule to configure cart recommendations."
         />
       </section>
+
+      <RecommendationViewModal
+        open={Boolean(viewRule)}
+        rule={viewRule}
+        products={products}
+        onClose={() => setViewRule(null)}
+      />
 
       <RecommendationRuleModal
         open={modalOpen}

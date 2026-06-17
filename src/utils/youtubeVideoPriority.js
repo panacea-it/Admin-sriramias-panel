@@ -51,21 +51,12 @@ export function normalizeYoutubeVideo(row) {
     row.createdAt ||
     (row.date ? new Date(`${row.date} ${row.time || '10:00'}`).toISOString() : new Date().toISOString())
 
-  const analyticsLabels = Array.isArray(row.analyticsLabels) ? row.analyticsLabels : []
-  const isFeatured = Boolean(row.isFeatured)
-
   return {
     ...row,
     priorityOrder,
     priorityLevel: priorityOrder ?? 0,
-    isFeatured,
-    isPinned: priorityOrder === 1,
     customOrder: Number(row.customOrder) || 0,
     priorityExpiryDate: row.priorityExpiryDate || null,
-    analyticsLabels: [
-      ...analyticsLabels,
-      ...(isFeatured && !analyticsLabels.includes('Featured') ? ['Featured'] : []),
-    ],
     createdAt,
   }
 }
@@ -94,7 +85,7 @@ export function sortYoutubeVideos(videos) {
 
 export function getRankedVideos(videos) {
   return (videos || [])
-    .filter((v) => v.priorityOrder != null)
+    .filter((v) => v.priorityOrder != null && v.status !== 'Inactive')
     .sort((a, b) => a.priorityOrder - b.priorityOrder)
 }
 
@@ -126,15 +117,11 @@ export function getRankBadgeClass(order) {
   return 'bg-[#eff6ff] text-[#2563eb] ring-1 ring-[#bfdbfe]'
 }
 
-export function getRankRowClassName(priorityOrder, isFeatured = false) {
+export function getRankRowClassName(priorityOrder) {
   const base =
     'transition-all duration-300 ease-out hover:scale-[1.006] hover:shadow-md hover:z-[1] relative'
   const r = normalizeRankInput(priorityOrder)
-  if (!r) {
-    return isFeatured
-      ? `${base} border-l-4 border-l-amber-400`
-      : base
-  }
+  if (!r) return base
   if (r <= YOUTUBE_RANK_VISUAL.goldMax) {
     return `${base} border-l-4 border-l-amber-500 shadow-[0_4px_20px_rgba(245,158,11,0.22)]`
   }
