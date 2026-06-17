@@ -7,7 +7,11 @@ import { CourseFormField } from '../../courses/CourseFormField'
 import { UploadFieldHint, UploadValidationMessage } from '../../common/UploadFieldHint'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useOmrPermissions } from '../../../hooks/useOmrPermissions'
-import { getOmrExamById, uploadOmrResultSheet } from '../../../services/omrService'
+import {
+  getOmrExamById,
+  replaceOmrResultSheet,
+  uploadOmrResultSheet,
+} from '../../../services/omrService'
 import {
   OMR_RESULT_UPLOAD_PROFILE,
   inferOmrFileType,
@@ -75,9 +79,12 @@ export default function OmrUploadResultModal({ open, onClose, examId, examName, 
     setUploading(true)
     try {
       const uploadedBy = user?.name || user?.email || 'Admin'
-      const updated = await uploadOmrResultSheet(examId, file, uploadedBy)
+      const alreadyUploaded = Boolean(exam?.resultSheetUploaded)
+      const updated = alreadyUploaded
+        ? await replaceOmrResultSheet(examId, file, uploadedBy)
+        : await uploadOmrResultSheet(examId, file, uploadedBy)
       const mapped = mapApiOmrExamToLocal(updated) || updated
-      toast.success(exam?.resultSheetUploaded ? 'Result sheet replaced' : 'Result sheet uploaded')
+      toast.success(alreadyUploaded ? 'Result sheet replaced' : 'Result sheet uploaded')
       onSuccess?.(mapped)
       onClose?.()
     } catch (err) {

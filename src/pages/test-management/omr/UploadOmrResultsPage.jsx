@@ -20,6 +20,7 @@ import {
   deleteOmrResultSheet,
   downloadOmrResultSheet,
   getOmrExamById,
+  replaceOmrResultSheet,
   uploadOmrResultSheet,
 } from '../../../services/omrService'
 import { OMR_RESULT_UPLOAD_PROFILE, inferOmrFileType, mapApiOmrExamToLocal } from '../../../utils/omrApiHelpers'
@@ -82,10 +83,13 @@ export default function UploadOmrResultsPage() {
     setUploading(true)
     try {
       const uploadedBy = user?.name || user?.email || 'Admin'
-      const updated = await uploadOmrResultSheet(id, file, uploadedBy)
+      const alreadyUploaded = Boolean(exam?.resultSheetUploaded)
+      const updated = alreadyUploaded
+        ? await replaceOmrResultSheet(id, file, uploadedBy)
+        : await uploadOmrResultSheet(id, file, uploadedBy)
       setExam(mapApiOmrExamToLocal(updated) || updated)
       setFile(null)
-      toast.success(exam?.resultSheetUploaded ? 'Result sheet replaced' : 'Result sheet uploaded')
+      toast.success(alreadyUploaded ? 'Result sheet replaced' : 'Result sheet uploaded')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to upload result sheet'))
     } finally {

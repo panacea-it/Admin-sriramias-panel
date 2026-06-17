@@ -16,11 +16,10 @@ import StatCard from '../../dashboard/StatCard'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
 import { Users, Target, TrendingUp, Award } from 'lucide-react'
 import {
-  generateCbtStudentResults,
-  summarizeCbtResults,
-} from '../../../data/cbtStudentResultsSeed'
-import { exportToCsv } from '../../../utils/financeExport'
-import { openPrintablePdfLikeReport } from '../../../utils/testManagement/reportExport'
+  exportCbtResultsCsv,
+  exportCbtResultsPdf,
+} from '../../../api/cbtManagementAPI'
+import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
 
 const RESULT_OPTIONS = ['all', 'Published', 'Unpublished']
@@ -29,79 +28,58 @@ function normalizeCbtResultStatus(status) {
   return status === 'Published' ? 'Published' : 'Unpublished'
 }
 
-export default function CbtStudentResultsView({ testItem, facultyLabel }) {
+function resultFilterToStatus(filter) {
+  if (filter === 'Published') return 'PUBLISHED'
+  return 'ALL'
+}
+
+export default function CbtStudentResultsView({
+  testItem,
+  testId,
+  facultyLabel,
+  rows = [],
+  analytics,
+  totalStudents = 0,
+  attempted = 0,
+}) {
   const [search, setSearch] = useState('')
   const [resultFilter, setResultFilter] = useState('all')
   const [sortKey, setSortKey] = useState('rank')
   const [sortDir, setSortDir] = useState('asc')
+  const [exporting, setExporting] = useState(false)
 
-  const allRows = useMemo(
-    () => generateCbtStudentResults(testItem?.id, testItem?.title),
-    [testItem?.id, testItem?.title],
+  const summary = useMemo(
+    () => ({
+      totalStudents,
+      attempted,
+      avgScore: analytics?.averageScore ?? 0,
+      avgAccuracy: analytics?.averageAccuracy ?? 0,
+    }),
+    [analytics, totalStudents, attempted],
   )
 
-  const summary = useMemo(() => summarizeCbtResults(allRows), [allRows])
-
-  const topScorers = useMemo(
-    () =>
-      [...allRows]
-        .filter((r) => r.attemptStatus === 'Completed')
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5),
-    [allRows],
-  )
-
-  const failedStudents = useMemo(
-    () =>
-      allRows.filter(
-        (r) =>
-          r.attemptStatus === 'Completed' &&
-          r.accuracyPct < 50,
-      ).slice(0, 5),
-    [allRows],
-  )
-
-  const performanceChart = useMemo(() => {
-    const buckets = ['0-40', '41-55', '56-70', '71-85', '86-100']
-    const counts = [0, 0, 0, 0, 0]
-    allRows
-      .filter((r) => r.attemptStatus === 'Completed')
-      .forEach((r) => {
-        const pct = (r.score / (r.maxMarks || 50)) * 100
-        if (pct <= 40) counts[0] += 1
-        else if (pct <= 55) counts[1] += 1
-        else if (pct <= 70) counts[2] += 1
-        else if (pct <= 85) counts[3] += 1
-        else counts[4] += 1
-      })
-    return buckets.map((range, i) => ({ range, students: counts[i] }))
-  }, [allRows])
-
-  const accuracyTrend = useMemo(() => {
-    const completed = allRows.filter((r) => r.attemptStatus === 'Completed').slice(0, 12)
-    return completed.map((r, i) => ({
-      label: `S${i + 1}`,
-      accuracy: r.accuracyPct,
-    }))
-  }, [allRows])
+  const topScorers = analytics?.topScorers ?? []
+  const failedStudents = analytics?.needsImprovement ?? []
+  const performanceChart = analytics?.scoreDistribution ?? []
+  const accuracyTrend = analytics?.accuracyTrend ?? []
 
   const filtered = useMemo(() => {
-    let rows = [...allRows]
+    let list = [...rows]
     const q = search.trim().toLowerCase()
     if (q) {
-      rows = rows.filter(
+      list = list.filter(
         (r) =>
           r.studentName.toLowerCase().includes(q) ||
           r.rollNumber.toLowerCase().includes(q),
       )
     }
     if (resultFilter === 'Published') {
-      rows = rows.filter((r) => r.resultStatus === 'Published')
+      list = list.filter((r) => r.resultStatus === 'Published')
     } else if (resultFilter === 'Unpublished') {
-      rows = rows.filter((r) => r.resultStatus !== 'Published')
+      list = list.filter((r) => r.resultStatus !== 'Published')
     }
 
-    rows.sort((a, b) => {
+    list.sort((a, b) => {
       let av = a[sortKey]
       let bv = b[sortKey]
       if (sortKey === 'rank') {
@@ -113,8 +91,8 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
       }
       return sortDir === 'asc' ? av - bv : bv - av
     })
-    return rows
-  }, [allRows, search, resultFilter, sortKey, sortDir])
+    return list
+  }, [rows, search, resultFilter, sortKey, sortDir])
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -124,41 +102,27 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
     }
   }
 
-  const exportCsv = () => {
-    exportToCsv(
-      filtered.map((r) => ({
-        Student: r.studentName,
-        Roll: r.rollNumber,
-        Attempt: r.attemptStatus,
-        Score: r.score,
-        Rank: r.rank,
-        Accuracy: r.accuracyPct,
-        Negative: r.negativeMarks,
-        Time: r.timeTaken,
-        Submitted: r.submissionDate,
-        Result: r.resultStatus,
-      })),
-      `cbt-results-${testItem?.id || 'export'}.csv`,
-    )
-    toast.success('CSV exported')
-  }
-
-  const exportPdf = () => {
-    const rows = filtered
-      .slice(0, 40)
-      .map(
-        (r) =>
-          `<tr><td>${r.studentName}</td><td>${r.rollNumber}</td><td>${r.score}</td><td>${r.rank}</td><td>${r.accuracyPct}%</td></tr>`,
-      )
-      .join('')
-    const html = `
-      <h1>${testItem?.title || 'Test Results'}</h1>
-      <p>${facultyLabel || ''}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
-        <thead><tr><th>Student</th><th>Roll</th><th>Score</th><th>Rank</th><th>Accuracy</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`
-    openPrintablePdfLikeReport({ title: testItem?.title || 'Results', html })
+  const runExport = async (type) => {
+    if (!testId || exporting) return
+    setExporting(true)
+    const filters = {
+      search: search.trim(),
+      attemptStatus: 'ALL',
+      resultStatus: resultFilterToStatus(resultFilter),
+    }
+    try {
+      if (type === 'pdf') {
+        await exportCbtResultsPdf({ testId, filters })
+        toast.success('PDF exported')
+      } else {
+        await exportCbtResultsCsv({ testId, filters })
+        toast.success('CSV exported')
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, `Failed to export ${type.toUpperCase()}`))
+    } finally {
+      setExporting(false)
+    }
   }
 
   const columns = [
@@ -261,18 +225,22 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
             Top Scorers
           </h3>
           <ul className="space-y-2">
-            {topScorers.map((s, i) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm"
-              >
-                <span>
-                  <span className="mr-2 font-bold text-[#55ace7]">#{i + 1}</span>
-                  {s.studentName}
-                </span>
-                <span className="font-semibold tabular-nums">{s.score} pts</span>
-              </li>
-            ))}
+            {topScorers.length === 0 ? (
+              <li className="text-sm text-slate-500">No completed attempts yet.</li>
+            ) : (
+              topScorers.map((s, i) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm"
+                >
+                  <span>
+                    <span className="mr-2 font-bold text-[#55ace7]">#{s.rank ?? i + 1}</span>
+                    {s.studentName}
+                  </span>
+                  <span className="font-semibold tabular-nums">{s.score} pts</span>
+                </li>
+              ))
+            )}
           </ul>
         </article>
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
@@ -320,11 +288,23 @@ export default function CbtStudentResultsView({ testItem, facultyLabel }) {
             </option>
           ))}
         </select>
-        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={exportCsv}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          showPlusIcon={false}
+          disabled={exporting}
+          onClick={() => runExport('csv')}
+        >
           <Download className="h-4 w-4" />
           CSV
         </BannerButton>
-        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={exportPdf}>
+        <BannerButton
+          type="button"
+          variant="secondary"
+          showPlusIcon={false}
+          disabled={exporting}
+          onClick={() => runExport('pdf')}
+        >
           <FileText className="h-4 w-4" />
           PDF
         </BannerButton>

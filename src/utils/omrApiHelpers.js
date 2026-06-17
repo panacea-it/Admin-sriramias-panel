@@ -1,4 +1,4 @@
-import { mapApiStatusToUi, mapUiStatusToApi } from './programHelpers'
+import { mapUiStatusToApi } from './programHelpers'
 
 export const OMR_RESULT_UPLOAD_PROFILE = {
   id: 'OMR_RESULT_SHEET',
@@ -44,26 +44,32 @@ export function mapApiOmrExamToLocal(data) {
   const id = row._id ?? row.id ?? row.omrExamId
   if (!id) return null
 
-  const resultSheet = row.resultSheet || row.resultFile || null
-  const uploaded = Boolean(resultSheet?.fileName || row.resultSheetUploaded)
+  const rawSheet = row.resultSheet || row.resultFile || null
+  const uploaded = Boolean(rawSheet?.fileName || row.hasResultSheet || row.resultSheetUploaded)
+  const uploadedAt =
+    rawSheet?.uploadedAt ||
+    rawSheet?.uploaded_at ||
+    rawSheet?.uploadedDate ||
+    row.uploadDate ||
+    null
 
   return {
     id: String(id),
     examName: String(row.examName || row.name || '').trim(),
     examDate: row.examDate || row.exam_date || '',
-    status: mapApiStatusToUi(row.status) === 'In Active' ? 'Inactive' : mapApiStatusToUi(row.status) || 'Active',
+    status: String(row.status || '').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active',
     resultSheetUploaded: uploaded,
-    resultSheet: resultSheet
+    resultSheet: uploaded
       ? {
-          fileName: resultSheet.fileName || resultSheet.name || '',
-          fileType: resultSheet.fileType || resultSheet.extension || '',
-          mimeType: resultSheet.mimeType || resultSheet.contentType || '',
-          uploadedBy: resultSheet.uploadedBy || resultSheet.uploaded_by || '—',
-          uploadedAt: resultSheet.uploadedAt || resultSheet.uploaded_at || resultSheet.uploadDate || null,
+          fileName: rawSheet?.fileName || rawSheet?.name || '',
+          fileType: rawSheet?.fileType || rawSheet?.extension || '',
+          mimeType: rawSheet?.mimeType || rawSheet?.contentType || '',
+          uploadedBy: rawSheet?.uploadedBy || rawSheet?.uploaded_by || '—',
+          uploadedAt,
         }
       : null,
-    createdAt: row.createdAt || row.createdOn || null,
-    updatedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
+    createdAt: row.createdAt || row.createdDate || row.createdOn || null,
+    updatedAt: row.updatedAt || row.modifiedAt || row.createdAt || row.createdDate || null,
   }
 }
 

@@ -6,11 +6,14 @@ import CbtTopicsTableActions from './CbtTopicsTableActions'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { getCbtTopics } from '../../../utils/cbtTestSeriesHierarchy'
 
-export default function CbtTopicsTable({ faculty, loading }) {
+export default function CbtTopicsTable({ faculty, topics: topicsProp, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
-  const topics = useMemo(() => getCbtTopics(faculty), [faculty])
+  const topics = useMemo(
+    () => (Array.isArray(topicsProp) ? topicsProp : getCbtTopics(faculty)),
+    [topicsProp, faculty],
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

@@ -196,7 +196,14 @@ export async function getOmrExams(params = {}, { bypassCache = false } = {}) {
       omrListCache.fetch(
         params,
         async () => {
-          const response = await axiosInstance.get('/api/omr/exams', { params })
+          const response = await axiosInstance.post('/api/omr-exams/list', {
+            page: params.page || 1,
+            limit: params.limit || 100,
+            search: params.search || '',
+            status: params.status || 'ALL',
+            sortBy: params.sortBy || 'createdAt',
+            sortOrder: params.sortOrder || 'desc',
+          })
           return response.data
         },
         { bypass: bypassCache },
@@ -225,7 +232,7 @@ export async function getOmrExamById(examId) {
   if (pending) return pending
 
   const request = axiosInstance
-    .get(`/api/omr/exams/${key}`)
+    .post(`/api/omr-exams/${key}`, {})
     .then((response) => {
       omrDetailCache.set(key, response.data)
       omrDetailInFlight.delete(key)
@@ -268,7 +275,7 @@ export async function createOmrExam(form) {
       return row
     },
     async () => {
-      const response = await axiosInstance.post('/api/omr/exams', payload)
+      const response = await axiosInstance.post('/api/omr-exams', payload)
       invalidateAfterMutation()
       return response.data
     },
@@ -296,7 +303,7 @@ export async function updateOmrExam(examId, form) {
       return updated
     },
     async () => {
-      const response = await axiosInstance.put(`/api/omr/exams/${examId}`, payload)
+      const response = await axiosInstance.put(`/api/omr-exams/${examId}`, payload)
       invalidateAfterMutation(examId)
       return response.data
     },
@@ -320,7 +327,7 @@ export async function deleteOmrExam(examId) {
       return { success: true }
     },
     async () => {
-      const response = await axiosInstance.delete(`/api/omr/exams/${examId}`)
+      const response = await axiosInstance.delete(`/api/omr-exams/${examId}`)
       invalidateAfterMutation(examId)
       return response.data
     },
@@ -336,47 +343,71 @@ function fileToBase64(file) {
   })
 }
 
+async function localUploadResultSheet(examId, file, uploadedBy) {
+  await delay(300)
+  const dataUrl = await fileToBase64(file)
+  const files = loadLocalFiles()
+  files[String(examId)] = dataUrl
+  saveLocalFiles(files)
+
+  const list = loadLocalExams()
+  const idx = list.findIndex((row) => String(row.id) === String(examId))
+  if (idx < 0) throwApiError(new Error('OMR exam not found'))
+
+  const uploadedAt = new Date().toISOString()
+  const resultSheet = {
+    fileName: file.name,
+    fileType: inferOmrFileType(file.name),
+    mimeType: file.type,
+    uploadedBy,
+    uploadedAt,
+  }
+
+  list[idx] = {
+    ...list[idx],
+    resultSheetUploaded: true,
+    resultSheet,
+    updatedAt: uploadedAt,
+  }
+  saveLocalExams(list)
+  invalidateAfterMutation(examId)
+  return mapApiOmrExamToLocal(list[idx])
+}
+
+function buildResultSheetFormData(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return formData
+}
+
 export async function uploadOmrResultSheet(examId, file, uploadedBy = 'Admin') {
   if (!file) throwApiError(new Error('File is required'))
 
   return withOmrLocal(
+    () => localUploadResultSheet(examId, file, uploadedBy),
     async () => {
-      await delay(300)
-      const dataUrl = await fileToBase64(file)
-      const files = loadLocalFiles()
-      files[String(examId)] = dataUrl
-      saveLocalFiles(files)
-
-      const list = loadLocalExams()
-      const idx = list.findIndex((row) => String(row.id) === String(examId))
-      if (idx < 0) throwApiError(new Error('OMR exam not found'))
-
-      const uploadedAt = new Date().toISOString()
-      const resultSheet = {
-        fileName: file.name,
-        fileType: inferOmrFileType(file.name),
-        mimeType: file.type,
-        uploadedBy,
-        uploadedAt,
-      }
-
-      list[idx] = {
-        ...list[idx],
-        resultSheetUploaded: true,
-        resultSheet,
-        updatedAt: uploadedAt,
-      }
-      saveLocalExams(list)
+      const response = await axiosInstance.post(
+        `/api/omr-exams/${examId}/result-sheet`,
+        buildResultSheetFormData(file),
+        { headers: { 'Content-Type': undefined } },
+      )
       invalidateAfterMutation(examId)
-      return mapApiOmrExamToLocal(list[idx])
+      return response.data
     },
+  )
+}
+
+export async function replaceOmrResultSheet(examId, file, uploadedBy = 'Admin') {
+  if (!file) throwApiError(new Error('File is required'))
+
+  return withOmrLocal(
+    () => localUploadResultSheet(examId, file, uploadedBy),
     async () => {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('uploadedBy', uploadedBy)
-      const response = await axiosInstance.post(`/api/omr/exams/${examId}/result-sheet`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const response = await axiosInstance.put(
+        `/api/omr-exams/${examId}/result-sheet`,
+        buildResultSheetFormData(file),
+        { headers: { 'Content-Type': undefined } },
+      )
       invalidateAfterMutation(examId)
       return response.data
     },
@@ -405,7 +436,7 @@ export async function deleteOmrResultSheet(examId) {
       return mapApiOmrExamToLocal(list[idx])
     },
     async () => {
-      const response = await axiosInstance.delete(`/api/omr/exams/${examId}/result-sheet`)
+      const response = await axiosInstance.delete(`/api/omr-exams/${examId}/result-sheet`)
       invalidateAfterMutation(examId)
       return response.data
     },
@@ -431,9 +462,11 @@ export async function downloadOmrResultSheet(examId) {
       return { success: true }
     },
     async () => {
-      const response = await axiosInstance.get(`/api/omr/exams/${examId}/result-sheet`, {
-        responseType: 'blob',
-      })
+      const response = await axiosInstance.post(
+        `/api/omr-exams/${examId}/result-sheet/download`,
+        { mode: 'file' },
+        { responseType: 'blob' },
+      )
 
       let fileName = parseDownloadFileName(response, '')
       if (!fileName) {

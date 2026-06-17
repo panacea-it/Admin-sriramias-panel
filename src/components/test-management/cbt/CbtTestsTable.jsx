@@ -18,14 +18,15 @@ function collectTestSeries(nodes = []) {
   return list
 }
 
-export default function CbtTestsTable({ faculty, topic, loading }) {
+export default function CbtTestsTable({ faculty, topic, tests: testsProp, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
   const tests = useMemo(() => {
+    if (Array.isArray(testsProp)) return testsProp
     const nodes = collectTestSeries(topic?.children || [])
     return nodes.map((n) => enrichCbtTestRow(n, faculty))
-  }, [topic, faculty])
+  }, [testsProp, topic, faculty])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -34,7 +35,9 @@ export default function CbtTestsTable({ faculty, topic, loading }) {
   }, [tests, search])
 
   const openResults = (test) => {
-    navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id))
+    navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id), {
+      state: { topicId: topic?.id, topicTitle: topic?.title },
+    })
   }
 
   const columns = [

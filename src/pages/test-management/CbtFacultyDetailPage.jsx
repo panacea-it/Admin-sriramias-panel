@@ -7,14 +7,16 @@ import CbtTopicsTable from '../../components/test-management/cbt/CbtTopicsTable'
 import StatCard from '../../components/dashboard/StatCard'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { getCbtFacultyBySubjectId, getCbtTopics } from '../../utils/cbtTestSeriesHierarchy'
+import { getCbtFacultyBySubjectId } from '../../utils/cbtTestSeriesHierarchy'
 import { useCbtTestSeriesHierarchy } from '../../hooks/useCbtTestSeriesHierarchy'
+import { useCbtFacultyTopics } from '../../hooks/useCbtFacultyTopics'
 import { BookOpen, ClipboardList, Users } from 'lucide-react'
 
 export default function CbtFacultyDetailPage() {
   const { subjectId } = useParams()
   const navigate = useNavigate()
   const { mappingRows, loading } = useCbtTestSeriesHierarchy()
+  const { topics, loading: topicsLoading } = useCbtFacultyTopics(subjectId)
 
   const faculty = useMemo(() => {
     const fromRows = mappingRows.find((r) => String(r.subjectId) === String(subjectId))
@@ -22,8 +24,7 @@ export default function CbtFacultyDetailPage() {
     return getCbtFacultyBySubjectId(subjectId)
   }, [mappingRows, subjectId])
 
-  const topics = useMemo(() => getCbtTopics(faculty), [faculty])
-  const totalTests = topics.reduce((s, t) => s + t.testCount, 0)
+  const totalTests = topics.reduce((s, t) => s + (t.testCount ?? 0), 0)
 
   const breadcrumbs = faculty
     ? [
@@ -77,7 +78,7 @@ export default function CbtFacultyDetailPage() {
           <p className="mb-3 text-xs text-slate-500">
             Select a topic to view tests and evaluation results.
           </p>
-          <CbtTopicsTable faculty={faculty} loading={loading} />
+          <CbtTopicsTable faculty={faculty} topics={topics} loading={topicsLoading} />
         </>
       )}
 
