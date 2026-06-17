@@ -9,16 +9,11 @@ import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import {
   downloadQuestionTemplate,
   importBulkQuestions,
-  isQuestionBankLocal,
   validateBulkQuestions,
 } from '../../api/questionBankAPI'
-import { fetchQuestions, upsertQuestion } from '../../api/testManagementAPI'
 import {
   downloadErrorReportXlsx,
-  downloadTemplateXlsx,
   isSupportedBulkFile,
-  parseBulkFileToRows,
-  validateBulkRows,
 } from '../../utils/questionBankBulkUpload'
 
 export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
@@ -28,13 +23,11 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
 
   const [validating, setValidating] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [parsedRows, setParsedRows] = useState([])
   const [validation, setValidation] = useState(null) // { results, summary }
   const [uploadSummary, setUploadSummary] = useState(null) // { summary, failedRows }
 
   const handleClose = () => {
     setFile(null)
-    setParsedRows([])
     setValidation(null)
     setUploadSummary(null)
     onClose?.()
@@ -42,7 +35,6 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
 
   const resetAll = () => {
     setFile(null)
-    setParsedRows([])
     setValidation(null)
     setUploadSummary(null)
     setDuplicateMode('skip')
@@ -59,7 +51,6 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
       return
     }
     setFile(nextFile)
-    setParsedRows([])
     setValidation(null)
     setUploadSummary(null)
   }
@@ -71,39 +62,31 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
     }
     setValidating(true)
     try {
-      if (isQuestionBankLocal()) {
-        const rows = await parseBulkFileToRows(file)
-        setParsedRows(rows)
-        const existing = await fetchQuestions({})
-        setValidation(validateBulkRows(rows, { existing, duplicateMode }))
-      } else {
-        const data = await validateBulkQuestions(file)
-        const results = [
-          ...(data.errors || []).map((e) => ({
-            rowNumber: e.row,
-            validationStatus: 'Invalid',
-            errorMessage: [e.field, e.message].filter(Boolean).join(': '),
-            shouldUpload: false,
-          })),
-          ...(data.duplicates || []).map((d) => ({
-            rowNumber: d.row ?? d.sourceRow,
-            validationStatus: 'Duplicate',
-            errorMessage: d.message || d.questionText || 'Duplicate question',
-            shouldUpload: false,
-          })),
-        ]
-        setParsedRows([])
-        setValidation({
-          canImport: Boolean(data.canImport),
-          summary: {
-            totalRows: data.totalRows ?? 0,
-            validRows: data.validRows ?? 0,
-            duplicateRows: data.duplicateRows ?? 0,
-            invalidRows: data.invalidRows ?? 0,
-          },
-          results,
-        })
-      }
+      const data = await validateBulkQuestions(file)
+      const results = [
+        ...(data.errors || []).map((e) => ({
+          rowNumber: e.row,
+          validationStatus: 'Invalid',
+          errorMessage: [e.field, e.message].filter(Boolean).join(': '),
+          shouldUpload: false,
+        })),
+        ...(data.duplicates || []).map((d) => ({
+          rowNumber: d.row ?? d.sourceRow,
+          validationStatus: 'Duplicate',
+          errorMessage: d.message || d.questionText || 'Duplicate question',
+          shouldUpload: false,
+        })),
+      ]
+      setValidation({
+        canImport: Boolean(data.canImport),
+        summary: {
+          totalRows: data.totalRows ?? 0,
+          validRows: data.validRows ?? 0,
+          duplicateRows: data.duplicateRows ?? 0,
+          invalidRows: data.invalidRows ?? 0,
+        },
+        results,
+      })
       toast.success('Validation complete')
     } catch (err) {
       toast.error(err?.message || 'Failed to validate file')
@@ -124,112 +107,29 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
 
     setUploading(true)
     try {
-      if (!isQuestionBankLocal()) {
-        if (validation.canImport === false) {
-          toast.error('Fix the invalid rows before importing')
-          setUploading(false)
-          return
-        }
-        const data = await importBulkQuestions(file, duplicateMode)
-        const failedRows = (data.errors || []).map((e) => ({
-          rowNumber: e.row,
-          validationStatus: 'Failed',
-          errorMessage: e.message,
-        }))
-        setUploadSummary({
-          summary: {
-            totalRows: validation.summary.totalRows,
-            successfullyUploaded: data.insertedCount ?? 0,
-            failedRows: data.failedCount ?? 0,
-            duplicateRows: data.duplicateCount ?? 0,
-            validationErrors: 0,
-            skippedDuplicates: data.skippedCount ?? 0,
-          },
-          failedRows,
-        })
-        toast.success(`Uploaded ${data.insertedCount ?? 0} questions`)
-        onUploaded?.()
+      if (validation.canImport === false) {
+        toast.error('Fix the invalid rows before importing')
         setUploading(false)
         return
       }
-
-      const validToUpload = validation.results.filter((r) => r.shouldUpload)
-      const invalidRows = validation.results.filter((r) => r.validationStatus === 'Invalid')
-      const duplicateRows = validation.results.filter((r) => r.validationStatus === 'Duplicate')
-      const skippedDuplicates = duplicateRows.filter((r) => !r.shouldUpload)
-
-      let successCount = 0
-      let failCount = 0
-
-      for (const row of validToUpload) {
-        try {
-          const p = row.parsed
-          const raw = p.raw || {}
-          const type = p.questionType
-          const category = type === 'Descriptive' ? 'Mains' : 'Prelims'
-
-          const content = { explanation: String(raw.explanation || '') }
-
-          if (type === 'MCQ') {
-            content.question = String(raw.questionText || '')
-            content.options = [raw.optionA, raw.optionB, raw.optionC, raw.optionD].map((x) => String(x || ''))
-            content.correctOptionIndex = Math.max(0, 'ABCD'.indexOf(String(raw.correctAnswer || '').trim().toUpperCase()))
-          } else if (type === 'Numerical') {
-            content.question = String(raw.questionText || '')
-            content.numericalAnswer = String(raw.numericalAnswer || '')
-          } else if (type === 'Descriptive') {
-            content.question = String(raw.questionText || '')
-          } else if (type === 'Assertion Reason') {
-            content.assertion = String(raw.assertion || '')
-            content.reason = String(raw.reason || '')
-            content.correctAnswer = String(raw.correctAnswer || '')
-          } else if (type === 'Match the Following') {
-            content.prompt = ''
-            content.left = String(raw.leftColumn || '')
-              .split(';')
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .slice(0, 4)
-            content.right = String(raw.rightColumn || '')
-              .split(';')
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .slice(0, 4)
-            content.mapping = []
-          }
-
-          await upsertQuestion(
-            {
-              category,
-              type,
-              subject: p.subject,
-              topic: p.topic,
-              difficulty: p.difficulty,
-              tags: p.tags,
-              status: p.status,
-              usageCount: 0,
-              content,
-            },
-            { isEdit: false },
-          )
-          successCount += 1
-        } catch {
-          failCount += 1
-        }
-      }
-
+      const data = await importBulkQuestions(file, duplicateMode)
+      const failedRows = (data.errors || []).map((e) => ({
+        rowNumber: e.row,
+        validationStatus: 'Failed',
+        errorMessage: e.message,
+      }))
       setUploadSummary({
         summary: {
           totalRows: validation.summary.totalRows,
-          successfullyUploaded: successCount,
-          failedRows: invalidRows.length + failCount,
-          duplicateRows: duplicateRows.length,
-          validationErrors: invalidRows.length,
-          skippedDuplicates: skippedDuplicates.length,
+          successfullyUploaded: data.insertedCount ?? 0,
+          failedRows: data.failedCount ?? 0,
+          duplicateRows: data.duplicateCount ?? 0,
+          validationErrors: 0,
+          skippedDuplicates: data.skippedCount ?? 0,
         },
-        failedRows: [...invalidRows],
+        failedRows,
       })
-      toast.success(`Uploaded ${successCount} questions`)
+      toast.success(`Uploaded ${data.insertedCount ?? 0} questions`)
       onUploaded?.()
     } catch (err) {
       toast.error(err?.message || 'Upload failed')
@@ -313,8 +213,7 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
                     type="button"
                     onClick={async () => {
                       try {
-                        if (isQuestionBankLocal()) await downloadTemplateXlsx(t.key)
-                        else await downloadQuestionTemplate(t.key)
+                        await downloadQuestionTemplate(t.key)
                         toast.success(`${t.title} downloaded`)
                       } catch (err) {
                         toast.error(err?.message || 'Failed to download template')
@@ -463,7 +362,7 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
                     rows={previewRows}
                     columns={previewColumns}
                     isLoading={false}
-                    emptyText={parsedRows?.length ? 'No preview rows' : 'Upload a file to preview'}
+                    emptyText="Upload a file to preview"
                     stickyHeader
                     pageSize={10}
                     resetDeps={[file?.name, duplicateMode]}

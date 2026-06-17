@@ -1,5 +1,3 @@
-import { isFrontendOnly } from '../config/appMode'
-import { TEST_CONFIG_API_DISABLED } from '../constants/testConfigurationStaticMode'
 import {
   SEED_EXAM_PATTERNS,
   SEED_LANGUAGES,
@@ -32,10 +30,6 @@ const KEYS = {
 
 function delay(ms = DELAY_MS) {
   return new Promise((r) => setTimeout(r, ms))
-}
-
-function useLocalTestConfigOnly() {
-  return TEST_CONFIG_API_DISABLED
 }
 
 function safeJsonParse(value, fallback) {
@@ -206,10 +200,10 @@ async function apiCall(method, path, { params, payload } = {}) {
   return null
 }
 
-function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath) {
+function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath, { localOnly = false } = {}) {
   return {
     fetch: async (params = {}) => {
-      if (useLocalTestConfigOnly()) return _fetchLocal(params)
+      if (localOnly) return _fetchLocal(params)
       try {
         const response = await apiCall('get', basePath, { params })
         const body = response.data
@@ -219,7 +213,7 @@ function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath) {
       }
     },
     upsert: async (payload, meta) => {
-      if (useLocalTestConfigOnly()) return upsertLocal(payload, meta)
+      if (localOnly) return upsertLocal(payload, meta)
       try {
         if (meta?.isEdit && meta?.id) {
           const response = await apiCall('put', `${basePath}/${meta.id}`, { payload })
@@ -232,7 +226,7 @@ function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath) {
       }
     },
     remove: async (id) => {
-      if (useLocalTestConfigOnly()) return deleteLocal(id)
+      if (localOnly) return deleteLocal(id)
       try {
         await apiCall('delete', `${basePath}/${id}`)
       } catch (err) {
@@ -487,10 +481,6 @@ async function deleteLanguageLocal(id) {
 }
 
 async function fetchSectionConfigs(params = {}) {
-  if (useLocalTestConfigOnly()) {
-    const rows = await fetchSectionConfigsLocal(params)
-    return normalizeSectionList(rows)
-  }
   try {
     const preset = presetFromSort(params.sortBy, params.sortDir, 'sectionName')
     return await fetchListFromApi(SECTION_PATH, params, preset, mapApiSection)
@@ -500,10 +490,6 @@ async function fetchSectionConfigs(params = {}) {
 }
 
 async function upsertSectionConfig(payload, meta) {
-  if (useLocalTestConfigOnly()) {
-    const saved = await upsertSectionConfigLocal(payload, meta)
-    return normalizeSectionRow(saved)
-  }
   const body = {
     sectionName: String(payload.sectionName || '').trim(),
     status: uiStatusToApi(payload.status) || 'ACTIVE',
@@ -521,11 +507,6 @@ async function upsertSectionConfig(payload, meta) {
 }
 
 async function deleteSectionConfig(id) {
-  if (useLocalTestConfigOnly()) {
-    await deleteSectionConfigLocal(id)
-    notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
-    return
-  }
   try {
     await apiCall('delete', `${SECTION_PATH}/${id}`)
     notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
@@ -538,9 +519,9 @@ const markingRuleApi = wrapApi(
   markingRuleCrud.upsertLocal,
   markingRuleCrud.deleteLocal,
   '/test-management/marking-rules',
+  { localOnly: true },
 )
 export async function fetchLanguages(params = {}) {
-  if (useLocalTestConfigOnly()) return fetchLanguagesLocal(params)
   try {
     const preset = presetFromSort(params.sortBy, params.sortDir, 'languageName')
     return await fetchListFromApi(LANGUAGE_PATH, params, preset, mapApiLanguage)
@@ -550,7 +531,6 @@ export async function fetchLanguages(params = {}) {
 }
 
 export async function upsertLanguage(payload, meta) {
-  if (useLocalTestConfigOnly()) return upsertLanguageLocal(payload, meta)
   const body = {
     languageName: String(payload.languageName || '').trim(),
     status: uiStatusToApi(payload.status) || 'ACTIVE',
@@ -568,11 +548,6 @@ export async function upsertLanguage(payload, meta) {
 }
 
 export async function deleteLanguage(id) {
-  if (useLocalTestConfigOnly()) {
-    await deleteLanguageLocal(id)
-    notifyTestConfigurationUpdated({ entity: 'languages' })
-    return
-  }
   try {
     await apiCall('delete', `${LANGUAGE_PATH}/${id}`)
     notifyTestConfigurationUpdated({ entity: 'languages' })
@@ -582,7 +557,6 @@ export async function deleteLanguage(id) {
 }
 
 export async function fetchExamPatterns(params = {}) {
-  if (useLocalTestConfigOnly()) return fetchExamPatternsLocal(params)
   try {
     const preset = presetFromSort(params.sortBy, params.sortDir, null)
     return await fetchListFromApi(EXAM_PATTERN_PATH, params, preset, mapApiExamPattern)
@@ -592,7 +566,6 @@ export async function fetchExamPatterns(params = {}) {
 }
 
 export async function upsertExamPattern(payload, meta) {
-  if (useLocalTestConfigOnly()) return upsertExamPatternLocal(payload, meta)
   const body = {
     instructionDescription: String(payload.instructionDescription || '').trim(),
     status: uiStatusToApi(payload.status) || 'ACTIVE',
@@ -610,11 +583,6 @@ export async function upsertExamPattern(payload, meta) {
 }
 
 export async function deleteExamPattern(id) {
-  if (useLocalTestConfigOnly()) {
-    await deleteExamPatternLocal(id)
-    notifyTestConfigurationUpdated({ entity: 'examPatterns' })
-    return
-  }
   try {
     await apiCall('delete', `${EXAM_PATTERN_PATH}/${id}`)
     notifyTestConfigurationUpdated({ entity: 'examPatterns' })
@@ -629,7 +597,7 @@ export const fetchMarkingRules = markingRuleApi.fetch
 export const upsertMarkingRule = markingRuleApi.upsert
 export const deleteMarkingRule = markingRuleApi.remove
 
-/** Local-only helpers — used by testConfigurationStaticService while API integration is disabled. */
+/** Local-only helpers — used by marking rules (no backend API yet). */
 export {
   fetchExamPatternsLocal,
   upsertExamPatternLocal,

@@ -1,5 +1,5 @@
 /**
- * Temporary flag: Test Configuration UI uses local seed/storage only.
- * Set to `false` to restore HTTP integration via examPatternService + testConfigurationAPI.
+ * Marking rules still use local seed/storage — no backend route yet.
+ * Exam patterns, sections, and languages always call /api/test-configuration/*.
  */
 export const TEST_CONFIG_API_DISABLED = false

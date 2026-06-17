@@ -7,7 +7,7 @@ import BatchFormStickyFooter from '../courses/batch-form/BatchFormStickyFooter'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import QuestionFilterToolbar from './QuestionFilterToolbar'
 import { StatusBadge } from '../academics/AcademicsUi'
-import { fetchQuestions } from '../../api/testManagementAPI'
+import { fetchQuestions } from '../../api/questionBankAPI'
 import { QUESTION_DIFFICULTIES, QUESTION_STATUSES, QUESTION_TYPES } from '../../data/testManagementSeed'
 
 function uniqueSorted(values) {

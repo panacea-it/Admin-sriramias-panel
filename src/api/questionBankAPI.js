@@ -1,27 +1,13 @@
 import api from './axiosInstance'
-import { isFrontendOnly } from '../config/appMode'
 import { getApiErrorMessage } from '../utils/apiError'
-import {
-  fetchQuestions as fetchQuestionsLocal,
-  upsertQuestion as upsertQuestionLocal,
-  deleteQuestion as deleteQuestionLocal,
-} from './testManagementAPI'
 
 /**
  * Question Bank API integration (backend: /api/question-bank).
  * Mirrors the Test Configuration pattern: a single module with enum mappers
  * between the UI shape (nested `content`, "Active"/"Easy"/"MCQ") and the flat
  * form-data backend shape ("ACTIVE"/"EASY"/"MCQ", optionA-D, matchData, ...).
- *
- * Flip QUESTION_BANK_API_DISABLED to true (or set VITE_FRONTEND_ONLY) to fall
- * back to the local seed/localStorage store in testManagementAPI.
  */
-export const QUESTION_BANK_API_DISABLED = false
 const QB_PATH = '/question-bank'
-
-export function isQuestionBankLocal() {
-  return QUESTION_BANK_API_DISABLED
-}
 
 /* --------------------------------- enums ---------------------------------- */
 
@@ -245,7 +231,6 @@ function triggerBlobDownload(blob, filename) {
 /* ------------------------------ list / CRUD ------------------------------- */
 
 export async function fetchQuestions(params = {}) {
-  if (isQuestionBankLocal()) return fetchQuestionsLocal(params)
   try {
     const response = await api.get(QB_PATH, { params: buildListParams(params) })
     const body = response.data
@@ -257,16 +242,15 @@ export async function fetchQuestions(params = {}) {
 }
 
 export async function getQuestionById(id) {
-  if (isQuestionBankLocal()) {
-    const list = await fetchQuestionsLocal({})
-    return list.find((q) => String(q.id) === String(id)) || null
+  try {
+    const response = await api.get(`${QB_PATH}/${id}`)
+    return mapApiQuestionToLocal(response.data?.data ?? response.data)
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err) || 'Failed to load question')
   }
-  const response = await api.get(`${QB_PATH}/${id}`)
-  return mapApiQuestionToLocal(response.data?.data ?? response.data)
 }
 
 export async function upsertQuestion(payload, meta = {}) {
-  if (isQuestionBankLocal()) return upsertQuestionLocal(payload, meta)
   try {
     const formData = buildQuestionFormData(payload)
     const response =
@@ -280,7 +264,6 @@ export async function upsertQuestion(payload, meta = {}) {
 }
 
 export async function deleteQuestion(id) {
-  if (isQuestionBankLocal()) return deleteQuestionLocal(id)
   try {
     await api.delete(`${QB_PATH}/${id}`)
   } catch (err) {
@@ -289,9 +272,6 @@ export async function deleteQuestion(id) {
 }
 
 export async function updateQuestionStatus(id, statusUi) {
-  if (isQuestionBankLocal()) {
-    return upsertQuestionLocal({ status: statusUi }, { isEdit: true, id })
-  }
   try {
     const response = await api.patch(`${QB_PATH}/${id}/status`, { status: statusUiToApi(statusUi) })
     return mapApiQuestionToLocal(response.data?.data ?? response.data)
@@ -301,15 +281,6 @@ export async function updateQuestionStatus(id, statusUi) {
 }
 
 export async function duplicateQuestion(id) {
-  if (isQuestionBankLocal()) {
-    const list = await fetchQuestionsLocal({})
-    const row = list.find((q) => String(q.id) === String(id))
-    if (!row) return null
-    const { id: _omit, questionCode: _omitCode, ...rest } = row
-    void _omit
-    void _omitCode
-    return { ...rest, status: 'Active' }
-  }
   try {
     const response = await api.post(`${QB_PATH}/${id}/duplicate`)
     const prefill = mapApiQuestionToLocal(response.data?.data ?? response.data) || {}
@@ -324,12 +295,6 @@ export async function duplicateQuestion(id) {
 /* ------------------------------- analytics -------------------------------- */
 
 export async function getQuestionAnalytics(params = {}) {
-  if (isQuestionBankLocal()) {
-    const rows = await fetchQuestionsLocal(params)
-    const easyCount = rows.filter((r) => r.difficulty === 'Easy').length
-    const mediumHardCount = rows.filter((r) => r.difficulty === 'Medium' || r.difficulty === 'Hard').length
-    return { totalQuestions: rows.length, easyCount, mediumHardCount }
-  }
   try {
     const query = buildListParams(params)
     delete query.page
@@ -341,8 +306,8 @@ export async function getQuestionAnalytics(params = {}) {
       easyCount: Number(data.easyCount ?? 0) || 0,
       mediumHardCount: Number(data.mediumHardCount ?? 0) || 0,
     }
-  } catch {
-    return { totalQuestions: 0, easyCount: 0, mediumHardCount: 0 }
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err) || 'Failed to load question analytics')
   }
 }
 
@@ -355,20 +320,6 @@ function extractArray(response) {
 }
 
 export async function getQuestionFilterOptions({ subject } = {}) {
-  if (isQuestionBankLocal()) {
-    const rows = await fetchQuestionsLocal({})
-    const subjects = Array.from(new Set(rows.map((r) => r.subject).filter(Boolean))).sort()
-    const topics = Array.from(
-      new Set(
-        rows
-          .filter((r) => !subject || subject === 'all' || r.subject === subject)
-          .map((r) => r.topic)
-          .filter(Boolean),
-      ),
-    ).sort()
-    const tags = Array.from(new Set(rows.flatMap((r) => r.tags || []).filter(Boolean))).sort()
-    return { subjects, topics, tags }
-  }
   try {
     const topicParams = subject && subject !== 'all' ? { params: { subject } } : undefined
     const [subjectsRes, topicsRes, tagsRes] = await Promise.all([
@@ -381,8 +332,8 @@ export async function getQuestionFilterOptions({ subject } = {}) {
       topics: extractArray(topicsRes).filter(Boolean),
       tags: extractArray(tagsRes).flat().filter(Boolean),
     }
-  } catch {
-    return { subjects: [], topics: [], tags: [] }
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err) || 'Failed to load filter options')
   }
 }
 
