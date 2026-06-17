@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, CheckSquare, Trash2 } from 'lucide-react'
+import { Ban, CheckCircle2, CheckSquare } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export default function ProgramsBulkActionsBar({
@@ -8,7 +8,6 @@ export default function ProgramsBulkActionsBar({
   onClearSelection,
   onEnable,
   onDisable,
-  onDelete,
   className,
 }) {
   if (!count) return null
@@ -56,14 +55,6 @@ export default function ProgramsBulkActionsBar({
         >
           <Ban className="h-3.5 w-3.5" strokeWidth={2.4} />
           Disable Selected
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#dc2626] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#b91c1c] sm:text-sm"
-        >
-          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Delete Selected
         </button>
       </div>
     </div>

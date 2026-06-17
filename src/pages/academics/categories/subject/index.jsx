@@ -347,7 +347,6 @@ export default function SubjectSection({ section }) {
           onClearSelection={() => setSelectedIds([])}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (

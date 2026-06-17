@@ -1,5 +1,6 @@
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { cn } from '../../utils/cn'
+import { getTop10RowClassName } from './rankManagementDisplay'
 
 export default function RankManagementTable({
   columns,
@@ -22,8 +23,9 @@ export default function RankManagementTable({
       skeletonRowCount={8}
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"
+      getRowClassName={getTop10RowClassName}
       tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={1180}
+      tableMinWidth={1320}
       gradientActivePage
       className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
       paginationClassName={cn(

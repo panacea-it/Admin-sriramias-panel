@@ -80,6 +80,24 @@ function NoMatchesState() {
   )
 }
 
+const PROGRAM_STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Status' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'INACTIVE', label: 'Inactive' },
+]
+
+function statusFilterToSelectValue(statusFilter) {
+  if (statusFilter === 'Active') return 'ACTIVE'
+  if (statusFilter === 'In Active') return 'INACTIVE'
+  return 'all'
+}
+
+function selectValueToStatusFilter(value) {
+  if (value === 'ACTIVE') return 'Active'
+  if (value === 'INACTIVE') return 'In Active'
+  return 'all'
+}
+
 export default function ProgramsPage() {
   const { activeCenters } = useCenters()
   const modal = useEditModal()
@@ -124,7 +142,13 @@ export default function ProgramsPage() {
   )
 
   const centreFilterOptions = useMemo(
-    () => [{ value: 'all', label: 'Centre Wise' }, ...centerDropdownOptions],
+    () => [
+      { value: 'all', label: 'Centre Wise' },
+      ...centerDropdownOptions.map((opt) => ({
+        value: opt.value,
+        label: opt.centerName || opt.label,
+      })),
+    ],
     [centerDropdownOptions],
   )
 
@@ -475,8 +499,9 @@ export default function ProgramsPage() {
           centre={centreFilter}
           onCentreChange={(e) => setCentreFilter(e.target.value)}
           centreOptions={centreFilterOptions}
-          status={statusFilter}
-          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          status={statusFilterToSelectValue(statusFilter)}
+          onStatusChange={(e) => setStatusFilter(selectValueToStatusFilter(e.target.value))}
+          statusOptions={PROGRAM_STATUS_FILTER_OPTIONS}
         />
 
         <ProgramsBulkActionsBar
@@ -486,7 +511,6 @@ export default function ProgramsPage() {
           onClearSelection={() => setSelectedIds([])}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading && (

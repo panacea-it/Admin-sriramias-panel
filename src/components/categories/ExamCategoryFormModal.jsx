@@ -96,7 +96,7 @@ export default function ExamCategoryFormModal({
         {
           centerId: form.centerId,
           centerMongoId: centre?.mongoId || form.centerId,
-          centerName: centre?.label || '',
+          centerName: centre?.centerName || centre?.label || '',
           programId: program?.businessProgramId || form.programId,
           programMongoId: program?.mongoId || form.programId,
           program: program?.label || '',

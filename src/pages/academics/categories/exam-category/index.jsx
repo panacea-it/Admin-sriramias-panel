@@ -36,6 +36,7 @@ import { cn } from '../../../../utils/cn'
 import {
   buildExamCategoryApiPayload,
   mapApiExamCategoryToLocal,
+  mapCentreDropdownDisplayOptions,
 } from '../../../../utils/examCategoryApiHelpers'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
 import {
@@ -104,11 +105,17 @@ export default function ExamCategorySection({ section }) {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreOptions = useMemo(
-    () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
+    () => [
+      { value: 'all', label: 'Center' },
+      ...mapCentreDropdownDisplayOptions(centreDropdownOptions),
+    ],
     [centreDropdownOptions],
   )
 
-  const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
+  const centreFormOptions = useMemo(
+    () => mapCentreDropdownDisplayOptions(centreDropdownOptions),
+    [centreDropdownOptions],
+  )
 
   const programFilterOptions = useMemo(() => {
     const programs = [...new Set(categories.map((row) => row.program).filter(Boolean))].sort()
@@ -502,7 +509,6 @@ export default function ExamCategorySection({ section }) {
           disableCount={disableableCount}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (

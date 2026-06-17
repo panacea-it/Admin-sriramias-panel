@@ -7,6 +7,7 @@ import SectionBar from '../courses/SectionBar'
 import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
 import CentreMultiSelect from './CentreMultiSelect'
+import { formatCategoryStatusDisplayLabel } from '../../utils/categoryStatusHelpers'
 import { mapApiStatusToUi } from '../../utils/programHelpers'
 import { toast } from '../../utils/toast'
 
@@ -171,8 +172,8 @@ export default function ProgramFormModal({
                   disabled={submitting}
                   className="h-11 w-full rounded-xl border border-[#e5e7eb] bg-white px-4 text-sm font-medium text-[#111] outline-none focus:ring-2 focus:ring-[#55ace7]/40"
                 >
-                  <option value="Active">Active</option>
-                  <option value="In Active">In Active</option>
+                  <option value="Active">{formatCategoryStatusDisplayLabel('Active')}</option>
+                  <option value="In Active">{formatCategoryStatusDisplayLabel('In Active')}</option>
                 </select>
               </CourseFormField>
               {errors.status && (

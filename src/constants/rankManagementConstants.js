@@ -132,6 +132,8 @@ const SEED_RANKS = [
 export function enrichRankerSeedRow(row, index) {
   const createdAt = new Date(Date.now() - index * 86400000).toISOString()
   const created = new Date(createdAt)
+  const isActive = row.status !== 'Inactive'
+  const top10SeedOrder = isActive && index >= 1 && index <= 3 ? index : null
 
   return {
     ...row,
@@ -140,7 +142,8 @@ export function enrichRankerSeedRow(row, index) {
     program: SEED_PROGRAMS[index % SEED_PROGRAMS.length],
     course: SEED_COURSES[index % SEED_COURSES.length],
     rank: SEED_RANKS[index % SEED_RANKS.length],
-    isTop10: index < 3,
+    isTop10: top10SeedOrder != null,
+    displayOrder: top10SeedOrder,
     createdAt,
     time: created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
     date: created.toLocaleDateString(undefined, {

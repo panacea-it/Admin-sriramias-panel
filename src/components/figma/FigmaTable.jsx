@@ -88,6 +88,7 @@ export default function FigmaTable({
   emptyState,
   className,
   rowClassName,
+  getRowClassName,
   density = 'default',
   zebraStriping = false,
   loading = false,
@@ -211,7 +212,14 @@ export default function FigmaTable({
   const bodyRows =
     !loading &&
     data.map((row, idx) => {
-      const rowBg = zebraStriping ? (idx % 2 === 0 ? 'bg-white' : 'bg-[#F8FBFF]') : 'bg-white'
+      const customRowClass = getRowClassName?.(row)
+      const rowBg = customRowClass
+        ? undefined
+        : zebraStriping
+          ? idx % 2 === 0
+            ? 'bg-white'
+            : 'bg-[#F8FBFF]'
+          : 'bg-white'
 
       return (
         <tr
@@ -223,7 +231,8 @@ export default function FigmaTable({
             rowBg,
             animateRows && 'animate-[fadeInRow_0.35s_ease-out_both]',
             onRowClick && 'cursor-pointer',
-            rowClassName,
+            typeof rowClassName === 'function' ? rowClassName(row) : rowClassName,
+            customRowClass,
           )}
           style={animateRows ? { animationDelay: `${Math.min(idx, 12) * 40}ms` } : undefined}
           onClick={onRowClick ? () => onRowClick(row) : undefined}

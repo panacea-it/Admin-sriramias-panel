@@ -12,6 +12,7 @@ export default function PaginatedFigmaTable({
   emptyState,
   className,
   rowClassName,
+  getRowClassName,
   itemLabel = 'records',
   initialPageSize = 10,
   resetDeps = [],
@@ -123,6 +124,7 @@ export default function PaginatedFigmaTable({
         emptyMessage={emptyMessage}
         emptyState={emptyState}
         rowClassName={rowClassName}
+        getRowClassName={getRowClassName}
         density={density}
         className={cn(
           'min-h-0 shrink-0 rounded-none shadow-none',

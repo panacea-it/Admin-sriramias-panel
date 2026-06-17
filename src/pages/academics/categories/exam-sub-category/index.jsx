@@ -548,7 +548,6 @@ export default function ExamSubCategorySection({ section }) {
           onClearSelection={clearSelection}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (

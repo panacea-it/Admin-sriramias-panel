@@ -389,7 +389,6 @@ export default function TopicSection({ section }) {
           onClearSelection={() => setSelectedIds([])}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (

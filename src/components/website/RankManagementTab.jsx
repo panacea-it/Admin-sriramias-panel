@@ -6,6 +6,13 @@ import WebsiteFormModal from './WebsiteFormModal'
 import RankManagementTable from './RankManagementTable'
 import RankManagementImageCell from './RankManagementImageCell'
 import RankerRowActions from './RankerRowActions'
+import RankTop10Badge from './RankTop10Badge'
+import {
+  getNextDisplayOrder,
+  isActiveTop10Ranker,
+  sortRankersForDisplay,
+  TOP10_INACTIVE_MESSAGE,
+} from './rankManagementDisplay'
 import ConfirmDeleteDialog from '../subjects/ConfirmDeleteDialog'
 import {
   WebsiteField,
@@ -47,11 +54,14 @@ function resolveRankerCreatedAt(row, index = 0) {
 function normalizeRanker(row, index = 0) {
   const createdAt = resolveRankerCreatedAt(row, index)
   const created = new Date(createdAt)
+  const isActive = row.status !== 'Inactive'
+  const isTop10 = isActive ? Boolean(row.isTop10) : false
 
   return {
     ...row,
     studentId: row.studentId || `STU-${row.id}`,
-    isTop10: Boolean(row.isTop10),
+    isTop10,
+    displayOrder: isTop10 ? row.displayOrder ?? null : null,
     createdAt,
     time: row.time || created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
     date:
@@ -76,6 +86,7 @@ const emptyRankForm = () => ({
   rank: '',
   image: '',
   status: 'Active',
+  displayOrder: '',
 })
 
 function formFromRow(row) {
@@ -87,6 +98,7 @@ function formFromRow(row) {
     rank: row.rank || '',
     image: row.imageUrl || '',
     status: row.status || 'Active',
+    displayOrder: row.displayOrder ?? '',
   }
 }
 
@@ -111,16 +123,6 @@ function formatCreatedOn(row) {
     })
   }
   return row.date || '—'
-}
-
-function Top10Badge() {
-  return (
-    <span
-      className="inline-flex min-w-[72px] shrink-0 items-center justify-center rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 ring-1 ring-inset ring-amber-500/25"
-    >
-      Top 10
-    </span>
-  )
 }
 
 function RankBadge({ rank }) {
@@ -166,8 +168,19 @@ export default function RankManagementTab() {
 
   const clearFormErrors = () => setFormErrors({})
 
-  const top10Count = useMemo(() => rankers.filter((r) => r.isTop10).length, [rankers])
+  const top10Count = useMemo(
+    () => rankers.filter((row) => isActiveTop10Ranker(row)).length,
+    [rankers],
+  )
   const top10LimitReached = top10Count >= MAX_TOP10_RANKERS
+
+  const editingRow = useMemo(
+    () => (editingId ? rankers.find((row) => row.id === editingId) : null),
+    [editingId, rankers],
+  )
+
+  const showDisplayOrderField =
+    Boolean(editingRow?.isTop10) && rankForm.status === 'Active'
 
   const courseOptions = useMemo(
     () => getCoursesForProgram(rankForm.program),
@@ -176,7 +189,7 @@ export default function RankManagementTab() {
 
   const filteredRankers = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rankers.filter((row) => {
+    const filtered = rankers.filter((row) => {
       const matchSearch =
         !q ||
         row.id.includes(q) ||
@@ -189,6 +202,7 @@ export default function RankManagementTab() {
       const matchStatus = statusFilter === 'all' || row.status === statusFilter
       return matchSearch && matchDate && matchStatus
     })
+    return sortRankersForDisplay(filtered)
   }, [rankers, search, selectedDate, statusFilter])
 
   const openAddRank = () => {
@@ -215,13 +229,25 @@ export default function RankManagementTab() {
     const row = rankers.find((r) => r.id === rowId)
     if (!row) return
 
+    if (row.status !== 'Active') {
+      toast.error(TOP10_INACTIVE_MESSAGE)
+      return
+    }
+
     if (!row.isTop10 && top10Count >= MAX_TOP10_RANKERS) {
       toast.error('Maximum 10 Top Rankers allowed.')
       return
     }
 
     setRankers((prev) =>
-      prev.map((r) => (r.id === rowId ? { ...r, isTop10: !r.isTop10 } : r)),
+      prev.map((r) => {
+        if (r.id !== rowId) return r
+        if (r.isTop10) {
+          return { ...r, isTop10: false, displayOrder: null }
+        }
+        const nextOrder = getNextDisplayOrder(prev)
+        return { ...r, isTop10: true, displayOrder: nextOrder }
+      }),
     )
     toast.success(row.isTop10 ? 'Top 10 tag removed' : 'Marked as Top 10 Ranker')
   }
@@ -229,7 +255,17 @@ export default function RankManagementTab() {
   const changeStatus = (row, newStatus) => {
     if (row.status === newStatus) return
     setRankers((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r)),
+      prev.map((r) =>
+        r.id === row.id
+          ? {
+              ...r,
+              status: newStatus,
+              ...(newStatus === 'Inactive'
+                ? { isTop10: false, displayOrder: null }
+                : {}),
+            }
+          : r,
+      ),
     )
     toast.success(`Status updated to ${newStatus}`)
   }
@@ -249,14 +285,19 @@ export default function RankManagementTab() {
   }
 
   const saveRank = () => {
-    const errors = validateRankerForm(rankForm)
+    const existing = rankers.find((r) => r.id === editingId)
+    const effectiveTop10 = rankForm.status === 'Active' && Boolean(existing?.isTop10)
+    const errors = validateRankerForm(rankForm, {
+      isTop10: effectiveTop10,
+      editingId,
+      rankers,
+    })
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       toast.error('Please fix the highlighted fields')
       return
     }
 
-    const existing = rankers.find((r) => r.id === editingId)
     const payload = {
       id: existing?.id || nextRankerId(),
       studentId: rankForm.studentId.trim(),
@@ -274,7 +315,8 @@ export default function RankManagementTab() {
           year: 'numeric',
         }),
       status: rankForm.status,
-      isTop10: existing?.isTop10 ?? false,
+      isTop10: effectiveTop10,
+      displayOrder: effectiveTop10 ? Number(rankForm.displayOrder) : null,
       createdAt: existing?.createdAt || new Date().toISOString(),
     }
 
@@ -307,7 +349,7 @@ export default function RankManagementTab() {
         render: (row) => (
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold text-[#111]">{row.name}</span>
-            {row.isTop10 && <Top10Badge />}
+            {isActiveTop10Ranker(row) && <RankTop10Badge size="sm" />}
           </div>
         ),
       },
@@ -340,6 +382,21 @@ export default function RankManagementTab() {
         render: (row) => <RankBadge rank={row.rank} />,
       },
       {
+        key: 'displayOrder',
+        label: 'Display Order',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap text-center',
+        align: 'center',
+        render: (row) =>
+          isActiveTop10Ranker(row) ? (
+            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200/80">
+              {row.displayOrder ?? '—'}
+            </span>
+          ) : (
+            <span className="text-sm text-[#9ca0a8]">—</span>
+          ),
+      },
+      {
         key: 'status',
         label: 'Status',
         headerClassName: 'min-w-[110px] whitespace-nowrap',
@@ -361,11 +418,13 @@ export default function RankManagementTab() {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: 'min-w-[280px] whitespace-nowrap pr-4 text-right sm:pr-6',
+        width: 420,
+        headerClassName: 'min-w-[420px] whitespace-nowrap pr-4 text-right sm:pr-6',
         cellClassName:
-          'min-w-[280px] whitespace-nowrap align-middle pr-4 text-right sm:pr-6',
+          'min-w-[420px] whitespace-nowrap align-middle pr-4 text-right sm:pr-6',
         render: (row) => (
-          <RankerRowActions
+          <div className="flex items-center justify-end">
+            <RankerRowActions
             rowName={row.name}
             status={row.status}
             isTop10={row.isTop10}
@@ -375,7 +434,8 @@ export default function RankManagementTab() {
             onStatusChange={(newStatus) => changeStatus(row, newStatus)}
             onToggleTop10={() => toggleTop10(row.id)}
             onDelete={() => setDeleteTarget(row)}
-          />
+            />
+          </div>
         ),
       },
     ],
@@ -443,6 +503,15 @@ export default function RankManagementTab() {
           }}
           onSave={saveRank}
         >
+          {isActiveTop10Ranker(editingRow) && (
+            <div className="mb-5 flex items-center gap-3 rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 via-amber-50/60 to-white px-4 py-3">
+              <RankTop10Badge />
+              <p className="text-sm font-medium text-amber-900">
+                This ranker is featured in the Top 10 list on the website
+                {editingRow.displayOrder ? ` (Display Order ${editingRow.displayOrder})` : ''}.
+              </p>
+            </div>
+          )}
           <div className="grid gap-6 sm:grid-cols-2">
             <WebsiteField label="Program" required>
               <select
@@ -546,14 +615,54 @@ export default function RankManagementTab() {
                 id="ranker-status"
                 value={rankForm.status}
                 onChange={(e) => {
-                  setRankForm((f) => ({ ...f, status: e.target.value }))
+                  const status = e.target.value
+                  setRankForm((f) => ({
+                    ...f,
+                    status,
+                    ...(status === 'Inactive' ? { displayOrder: '' } : {}),
+                  }))
                   clearFieldError('status')
+                  clearFieldError('displayOrder')
                 }}
                 required
                 className={formErrors.status ? inputErrorClass : undefined}
               />
               <FieldError message={formErrors.status} />
+              {editingRow?.isTop10 && rankForm.status === 'Inactive' && (
+                <p className="mt-1.5 text-xs font-medium text-amber-800">
+                  Inactive rankers are removed from the Top 10 list when saved.
+                </p>
+              )}
             </WebsiteField>
+
+            {showDisplayOrderField && (
+              <WebsiteField label="Display Order" required>
+                <select
+                  value={rankForm.displayOrder}
+                  onChange={(e) => {
+                    setRankForm((f) => ({ ...f, displayOrder: e.target.value }))
+                    clearFieldError('displayOrder')
+                  }}
+                  aria-invalid={Boolean(formErrors.displayOrder)}
+                  className={cn(
+                    websiteInputClass,
+                    'cursor-pointer',
+                    formErrors.displayOrder && inputErrorClass,
+                  )}
+                >
+                  <option value="">Select order (1–10)</option>
+                  {Array.from({ length: 10 }, (_, index) => index + 1).map((order) => (
+                    <option key={order} value={order}>
+                      {order}
+                    </option>
+                  ))}
+                </select>
+                <FieldError message={formErrors.displayOrder} />
+                <p className="mt-1.5 text-xs text-[#686868]">
+                  Lower numbers appear first in the Top 10 list on the website.
+                </p>
+              </WebsiteField>
+            )}
 
             <WebsiteField label="Image Upload" required className="sm:col-span-2">
               <WebsiteImageInput
@@ -605,7 +714,7 @@ export default function RankManagementTab() {
                   <p className="text-sm text-[#686868]">{viewTarget.studentId}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <WebsiteStatusBadge status={viewTarget.status} />
-                    {viewTarget.isTop10 && <Top10Badge />}
+                    {isActiveTop10Ranker(viewTarget) && <RankTop10Badge />}
                   </div>
                 </div>
               </div>
@@ -615,6 +724,9 @@ export default function RankManagementTab() {
                   ['Program', viewTarget.program],
                   ['Course', viewTarget.course],
                   ['Rank', viewTarget.rank],
+                  ...(isActiveTop10Ranker(viewTarget)
+                    ? [['Display Order', viewTarget.displayOrder ?? '—']]
+                    : []),
                   ['Created On', formatCreatedOn(viewTarget)],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg bg-[#f4f8fc] px-4 py-3">

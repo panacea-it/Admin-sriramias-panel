@@ -152,3 +152,25 @@ export function formatProgramOptionLabel(program) {
   if (code && name) return `${code} - ${name}`
   return name || code || ''
 }
+
+/** UI-only centre name for dropdowns (keeps value/metadata; strips code, city, state from label). */
+export function getCentreDropdownDisplayName(opt) {
+  const direct = String(opt?.centerName || opt?.name || '').trim()
+  if (direct) return direct
+
+  const label = String(opt?.label || '').trim()
+  if (!label) return ''
+
+  return label.split(/[(•]/)[0].trim()
+}
+
+export function mapCentreDropdownDisplayOption(opt) {
+  return {
+    ...opt,
+    label: getCentreDropdownDisplayName(opt),
+  }
+}
+
+export function mapCentreDropdownDisplayOptions(options = []) {
+  return (Array.isArray(options) ? options : []).map(mapCentreDropdownDisplayOption)
+}

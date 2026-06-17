@@ -380,7 +380,6 @@ export default function TeacherSection({ section }) {
           onClearSelection={() => setSelectedIds([])}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
-          onDelete={handleBulkDeleteRequest}
         />
 
         {loading ? (

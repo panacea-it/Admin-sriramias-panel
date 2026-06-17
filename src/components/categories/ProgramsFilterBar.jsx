@@ -1,7 +1,8 @@
 import { Search, ChevronDown, MapPin } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { formatCategoryStatusDisplayLabel } from '../../utils/categoryStatusHelpers'
 
-function FilterSelect({ label, value, onChange, options, icon: Icon }) {
+function FilterSelect({ label, value, onChange, options, icon: Icon, formatOptionLabel }) {
   return (
     <div className="relative w-full sm:w-auto sm:min-w-[160px]">
       {Icon && (
@@ -18,7 +19,7 @@ function FilterSelect({ label, value, onChange, options, icon: Icon }) {
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
-            {opt.label}
+            {formatOptionLabel ? formatOptionLabel(opt) : opt.label}
           </option>
         ))}
       </select>
@@ -30,8 +31,11 @@ function FilterSelect({ label, value, onChange, options, icon: Icon }) {
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'In Active' },
+  { value: 'In Active', label: 'Inactive' },
 ]
+
+const formatStatusOptionLabel = (opt) =>
+  formatCategoryStatusDisplayLabel(opt.label ?? opt.value)
 
 export default function ProgramsFilterBar({
   search,
@@ -45,6 +49,7 @@ export default function ProgramsFilterBar({
   programOptions,
   status,
   onStatusChange,
+  statusOptions = STATUS_OPTIONS,
 }) {
   return (
     <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:px-4">
@@ -79,7 +84,8 @@ export default function ProgramsFilterBar({
             label="Status"
             value={status}
             onChange={onStatusChange}
-            options={STATUS_OPTIONS}
+            options={statusOptions}
+            formatOptionLabel={formatStatusOptionLabel}
           />
         )}
       </div>

@@ -415,7 +415,6 @@ export default function ClassRoomsPage() {
         onClearSelection={clearSelection}
         onEnable={handleBulkEnableRequest}
         onDisable={handleBulkDisableRequest}
-        onDelete={handleBulkDeleteRequest}
       />
 
       {tableLoading ? (

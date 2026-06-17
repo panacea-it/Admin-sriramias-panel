@@ -1,8 +1,13 @@
 import { cn } from '../../utils/cn'
+import {
+  formatCategoryStatusDisplayLabel,
+  isCategoryStatusActive,
+} from '../../utils/categoryStatusHelpers'
 
 export default function CategoryStatusBadge({ status }) {
-  const active = status === 'Active'
-  const label = status === 'In Active' ? 'Inactive' : status
+  const active = isCategoryStatusActive(status)
+  const label = formatCategoryStatusDisplayLabel(status)
+
   return (
     <span
       className={cn(

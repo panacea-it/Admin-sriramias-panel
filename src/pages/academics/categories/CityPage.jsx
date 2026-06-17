@@ -384,7 +384,6 @@ export default function CityPage() {
         onClearSelection={() => setSelectedIds([])}
         onEnable={handleBulkEnableRequest}
         onDisable={handleBulkDisableRequest}
-        onDelete={handleBulkDeleteRequest}
       />
 
       {tableLoading ? (

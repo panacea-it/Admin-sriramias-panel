@@ -432,7 +432,6 @@ export default function CategoryCoursesSection() {
         onClearSelection={() => setSelectedIds([])}
         onEnable={handleBulkEnableRequest}
         onDisable={handleBulkDisableRequest}
-        onDelete={handleBulkDeleteRequest}
       />
 
       {loading && (
