@@ -105,7 +105,13 @@ export default function LanguageSettingsTab() {
 
   const columns = useMemo(
     () => [
-      { key: 'id', label: 'Language ID', headerClassName: 'pl-6 sm:pl-10', cellClassName: 'pl-6 sm:pl-10' },
+      {
+        key: 'id',
+        label: 'Language ID',
+        headerClassName: 'pl-6 sm:pl-10',
+        cellClassName: 'pl-6 sm:pl-10',
+        render: (r) => r.languageId || r.id,
+      },
       {
         key: 'languageName',
         label: 'Language Name',

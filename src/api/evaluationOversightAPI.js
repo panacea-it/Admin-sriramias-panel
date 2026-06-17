@@ -1,66 +1,46 @@
-import { isFrontendOnly } from '../config/appMode'
-import {  DEFAULT_WORKSPACE_RUBRIC,
-  OVERSIGHT_EXAM_TYPES,
-  OVERSIGHT_PRIORITIES,
-  OVERSIGHT_STATUSES,
-  SEED_EVALUATION_PAPERS,
-  SEED_OVERSIGHT_BATCHES,
-  SEED_OVERSIGHT_CENTERS,
-  SEED_OVERSIGHT_MENTORS,
-  SEED_OVERSIGHT_PROGRAMS,
-  SEED_OVERSIGHT_STATS,
-  SEED_OVERSIGHT_SUBJECTS,
-  SEED_OVERSIGHT_SUBTOPICS,
-  SEED_OVERSIGHT_TESTS,
-} from '../data/evaluationOversightSeed'
+import api from './axiosInstance'
 
-const DELAY_MS = 160
-const STORE_KEY = 'ems_evaluation_papers_v2'
+/**
+ * Evaluation Oversight API client.
+ *
+ * Wires the Test Management → Evaluation Oversight screens to the live backend
+ * (`/api/evaluation-oversight/*`). Every endpoint is POST. Responses are mapped
+ * into the shapes the existing UI components expect.
+ */
 
-/** In dev, use local seed unless VITE_EVALUATION_OVERSIGHT_USE_API=true (remote may lack these routes). */
-function useEvaluationOversightSeed() {
-  if (isFrontendOnly) return true
-  if (import.meta.env.VITE_EVALUATION_OVERSIGHT_USE_SEED === 'true') return true
-  if (import.meta.env.DEV && import.meta.env.VITE_EVALUATION_OVERSIGHT_USE_API !== 'true') {
-    return true
-  }
-  return false
-}
-function delay(ms = DELAY_MS) {
-  return new Promise((r) => setTimeout(r, ms))
+const BASE = '/evaluation-oversight'
+/** Backend Joi validation caps list/export body `limit` at 100. */
+const LIST_PAGE_SIZE = 100
+
+const STATUS_LABELS = {
+  NOT_STARTED: 'Not Started',
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In Progress',
+  EVALUATED: 'Evaluated',
+  OVERDUE: 'Overdue',
 }
 
-function safeJsonParse(value, fallback) {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return fallback
-  }
+const PRIORITY_LABELS = {
+  HIGH: 'High',
+  NORMAL: 'Normal',
+  LOW: 'Low',
 }
 
-function loadPapers() {
-  if (typeof window === 'undefined') return [...SEED_EVALUATION_PAPERS]
-  const raw = window.localStorage.getItem(STORE_KEY)
-  if (!raw) {
-    window.localStorage.setItem(STORE_KEY, JSON.stringify(SEED_EVALUATION_PAPERS))
-    return [...SEED_EVALUATION_PAPERS]
-  }
-  const parsed = safeJsonParse(raw, SEED_EVALUATION_PAPERS)
-  return Array.isArray(parsed) ? parsed : [...SEED_EVALUATION_PAPERS]
+const EXAM_TYPE_LABELS = {
+  MAINS: 'Mains',
+  DESCRIPTIVE: 'Descriptive',
+  CBT: 'CBT',
+  PRELIMS: 'Prelims',
 }
 
-function savePapers(list) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORE_KEY, JSON.stringify(list))
+function apiError(err, fallback) {
+  const message = err?.response?.data?.message || err?.message || fallback
+  const wrapped = new Error(message)
+  wrapped.status = err?.response?.status
+  return wrapped
 }
 
-function nowStamp() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function mentorInitials(name) {
+function initials(name) {
   return String(name || '')
     .split(/\s+/)
     .filter(Boolean)
@@ -70,461 +50,614 @@ function mentorInitials(name) {
     .toUpperCase()
 }
 
-function computeRubricTotal(rubric = []) {
-  return rubric.reduce((sum, r) => sum + (Number(r.score) || 0), 0)
+function isAll(v) {
+  return v == null || v === '' || v === 'all'
 }
 
-function computeRubricMax(rubric = []) {
-  return rubric.reduce((sum, r) => sum + (Number(r.max) || 0), 0)
+/** Map UI filter state → backend list/export request body. */
+function buildListBody(params = {}, extra = {}) {
+  const body = { ...extra }
+  if (!isAll(params.batchId)) body.batchId = params.batchId
+  if (!isAll(params.programId)) body.programId = params.programId
+  if (!isAll(params.mentorId)) body.mentorId = params.mentorId
+  if (!isAll(params.subjectId)) body.subjectId = params.subjectId
+  if (!isAll(params.subTopicId)) body.topicId = params.subTopicId
+  if (!isAll(params.testId)) body.testId = params.testId
+  if (!isAll(params.centerId)) body.centerId = params.centerId
+  body.status = isAll(params.status) ? 'ALL' : params.status
+  body.priority = isAll(params.priority) ? 'ALL' : params.priority
+  body.examType = isAll(params.examType) ? 'ALL' : params.examType
+  if (params.submittedFrom) body.submittedFrom = params.submittedFrom
+  if (params.submittedTo) body.submittedTo = params.submittedTo
+  const search = String(params.search || '').trim()
+  if (search) body.search = search
+  return body
 }
 
-function formatScoreDisplay(paper) {
-  if (paper.status === 'Evaluated' && paper.scoreObtained != null) {
-    return `${paper.scoreObtained}/${paper.scoreMax ?? 100}`
-  }
-  if (paper.status === 'In Progress') return 'Pending'
-  if (paper.status === 'Overdue') return 'Pending'
-  return '--'
-}
-
-function deriveStats(papers) {
-  const pending = papers.filter((p) => p.status !== 'Evaluated').length
-  const today = new Date().toISOString().slice(0, 10)
-  const evaluatedToday = papers.filter(
-    (p) => p.status === 'Evaluated' && String(p.evaluatedAt || '').slice(0, 10) === today,
-  ).length
+/** Map a backend list row → table row shape. */
+function mapRow(item = {}) {
+  const statusLabel = item.statusLabel || STATUS_LABELS[item.status] || item.status || 'Not Started'
   return {
-    totalPapers: SEED_OVERSIGHT_STATS.totalPapers,
-    totalPapersTrend: SEED_OVERSIGHT_STATS.totalPapersTrend,
-    pendingEvaluation: pending || SEED_OVERSIGHT_STATS.pendingEvaluation,
-    pendingLabel: SEED_OVERSIGHT_STATS.pendingLabel,
-    evaluatedToday: evaluatedToday || SEED_OVERSIGHT_STATS.evaluatedToday,
-    evaluatedTodayLabel: SEED_OVERSIGHT_STATS.evaluatedTodayLabel,
-    avgEvaluationTime: SEED_OVERSIGHT_STATS.avgEvaluationTime,
-    avgTimeTrend: SEED_OVERSIGHT_STATS.avgTimeTrend,
+    id: item.submissionId,
+    submissionId: item.submissionId,
+    studentName: item.studentName || '',
+    rollNumber: item.rollNumber || '',
+    testName: item.testName || '',
+    subjectName: item.subject || '',
+    examType: item.type || EXAM_TYPE_LABELS[item.examType] || '',
+    priority: PRIORITY_LABELS[item.priority] || item.priority || 'Normal',
+    centerName: item.center || '',
+    mentorId: item.mentorAssigned?._id || null,
+    mentorName: item.mentorAssigned?.name || null,
+    mentorInitials: item.mentorAssigned?.initials || null,
+    status: statusLabel,
+    statusEnum: item.status || null,
+    scoreDisplay: item.score || '--',
+    batchId: item.batchId || null,
+    batchName: item.batchName || '',
+    programId: item.programId || null,
+    subjectId: item.facultySubjectId || null,
+    testId: item.testId || null,
+    submittedAt: item.submittedAt || null,
+    updatedAt: item.updatedAt || null,
   }
 }
 
-function filterPapers(papers, params = {}) {
-  let rows = [...papers]
-  if (params.batchId && params.batchId !== 'all') {
-    rows = rows.filter((r) => String(r.batchId) === String(params.batchId))
-  }
-  if (params.subjectId && params.subjectId !== 'all') {
-    rows = rows.filter((r) => String(r.subjectId) === String(params.subjectId))
-  }
-  if (params.subTopicId && params.subTopicId !== 'all') {
-    rows = rows.filter((r) => String(r.subTopicId) === String(params.subTopicId))
-  }
-  if (params.mentorId && params.mentorId !== 'all') {
-    rows = rows.filter((r) => String(r.mentorId) === String(params.mentorId))
-  }
-  if (params.testId && params.testId !== 'all') {
-    rows = rows.filter((r) => String(r.testId) === String(params.testId))
-  }
-  if (params.status && params.status !== 'all') {
-    rows = rows.filter((r) => String(r.status) === String(params.status))
-  }
-  if (params.priority && params.priority !== 'all') {
-    rows = rows.filter((r) => String(r.priority) === String(params.priority))
-  }
-  if (params.examType && params.examType !== 'all') {
-    rows = rows.filter((r) => String(r.examType) === String(params.examType))
-  }
-  if (params.centerId && params.centerId !== 'all') {
-    rows = rows.filter((r) => String(r.centerId) === String(params.centerId))
-  }
-  if (params.programId && params.programId !== 'all') {
-    rows = rows.filter((r) => String(r.programId) === String(params.programId))
-  }
-  if (params.submittedFrom) {
-    const from = new Date(params.submittedFrom)
-    rows = rows.filter((r) => {
-      const d = new Date(r.submittedAt)
-      return !Number.isNaN(d.getTime()) && d >= from
-    })
-  }
-  if (params.submittedTo) {
-    const to = new Date(params.submittedTo)
-    to.setHours(23, 59, 59, 999)
-    rows = rows.filter((r) => {
-      const d = new Date(r.submittedAt)
-      return !Number.isNaN(d.getTime()) && d <= to
-    })
-  }
-  const q = String(params.search || '').trim().toLowerCase()
-  if (q) {
-    rows = rows.filter((r) =>
-      [
-        r.studentName,
-        r.rollNumber,
-        r.testName,
-        r.subjectName,
-        r.mentorName,
-        r.status,
-        r.centerName,
-        r.programName,
-        r.batchName,
-      ].some((v) => String(v || '').toLowerCase().includes(q)),
-    )
-  }
-  return rows
-}
+// ---------------------------------------------------------------------------
+// 1. Dashboard & List
+// ---------------------------------------------------------------------------
 
-function buildFilterOptions(params = {}) {
-  const batchId = params.batchId || 'all'
-  const subjectId = params.subjectId || 'all'
-  const programId = params.programId || 'all'
-
-  const batches = SEED_OVERSIGHT_BATCHES.map((b) => ({ value: b.id, label: b.label }))
-  const subjects = SEED_OVERSIGHT_SUBJECTS.filter((s) => {
-    if (programId !== 'all' && s.programId !== programId) return false
-    if (batchId === 'all') return true
-    return s.batchIds.includes(batchId)
-  }).map((s) => ({ value: s.id, label: s.label }))
-
-  const subTopics = SEED_OVERSIGHT_SUBTOPICS.filter(
-    (st) => subjectId === 'all' || st.subjectId === subjectId,
-  ).map((st) => ({ value: st.id, label: st.label }))
-
-  const tests = SEED_OVERSIGHT_TESTS.filter((t) => {
-    if (batchId !== 'all' && !t.batchIds.includes(batchId)) return false
-    if (subjectId !== 'all' && t.subjectId !== subjectId) return false
-    return true
-  }).map((t) => ({ value: t.id, label: t.label }))
-
-  const mentors = SEED_OVERSIGHT_MENTORS.filter(
-    (m) => subjectId === 'all' || m.subjectIds.includes(subjectId),
-  ).map((m) => ({
-    value: m.id,
-    label: m.name,
-    available: m.available,
-    pendingCount: m.pendingCount,
-  }))
-
-  const programs = SEED_OVERSIGHT_PROGRAMS.filter((p) => p.id !== 'PROG-ALL').map((p) => ({
-    value: p.id,
-    label: p.label,
-  }))
-
-  return {
-    batches: [{ value: 'all', label: 'All Batches' }, ...batches],
-    subjects: [{ value: 'all', label: 'All Subjects' }, ...subjects],
-    subTopics: [{ value: 'all', label: 'All Sub-topics' }, ...subTopics],
-    tests: [{ value: 'all', label: 'All Tests' }, ...tests],
-    mentors: [{ value: 'all', label: 'All Mentors' }, ...mentors],
-    statuses: [{ value: 'all', label: 'All Statuses' }, ...OVERSIGHT_STATUSES.map((s) => ({ value: s, label: s }))],
-    priorities: [{ value: 'all', label: 'All Priorities' }, ...OVERSIGHT_PRIORITIES.map((p) => ({ value: p, label: p }))],
-    examTypes: [{ value: 'all', label: 'All Exam Types' }, ...OVERSIGHT_EXAM_TYPES.map((e) => ({ value: e, label: e }))],
-    centers: [{ value: 'all', label: 'All Centers' }, ...SEED_OVERSIGHT_CENTERS.map((c) => ({ value: c.id, label: c.label }))],
-    programs: [{ value: 'all', label: 'All Programs' }, ...programs],
-  }
-}
-
-export async function fetchEvaluationDashboardStats(params = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.get('/evaluation-oversight/stats', { params, skipAuthRedirect: true })
-      if (res.data?.data) return res.data.data
-    } catch {
-      /* fallback */
+export async function fetchEvaluationDashboardStats() {
+  try {
+    const res = await api.post(`${BASE}/dashboard`, {}, { skipAuthRedirect: true })
+    const d = res.data?.data || {}
+    return {
+      totalPapers: d.totalPapers ?? 0,
+      pendingEvaluation: d.pendingEvaluation ?? 0,
+      pendingLabel: 'Awaiting evaluation',
+      evaluatedToday: d.evaluatedToday ?? 0,
+      evaluatedTodayLabel: 'Completed today',
+      avgEvaluationTime: `${d.avgEvaluationTimeMinutes ?? 0}m`,
     }
+  } catch (err) {
+    throw apiError(err, 'Failed to load dashboard stats')
   }
-  await delay()
-  const papers = loadPapers()
-  const filtered = filterPapers(papers, params)
-  return deriveStats(filtered)
+}
+
+function withAll(label, list = []) {
+  return [{ value: 'all', label }, ...list]
 }
 
 export async function fetchEvaluationFilterOptions(params = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.get('/evaluation-oversight/filters', { params, skipAuthRedirect: true })
-      if (res.data?.data) return res.data.data
-    } catch {
-      /* fallback */
+  try {
+    const body = {}
+    if (!isAll(params.batchId)) body.batchId = params.batchId
+    if (!isAll(params.subjectId)) body.facultySubjectId = params.subjectId
+    if (!isAll(params.subTopicId)) body.topicId = params.subTopicId
+    const res = await api.post(`${BASE}/filter-options`, body, { skipAuthRedirect: true })
+    const d = res.data?.data || {}
+
+    return {
+      batches: withAll(
+        'All Batches',
+        (d.batches || []).map((b) => ({ value: b._id, label: b.batchName, programId: b.programId })),
+      ),
+      programs: withAll(
+        'All Programs',
+        (d.programs || []).map((p) => ({ value: p._id, label: p.programName })),
+      ),
+      subjects: withAll(
+        'All Subjects',
+        (d.subjects || []).map((s) => ({ value: s._id, label: s.subjectName })),
+      ),
+      subTopics: withAll(
+        'All Topics',
+        (d.topics || []).map((t) => ({ value: t._id, label: t.topicName })),
+      ),
+      tests: withAll(
+        'All Tests',
+        (d.tests || []).map((t) => ({ value: t._id, label: t.testName })),
+      ),
+      mentors: withAll(
+        'All Mentors',
+        (d.mentors || []).map((m) => ({
+          value: m._id,
+          label: m.name,
+          pendingCount: m.pendingCount,
+        })),
+      ),
+      statuses: withAll(
+        'All Statuses',
+        (d.evaluationStatuses || [])
+          .filter((s) => s !== 'ALL')
+          .map((s) => ({ value: s, label: STATUS_LABELS[s] || s })),
+      ),
+      priorities: withAll(
+        'All Priorities',
+        (d.priorities || [])
+          .filter((p) => p !== 'ALL')
+          .map((p) => ({ value: p, label: PRIORITY_LABELS[p] || p })),
+      ),
+      examTypes: withAll(
+        'All Exam Types',
+        (d.examTypes || [])
+          .filter((e) => e !== 'ALL')
+          .map((e) => ({ value: e, label: EXAM_TYPE_LABELS[e] || e })),
+      ),
+      centers: withAll(
+        'All Centers',
+        (d.centers || []).map((c) => ({ value: c._id, label: c.label || c.centerName })),
+      ),
     }
+  } catch (err) {
+    throw apiError(err, 'Failed to load filter options')
   }
-  await delay()
-  return buildFilterOptions(params)
 }
 
-function normalizePaperRow(row) {
-  if (!row) return row
-  const normalized = {
-    ...row,
-    id: row.id || row.paperId,
-    mentorInitials: row.mentorInitials || mentorInitials(row.mentorName),
-  }
-  normalized.scoreDisplay = row.scoreDisplay ?? formatScoreDisplay(normalized)
-  return normalized
+/** Fetch all matching list rows by paging at the backend max (100 per request). */
+async function fetchAllListRows(params = {}) {
+  let page = 1
+  let totalPages = 1
+  const rows = []
+
+  do {
+    const body = buildListBody(params, { page, limit: LIST_PAGE_SIZE })
+    const res = await api.post(`${BASE}/list`, body, { skipAuthRedirect: true })
+    const list = res.data?.data
+    if (Array.isArray(list)) rows.push(...list.map(mapRow))
+    totalPages = Number(res.data?.totalPages) || 1
+    page += 1
+  } while (page <= totalPages)
+
+  return rows
 }
 
 export async function fetchEvaluationTableData(params = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.get('/evaluation-oversight/papers', { params, skipAuthRedirect: true })
-      const list = res.data?.data
-      if (Array.isArray(list)) return list.map(normalizePaperRow)
-    } catch {
-      /* fallback */
-    }
+  try {
+    return await fetchAllListRows(params)
+  } catch (err) {
+    throw apiError(err, 'Failed to load evaluations')
   }
-  await delay()
-  return filterPapers(loadPapers(), params).map(normalizePaperRow)
-}
-
-export async function fetchEvaluationPaperById(paperId) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.get(`/evaluation-oversight/papers/${encodeURIComponent(String(paperId))}`, {
-        skipAuthRedirect: true,
-      })
-      if (res.data?.data) return res.data.data
-    } catch {
-      /* fallback */
-    }
-  }
-  await delay()
-  const row = loadPapers().find((p) => String(p.id) === String(paperId))
-  if (!row) {
-    const err = new Error('Evaluation paper not found')
-    err.status = 404
-    throw err
-  }
-  return row
-}
-
-export async function fetchMentorsForSubject(subjectId, { excludeId } = {}) {
-  await delay(80)
-  return SEED_OVERSIGHT_MENTORS.filter(
-    (m) => m.subjectIds.includes(subjectId) && String(m.id) !== String(excludeId || ''),
-  ).map((m) => ({
-    id: m.id,
-    name: m.name,
-    title: m.title,
-    available: m.available,
-    pendingCount: m.pendingCount,
-  }))
-}
-
-export async function assignEvaluator(paperId, mentorId) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.post(
-        `/evaluation-oversight/papers/${encodeURIComponent(String(paperId))}/assign`,
-        { mentorId },
-        { skipAuthRedirect: true },
-      )
-      if (res.data?.data) return res.data.data
-    } catch (err) {
-      if (err?.response?.data?.message) throw new Error(err.response.data.message)
-    }
-  }
-  await delay()
-  const mentor = SEED_OVERSIGHT_MENTORS.find((m) => String(m.id) === String(mentorId))
-  if (!mentor) throw new Error('Mentor not found')
-
-  const list = loadPapers()
-  const idx = list.findIndex((p) => String(p.id) === String(paperId))
-  if (idx < 0) throw new Error('Paper not found')
-  const paper = list[idx]
-  if (!mentor.subjectIds.includes(paper.subjectId)) {
-    throw new Error('Mentor must belong to the same subject')
-  }
-
-  const updated = {
-    ...paper,
-    mentorId: mentor.id,
-    mentorName: mentor.name,
-    mentorInitials: mentorInitials(mentor.name),
-    mentorAvailable: mentor.available,
-    status: paper.status === 'Not Started' ? 'In Progress' : paper.status,
-    updatedAt: nowStamp(),
-  }
-  updated.scoreDisplay = formatScoreDisplay(updated)
-  const next = [...list]
-  next[idx] = updated
-  savePapers(next)
-  return updated
-}
-
-export async function saveEvaluationDraft(paperId, patch = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.post(
-        `/evaluation-oversight/papers/${encodeURIComponent(String(paperId))}/draft`,
-        patch,
-        { skipAuthRedirect: true },
-      )
-      if (res.data?.data) return res.data.data
-    } catch (err) {
-      if (err?.response?.data?.message) throw new Error(err.response.data.message)
-    }
-  }
-  await delay()
-  const list = loadPapers()
-  const idx = list.findIndex((p) => String(p.id) === String(paperId))
-  if (idx < 0) throw new Error('Paper not found')
-  const current = list[idx]
-  if (current.locked) throw new Error('Evaluation is locked')
-
-  const rubric = patch.rubric ?? current.rubric ?? DEFAULT_WORKSPACE_RUBRIC
-  const total = computeRubricTotal(rubric)
-  const max = current.scoreMax ?? computeRubricMax(rubric)
-
-  const updated = {
-    ...current,
-    ...patch,
-    rubric,
-    scoreObtained: patch.scoreObtained ?? total,
-    status: 'In Progress',
-    locked: false,
-    updatedAt: nowStamp(),
-    scoreDisplay: 'Pending',
-  }
-  const next = [...list]
-  next[idx] = updated
-  savePapers(next)
-  return updated
-}
-
-export async function publishEvaluationResult(paperId, patch = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.post(
-        `/evaluation-oversight/papers/${encodeURIComponent(String(paperId))}/publish`,
-        patch,
-        { skipAuthRedirect: true },
-      )
-      if (res.data?.data) return res.data.data
-    } catch (err) {
-      if (err?.response?.data?.message) throw new Error(err.response.data.message)
-    }
-  }
-  await delay()
-  const list = loadPapers()
-  const idx = list.findIndex((p) => String(p.id) === String(paperId))
-  if (idx < 0) throw new Error('Paper not found')
-  const current = list[idx]
-  if (current.locked) return current
-
-  const rubric = patch.rubric ?? current.rubric ?? DEFAULT_WORKSPACE_RUBRIC
-  const total = computeRubricTotal(rubric)
-  const max = current.scoreMax ?? 100
-  if (total <= 0) throw new Error('Enter scores before publishing')
-
-  const updated = {
-    ...current,
-    ...patch,
-    rubric,
-    scoreObtained: Math.round(total * 10) / 10,
-    scoreMax: max,
-    status: 'Evaluated',
-    locked: true,
-    evaluatedAt: new Date().toISOString(),
-    updatedAt: nowStamp(),
-    scoreDisplay: `${Math.round(total * 10) / 10}/${max}`,
-  }
-  const next = [...list]
-  next[idx] = updated
-  savePapers(next)
-  return updated
-}
-
-export async function savePaperAnnotations(paperId, annotations = []) {
-  return saveEvaluationDraft(paperId, { annotations })
 }
 
 export async function exportEvaluationCsv(params = {}) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.get('/evaluation-oversight/export', {
-        params,
-        responseType: 'blob',
-        skipAuthRedirect: true,
-      })
-      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `evaluation-oversight-${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      const rows = await fetchEvaluationTableData(params)
-      return { count: rows.length }
-    } catch (err) {
-      if (err?.response?.data?.message) throw new Error(err.response.data.message)
-      if (err?.message && !err?.response) throw err
-    }
-  }
+  try {
+    // Validated body must respect limit ≤ 100; export service fetches up to 10k internally.
+    const body = buildListBody(params, { page: 1, limit: LIST_PAGE_SIZE })
+    const res = await api.post(`${BASE}/export`, body, {
+      responseType: 'blob',
+      skipAuthRedirect: true,
+    })
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `evaluation-oversight-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
 
-  const rows = await fetchEvaluationTableData(params)
-  const headers = [
-    'Student Name',
-    'Roll Number',
-    'Batch',
-    'Program',
-    'Test Name',
-    'Subject',
-    'Exam Type',
-    'Priority',
-    'Center',
-    'Mentor',
-    'Status',
-    'Score',
-    'Submitted At',
-    'Evaluated At',
-  ]
-  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const lines = [
-    headers.join(','),
-    ...rows.map((r) =>
-      [
-        r.studentName,
-        r.rollNumber,
-        r.batchName,
-        r.programName,
-        r.testName,
-        r.subjectName,
-        r.examType,
-        r.priority,
-        r.centerName,
-        r.mentorName || 'Unassigned',
-        r.status,
-        r.scoreDisplay,
-        r.submittedAt,
-        r.evaluatedAt,
-      ]
-        .map(escape)
-        .join(','),
-    ),
-  ]
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `evaluation-oversight-${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-  return { count: rows.length }
+    let count
+    try {
+      const text = await blob.text()
+      count = Math.max(0, text.trim().split('\n').length - 1)
+    } catch {
+      count = undefined
+    }
+    return { count }
+  } catch (err) {
+    throw apiError(err, 'Export failed')
+  }
 }
 
+// ---------------------------------------------------------------------------
+// 2. Assign Evaluators
+// ---------------------------------------------------------------------------
+
+/** Mentors available for a subject (mentors are role-scoped, subject is advisory). */
+export async function fetchMentorsForSubject(_subjectId, { excludeId } = {}) {
+  try {
+    const res = await api.post(`${BASE}/filter-options`, {}, { skipAuthRedirect: true })
+    const mentors = res.data?.data?.mentors || []
+    return mentors
+      .filter((m) => String(m._id) !== String(excludeId || ''))
+      .map((m) => ({
+        id: m._id,
+        name: m.name,
+        title: m.employeeId || '',
+        available: true,
+        pendingCount: m.pendingCount || 0,
+      }))
+  } catch (err) {
+    throw apiError(err, 'Failed to load mentors')
+  }
+}
+
+/** Quick-assign a single paper to a mentor (table action / modal). */
+export async function assignEvaluator(paperId, mentorId) {
+  try {
+    const res = await api.post(
+      `${BASE}/assign`,
+      { submissionIds: [paperId], mentorId, reason: 'Assigned via oversight' },
+      { skipAuthRedirect: true },
+    )
+    const mentor = res.data?.data?.mentor || {}
+    return {
+      id: paperId,
+      mentorId: mentor._id || mentorId,
+      mentorName: mentor.name || '',
+      mentorInitials: initials(mentor.name),
+    }
+  } catch (err) {
+    throw apiError(err, 'Assignment failed')
+  }
+}
+
+/** Bulk-assign many papers to a mentor (assignment workspace). */
+export async function bulkAssignEvaluator({ paperIds, mentorId }) {
+  if (!paperIds?.length) throw new Error('Select at least one paper')
+  if (!mentorId) throw new Error('Select an evaluator')
+  try {
+    const res = await api.post(
+      `${BASE}/assign`,
+      { submissionIds: paperIds, mentorId, reason: 'Bulk assignment' },
+      { skipAuthRedirect: true },
+    )
+    const data = res.data?.data || {}
+    return { count: data.assigned ?? paperIds.length, mentor: data.mentor || null }
+  } catch (err) {
+    throw apiError(err, 'Assignment failed')
+  }
+}
+
+/** Reassign a single paper to a different mentor. */
+export async function reassignEvaluator(submissionId, mentorId, reason = 'Reassigned') {
+  try {
+    const res = await api.post(
+      `${BASE}/reassign`,
+      { submissionId, mentorId, reason },
+      { skipAuthRedirect: true },
+    )
+    return res.data?.data || {}
+  } catch (err) {
+    throw apiError(err, 'Reassignment failed')
+  }
+}
+
+/** Internal: assign/preview drives the assignment workspace (mentors, primary, pending). */
+async function fetchAssignPreview({ batchId, subjectId, topicId, testId, search = '' } = {}) {
+  if (isAll(batchId) || isAll(testId)) return null
+  const body = { batchId, testId }
+  if (!isAll(subjectId)) body.facultySubjectId = subjectId
+  if (!isAll(topicId)) body.topicId = topicId
+  if (search?.trim()) body.search = search.trim()
+  const res = await api.post(`${BASE}/assign/preview`, body, { skipAuthRedirect: true })
+  return res.data?.data || null
+}
+
+function workloadLevel(pendingCount = 0) {
+  if (pendingCount >= 25) return 'high'
+  if (pendingCount >= 12) return 'medium'
+  return 'low'
+}
+
+export async function fetchAssignmentBatches() {
+  const res = await api.post(`${BASE}/filter-options`, {}, { skipAuthRedirect: true })
+  return (res.data?.data?.batches || []).map((b) => ({ value: b._id, label: b.batchName }))
+}
+
+export async function fetchAssignmentSubjects(batchId) {
+  const body = isAll(batchId) ? {} : { batchId }
+  const res = await api.post(`${BASE}/filter-options`, body, { skipAuthRedirect: true })
+  return (res.data?.data?.subjects || []).map((s) => ({ value: s._id, label: s.subjectName }))
+}
+
+export async function fetchAssignmentTopics(subjectId) {
+  if (isAll(subjectId)) return []
+  const res = await api.post(
+    `${BASE}/filter-options`,
+    { facultySubjectId: subjectId },
+    { skipAuthRedirect: true },
+  )
+  return (res.data?.data?.topics || []).map((t) => ({ value: t._id, label: t.topicName }))
+}
+
+export async function fetchAssignmentTests(_batchId, subjectId, topicId) {
+  if (isAll(subjectId)) return []
+  const body = { facultySubjectId: subjectId }
+  if (!isAll(topicId)) body.topicId = topicId
+  const res = await api.post(`${BASE}/filter-options`, body, { skipAuthRedirect: true })
+  return (res.data?.data?.tests || []).map((t) => ({ value: t._id, label: t.testName }))
+}
+
+export async function fetchCurrentPrimaryAssignment({ batchId, subjectId, topicId, testId } = {}) {
+  try {
+    const preview = await fetchAssignPreview({ batchId, subjectId, topicId, testId })
+    const primary = preview?.primaryAssignment
+    if (!primary) return null
+    return {
+      mentorId: primary._id,
+      name: primary.name,
+      title: '',
+      initials: initials(primary.name),
+      pendingPapers: primary.pendingPapers || 0,
+      dueDate: '',
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchAssignmentPendingPapers({
+  batchId,
+  subjectId,
+  topicId,
+  testId,
+  status = 'all',
+} = {}) {
+  try {
+    const preview = await fetchAssignPreview({ batchId, subjectId, topicId, testId })
+    let rows = (preview?.pendingStudents || []).map((p) => ({
+      id: p.submissionId,
+      studentName: p.studentName || '',
+      rollNumber: p.rollNumber || '',
+      status: STATUS_LABELS[p.status] || p.status || 'Not Started',
+      lastUpdate: p.lastUpdated || null,
+      mentorId: null,
+    }))
+    if (status && status !== 'all') {
+      rows = rows.filter((r) => r.status === status)
+    }
+    return rows
+  } catch (err) {
+    throw apiError(err, 'Failed to load pending papers')
+  }
+}
+
+export async function fetchAssignmentEvaluators(_subjectId, { excludeMentorId } = {}) {
+  try {
+    const res = await api.post(`${BASE}/filter-options`, {}, { skipAuthRedirect: true })
+    const mentors = res.data?.data?.mentors || []
+    return mentors
+      .filter((m) => String(m._id) !== String(excludeMentorId || ''))
+      .map((m) => {
+        const pending = m.pendingCount || 0
+        return {
+          id: m._id,
+          name: m.name,
+          title: m.employeeId || '',
+          pendingCount: pending,
+          workloadLevel: workloadLevel(pending),
+          available: true,
+        }
+      })
+  } catch (err) {
+    throw apiError(err, 'Failed to load evaluators')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. View Paper & Evaluation
+// ---------------------------------------------------------------------------
+
+function mapSubmissionDetail(d = {}) {
+  const ev = d.evaluation || {}
+  const rubric = [
+    {
+      key: 'conceptual',
+      label: 'Conceptual Clarity',
+      max: 10,
+      score: ev.conceptualScore ?? 0,
+      feedback: ev.conceptualRemarks || '',
+      remarksLabel: 'Section Remarks',
+      placeholder: 'Specific feedback on concepts...',
+    },
+    {
+      key: 'language',
+      label: 'Language & Tone',
+      max: 5,
+      score: ev.languageScore ?? 0,
+      feedback: ev.languageRemarks || '',
+      remarksLabel: 'Grammar & Syntax notes',
+      placeholder: 'Feedback on language...',
+    },
+    {
+      key: 'structure',
+      label: 'Structure',
+      max: 5,
+      score: ev.structureScore ?? 0,
+      feedback: ev.structureRemarks || '',
+      remarksLabel: 'Flow & Continuity',
+      placeholder: 'Feedback on logical flow...',
+    },
+  ]
+
+  const status = d.statusLabel || STATUS_LABELS[d.status] || d.status || 'Not Started'
+
+  return {
+    id: d.submissionId,
+    studentName: d.student?.name || '',
+    rollNumber: d.student?.rollNumber || '',
+    batchName: d.student?.batchName || '',
+    testId: d.test?.testId || null,
+    testName: d.test?.testName || '',
+    subjectName: d.test?.subject || '',
+    questionText: d.test?.questionsText || '',
+    questionMarks: d.test?.totalMarks || 20,
+    scoreMax: ev.maxScore || d.test?.totalMarks || 20,
+    scoreObtained: ev.totalScore ?? 0,
+    status,
+    statusEnum: d.status || null,
+    locked: !!ev.publishedStatus,
+    mentorId: d.mentor?._id || null,
+    mentorName: d.mentor?.name || null,
+    rubric,
+    annotations: (d.annotations || []).map((a) => ({
+      id: a._id,
+      page: a.pageNo,
+      pageNo: a.pageNo,
+      annotationType: a.annotationType,
+      type: a.annotationType,
+      content: a.content,
+      coordinates: a.coordinates,
+      color: a.color,
+    })),
+    answerType: d.answer?.type || null,
+    answerText: d.answer?.text || '',
+    answerSheet: {
+      fileName: d.answer?.file?.fileName || null,
+      url: d.answer?.pdfUrl || d.answer?.file?.url || null,
+      dataUrl: null,
+      pages: 1,
+      pageImages: [],
+    },
+    priority: 'Normal',
+    examType: '',
+  }
+}
+
+export async function fetchEvaluationPaperById(paperId) {
+  try {
+    const res = await api.post(
+      `${BASE}/submission/detail`,
+      { submissionId: paperId },
+      { skipAuthRedirect: true },
+    )
+    return mapSubmissionDetail(res.data?.data || {})
+  } catch (err) {
+    throw apiError(err, 'Failed to load paper')
+  }
+}
+
+/** Fetch answer PDF via backend proxy (avoids CORS / X-Frame-Options on external URLs). */
+export async function fetchSubmissionPdfBlobUrl(submissionId) {
+  const res = await api.post(
+    `${BASE}/submission/pdf`,
+    { submissionId },
+    { responseType: 'blob', skipAuthRedirect: true },
+  )
+  const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'application/pdf' })
+  return URL.createObjectURL(blob)
+}
+
+/** Convert workspace rubric array → backend score payload. */
+function rubricToScores(rubric = []) {
+  const get = (k) => rubric.find((r) => r.key === k) || {}
+  const c = get('conceptual')
+  const l = get('language')
+  const s = get('structure')
+  return {
+    conceptualScore: Number(c.score) || 0,
+    conceptualRemarks: c.feedback || '',
+    languageScore: Number(l.score) || 0,
+    languageRemarks: l.feedback || '',
+    structureScore: Number(s.score) || 0,
+    structureRemarks: s.feedback || '',
+  }
+}
+
+export async function saveEvaluationDraft(paperId, patch = {}) {
+  try {
+    const res = await api.post(
+      `${BASE}/evaluation/draft`,
+      { submissionId: paperId, ...rubricToScores(patch.rubric) },
+      { skipAuthRedirect: true },
+    )
+    const data = res.data?.data || {}
+    return {
+      id: paperId,
+      scoreObtained: data.totalScore ?? patch.scoreObtained ?? 0,
+      status: 'In Progress',
+    }
+  } catch (err) {
+    throw apiError(err, 'Failed to save draft')
+  }
+}
+
+export async function publishEvaluationResult(paperId, patch = {}) {
+  try {
+    const res = await api.post(
+      `${BASE}/evaluation/publish`,
+      { submissionId: paperId, ...rubricToScores(patch.rubric) },
+      { skipAuthRedirect: true },
+    )
+    const data = res.data?.data || {}
+    return {
+      id: paperId,
+      scoreObtained: data.totalScore ?? patch.scoreObtained ?? 0,
+      scoreMax: 20,
+      status: 'Evaluated',
+      locked: true,
+    }
+  } catch (err) {
+    throw apiError(err, 'Failed to publish results')
+  }
+}
+
+export async function savePaperAnnotations(paperId, annotations = []) {
+  try {
+    const payload = (annotations || []).map((a) => ({
+      pageNo: a.pageNo || a.page || 1,
+      annotationType: String(a.annotationType || a.type || 'HIGHLIGHT').toUpperCase(),
+      content: a.content || a.text || '',
+      coordinates:
+        a.coordinates ||
+        (a.x != null
+          ? { x: a.x, y: a.y, width: a.width, height: a.height }
+          : {}),
+      color: a.color || '#FFEB3B',
+    }))
+    const res = await api.post(
+      `${BASE}/annotations/save`,
+      { submissionId: paperId, annotations: payload },
+      { skipAuthRedirect: true },
+    )
+    return res.data?.data || { saved: payload.length }
+  } catch (err) {
+    throw apiError(err, 'Failed to save annotations')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers retained for component compatibility
+// ---------------------------------------------------------------------------
+
+/** Test metadata is carried on the paper object now; kept as a safe stub. */
+export function getTestMeta() {
+  return undefined
+}
+
+/** Download the student's answer sheet (proxied PDF or typed text). */
 export async function downloadEvaluationPaper(paper) {
-  await delay(120)
-  const sheet = paper?.answerSheet
   const safeName = String(paper?.rollNumber || paper?.studentName || 'answer-sheet')
     .replace(/[^a-zA-Z0-9-_]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
+  if (paper?.answerType === 'text' && paper?.answerText) {
+    const blob = new Blob([paper.answerText], { type: 'text/plain;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${safeName}-answer.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    return
+  }
+
+  if (paper?.id && paper?.answerSheet?.url) {
+    try {
+      const blobUrl = await fetchSubmissionPdfBlobUrl(paper.id)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = paper.answerSheet.fileName || `${safeName}.pdf`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
+      return
+    } catch {
+      /* fall through to direct URL */
+    }
+  }
+
+  const sheet = paper?.answerSheet
   if (sheet?.dataUrl) {
     const a = document.createElement('a')
     a.href = sheet.dataUrl
@@ -534,219 +667,9 @@ export async function downloadEvaluationPaper(paper) {
   }
 
   if (sheet?.url) {
-    const a = document.createElement('a')
-    a.href = sheet.url
-    a.download = sheet.fileName || `${safeName}.pdf`
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.click()
+    window.open(sheet.url, '_blank', 'noopener,noreferrer')
     return
   }
 
-  const content = [
-    'Answer Sheet',
-    '============',
-    `Student: ${paper?.studentName || '—'}`,
-    `Roll Number: ${paper?.rollNumber || '—'}`,
-    `Test: ${paper?.testName || '—'}`,
-    `Subject: ${paper?.subjectName || '—'}`,
-    `Status: ${paper?.status || '—'}`,
-    '',
-    '[Demo placeholder — attach scanned PDF in production]',
-  ].join('\n')
-
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${safeName}-answer-sheet.txt`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-export function getTestMeta(testId) {
-  return SEED_OVERSIGHT_TESTS.find((t) => String(t.id) === String(testId))
-}
-
-function workloadLevel(pendingCount) {
-  if (pendingCount >= 25) return 'high'
-  if (pendingCount >= 12) return 'medium'
-  return 'low'
-}
-
-function countPendingForMentor(mentorId, papers = loadPapers()) {
-  return papers.filter(
-    (p) => String(p.mentorId) === String(mentorId) && p.status !== 'Evaluated',
-  ).length
-}
-
-export function fetchAssignmentSubjects(batchId) {
-  const subjects = SEED_OVERSIGHT_SUBJECTS.filter(
-    (s) => batchId === 'all' || !batchId || s.batchIds.includes(batchId),
-  ).map((s) => ({ value: s.id, label: s.label }))
-  return Promise.resolve(subjects)
-}
-
-export function fetchAssignmentTopics(subjectId) {
-  const topics = SEED_OVERSIGHT_SUBTOPICS.filter(
-    (t) => subjectId && t.subjectId === subjectId,
-  ).map((t) => ({ value: t.id, label: t.label }))
-  return Promise.resolve(topics)
-}
-
-export function fetchAssignmentTests(batchId, subjectId, topicId) {
-  const papers = loadPapers().filter((p) => p.status !== 'Evaluated')
-  const testIds = new Set(
-    papers
-      .filter((p) => {
-        if (subjectId && p.subjectId !== subjectId) return false
-        if (batchId && batchId !== 'all' && p.batchId !== batchId) return false
-        if (topicId && p.subTopicId !== topicId) return false
-        return true
-      })
-      .map((p) => p.testId),
-  )
-  const tests = SEED_OVERSIGHT_TESTS.filter((t) => {
-    if (subjectId && t.subjectId !== subjectId) return false
-    if (batchId && batchId !== 'all' && !t.batchIds.includes(batchId)) return false
-    if (topicId && testIds.size > 0 && !testIds.has(t.id)) return false
-    return true
-  }).map((t) => ({ value: t.id, label: t.label }))
-  return Promise.resolve(tests)
-}
-
-export async function fetchAssignmentPendingPapers({
-  batchId,
-  subjectId,
-  topicId,
-  testId,
-  status = 'all',
-}) {
-  await delay()
-  let rows = loadPapers().filter((p) => p.status !== 'Evaluated')
-  if (batchId && batchId !== 'all') rows = rows.filter((p) => p.batchId === batchId)
-  if (subjectId) rows = rows.filter((p) => p.subjectId === subjectId)
-  if (topicId) rows = rows.filter((p) => p.subTopicId === topicId)
-  if (testId) rows = rows.filter((p) => p.testId === testId)
-  if (status && status !== 'all') rows = rows.filter((p) => p.status === status)
-  return rows.map((p) => ({
-    id: p.id,
-    studentName: p.studentName,
-    rollNumber: p.rollNumber,
-    status: p.status,
-    lastUpdate: p.updatedAt,
-    mentorId: p.mentorId,
-  }))
-}
-
-export async function fetchAssignmentEvaluators(subjectId, { excludeMentorId } = {}) {
-  await delay(100)
-  const papers = loadPapers()
-  let mentors = SEED_OVERSIGHT_MENTORS.filter(
-    (m) =>
-      m.subjectIds.includes(subjectId) &&
-      m.available !== false &&
-      String(m.id) !== String(excludeMentorId || ''),
-  )
-
-  return mentors.map((m) => {
-    const pending = countPendingForMentor(m.id, papers)
-    return {
-      id: m.id,
-      name: m.name,
-      title: m.title,
-      pendingCount: pending,
-      workloadLevel: workloadLevel(pending),
-      available: m.available,
-    }
-  })
-}
-
-export async function fetchCurrentPrimaryAssignment({
-  batchId,
-  subjectId,
-  topicId,
-  testId,
-}) {
-  await delay(80)
-  const papers = loadPapers().filter(
-    (p) =>
-      p.subjectId === subjectId &&
-      p.testId === testId &&
-      p.status !== 'Evaluated' &&
-      p.mentorId &&
-      (!batchId || batchId === 'all' || p.batchId === batchId) &&
-      (!topicId || p.subTopicId === topicId),
-  )
-  if (!papers.length) return null
-
-  const counts = {}
-  for (const p of papers) {
-    counts[p.mentorId] = (counts[p.mentorId] || 0) + 1
-  }
-  const topId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0]
-  const mentor = SEED_OVERSIGHT_MENTORS.find((m) => m.id === topId)
-  if (!mentor) return null
-
-  const pending = counts[topId] || 0
-  const due = new Date()
-  due.setDate(due.getDate() + 7)
-  return {
-    mentorId: mentor.id,
-    name: mentor.name,
-    title: mentor.title,
-    initials: mentorInitials(mentor.name),
-    pendingPapers: pending,
-    dueDate: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-  }
-}
-
-export async function bulkAssignEvaluator({ paperIds, mentorId, subjectId }) {
-  if (!useEvaluationOversightSeed()) {
-    try {
-      const { default: api } = await import('./axiosInstance')
-      const res = await api.post(
-        '/evaluation-oversight/assignment/bulk-assign',
-        { paperIds, mentorId, subjectId },
-        { skipAuthRedirect: true },
-      )
-      if (res.data?.data) return res.data.data
-    } catch (err) {
-      if (err?.response?.data?.message) throw new Error(err.response.data.message)
-    }
-  }
-  await delay(200)
-  const mentor = SEED_OVERSIGHT_MENTORS.find((m) => String(m.id) === String(mentorId))
-  if (!mentor) throw new Error('Mentor not found')
-  if (subjectId && !mentor.subjectIds.includes(subjectId)) {
-    throw new Error('Mentor must belong to the selected subject')
-  }
-  if (!mentor.available) throw new Error('Selected mentor is unavailable')
-
-  const ids = new Set((paperIds || []).map(String))
-  if (!ids.size) throw new Error('Select at least one paper')
-
-  const list = loadPapers()
-  const updated = []
-  const next = list.map((paper) => {
-    if (!ids.has(String(paper.id))) return paper
-    if (paper.subjectId !== subjectId) return paper
-    if (paper.status === 'Evaluated') return paper
-    const row = {
-      ...paper,
-      mentorId: mentor.id,
-      mentorName: mentor.name,
-      mentorInitials: mentorInitials(mentor.name),
-      mentorAvailable: mentor.available,
-      status: paper.status === 'Not Started' ? 'In Progress' : paper.status,
-      updatedAt: nowStamp(),
-      reassignedAt: new Date().toISOString(),
-    }
-    row.scoreDisplay = formatScoreDisplay(row)
-    updated.push(row)
-    return row
-  })
-
-  savePapers(next)
-  return { count: updated.length, papers: updated }
+  throw new Error('No answer sheet available to download')
 }

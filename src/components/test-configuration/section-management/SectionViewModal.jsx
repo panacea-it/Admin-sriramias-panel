@@ -29,7 +29,7 @@ export default function SectionViewModal({ open, onClose, row }) {
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Section ID</dt>
-                <dd className="mt-1 text-sm font-medium text-[#111]">{row.id}</dd>
+                <dd className="mt-1 text-sm font-medium text-[#111]">{row.sectionId || row.id}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Status</dt>

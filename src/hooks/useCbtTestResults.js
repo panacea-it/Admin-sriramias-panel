@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchCbtResults, fetchCbtAnalytics } from '../api/cbtManagementAPI'
-import { isFrontendOnly } from '../config/appMode'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
@@ -29,12 +28,6 @@ export function useCbtTestResults(testId) {
 
       setLoading(true)
       setLoadError(null)
-
-      if (isFrontendOnly) {
-        setData(EMPTY)
-        setLoading(false)
-        return
-      }
 
       try {
         const [results, analytics] = await Promise.all([

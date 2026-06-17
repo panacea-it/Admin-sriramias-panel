@@ -5,11 +5,11 @@ import MainsTopicsManagementTable from './MainsTopicsManagementTable'
 import MainsTopicsTableActions from './MainsTopicsTableActions'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 
-export default function MainsTopicsTable({ faculty, loading }) {
+export default function MainsTopicsTable({ faculty, topics: topicsProp, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
-  const topics = faculty?.topics ?? []
+  const topics = topicsProp ?? faculty?.topics ?? []
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

@@ -9,7 +9,15 @@ import QuestionPreviewModal from '../../components/test-management/QuestionPrevi
 import QuestionBulkUploadModal from '../../components/test-management/QuestionBulkUploadModal'
 import QuestionFilterToolbar from '../../components/test-management/QuestionFilterToolbar'
 import QuestionBankTable from '../../components/test-management/QuestionBankTable'
-import { deleteQuestion, fetchQuestions, upsertQuestion } from '../../api/testManagementAPI'
+import {
+  deleteQuestion,
+  duplicateQuestion,
+  fetchQuestions,
+  getQuestionAnalytics,
+  getQuestionFilterOptions,
+  updateQuestionStatus,
+  upsertQuestion,
+} from '../../api/questionBankAPI'
 import {
   QUESTION_BANK_TYPES,
   QUESTION_DIFFICULTIES,
@@ -24,6 +32,8 @@ export default function QuestionManagementPage() {
   const modal = useEditModal()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [analytics, setAnalytics] = useState(null)
+  const [filterOptions, setFilterOptions] = useState({ subjects: [], topics: [], tags: [] })
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState('all')
@@ -42,9 +52,14 @@ export default function QuestionManagementPage() {
 
   const reload = async () => {
     setLoading(true)
+    const filters = { type, subject, topic, difficulty, tags: tag, status }
     try {
-      const list = await fetchQuestions({ type, subject, topic, difficulty, tags: tag, status })
+      const [list, stats] = await Promise.all([
+        fetchQuestions(filters),
+        getQuestionAnalytics(filters),
+      ])
       setRows(list || [])
+      setAnalytics(stats || null)
     } catch (err) {
       toast.error(err?.message || 'Failed to load questions')
     } finally {
@@ -56,6 +71,18 @@ export default function QuestionManagementPage() {
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, subject, topic, difficulty, tag, status])
+
+  useEffect(() => {
+    let active = true
+    getQuestionFilterOptions({ subject })
+      .then((opts) => {
+        if (active) setFilterOptions(opts || { subjects: [], topics: [], tags: [] })
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [subject])
 
   const displayRows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -69,14 +96,18 @@ export default function QuestionManagementPage() {
     })
   }, [rows, search])
 
-  const subjects = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.subject).filter(Boolean))).sort(),
-    [rows],
-  )
-  const topics = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.topic).filter(Boolean))).sort(),
-    [rows],
-  )
+  const subjects = useMemo(() => {
+    if (filterOptions.subjects?.length) return filterOptions.subjects
+    return Array.from(new Set(rows.map((r) => r.subject).filter(Boolean))).sort()
+  }, [filterOptions.subjects, rows])
+  const topics = useMemo(() => {
+    if (filterOptions.topics?.length) return filterOptions.topics
+    return Array.from(new Set(rows.map((r) => r.topic).filter(Boolean))).sort()
+  }, [filterOptions.topics, rows])
+  const tagChoices = useMemo(() => {
+    if (filterOptions.tags?.length) return filterOptions.tags
+    return QUESTION_TAG_SUGGESTIONS
+  }, [filterOptions.tags])
 
   const difficultyCounts = useMemo(() => {
     const counts = { Easy: 0, Medium: 0, Hard: 0 }
@@ -119,9 +150,13 @@ export default function QuestionManagementPage() {
 
   const toggleStatus = useCallback(async (row) => {
     const nextStatus = nextQuestionStatus(row.status)
-    const saved = await upsertQuestion({ ...row, status: nextStatus }, { isEdit: true, id: row.id })
-    setRows((prev) => prev.map((r) => (String(r.id) === String(row.id) ? { ...r, ...saved } : r)))
-    toast.success(`Status updated to ${nextStatus}`)
+    try {
+      const saved = await updateQuestionStatus(row.id, nextStatus)
+      setRows((prev) => prev.map((r) => (String(r.id) === String(row.id) ? { ...r, ...saved } : r)))
+      toast.success(`Status updated to ${nextStatus}`)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update status')
+    }
   }, [])
 
   const openPreview = useCallback((row) => {
@@ -130,7 +165,17 @@ export default function QuestionManagementPage() {
   }, [])
 
   const handleEdit = useCallback((row) => modal.openEdit(row), [modal])
-  const handleDuplicate = useCallback((row) => modal.openDuplicate(row), [modal])
+  const handleDuplicate = useCallback(
+    async (row) => {
+      try {
+        const prefill = await duplicateQuestion(row.id)
+        modal.openDuplicate(prefill || { ...row, id: '' })
+      } catch (err) {
+        toast.error(err?.message || 'Failed to duplicate question')
+      }
+    },
+    [modal],
+  )
   const handleDeleteRequest = useCallback((row) => {
     setDeleteRow(row)
     setDeleteOpen(true)
@@ -173,21 +218,21 @@ export default function QuestionManagementPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           title="Total Questions"
-          value={rows.length}
+          value={analytics ? analytics.totalQuestions : rows.length}
           color="#246392"
           graphColor="#55ace7"
           icon={FileQuestion}
         />
         <StatCard
           title="Easy"
-          value={difficultyCounts.Easy}
+          value={analytics ? analytics.easyCount : difficultyCounts.Easy}
           color="#16a34a"
           graphColor="#16a34a"
           icon={FileQuestion}
         />
         <StatCard
           title="Medium/Hard"
-          value={difficultyCounts.Medium + difficultyCounts.Hard}
+          value={analytics ? analytics.mediumHardCount : difficultyCounts.Medium + difficultyCounts.Hard}
           color="#f59e0b"
           graphColor="#f59e0b"
           icon={FileQuestion}
@@ -202,7 +247,10 @@ export default function QuestionManagementPage() {
           type={type}
           onTypeChange={(e) => setType(e.target.value)}
           subject={subject}
-          onSubjectChange={(e) => setSubject(e.target.value)}
+          onSubjectChange={(e) => {
+            setSubject(e.target.value)
+            setTopic('all')
+          }}
           topic={topic}
           onTopicChange={(e) => setTopic(e.target.value)}
           difficulty={difficulty}
@@ -221,7 +269,7 @@ export default function QuestionManagementPage() {
           ]}
           tagOptions={[
             { value: 'all', label: 'Tags' },
-            ...QUESTION_TAG_SUGGESTIONS.map((t) => ({ value: t, label: t })),
+            ...tagChoices.map((t) => ({ value: t, label: t })),
           ]}
           statusOptions={[
             { value: 'all', label: 'Status' },
@@ -268,7 +316,7 @@ export default function QuestionManagementPage() {
         title="Delete question?"
         message={
           deleteRow
-            ? `This will permanently delete ${deleteRow.id}. This action cannot be undone.`
+            ? `This will permanently delete ${deleteRow.questionCode || deleteRow.id}. This action cannot be undone.`
             : 'This will permanently delete the question. This action cannot be undone.'
         }
         onCancel={() => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Highlighter,
   MessageSquare,
@@ -10,7 +10,7 @@ import {
   Download,
 } from 'lucide-react'
 import PdfViewer from '../../evaluation-management/PdfViewer'
-import { getTestMeta } from '../../../api/evaluationOversightAPI'
+import { fetchSubmissionPdfBlobUrl } from '../../../api/evaluationOversightAPI'
 import { cn } from '../../../utils/cn'
 
 function clamp(n, min, max) {
@@ -37,17 +37,64 @@ export default function AnswerSheetViewer({
 }) {
   const wrapRef = useRef(null)
   const [drag, setDrag] = useState(null)
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfError, setPdfError] = useState(null)
 
-  const testMeta = getTestMeta(paper?.testId)
-  const questionText = testMeta?.questionText || paper?.questionText
-  const questionMarks = testMeta?.questionMarks || paper?.questionMarks || 15
+  const questionText = paper?.questionText
+  const questionMarks = paper?.questionMarks || 15
   const title = `${paper?.subjectName || 'Subject'} – ${paper?.testName || 'Test'}`
 
-  const file = paper?.answerSheet?.dataUrl
-    ? { dataUrl: paper.answerSheet.dataUrl }
-    : paper?.answerSheet?.url
-      ? { url: paper.answerSheet.url }
-      : null
+  const sheetUrl = paper?.answerSheet?.dataUrl || paper?.answerSheet?.url || null
+  const isTextAnswer =
+    paper?.answerType === 'text' ||
+    (!sheetUrl && Boolean(String(paper?.answerText || '').trim()))
+  const isDataUrl = Boolean(paper?.answerSheet?.dataUrl)
+  const isFileAnswer = paper?.answerType === 'file' || Boolean(sheetUrl && !isTextAnswer)
+
+  useEffect(() => {
+    let cancelled = false
+    let objectUrl = null
+
+    async function loadPdf() {
+      setPdfBlobUrl(null)
+      setPdfError(null)
+
+      if (isTextAnswer || !isFileAnswer) return
+
+      if (isDataUrl) {
+        setPdfBlobUrl(paper.answerSheet.dataUrl)
+        return
+      }
+
+      if (!paper?.id) return
+
+      setPdfLoading(true)
+      try {
+        objectUrl = await fetchSubmissionPdfBlobUrl(paper.id)
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl)
+          return
+        }
+        setPdfBlobUrl(objectUrl)
+      } catch (err) {
+        if (!cancelled) {
+          setPdfError(err?.message || 'Unable to load answer PDF')
+        }
+      } finally {
+        if (!cancelled) setPdfLoading(false)
+      }
+    }
+
+    loadPdf()
+
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [paper?.id, isTextAnswer, isFileAnswer, isDataUrl, paper?.answerSheet?.dataUrl])
+
+  const pdfJsFile = pdfBlobUrl ? { url: pdfBlobUrl } : null
 
   const pageAnnotations = (annotations || []).filter((a) => Number(a.page) === Number(page))
 
@@ -180,9 +227,39 @@ export default function AnswerSheetViewer({
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          {file ? (
+          {isTextAnswer ? (
+            <div className="flex min-h-[360px] w-full max-w-2xl flex-col rounded-lg bg-white p-6 shadow-inner ring-1 ring-slate-200">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#55ace7]">
+                Typed answer
+              </p>
+              <div
+                className="mt-4 max-h-[min(520px,60vh)] flex-1 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-800"
+                style={{ fontFamily: 'Georgia, serif' }}
+              >
+                {paper?.answerText || 'No answer text submitted.'}
+              </div>
+            </div>
+          ) : pdfLoading ? (
+            <div className="flex min-h-[360px] w-full max-w-2xl items-center justify-center rounded-lg bg-white p-8 shadow-inner ring-1 ring-slate-200">
+              <p className="text-sm font-semibold text-slate-600">Loading answer PDF…</p>
+            </div>
+          ) : pdfError ? (
+            <div className="flex min-h-[360px] w-full max-w-2xl flex-col items-center justify-center rounded-lg bg-white p-8 text-center shadow-inner ring-1 ring-slate-200">
+              <p className="text-sm font-semibold text-red-700">{pdfError}</p>
+              {sheetUrl ? (
+                <a
+                  href={sheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 text-sm font-semibold text-[#55ace7] hover:underline"
+                >
+                  Open original file in new tab
+                </a>
+              ) : null}
+            </div>
+          ) : pdfJsFile ? (
             <PdfViewer
-              file={file}
+              file={pdfJsFile}
               page={page}
               scale={scale}
               onPageCount={onPageCount}
@@ -190,22 +267,10 @@ export default function AnswerSheetViewer({
             />
           ) : (
             <div className="flex min-h-[360px] w-full max-w-2xl flex-col items-center justify-center rounded-lg bg-white p-8 text-center shadow-inner ring-1 ring-slate-200">
-              <p className="text-sm font-semibold text-slate-600">Answer sheet preview</p>
+              <p className="text-sm font-semibold text-slate-600">No answer sheet attached</p>
               <p className="mt-2 max-w-md text-xs text-slate-500">
-                Upload or attach a scanned PDF to evaluate. Demo mode shows placeholder layout for{' '}
-                {paper?.studentName}.
+                This submission does not include a PDF or typed answer to preview.
               </p>
-              <div
-                className="mt-6 w-full rounded-lg bg-amber-50/80 p-6 text-left text-sm leading-loose text-slate-700"
-                style={{ fontFamily: 'Georgia, serif' }}
-              >
-                <p className="text-slate-500">[Handwritten response area — page {page}]</p>
-                <p className="mt-4">
-                  Digital transformation has reshaped rural administrative structures through e-governance
-                  initiatives…
-                </p>
-                <p className="mt-3 bg-yellow-200/60 px-1">Highlighted section example for evaluation.</p>
-              </div>
             </div>
           )}
 
@@ -240,23 +305,35 @@ export default function AnswerSheetViewer({
         </div>
 
         <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1a3a5c] px-3 py-2 text-white shadow-lg">
-          <button
-            type="button"
-            onClick={() => onPageChange(clamp(page - 1, 1, Math.max(pageCount || 1, 1)))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="min-w-[100px] text-center text-xs font-bold tabular-nums">
-            Page {String(page).padStart(2, '0')} / {String(pageCount || paper?.answerSheet?.pages || 12).padStart(2, '0')}
-          </span>
-          <button
-            type="button"
-            onClick={() => onPageChange(clamp(page + 1, 1, Math.max(pageCount || paper?.answerSheet?.pages || 12, 1)))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          {isTextAnswer ? (
+            <span className="min-w-[100px] text-center text-xs font-bold">Typed answer</span>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onPageChange(clamp(page - 1, 1, Math.max(pageCount || 1, 1)))}
+                disabled={pdfLoading || !pdfJsFile}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-[100px] text-center text-xs font-bold tabular-nums">
+                {pdfLoading
+                  ? 'Loading…'
+                  : `Page ${String(page).padStart(2, '0')} / ${String(pageCount || 1).padStart(2, '0')}`}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  onPageChange(clamp(page + 1, 1, Math.max(pageCount || 1, 1)))
+                }
+                disabled={pdfLoading || !pdfJsFile}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

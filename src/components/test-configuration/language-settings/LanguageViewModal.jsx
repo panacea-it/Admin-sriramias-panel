@@ -25,7 +25,7 @@ export default function LanguageViewModal({ open, onClose, row }) {
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Language ID</dt>
-                <dd className="mt-1 text-sm font-medium text-[#111]">{row.id}</dd>
+                <dd className="mt-1 text-sm font-medium text-[#111]">{row.languageId || row.id}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Status</dt>

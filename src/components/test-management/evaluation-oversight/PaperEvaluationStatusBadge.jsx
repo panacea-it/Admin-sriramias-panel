@@ -2,6 +2,7 @@ import { cn } from '../../../utils/cn'
 
 const STATUS_STYLES = {
   Evaluated: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
+  Assigned: 'bg-violet-500/15 text-violet-800 ring-violet-500/25',
   Pending: 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
   'In Progress': 'bg-sky-500/15 text-sky-800 ring-sky-500/25',
   'Not Started': 'bg-slate-500/15 text-slate-600 ring-slate-400/25',

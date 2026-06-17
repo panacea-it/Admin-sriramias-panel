@@ -1,17 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchCbtTopics } from '../api/cbtManagementAPI'
-import {
-  getCbtFacultyBySubjectId,
-  getCbtTopics,
-} from '../utils/cbtTestSeriesHierarchy'
-import { isFrontendOnly } from '../config/appMode'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
 const TOPIC_LIMIT = 100
-
-const localTopics = (subjectId) =>
-  getCbtTopics(getCbtFacultyBySubjectId(subjectId))
 
 export function useCbtFacultyTopics(subjectId) {
   const [topics, setTopics] = useState([])
@@ -29,12 +21,6 @@ export function useCbtFacultyTopics(subjectId) {
       setLoading(true)
       setLoadError(null)
 
-      if (isFrontendOnly) {
-        setTopics(localTopics(subjectId))
-        setLoading(false)
-        return
-      }
-
       try {
         const rows = await fetchCbtTopics(
           { facultySubjectId: subjectId, limit: TOPIC_LIMIT },
@@ -46,7 +32,7 @@ export function useCbtFacultyTopics(subjectId) {
         const message = getApiErrorMessage(error, 'Failed to load CBT topics')
         setLoadError(message)
         toast.error(message)
-        setTopics(localTopics(subjectId))
+        setTopics([])
       } finally {
         setLoading(false)
       }

@@ -54,7 +54,7 @@ export default function QuestionBankTable({
         headerClassName: 'min-w-[108px] whitespace-nowrap px-4 sm:px-5',
         cellClassName: 'min-w-[108px] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="font-semibold text-slate-900">{row.id || '—'}</span>
+          <span className="font-semibold text-slate-900">{row.questionCode || row.id || '—'}</span>
         ),
       },
       {

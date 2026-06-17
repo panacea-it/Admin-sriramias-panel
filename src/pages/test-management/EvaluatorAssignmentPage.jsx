@@ -7,11 +7,8 @@ import CurrentAssignmentCard from '../../components/test-management/assignment-w
 import FacultyAssignmentPanel from '../../components/test-management/assignment-workspace/FacultyAssignmentPanel'
 import StudentPaperSelectionTable from '../../components/test-management/assignment-workspace/StudentPaperSelectionTable'
 import {
-  SEED_OVERSIGHT_BATCHES,
-  SEED_OVERSIGHT_TESTS,
-} from '../../data/evaluationOversightSeed'
-import {
   bulkAssignEvaluator,
+  fetchAssignmentBatches,
   fetchAssignmentEvaluators,
   fetchAssignmentPendingPapers,
   fetchAssignmentSubjects,
@@ -22,21 +19,17 @@ import {
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { toast } from '../../utils/toast'
 
-const DEFAULT_BATCH = 'BATCH-2024-A'
-const DEFAULT_SUBJECT = 'SUB-MATH'
-const DEFAULT_TOPIC = 'ST-ALL'
-const DEFAULT_TEST = 'TST-MID-MATH'
-
 export default function EvaluatorAssignmentPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const incoming = location.state?.assignmentContext || {}
   const incomingPaperIds = incoming.paperIds || []
 
-  const [batchId, setBatchId] = useState(incoming.batchId || DEFAULT_BATCH)
-  const [subjectId, setSubjectId] = useState(incoming.subjectId || DEFAULT_SUBJECT)
-  const [topicId, setTopicId] = useState(incoming.topicId || incoming.subTopicId || DEFAULT_TOPIC)
-  const [testId, setTestId] = useState(incoming.testId || DEFAULT_TEST)
+  const [batchId, setBatchId] = useState(incoming.batchId || '')
+  const [subjectId, setSubjectId] = useState(incoming.subjectId || '')
+  const [topicId, setTopicId] = useState(incoming.topicId || incoming.subTopicId || '')
+  const [testId, setTestId] = useState(incoming.testId || '')
+  const [batches, setBatches] = useState([])
   const [subjects, setSubjects] = useState([])
   const [topics, setTopics] = useState([])
   const [tests, setTests] = useState([])
@@ -50,14 +43,9 @@ export default function EvaluatorAssignmentPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const batches = useMemo(
-    () => SEED_OVERSIGHT_BATCHES.map((b) => ({ value: b.id, label: b.label })),
-    [],
-  )
-
   const testName = useMemo(
-    () => SEED_OVERSIGHT_TESTS.find((t) => t.id === testId)?.label || '',
-    [testId],
+    () => tests.find((t) => t.value === testId)?.label || '',
+    [tests, testId],
   )
 
   const faculty = useMemo(() => {
@@ -87,7 +75,7 @@ export default function EvaluatorAssignmentPage() {
   }, [])
 
   const loadWorkspace = useCallback(async () => {
-    if (!batchId || !subjectId || !topicId || !testId) return
+    if (!batchId || !subjectId || !testId) return
     setLoading(true)
     try {
       const current = await fetchCurrentPrimaryAssignment({
@@ -124,6 +112,18 @@ export default function EvaluatorAssignmentPage() {
   }, [batchId, subjectId, topicId, testId, statusFilter])
 
   useEffect(() => {
+    fetchAssignmentBatches()
+      .then((list) => {
+        setBatches(list)
+        setBatchId((prev) => {
+          if (prev && list.some((b) => b.value === prev)) return prev
+          return list[0]?.value || ''
+        })
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     loadSubjects(batchId).then((list) => {
       if (list.length && !list.some((s) => s.value === subjectId)) {
         setSubjectId(list[0].value)
@@ -141,7 +141,7 @@ export default function EvaluatorAssignmentPage() {
   }, [subjectId, loadTopics, topicId])
 
   useEffect(() => {
-    if (!subjectId || !topicId) return
+    if (!subjectId) return
     loadTests(batchId, subjectId, topicId).then((list) => {
       if (list.length && !list.some((t) => t.value === testId)) {
         setTestId(list[0].value)

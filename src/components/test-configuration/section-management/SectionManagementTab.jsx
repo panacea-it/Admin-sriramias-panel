@@ -100,6 +100,8 @@ export default function SectionManagementTab() {
       toast.success('Section deleted')
       setDeleteOpen(false)
       setDeleteRow(null)
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete section')
     } finally {
       setDeleting(false)
     }
@@ -138,6 +140,7 @@ export default function SectionManagementTab() {
         label: 'Section ID',
         headerClassName: 'pl-6 sm:pl-10',
         cellClassName: 'pl-6 sm:pl-10',
+        render: (r) => r.sectionId || r.id,
       },
       {
         key: 'sectionName',

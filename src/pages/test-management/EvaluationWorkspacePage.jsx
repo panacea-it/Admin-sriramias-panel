@@ -40,7 +40,7 @@ export default function EvaluationWorkspacePage() {
   const [publishing, setPublishing] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageCount, setPageCount] = useState(12)
+  const [pageCount, setPageCount] = useState(1)
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [activeTool, setActiveTool] = useState('highlight')
@@ -63,6 +63,8 @@ export default function EvaluationWorkspacePage() {
       const data = await fetchEvaluationPaperById(paperId)
       setPaper(data)
       setRubric(normalizeRubric(data.rubric))
+      setPage(1)
+      setPageCount(data.answerType === 'text' ? 1 : 1)
       setDirty(false)
     } catch (err) {
       toast.error(err?.message || 'Failed to load paper')
@@ -257,7 +259,9 @@ export default function EvaluationWorkspacePage() {
             onScaleChange={setScale}
             onRotate={() => setRotation((r) => (r + 90) % 360)}
             onToolChange={setActiveTool}
-            onPageCount={(n) => setPageCount(n || paper?.answerSheet?.pages || 12)}
+            onPageCount={(n) => {
+              if (n != null && n > 0) setPageCount(n)
+            }}
             onAnnotate={handleAnnotate}
           />
         </div>

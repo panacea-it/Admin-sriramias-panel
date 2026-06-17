@@ -4,11 +4,6 @@ import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import StatCard from '../../dashboard/StatCard'
 import { Users, Target } from 'lucide-react'
 import MainsStudentResultsTable from './MainsStudentResultsTable'
-import {
-  generateMainsStudentResults,
-  summarizeMainsResults,
-} from '../../../data/mainsStudentResultsSeed'
-import { deriveEvaluationStats } from '../../../utils/evaluationProgressMetrics'
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -33,28 +28,33 @@ function SummaryProgressBar({ label, value, max, color = '#55ace7' }) {
   )
 }
 
-export default function MainsEvaluationResultsView({ test, facultyLabel }) {
+export default function MainsEvaluationResultsView({
+  test,
+  facultyLabel,
+  summary: summaryProp,
+  rows: rowsProp,
+}) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const allRows = useMemo(
-    () => generateMainsStudentResults(test?.id, test?.title),
-    [test?.id, test?.title],
-  )
+  const allRows = useMemo(() => rowsProp ?? [], [rowsProp])
 
   const summary = useMemo(() => {
-    const fromRows = summarizeMainsResults(allRows)
-    const derived = deriveEvaluationStats(test?.id)
+    if (summaryProp) return summaryProp
     return {
-      ...fromRows,
-      studentsAssigned: derived.studentsAssigned,
-      totalDownloads: derived.studentsDownloaded,
-      totalUploaded: derived.studentsUploaded,
-      totalEvaluated: derived.studentsEvaluated,
-      pendingEvaluations: derived.pendingEvaluations,
-      evaluationPct: derived.evaluationPct,
+      studentsAssigned: 0,
+      totalDownloads: 0,
+      totalUploaded: 0,
+      totalEvaluated: 0,
+      pendingEvaluations: 0,
+      evaluationPct: 0,
+      totalStudents: 0,
+      highestMarks: 0,
+      lowestMarks: 0,
+      averageMarks: 0,
+      topRanker: '—',
     }
-  }, [allRows, test?.id])
+  }, [summaryProp])
 
   const filtered = useMemo(() => {
     let rows = [...allRows]

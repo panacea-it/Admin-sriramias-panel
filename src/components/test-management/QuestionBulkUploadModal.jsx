@@ -5,8 +5,14 @@ import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import { CourseFormField } from '../courses/CourseFormField'
 import { cn } from '../../utils/cn'
-import { fetchQuestions, upsertQuestion } from '../../api/testManagementAPI'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
+import {
+  downloadQuestionTemplate,
+  importBulkQuestions,
+  isQuestionBankLocal,
+  validateBulkQuestions,
+} from '../../api/questionBankAPI'
+import { fetchQuestions, upsertQuestion } from '../../api/testManagementAPI'
 import {
   downloadErrorReportXlsx,
   downloadTemplateXlsx,
@@ -65,12 +71,39 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
     }
     setValidating(true)
     try {
-      const rows = await parseBulkFileToRows(file)
-      setParsedRows(rows)
-
-      const existing = await fetchQuestions({})
-      const nextValidation = validateBulkRows(rows, { existing, duplicateMode })
-      setValidation(nextValidation)
+      if (isQuestionBankLocal()) {
+        const rows = await parseBulkFileToRows(file)
+        setParsedRows(rows)
+        const existing = await fetchQuestions({})
+        setValidation(validateBulkRows(rows, { existing, duplicateMode }))
+      } else {
+        const data = await validateBulkQuestions(file)
+        const results = [
+          ...(data.errors || []).map((e) => ({
+            rowNumber: e.row,
+            validationStatus: 'Invalid',
+            errorMessage: [e.field, e.message].filter(Boolean).join(': '),
+            shouldUpload: false,
+          })),
+          ...(data.duplicates || []).map((d) => ({
+            rowNumber: d.row ?? d.sourceRow,
+            validationStatus: 'Duplicate',
+            errorMessage: d.message || d.questionText || 'Duplicate question',
+            shouldUpload: false,
+          })),
+        ]
+        setParsedRows([])
+        setValidation({
+          canImport: Boolean(data.canImport),
+          summary: {
+            totalRows: data.totalRows ?? 0,
+            validRows: data.validRows ?? 0,
+            duplicateRows: data.duplicateRows ?? 0,
+            invalidRows: data.invalidRows ?? 0,
+          },
+          results,
+        })
+      }
       toast.success('Validation complete')
     } catch (err) {
       toast.error(err?.message || 'Failed to validate file')
@@ -91,6 +124,35 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
 
     setUploading(true)
     try {
+      if (!isQuestionBankLocal()) {
+        if (validation.canImport === false) {
+          toast.error('Fix the invalid rows before importing')
+          setUploading(false)
+          return
+        }
+        const data = await importBulkQuestions(file, duplicateMode)
+        const failedRows = (data.errors || []).map((e) => ({
+          rowNumber: e.row,
+          validationStatus: 'Failed',
+          errorMessage: e.message,
+        }))
+        setUploadSummary({
+          summary: {
+            totalRows: validation.summary.totalRows,
+            successfullyUploaded: data.insertedCount ?? 0,
+            failedRows: data.failedCount ?? 0,
+            duplicateRows: data.duplicateCount ?? 0,
+            validationErrors: 0,
+            skippedDuplicates: data.skippedCount ?? 0,
+          },
+          failedRows,
+        })
+        toast.success(`Uploaded ${data.insertedCount ?? 0} questions`)
+        onUploaded?.()
+        setUploading(false)
+        return
+      }
+
       const validToUpload = validation.results.filter((r) => r.shouldUpload)
       const invalidRows = validation.results.filter((r) => r.validationStatus === 'Invalid')
       const duplicateRows = validation.results.filter((r) => r.validationStatus === 'Duplicate')
@@ -251,7 +313,8 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
                     type="button"
                     onClick={async () => {
                       try {
-                        await downloadTemplateXlsx(t.key)
+                        if (isQuestionBankLocal()) await downloadTemplateXlsx(t.key)
+                        else await downloadQuestionTemplate(t.key)
                         toast.success(`${t.title} downloaded`)
                       } catch (err) {
                         toast.error(err?.message || 'Failed to download template')
@@ -475,10 +538,11 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
             <button
               type="button"
               onClick={uploadValidRows}
-              disabled={!validation || uploading || validating}
+              disabled={!validation || uploading || validating || validation?.canImport === false}
               className={cn(
                 'inline-flex h-11 items-center justify-center rounded-2xl bg-[#1a3a5c] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#152f4a]',
-                (!validation || uploading || validating) && 'cursor-not-allowed opacity-60 hover:bg-[#1a3a5c]',
+                (!validation || uploading || validating || validation?.canImport === false) &&
+                  'cursor-not-allowed opacity-60 hover:bg-[#1a3a5c]',
               )}
             >
               {uploading ? 'Uploading...' : 'Upload Questions'}

@@ -168,11 +168,6 @@ function invalidateAfterMutation(examId) {
   if (examId != null) clearOmrExamDetailCache(examId)
 }
 
-function isOmrApiUnavailable(error) {
-  const status = error?.response?.status
-  return status === 404 || status === 501 || status === 502 || status === 503
-}
-
 async function withOmrLocal(localFn, apiCall) {
   if (USE_OMR_LOCAL) {
     await delay()
@@ -181,10 +176,6 @@ async function withOmrLocal(localFn, apiCall) {
   try {
     return await apiCall()
   } catch (error) {
-    if (isOmrApiUnavailable(error)) {
-      await delay()
-      return localFn()
-    }
     throwApiError(error)
   }
 }
@@ -238,12 +229,8 @@ export async function getOmrExamById(examId) {
       omrDetailInFlight.delete(key)
       return response.data
     })
-    .catch(async (error) => {
+    .catch((error) => {
       omrDetailInFlight.delete(key)
-      if (isOmrApiUnavailable(error)) {
-        await delay()
-        return loadLocal()
-      }
       throwApiError(error)
     })
 

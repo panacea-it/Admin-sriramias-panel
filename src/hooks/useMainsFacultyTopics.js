@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchCbtTests } from '../api/cbtManagementAPI'
+import { fetchMainsFacultyDetails } from '../api/mainsManagementAPI'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
-const TEST_LIMIT = 100
-
-export function useCbtTopicTests(topicId) {
-  const [tests, setTests] = useState([])
-  const [topic, setTopic] = useState(null)
+export function useMainsFacultyTopics(subjectId) {
+  const [faculty, setFaculty] = useState(null)
+  const [topics, setTopics] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
   const refresh = useCallback(
     async (signal) => {
-      if (!topicId) {
-        setTests([])
-        setTopic(null)
+      if (!subjectId) {
+        setFaculty(null)
+        setTopics([])
         setLoading(false)
         return
       }
@@ -24,24 +22,21 @@ export function useCbtTopicTests(topicId) {
       setLoadError(null)
 
       try {
-        const { tests: rows, topic: topicHeader } = await fetchCbtTests(
-          { topicId, limit: TEST_LIMIT },
-          signal,
-        )
-        setTests(rows)
-        setTopic(topicHeader)
+        const { faculty: header, topics: rows } = await fetchMainsFacultyDetails(subjectId, signal)
+        setFaculty(header)
+        setTopics(rows)
       } catch (error) {
         if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load tests')
+        const message = getApiErrorMessage(error, 'Failed to load faculty subject')
         setLoadError(message)
         toast.error(message)
-        setTests([])
-        setTopic(null)
+        setFaculty(null)
+        setTopics([])
       } finally {
         setLoading(false)
       }
     },
-    [topicId],
+    [subjectId],
   )
 
   useEffect(() => {
@@ -50,5 +45,5 @@ export function useCbtTopicTests(topicId) {
     return () => controller.abort()
   }, [refresh])
 
-  return { tests, topic, loading, loadError, refresh }
+  return { faculty, topics, loading, loadError, refresh }
 }

@@ -6,41 +6,35 @@ import MainsBreadcrumbNav from '../../components/test-management/mains/MainsBrea
 import MainsTestsTable from '../../components/test-management/mains/MainsTestsTable'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { getMainsFacultyBySubjectId, getMainsTopic } from '../../utils/mainsEvaluationHierarchy'
-import { useMainsEvaluationHierarchy } from '../../hooks/useMainsEvaluationHierarchy'
+import { useMainsTopicTests } from '../../hooks/useMainsTopicTests'
 
 export default function MainsTopicDetailPage() {
   const { subjectId, topicId } = useParams()
   const navigate = useNavigate()
-  const { facultyRows, loading } = useMainsEvaluationHierarchy()
+  const { topic, tests, loading } = useMainsTopicTests(topicId)
 
-  const faculty = useMemo(() => {
-    const fromRows = facultyRows.find((r) => String(r.subjectId) === String(subjectId))
-    return fromRows || getMainsFacultyBySubjectId(subjectId)
-  }, [facultyRows, subjectId])
+  const faculty = useMemo(() => ({ subjectId }), [subjectId])
 
-  const topic = useMemo(() => getMainsTopic(faculty, topicId), [faculty, topicId])
+  const facultyLabel = topic?.facultyLabel || ''
 
-  const facultyLabel = faculty ? `${faculty.subjectName} by ${faculty.facultyName}` : ''
-
-  const breadcrumbs = faculty
+  const breadcrumbs = topic
     ? [
         {
           key: 'faculty',
-          label: facultyLabel,
+          label: facultyLabel || 'Faculty Subject',
           to: TEST_MANAGEMENT_ROUTES.mainsFaculty(subjectId),
         },
         { key: 'topic', label: topic?.title || 'Topic' },
       ]
     : []
 
-  if (!loading && (!faculty || !topic)) {
+  if (!loading && !topic) {
     return (
       <TestManagementPageShell icon={ListChecks} title="Topic Tests">
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm text-slate-600">Topic or tests not found.</p>
           <Link
-            to={faculty ? TEST_MANAGEMENT_ROUTES.mainsFaculty(subjectId) : TEST_MANAGEMENT_ROUTES.mains}
+            to={TEST_MANAGEMENT_ROUTES.mainsFaculty(subjectId)}
             className="mt-4 inline-block"
           >
             <BannerButton type="button">Go Back</BannerButton>
@@ -74,7 +68,7 @@ export default function MainsTopicDetailPage() {
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
         </div>
       ) : (
-        <MainsTestsTable faculty={faculty} topic={topic} loading={loading} />
+        <MainsTestsTable faculty={faculty} topic={topic} tests={tests} loading={loading} />
       )}
     </TestManagementPageShell>
   )

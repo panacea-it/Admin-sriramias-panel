@@ -35,7 +35,7 @@ function delay(ms = DELAY_MS) {
 }
 
 function useLocalTestConfigOnly() {
-  return isFrontendOnly || TEST_CONFIG_API_DISABLED
+  return TEST_CONFIG_API_DISABLED
 }
 
 function safeJsonParse(value, fallback) {
@@ -206,16 +206,16 @@ async function apiCall(method, path, { params, payload } = {}) {
   return null
 }
 
-function wrapApi(fetchLocal, upsertLocal, deleteLocal, basePath) {
+function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath) {
   return {
     fetch: async (params = {}) => {
-      if (useLocalTestConfigOnly()) return fetchLocal(params)
+      if (useLocalTestConfigOnly()) return _fetchLocal(params)
       try {
         const response = await apiCall('get', basePath, { params })
         const body = response.data
         return Array.isArray(body) ? body : body?.data ?? []
-      } catch {
-        return fetchLocal(params)
+      } catch (err) {
+        throw new Error(err?.response?.data?.message || err?.message || 'Failed to load data')
       }
     },
     upsert: async (payload, meta) => {
@@ -227,27 +227,119 @@ function wrapApi(fetchLocal, upsertLocal, deleteLocal, basePath) {
         }
         const response = await apiCall('post', basePath, { payload })
         return response.data?.data ?? response.data
-      } catch {
-        return upsertLocal(payload, meta)
+      } catch (err) {
+        throw new Error(err?.response?.data?.message || err?.message || 'Failed to save')
       }
     },
     remove: async (id) => {
       if (useLocalTestConfigOnly()) return deleteLocal(id)
       try {
         await apiCall('delete', `${basePath}/${id}`)
-      } catch {
-        return deleteLocal(id)
+      } catch (err) {
+        throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete')
       }
     },
   }
 }
 
-const examPatternApi = wrapApi(
-  fetchExamPatternsLocal,
-  upsertExamPatternLocal,
-  deleteExamPatternLocal,
-  '/test-management/exam-patterns',
-)
+/* -------------------------------------------------------------------------- */
+/*  Real Test Configuration API (backend: /api/test-configuration/*)          */
+/* -------------------------------------------------------------------------- */
+
+const EXAM_PATTERN_PATH = '/test-configuration/exam-patterns'
+const SECTION_PATH = '/test-configuration/sections'
+const LANGUAGE_PATH = '/test-configuration/languages'
+
+function uiStatusToApi(status) {
+  const raw = String(status || '').toLowerCase()
+  if (raw === 'inactive') return 'INACTIVE'
+  if (raw === 'active') return 'ACTIVE'
+  return undefined
+}
+
+function apiStatusToUi(status) {
+  return String(status || '').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'
+}
+
+function friendlyDate(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function buildListQuery(params = {}, sortPreset) {
+  const query = { page: 1, limit: 100 }
+  const search = String(params.search || '').trim()
+  if (search) query.search = search
+  const status = uiStatusToApi(params.status)
+  if (status) query.status = status
+  if (sortPreset) query.sortPreset = sortPreset
+  return query
+}
+
+function presetFromSort(sortBy, sortDir, nameField) {
+  const dir = sortDir === 'asc' ? 'asc' : 'desc'
+  if (nameField && sortBy === nameField) {
+    return dir === 'asc' ? `${nameField}_az` : `${nameField}_za`
+  }
+  if (sortBy === 'modifiedOn' || sortBy === 'updatedAt') {
+    return dir === 'asc' ? 'modifiedOn_oldest' : 'modifiedOn_newest'
+  }
+  return dir === 'asc' ? 'createdOn_oldest' : 'createdOn_newest'
+}
+
+function mapApiExamPattern(row) {
+  if (!row || typeof row !== 'object') return null
+  const mongoId = row._id ?? row.id
+  const instructionId = row.instructionId ?? ''
+  if (!mongoId && !instructionId) return null
+  return {
+    id: String(mongoId ?? instructionId),
+    instructionId: String(instructionId || mongoId),
+    instructionDescription: String(row.instructionDescription ?? row.instructions ?? '').trim(),
+    status: apiStatusToUi(row.status),
+    createdOn: friendlyDate(row.createdAt || row.createdOn),
+    modifiedOn: friendlyDate(row.updatedAt || row.modifiedOn || row.createdAt || row.createdOn),
+  }
+}
+
+function mapApiSection(row) {
+  if (!row || typeof row !== 'object') return null
+  const mongoId = row._id ?? row.id
+  const sectionId = row.sectionId ?? ''
+  if (!mongoId && !sectionId) return null
+  return {
+    id: String(mongoId ?? sectionId),
+    sectionId: String(sectionId || mongoId),
+    sectionName: String(row.sectionName ?? row.configurationName ?? '').trim(),
+    status: apiStatusToUi(row.status),
+    createdOn: friendlyDate(row.createdAt || row.createdOn),
+    modifiedOn: friendlyDate(row.updatedAt || row.modifiedOn || row.createdAt || row.createdOn),
+  }
+}
+
+function mapApiLanguage(row) {
+  if (!row || typeof row !== 'object') return null
+  const mongoId = row._id ?? row.id
+  const languageId = row.languageId ?? ''
+  if (!mongoId && !languageId) return null
+  return {
+    id: String(mongoId ?? languageId),
+    languageId: String(languageId || mongoId),
+    languageName: String(row.languageName ?? row.language ?? '').trim(),
+    status: apiStatusToUi(row.status),
+    createdOn: friendlyDate(row.createdAt || row.createdOn),
+    modifiedOn: friendlyDate(row.updatedAt || row.modifiedOn || row.createdAt || row.createdOn),
+  }
+}
+
+async function fetchListFromApi(basePath, params, sortPreset, mapper) {
+  const response = await apiCall('get', basePath, { params: buildListQuery(params, sortPreset) })
+  const body = response.data
+  const arr = Array.isArray(body) ? body : body?.data ?? []
+  return (Array.isArray(arr) ? arr : []).map(mapper).filter(Boolean)
+}
 
 function loadSectionStore() {
   purgeLegacySectionStorage()
@@ -394,16 +486,17 @@ async function deleteLanguageLocal(id) {
   )
 }
 
-const sectionConfigApi = wrapApi(
-  fetchSectionConfigsLocal,
-  upsertSectionConfigLocal,
-  deleteSectionConfigLocal,
-  '/test-management/section-configs',
-)
-
 async function fetchSectionConfigs(params = {}) {
-  const rows = await sectionConfigApi.fetch(params)
-  return normalizeSectionList(rows)
+  if (useLocalTestConfigOnly()) {
+    const rows = await fetchSectionConfigsLocal(params)
+    return normalizeSectionList(rows)
+  }
+  try {
+    const preset = presetFromSort(params.sortBy, params.sortDir, 'sectionName')
+    return await fetchListFromApi(SECTION_PATH, params, preset, mapApiSection)
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to load sections')
+  }
 }
 
 async function upsertSectionConfig(payload, meta) {
@@ -411,20 +504,19 @@ async function upsertSectionConfig(payload, meta) {
     const saved = await upsertSectionConfigLocal(payload, meta)
     return normalizeSectionRow(saved)
   }
+  const body = {
+    sectionName: String(payload.sectionName || '').trim(),
+    status: uiStatusToApi(payload.status) || 'ACTIVE',
+  }
   try {
-    if (meta?.isEdit && meta?.id) {
-      const response = await apiCall('put', `/test-management/section-configs/${meta.id}`, { payload })
-      notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
-      return normalizeSectionRow(response.data?.data ?? response.data)
-    }
-    const response = await apiCall('post', '/test-management/section-configs', { payload })
+    const response =
+      meta?.isEdit && meta?.id
+        ? await apiCall('put', `${SECTION_PATH}/${meta.id}`, { payload: body })
+        : await apiCall('post', SECTION_PATH, { payload: body })
     notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
-    return normalizeSectionRow(response.data?.data ?? response.data)
+    return mapApiSection(response.data?.data ?? response.data)
   } catch (err) {
-    const message = err?.response?.data?.message
-    if (message) throw new Error(message)
-    const saved = await upsertSectionConfigLocal(payload, meta)
-    return normalizeSectionRow(saved)
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to save section')
   }
 }
 
@@ -435,11 +527,10 @@ async function deleteSectionConfig(id) {
     return
   }
   try {
-    await apiCall('delete', `/test-management/section-configs/${id}`)
+    await apiCall('delete', `${SECTION_PATH}/${id}`)
     notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
-  } catch {
-    await deleteSectionConfigLocal(id)
-    notifyTestConfigurationUpdated({ entity: 'sectionConfigs' })
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete section')
   }
 }
 const markingRuleApi = wrapApi(
@@ -448,71 +539,88 @@ const markingRuleApi = wrapApi(
   markingRuleCrud.deleteLocal,
   '/test-management/marking-rules',
 )
-const languageApi = wrapApi(
-  fetchLanguagesLocal,
-  upsertLanguageLocal,
-  deleteLanguageLocal,
-  '/test-management/languages',
-)
-
 export async function fetchLanguages(params = {}) {
-  return languageApi.fetch(params)
+  if (useLocalTestConfigOnly()) return fetchLanguagesLocal(params)
+  try {
+    const preset = presetFromSort(params.sortBy, params.sortDir, 'languageName')
+    return await fetchListFromApi(LANGUAGE_PATH, params, preset, mapApiLanguage)
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to load languages')
+  }
 }
 
 export async function upsertLanguage(payload, meta) {
   if (useLocalTestConfigOnly()) return upsertLanguageLocal(payload, meta)
+  const body = {
+    languageName: String(payload.languageName || '').trim(),
+    status: uiStatusToApi(payload.status) || 'ACTIVE',
+  }
   try {
-    if (meta?.isEdit && meta?.id) {
-      const response = await apiCall('put', `/test-management/languages/${meta.id}`, { payload })
-      const saved = response.data?.data ?? response.data
-      notifyTestConfigurationUpdated({ entity: 'languages' })
-      return saved
-    }
-    const response = await apiCall('post', '/test-management/languages', { payload })
-    const saved = response.data?.data ?? response.data
+    const response =
+      meta?.isEdit && meta?.id
+        ? await apiCall('put', `${LANGUAGE_PATH}/${meta.id}`, { payload: body })
+        : await apiCall('post', LANGUAGE_PATH, { payload: body })
     notifyTestConfigurationUpdated({ entity: 'languages' })
-    return saved
+    return mapApiLanguage(response.data?.data ?? response.data)
   } catch (err) {
-    const message = err?.response?.data?.message
-    if (message) throw new Error(message)
-    return upsertLanguageLocal(payload, meta)
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to save language')
   }
 }
 
 export async function deleteLanguage(id) {
-  const result = await languageApi.remove(id)
-  notifyTestConfigurationUpdated({ entity: 'languages' })
-  return result
+  if (useLocalTestConfigOnly()) {
+    await deleteLanguageLocal(id)
+    notifyTestConfigurationUpdated({ entity: 'languages' })
+    return
+  }
+  try {
+    await apiCall('delete', `${LANGUAGE_PATH}/${id}`)
+    notifyTestConfigurationUpdated({ entity: 'languages' })
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete language')
+  }
 }
 
 export async function fetchExamPatterns(params = {}) {
-  return examPatternApi.fetch(params)
+  if (useLocalTestConfigOnly()) return fetchExamPatternsLocal(params)
+  try {
+    const preset = presetFromSort(params.sortBy, params.sortDir, null)
+    return await fetchListFromApi(EXAM_PATTERN_PATH, params, preset, mapApiExamPattern)
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to load exam patterns')
+  }
 }
 
 export async function upsertExamPattern(payload, meta) {
   if (useLocalTestConfigOnly()) return upsertExamPatternLocal(payload, meta)
+  const body = {
+    instructionDescription: String(payload.instructionDescription || '').trim(),
+    status: uiStatusToApi(payload.status) || 'ACTIVE',
+  }
   try {
-    if (meta?.isEdit && meta?.id) {
-      const response = await apiCall('put', `/test-management/exam-patterns/${meta.id}`, { payload })
-      const saved = response.data?.data ?? response.data
-      notifyTestConfigurationUpdated({ entity: 'examPatterns' })
-      return saved
-    }
-    const response = await apiCall('post', '/test-management/exam-patterns', { payload })
-    const saved = response.data?.data ?? response.data
+    const response =
+      meta?.isEdit && meta?.id
+        ? await apiCall('put', `${EXAM_PATTERN_PATH}/${meta.id}`, { payload: body })
+        : await apiCall('post', EXAM_PATTERN_PATH, { payload: body })
     notifyTestConfigurationUpdated({ entity: 'examPatterns' })
-    return saved
+    return mapApiExamPattern(response.data?.data ?? response.data)
   } catch (err) {
-    const message = err?.response?.data?.message
-    if (message) throw new Error(message)
-    return upsertExamPatternLocal(payload, meta)
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to save exam instruction')
   }
 }
 
 export async function deleteExamPattern(id) {
-  const result = await examPatternApi.remove(id)
-  notifyTestConfigurationUpdated({ entity: 'examPatterns' })
-  return result
+  if (useLocalTestConfigOnly()) {
+    await deleteExamPatternLocal(id)
+    notifyTestConfigurationUpdated({ entity: 'examPatterns' })
+    return
+  }
+  try {
+    await apiCall('delete', `${EXAM_PATTERN_PATH}/${id}`)
+    notifyTestConfigurationUpdated({ entity: 'examPatterns' })
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete exam instruction')
+  }
 }
 
 export { fetchSectionConfigs, upsertSectionConfig, deleteSectionConfig }

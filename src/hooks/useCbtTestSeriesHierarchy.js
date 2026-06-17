@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  buildCbtMappingRows,
-  buildLatestCbtEvaluationCards,
-} from '../utils/cbtTestSeriesHierarchy'
 import { fetchCbtDashboard, fetchCbtFacultySubjects } from '../api/cbtManagementAPI'
-import { isFrontendOnly } from '../config/appMode'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
@@ -21,13 +16,6 @@ export function useCbtTestSeriesHierarchy() {
     setLoading(true)
     setLoadError(null)
 
-    if (isFrontendOnly) {
-      setMappingRows(buildCbtMappingRows())
-      setLatestEvaluations(buildLatestCbtEvaluationCards(PROGRESS_LIMIT))
-      setLoading(false)
-      return
-    }
-
     try {
       const [cards, rows] = await Promise.all([
         fetchCbtDashboard({ progressLimit: PROGRESS_LIMIT }, signal),
@@ -40,8 +28,8 @@ export function useCbtTestSeriesHierarchy() {
       const message = getApiErrorMessage(error, 'Failed to load CBT management data')
       setLoadError(message)
       toast.error(message)
-      setLatestEvaluations(buildLatestCbtEvaluationCards(PROGRESS_LIMIT))
-      setMappingRows(buildCbtMappingRows())
+      setLatestEvaluations([])
+      setMappingRows([])
     } finally {
       setLoading(false)
     }

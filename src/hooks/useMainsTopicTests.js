@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchCbtTests } from '../api/cbtManagementAPI'
+import { fetchMainsTopicTests } from '../api/mainsManagementAPI'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
 const TEST_LIMIT = 100
 
-export function useCbtTopicTests(topicId) {
+export function useMainsTopicTests(topicId) {
   const [tests, setTests] = useState([])
   const [topic, setTopic] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -24,15 +24,15 @@ export function useCbtTopicTests(topicId) {
       setLoadError(null)
 
       try {
-        const { tests: rows, topic: topicHeader } = await fetchCbtTests(
+        const { tests: rows, topic: header } = await fetchMainsTopicTests(
           { topicId, limit: TEST_LIMIT },
           signal,
         )
         setTests(rows)
-        setTopic(topicHeader)
+        setTopic(header)
       } catch (error) {
         if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load tests')
+        const message = getApiErrorMessage(error, 'Failed to load topic tests')
         setLoadError(message)
         toast.error(message)
         setTests([])

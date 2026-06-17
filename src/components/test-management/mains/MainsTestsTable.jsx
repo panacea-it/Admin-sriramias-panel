@@ -6,13 +6,14 @@ import MainsTestsTableActions from './MainsTestsTableActions'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichMainsTestRow } from '../../../utils/mainsEvaluationHierarchy'
 
-export default function MainsTestsTable({ faculty, topic, loading }) {
+export default function MainsTestsTable({ faculty, topic, tests: testsProp, loading }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
   const tests = useMemo(
-    () => (topic?.tests ?? []).map((t) => enrichMainsTestRow(t, faculty)),
-    [topic, faculty],
+    () =>
+      testsProp ?? (topic?.tests ?? []).map((t) => enrichMainsTestRow(t, faculty)),
+    [testsProp, topic, faculty],
   )
 
   const filtered = useMemo(() => {

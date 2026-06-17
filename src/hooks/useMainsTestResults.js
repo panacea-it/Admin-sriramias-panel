@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchCbtTests } from '../api/cbtManagementAPI'
+import { fetchMainsTestResults } from '../api/mainsManagementAPI'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '../utils/toast'
 
-const TEST_LIMIT = 100
+const RESULTS_LIMIT = 100
 
-export function useCbtTopicTests(topicId) {
-  const [tests, setTests] = useState([])
-  const [topic, setTopic] = useState(null)
+const EMPTY = { test: null, summary: null, rows: [] }
+
+export function useMainsTestResults(testId) {
+  const [data, setData] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
   const refresh = useCallback(
     async (signal) => {
-      if (!topicId) {
-        setTests([])
-        setTopic(null)
+      if (!testId) {
+        setData(EMPTY)
         setLoading(false)
         return
       }
@@ -24,24 +24,19 @@ export function useCbtTopicTests(topicId) {
       setLoadError(null)
 
       try {
-        const { tests: rows, topic: topicHeader } = await fetchCbtTests(
-          { topicId, limit: TEST_LIMIT },
-          signal,
-        )
-        setTests(rows)
-        setTopic(topicHeader)
+        const result = await fetchMainsTestResults({ testId, limit: RESULTS_LIMIT }, signal)
+        setData(result)
       } catch (error) {
         if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load tests')
+        const message = getApiErrorMessage(error, 'Failed to load evaluation results')
         setLoadError(message)
         toast.error(message)
-        setTests([])
-        setTopic(null)
+        setData(EMPTY)
       } finally {
         setLoading(false)
       }
     },
-    [topicId],
+    [testId],
   )
 
   useEffect(() => {
@@ -50,5 +45,5 @@ export function useCbtTopicTests(topicId) {
     return () => controller.abort()
   }, [refresh])
 
-  return { tests, topic, loading, loadError, refresh }
+  return { ...data, loading, loadError, refresh }
 }
