@@ -9,7 +9,7 @@ export default function ConfirmCenterDeleteModal({
   onConfirm,
 }) {
   const isBulk = bulkCount > 0
-  const title = isBulk ? 'Delete Selected Centers?' : 'Delete center?'
+  const title = isBulk ? 'Delete selected centers?' : 'Delete this center?'
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
@@ -18,21 +18,19 @@ export default function ConfirmCenterDeleteModal({
           <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           {isBulk ? (
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-              This action cannot be undone.
-              <br />
-              You are about to delete{' '}
+              Are you sure you want to delete{' '}
               <span className="font-semibold text-slate-900">
                 {bulkCount} selected {bulkCount === 1 ? 'center' : 'centers'}
               </span>
-              .
-              Centers with assigned admins or linked students may fail to delete.
+              ? Centers with assigned admins or linked students may fail to
+              delete.
             </p>
           ) : (
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-              This permanently removes{' '}
-              <span className="font-semibold text-slate-900">{centerName}</span> from
-              the directory. You can only delete centers that have no assigned admins and no linked
-              students.
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-slate-900">{centerName}</span>?
+              Only centers with no assigned admins and no linked students can be
+              deleted.
             </p>
           )}
         </div>
@@ -43,7 +41,7 @@ export default function ConfirmCenterDeleteModal({
             disabled={loading}
             className="rounded-xl border border-slate-200/80 bg-white px-5 py-2.5 text-[14px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
-            Cancel
+            No, cancel
           </button>
           <button
             type="button"
@@ -51,7 +49,7 @@ export default function ConfirmCenterDeleteModal({
             disabled={loading}
             className="rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60"
           >
-            {loading ? 'Deleting…' : isBulk ? 'Delete' : 'Delete center'}
+            {loading ? 'Deleting…' : 'Yes, delete'}
           </button>
         </div>
       </div>

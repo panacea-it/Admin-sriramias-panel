@@ -7,8 +7,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
-import StatCard from "../dashboard/StatCard";
+import PaginatedFigmaTable from "../../components/figma/PaginatedFigmaTable";
+import StatCard from "../../components/dashboard/StatCard";
 import { Target, TrendingDown, Trophy, Zap } from "lucide-react";
 import { cn } from "../../utils/cn";
 

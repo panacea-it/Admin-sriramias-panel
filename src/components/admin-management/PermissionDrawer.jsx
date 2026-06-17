@@ -165,7 +165,7 @@ export default function PermissionDrawer({
           </div>
         </header>
 
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
+        <div className="custom-scrollbar min-h-0 flex-1 max-h-[65vh] overflow-y-auto px-6 py-6">
           {status === 'restricted' && (
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2.5 text-[13px] text-amber-900">
               <Shield className="mt-0.5 h-4 w-4 shrink-0" />

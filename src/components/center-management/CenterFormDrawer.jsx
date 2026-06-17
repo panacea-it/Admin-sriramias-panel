@@ -205,9 +205,24 @@ export default function CenterFormDrawer({
 
   const validate = () => {
     const next = {};
-    if (!form.centerName.trim()) next.centerName = "Center name is required";
+    const centerName = form.centerName.trim();
+    if (!centerName) {
+      next.centerName = "Center name is required";
+    } else if (!/^[A-Za-z][A-Za-z\s]*$/.test(centerName)) {
+      next.centerName = "Center name can only contain letters and spaces";
+    }
+
     if (!form.centerCode.trim()) next.centerCode = "Center code is required";
-    if (!form.address.trim()) next.address = "Address is required";
+
+    const address = form.address.trim();
+    if (!address) {
+      next.address = "Address is required";
+    } else if (address.length < 5) {
+      next.address = "Address must be at least 5 characters";
+    } else if (address.length > 200) {
+      next.address = "Address must not exceed 200 characters";
+    }
+
     if (!form.city.trim()) next.city = "City is required";
     if (!form.state.trim()) next.state = "State is required";
 
@@ -232,7 +247,6 @@ export default function CenterFormDrawer({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) {
-      toast.error("Please fix the highlighted fields");
       return;
     }
 
@@ -367,7 +381,17 @@ export default function CenterFormDrawer({
                               "border-rose-400 focus:border-rose-400 focus:ring-rose-500/15",
                           )}
                           value={form.centerName}
-                          onChange={set("centerName")}
+                          onChange={(e) => {
+                            const cleaned = e.target.value.replace(
+                              /[^A-Za-z\s]/g,
+                              "",
+                            );
+                            setForm((f) => ({ ...f, centerName: cleaned }));
+                            setErrors((err) => ({
+                              ...err,
+                              centerName: undefined,
+                            }));
+                          }}
                           placeholder="e.g. Hyderabad Center"
                           autoComplete="organization"
                         />
@@ -407,8 +431,8 @@ export default function CenterFormDrawer({
                           <option value="disabled">Disabled</option>
                         </select>
                         <p className="mt-2 text-[12px] font-medium text-slate-500">
-                          Disabled centers stay out of operational dropdowns
-                          until re-enabled.
+                          Disabled centers are excluded from operational
+                          dropdown menus until they are re-enabled.
                         </p>
                       </FormField>
                     </div>
@@ -428,6 +452,8 @@ export default function CenterFormDrawer({
                         <textarea
                           id="cf-address"
                           rows={2}
+                          minLength={5}
+                          maxLength={200}
                           className={cn(
                             inputClass,
                             "min-h-[5rem] resize-y py-3",
@@ -537,27 +563,6 @@ export default function CenterFormDrawer({
                       </FormField>
                     </div>
                   </FormSection>
-
-                  {mode === "edit" && (
-                    <FormSection
-                      id="center-section-admin"
-                      title="Administrative Details"
-                    >
-                      <FormField id="cf-admins" label="Assigned admins">
-                        <textarea
-                          id="cf-admins"
-                          rows={3}
-                          className={cn(
-                            inputClass,
-                            "min-h-[6rem] resize-y py-3",
-                          )}
-                          value={form.assignedAdminsText}
-                          onChange={set("assignedAdminsText")}
-                          placeholder="Comma-separated names or IDs (e.g. Priya Sharma, RA102)"
-                        />
-                      </FormField>
-                    </FormSection>
-                  )}
                 </div>
               </div>
 

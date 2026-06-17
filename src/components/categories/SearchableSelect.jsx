@@ -99,7 +99,12 @@ export default function SearchableSelect({
 
   const handleTriggerKeyDown = (e) => {
     if (disabled || loading) return
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+    if (
+      e.key === 'Enter' ||
+      e.key === ' ' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'ArrowUp'
+    ) {
       e.preventDefault()
       setOpen(true)
     }

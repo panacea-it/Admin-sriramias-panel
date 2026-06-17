@@ -47,7 +47,7 @@ export default function CourseFilterToolbar({
   searchFullWidth = false,
 }) {
   const statusFilterOptions = statusOptions ?? [
-    { value: 'all', label: 'Status' },
+    { value: 'all', label: 'All status' },
     { value: 'Active', label: 'Active' },
     { value: 'In Active', label: 'In Active' },
   ]

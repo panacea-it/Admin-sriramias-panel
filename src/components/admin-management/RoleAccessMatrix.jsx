@@ -103,7 +103,7 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
         persistRbacState(next)
       } catch {
         toast.error('Failed to save permissions', {
-          description: 'Could not persist changes locally. Check storage access.',
+          description: 'Your changes could not be saved. Please try again.',
         })
       }
       setHasUnsavedApiDraft(true)
@@ -127,7 +127,7 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
 
   const handleDrawerSave = useCallback(() => {
     toast.success('Permissions updated successfully', {
-      description: 'Changes are stored locally and reflected in the matrix.',
+      description: 'Your changes have been applied to the permission matrix.',
     })
   }, [])
 
@@ -220,9 +220,9 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
               type="button"
               onClick={() => {
                 if (editable && hasUnsavedApiDraft) {
-                  toast.warning('Unsaved API draft', {
+                  toast.warning('You have unsaved changes', {
                     description:
-                      'Local permissions are saved. Use Save permissions when you are ready to sync the API payload.',
+                      'Click Save permissions to apply your changes.',
                   })
                 }
                 if (!editable) {
@@ -481,7 +481,7 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
       {editable && (
         <div className="flex flex-col items-end gap-1.5 border-t border-slate-100 px-4 py-3.5 sm:px-6">
           <p className="w-full text-right text-[11px] text-slate-400 sm:w-auto">
-            Saves to this browser until server sync is available.
+            Click Save permissions to apply your changes.
           </p>
           <button
             type="button"

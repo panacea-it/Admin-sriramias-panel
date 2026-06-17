@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Ban, Building2, Eye, Pencil, Plus } from "lucide-react";
+import { Ban, Building2, CheckCircle2, Eye, Pencil, Plus } from "lucide-react";
 import ErrorState from "../../components/feedback/ErrorState";
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
@@ -69,9 +69,18 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
             ? `Disable ${row.centerName}`
             : `Enable ${row.centerName}`
         }
-        className={cn(actionButtonClass, "text-amber-700 hover:bg-amber-50")}
+        className={cn(
+          actionButtonClass,
+          row.status === "active"
+            ? "text-rose-600 hover:bg-rose-50"
+            : "text-emerald-600 hover:bg-emerald-50",
+        )}
       >
-        <Ban className="h-3.5 w-3.5 shrink-0" />
+        {row.status === "active" ? (
+          <Ban className="h-3.5 w-3.5 shrink-0" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+        )}
         <span className="hidden sm:inline">
           {row.status === "active" ? "Disable" : "Enable"}
         </span>

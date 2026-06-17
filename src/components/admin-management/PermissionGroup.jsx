@@ -29,7 +29,7 @@ function groupAllowedState(children, featureMap) {
 
 function PermissionColumnHeader() {
   return (
-    <div className="sticky top-0 z-10 mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 rounded-xl border border-slate-200/70 bg-slate-50/95 px-5 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur-sm">
+    <div className="sticky top-0 z-20 mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 rounded-xl border border-slate-200/70 bg-slate-50 px-5 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
       <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
         Feature / Module
       </span>

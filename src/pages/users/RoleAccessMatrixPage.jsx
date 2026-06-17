@@ -19,17 +19,17 @@ export default function RoleAccessMatrixPage() {
 
   const handleSavePermissions = (detail) => {
     if (!detail?.rbacPayload || !detail?.nestedState || !Array.isArray(detail.rbacPayload.roles)) {
-      toast.error('Invalid permission state')
+      toast.error('Unable to save permissions. Please refresh and try again.')
       return
     }
 
     if (!detail.fullExport?.roleDefinitions) {
-      toast.error('Invalid export payload — role catalog missing')
+      toast.error('Unable to save permissions. Please refresh and try again.')
       return
     }
 
     toast.success('Permissions saved', {
-      description: 'Role permissions are stored locally and applied across the admin panel.',
+      description: 'Role permissions have been applied across the admin panel.',
     })
   }
 
