@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from '../../utils/toast'
 import Button from '../ui/Button'
-import { BOOKSTORE_PRODUCT_TYPES } from '../../data/bookstoreMockData'
+import { BOOKSTORE_EXAM_CATEGORIES, BOOKSTORE_LANGUAGES } from '../../data/bookstoreMockData'
 import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
 import ProductFormSection from './product-form/ProductFormSection'
@@ -13,19 +13,20 @@ import {
   BOOKSTORE_DESCRIPTION_MAX,
   buildProductPayload,
   createCoverAsset,
+  getProductExamCategory,
   mapKeywordsFromProduct,
   mapSampleImagesFromProduct,
   revokeAssetUrls,
   runCoverUploadProgress,
   runListUploadProgress,
   validateProductAssets,
+  withLegacyOption,
 } from '../../utils/bookstoreProductForm'
 
 const EMPTY = {
   name: '',
-  productType: 'Physical Book',
   description: '',
-  subject: '',
+  examCategory: '',
   authorName: '',
   isbn: '',
   language: 'English',
@@ -66,9 +67,11 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
   useEffect(() => {
     if (!open) return undefined
     if (initial) {
+      const { subject, productType, ...initialRest } = initial
       reset({
         ...EMPTY,
-        ...initial,
+        ...initialRest,
+        examCategory: initial.examCategory ?? subject ?? '',
         originalPrice: String(initial.originalPrice ?? ''),
         discountPrice: String(initial.discountPrice ?? ''),
         stockQuantity: String(initial.stockQuantity ?? ''),
@@ -120,6 +123,16 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
 
   const isEdit = Boolean(initial)
 
+  const examCategoryOptions = useMemo(
+    () => withLegacyOption(BOOKSTORE_EXAM_CATEGORIES, getProductExamCategory(initial)),
+    [initial],
+  )
+
+  const languageOptions = useMemo(
+    () => withLegacyOption(BOOKSTORE_LANGUAGES, initial?.language),
+    [initial?.language],
+  )
+
   return (
     <BookstoreModal
       open={open}
@@ -163,16 +176,15 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
               <input className={BOOKSTORE_INPUT_CLASS} {...register('name', { required: true })} placeholder="e.g. UPSC Prelims GS Manual 2026" />
             </label>
             <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Product Type</span>
-              <select className={BOOKSTORE_INPUT_CLASS} {...register('productType')}>
-                {BOOKSTORE_PRODUCT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+              <span className={BOOKSTORE_LABEL_CLASS}>Exam Category</span>
+              <select className={BOOKSTORE_INPUT_CLASS} {...register('examCategory')}>
+                <option value="">Select exam category</option>
+                {examCategoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Subject</span>
-              <input className={BOOKSTORE_INPUT_CLASS} {...register('subject')} placeholder="General Studies" />
             </label>
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>Author Name</span>
@@ -184,15 +196,21 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
             </label>
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>Language</span>
-              <input className={BOOKSTORE_INPUT_CLASS} {...register('language')} />
+              <select className={BOOKSTORE_INPUT_CLASS} {...register('language')}>
+                {languageOptions.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="sm:col-span-2">
-              <span className={BOOKSTORE_LABEL_CLASS}>Description</span>
+              <span className={BOOKSTORE_LABEL_CLASS}>Book Summary</span>
               <textarea
                 rows={6}
                 style={{ minHeight: 140 }}
                 maxLength={BOOKSTORE_DESCRIPTION_MAX}
-                placeholder="Write a compelling product description for students and search engines…"
+                placeholder="Enter detailed book summary"
                 className={cnTextarea()}
                 {...register('description')}
               />

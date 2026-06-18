@@ -49,7 +49,7 @@ export default function BookstoreProductsPage() {
     return products.filter((p) => {
       const matchQ =
         !q ||
-        [p.name, p.subject, p.id, p.authorName].some((v) =>
+        [p.name, p.examCategory, p.subject, p.id, p.authorName].some((v) =>
           String(v || '').toLowerCase().includes(q),
         )
       const matchStatus = statusFilter === 'all' || p.status === statusFilter

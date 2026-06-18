@@ -80,10 +80,7 @@ export default function BookstoreRecommendationsPage() {
     setPreviewRuleId(row.id)
     setForm({
       sourceProductId: row.sourceProductId,
-      recommendationType: row.recommendationType || row.type || 'Cart Recommendations',
-      placement: row.placement || 'Cart Drawer',
       recommendedProductIds: [...(row.recommendedProductIds || [])],
-      priorityOrder: row.priorityOrder ?? 1,
       status: row.status || 'active',
       bestsellerProductIds: [...(row.bestsellerProductIds || [])],
     })
@@ -126,11 +123,8 @@ export default function BookstoreRecommendationsPage() {
     try {
       const payload = {
         sourceProductId: form.sourceProductId,
-        recommendationType: form.recommendationType,
-        placement: form.placement,
         recommendedProductIds: form.recommendedProductIds,
         targetProductIds: form.recommendedProductIds,
-        priorityOrder: form.priorityOrder,
         status: form.status,
         bestsellerProductIds: form.bestsellerProductIds || [],
       }

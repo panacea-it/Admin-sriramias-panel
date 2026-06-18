@@ -6,6 +6,15 @@ export const BOOKSTORE_MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const BOOKSTORE_MIN_SAMPLE_IMAGES = 3
 export const BOOKSTORE_DESCRIPTION_MAX = 3000
 
+export function getProductExamCategory(product) {
+  return product?.examCategory ?? product?.subject ?? ''
+}
+
+export function withLegacyOption(options, value) {
+  if (!value || options.includes(value)) return options
+  return [value, ...options]
+}
+
 let assetSeq = 0
 export function nextAssetId(prefix = 'asset') {
   assetSeq += 1
@@ -115,8 +124,11 @@ export function validateProductAssets({ cover, samples, keywords }, { isDraft } 
 }
 
 export function buildProductPayload(values, { cover, samples, keywords, isDraft }) {
+  const { productType: _productType, subject: _subject, ...rest } = values
   return {
-    ...values,
+    ...rest,
+    examCategory: values.examCategory,
+    subject: values.examCategory,
     originalPrice: Number(values.originalPrice) || 0,
     discountPrice: Number(values.discountPrice) || 0,
     stockQuantity: Number(values.stockQuantity) || 0,

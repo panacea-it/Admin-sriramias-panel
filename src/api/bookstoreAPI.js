@@ -10,13 +10,19 @@ import {
   MOCK_BOOKSTORE_RECOMMENDATIONS,
   nextRecommendationId,
   MOCK_BOOKSTORE_INVOICES,
-  MOCK_INVENTORY_LOGS,
   buildBookstoreDashboardPayload,
   nextProductId,
   nextComboId,
   nextBundleId,
 } from '../data/bookstoreMockData'
 import { resolveCartRecommendations } from '../utils/bookstoreRecommendationUtils'
+import {
+  applyStockChange,
+  getSortedInventoryLogs,
+  processOrderInventoryChange,
+  recordInitialStock,
+  recordProductStockAdjustment,
+} from '../utils/bookstoreInventory'
 
 const USE_MOCK = isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK !== 'false'
 
@@ -51,6 +57,7 @@ export async function createBookstoreProduct(payload) {
     () => {
       const row = { id: nextProductId(), status: 'active', createdAt: new Date().toISOString(), ...payload }
       MOCK_BOOKSTORE_PRODUCTS.unshift(row)
+      recordInitialStock(row.id, Number(payload.stockQuantity) || 0)
       return row
     },
   )
@@ -61,8 +68,20 @@ export async function updateBookstoreProduct(id, payload) {
     () => api.put(`/bookstore/products/${id}`, payload),
     () => {
       const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id)
-      if (idx >= 0) MOCK_BOOKSTORE_PRODUCTS[idx] = { ...MOCK_BOOKSTORE_PRODUCTS[idx], ...payload }
-      return MOCK_BOOKSTORE_PRODUCTS.find((p) => p.id === id)
+      if (idx < 0) return undefined
+
+      const previous = MOCK_BOOKSTORE_PRODUCTS[idx]
+      const previousStock = previous.stockQuantity
+      const hasStockUpdate = payload.stockQuantity !== undefined
+      const nextStock = hasStockUpdate ? Number(payload.stockQuantity) : previousStock
+
+      MOCK_BOOKSTORE_PRODUCTS[idx] = { ...previous, ...payload }
+
+      if (hasStockUpdate && nextStock !== previousStock) {
+        recordProductStockAdjustment(id, previousStock, nextStock)
+      }
+
+      return MOCK_BOOKSTORE_PRODUCTS[idx]
     },
   )
 }
@@ -83,17 +102,20 @@ export async function fetchBookstoreInventory() {
     () => api.get('/bookstore/inventory'),
     () => ({
       products: MOCK_BOOKSTORE_PRODUCTS,
-      logs: MOCK_INVENTORY_LOGS,
+      logs: getSortedInventoryLogs(),
     }),
   )
 }
 
-export async function restockBookstoreProduct(id, quantity) {
+export async function restockBookstoreProduct(id, quantity, options = {}) {
+  const { reason = 'Restock', transactionId } = options
   return tryApi(
-    () => api.post(`/bookstore/inventory/${id}/restock`, { quantity }),
+    () => api.post(`/bookstore/inventory/${id}/restock`, { quantity, reason, transactionId }),
     () => {
-      const p = MOCK_BOOKSTORE_PRODUCTS.find((x) => x.id === id)
-      if (p) p.stockQuantity += quantity
+      applyStockChange(id, quantity, {
+        reason,
+        transactionId: transactionId || `restock-${id}-${quantity}-${Date.now()}`,
+      })
       return MOCK_BOOKSTORE_PRODUCTS.find((p) => p.id === id)
     },
   )
@@ -157,8 +179,12 @@ export async function updateBookstoreOrderStatus(id, status) {
     () => api.patch(`/bookstore/orders/${id}/status`, { status }),
     () => {
       const oi = MOCK_BOOKSTORE_ORDERS.findIndex((o) => o.id === id)
-      if (oi >= 0) MOCK_BOOKSTORE_ORDERS[oi] = { ...MOCK_BOOKSTORE_ORDERS[oi], status }
-      return MOCK_BOOKSTORE_ORDERS.find((o) => o.id === id)
+      if (oi < 0) return undefined
+
+      const previousStatus = MOCK_BOOKSTORE_ORDERS[oi].status
+      MOCK_BOOKSTORE_ORDERS[oi] = { ...MOCK_BOOKSTORE_ORDERS[oi], status }
+      processOrderInventoryChange(MOCK_BOOKSTORE_ORDERS[oi], previousStatus, status)
+      return MOCK_BOOKSTORE_ORDERS[oi]
     },
   )
 }
@@ -205,7 +231,14 @@ export async function createBookstoreRecommendation(payload) {
   return tryApi(
     () => api.post('/bookstore/recommendations', payload),
     () => {
-      const row = { id: nextRecommendationId(), ...payload }
+      const row = {
+        recommendationType: 'Cart Recommendations',
+        placement: 'Cart Drawer',
+        priorityOrder: 1,
+        id: nextRecommendationId(),
+        createdAt: new Date().toISOString(),
+        ...payload,
+      }
       MOCK_BOOKSTORE_RECOMMENDATIONS.unshift(row)
       return row
     },
@@ -221,6 +254,7 @@ export async function updateBookstoreRecommendation(id, payload) {
         MOCK_BOOKSTORE_RECOMMENDATIONS[idx] = {
           ...MOCK_BOOKSTORE_RECOMMENDATIONS[idx],
           ...payload,
+          updatedAt: new Date().toISOString(),
         }
       }
       return MOCK_BOOKSTORE_RECOMMENDATIONS.find((r) => r.id === id)

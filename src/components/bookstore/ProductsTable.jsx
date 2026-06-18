@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { cn } from '../../utils/cn'
 import { formatINR } from '../../utils/financeFilters'
+import { getProductExamCategory } from '../../utils/bookstoreProductForm'
 
 function ProductStatusPill({ status }) {
   const active = status === 'active'
@@ -59,17 +60,20 @@ export default function ProductsTable({
       },
       {
         key: 'category',
-        label: 'Category',
+        label: 'Exam Category',
         headerClassName: 'min-w-[140px] whitespace-nowrap',
         cellClassName: 'min-w-[140px] whitespace-nowrap align-middle',
-        render: (row) => (
+        render: (row) => {
+          const category = getProductExamCategory(row)
+          return (
           <span
             className="inline-flex max-w-[180px] items-center rounded-lg bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-800 ring-1 ring-violet-500/15"
-            title={row.subject || ''}
+            title={category}
           >
-            <span className="truncate">{row.subject || '—'}</span>
+            <span className="truncate">{category || '—'}</span>
           </span>
-        ),
+          )
+        },
       },
       {
         key: 'discountPrice',

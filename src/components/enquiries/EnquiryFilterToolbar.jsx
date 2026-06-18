@@ -1,5 +1,6 @@
 import { Search, ChevronDown } from 'lucide-react'
 import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
+import { ENQUIRY_SOURCE_PAGE_OPTIONS } from '../../data/enquiriesData'
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -30,6 +31,8 @@ export default function EnquiryFilterToolbar({
   onDateChange,
   type,
   onTypeChange,
+  sourcePage,
+  onSourcePageChange,
 }) {
   return (
     <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.07)] ring-1 ring-slate-100/80 sm:px-5">
@@ -64,6 +67,18 @@ export default function EnquiryFilterToolbar({
             { value: 'all', label: 'Type' },
             { value: 'Admission', label: 'Admission' },
             { value: 'Demo', label: 'Demo' },
+          ]}
+        />
+        <FilterSelect
+          label="Source Page"
+          value={sourcePage}
+          onChange={onSourcePageChange}
+          options={[
+            { value: 'all', label: 'Source Page' },
+            ...ENQUIRY_SOURCE_PAGE_OPTIONS.map((page) => ({
+              value: page,
+              label: page,
+            })),
           ]}
         />
       </div>

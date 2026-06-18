@@ -2,6 +2,23 @@ import { getMonthRange, getWeekRange, isSameCalendarDay, startOfDay } from '../u
 import { CRM_LEAD_STATUS_OPTIONS } from '../constants/crmLeadStatus'
 
 export const ENQUIRY_CENTERS = ['New Delhi', 'Hyderabad', 'Pune']
+
+export const ENQUIRY_SOURCE_PAGE_OPTIONS = [
+  'Home Page',
+  'Course Page',
+  'Contact Us',
+  'Rankers Page',
+  'Blog Page',
+  'Landing Page',
+  'Test Series Page',
+  'Current Affairs Page',
+  'Other',
+]
+
+export function matchesSourcePage(rowSourcePage, filter) {
+  if (filter === 'all') return true
+  return String(rowSourcePage || 'Other').toLowerCase() === String(filter).toLowerCase()
+}
 export const ENQUIRY_COUNSELORS = [
   'Rahul Sharma',
   'Priya Singh',
@@ -109,6 +126,7 @@ export const INITIAL_ENQUIRIES = [
     email: 'darshan@gmail.com',
     phone: '6300662566',
     enquiryType: 'Admission Enquiry',
+    sourcePage: 'Home Page',
     center: 'New Delhi',
     enquiryDate: '11 Aug 2026',
     status: 'Opened',
@@ -119,6 +137,7 @@ export const INITIAL_ENQUIRIES = [
     email: 'darshan@gmail.com',
     phone: '6300662566',
     enquiryType: 'Demo',
+    sourcePage: 'Course Page',
     center: 'Hyderabad',
     enquiryDate: '12 Aug 2026',
     status: 'Unopened',
@@ -129,6 +148,7 @@ export const INITIAL_ENQUIRIES = [
     email: 'darshan@gmail.com',
     phone: '6300662566',
     enquiryType: 'Admission Enquiry',
+    sourcePage: 'Contact Us',
     center: 'Pune',
     enquiryDate: '13 Aug 2026',
     status: 'Opened',
@@ -139,6 +159,7 @@ export const INITIAL_ENQUIRIES = [
     email: 'darshan@gmail.com',
     phone: '6300662566',
     enquiryType: 'Demo',
+    sourcePage: 'Rankers Page',
     center: 'New Delhi',
     enquiryDate: '14 Aug 2026',
     status: 'Unopened',
@@ -149,6 +170,7 @@ export const INITIAL_ENQUIRIES = [
     email: 'priya.sharma@gmail.com',
     phone: '9876543210',
     enquiryType: 'Admission Enquiry',
+    sourcePage: 'Blog Page',
     center: 'Hyderabad',
     enquiryDate: '15 Aug 2026',
     status: 'Opened',

@@ -3,6 +3,11 @@ import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import BookstoreStatusBadge from '../BookstoreStatusBadge'
 import { cn } from '../../../utils/cn'
 import { productDisplayName } from '../../../utils/bookstoreRecommendationUtils'
+import { formatBookstoreDate } from '../../../utils/formatDateTime'
+
+function recommendationDisplayDate(rule) {
+  return formatBookstoreDate(rule.createdAt || rule.updatedAt)
+}
 
 export default function RecommendationsTable({
   rules,
@@ -34,17 +39,6 @@ export default function RecommendationsTable({
         },
       },
       {
-        key: 'recommendationType',
-        label: 'Type',
-        headerClassName: 'min-w-[160px] whitespace-nowrap',
-        cellClassName: 'min-w-[160px] align-middle',
-        render: (row) => (
-          <span className="text-[13px] font-medium text-[#111]">
-            {row.recommendationType || row.type}
-          </span>
-        ),
-      },
-      {
         key: 'recommendedProductIds',
         label: 'Recommended Books',
         headerClassName: 'min-w-[200px]',
@@ -60,17 +54,6 @@ export default function RecommendationsTable({
         },
       },
       {
-        key: 'placement',
-        label: 'Placement',
-        headerClassName: 'min-w-[130px] whitespace-nowrap',
-        cellClassName: 'min-w-[130px] whitespace-nowrap align-middle',
-        render: (row) => (
-          <span className="inline-flex items-center rounded-lg bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-800 ring-1 ring-violet-500/15">
-            {row.placement}
-          </span>
-        ),
-      },
-      {
         key: 'status',
         label: 'Status',
         align: 'center',
@@ -79,13 +62,14 @@ export default function RecommendationsTable({
         render: (row) => <BookstoreStatusBadge status={row.status} />,
       },
       {
-        key: 'priorityOrder',
-        label: 'Priority',
-        align: 'center',
-        headerClassName: 'min-w-[90px] whitespace-nowrap',
-        cellClassName: 'min-w-[90px] whitespace-nowrap align-middle text-center',
+        key: 'date',
+        label: 'Date',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] whitespace-nowrap align-middle',
         render: (row) => (
-          <span className="font-semibold tabular-nums text-[#111]">{row.priorityOrder ?? '—'}</span>
+          <span className="font-semibold tabular-nums text-[#111]">
+            {recommendationDisplayDate(row)}
+          </span>
         ),
       },
       {

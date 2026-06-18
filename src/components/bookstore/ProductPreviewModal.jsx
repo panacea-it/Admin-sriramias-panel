@@ -1,12 +1,14 @@
 import BookstoreModal from './modal/BookstoreModal'
 import BookstoreStatusBadge from './BookstoreStatusBadge'
 import { formatINR } from '../../utils/financeFilters'
+import { getProductExamCategory } from '../../utils/bookstoreProductForm'
 
 export default function ProductPreviewModal({ open, onClose, product }) {
   if (!product) return null
 
   const keywords = product.keywords || []
-  const samples = product.sampleImages || []
+  const samples = product.sampleImages || product.previewImages || []
+  const examCategory = getProductExamCategory(product)
 
   return (
     <BookstoreModal
@@ -24,24 +26,24 @@ export default function ProductPreviewModal({ open, onClose, product }) {
         )}
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-semibold text-[#686868]">Type</dt>
-            <dd className="mt-0.5 font-medium text-[#111]">{product.productType}</dd>
+            <dt className="text-xs font-semibold text-[#686868]">Exam Category</dt>
+            <dd className="mt-0.5">{examCategory || '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-[#686868]">Status</dt>
             <dd className="mt-0.5"><BookstoreStatusBadge status={product.status} /></dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold text-[#686868]">Subject</dt>
-            <dd className="mt-0.5">{product.subject || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold text-[#686868]">Author</dt>
+            <dt className="text-xs font-semibold text-[#686868]">Author Name</dt>
             <dd className="mt-0.5">{product.authorName || '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-[#686868]">ISBN</dt>
             <dd className="mt-0.5">{product.isbn || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-[#686868]">Language</dt>
+            <dd className="mt-0.5">{product.language || '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-[#686868]">Stock</dt>
@@ -57,8 +59,8 @@ export default function ProductPreviewModal({ open, onClose, product }) {
             </dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-xs font-semibold text-[#686868]">Description</dt>
-            <dd className="mt-1 leading-relaxed text-[#444]">{product.description || 'No description.'}</dd>
+            <dt className="text-xs font-semibold text-[#686868]">Book Summary</dt>
+            <dd className="mt-1 leading-relaxed text-[#444]">{product.description || 'No book summary.'}</dd>
           </div>
         </dl>
         {keywords.length > 0 && (

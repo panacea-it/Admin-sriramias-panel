@@ -6,6 +6,7 @@ import InvoiceRowActions from '../../components/bookstore/InvoiceRowActions'
 import InvoicePreviewModal from '../../components/bookstore/InvoicePreviewModal'
 import { fetchBookstoreInvoices } from '../../api/bookstoreAPI'
 import { withInvoicesDisplayFields } from '../../utils/bookstoreInvoiceDisplay'
+import { downloadBookstoreInvoicePdf } from '../../utils/bookstoreInvoicePdf'
 import { toast } from '../../utils/toast'
 
 export default function BookstoreInvoicesPage() {
@@ -26,7 +27,13 @@ export default function BookstoreInvoicesPage() {
   )
 
   const handleDownload = useCallback((invoice) => {
-    toast.info(`PDF download placeholder for ${invoice?.id ?? 'invoice'}`)
+    if (!invoice) return
+    const downloaded = downloadBookstoreInvoicePdf(invoice)
+    if (downloaded) {
+      toast.success(`Invoice ${invoice.id} downloaded`)
+    } else {
+      toast.error('Unable to download invoice')
+    }
   }, [])
 
   const renderRowActions = useCallback(

@@ -86,6 +86,7 @@ const emptyRankForm = () => ({
   rank: '',
   image: '',
   status: 'Active',
+  isTop10: false,
   displayOrder: '',
 })
 
@@ -98,6 +99,7 @@ function formFromRow(row) {
     rank: row.rank || '',
     image: row.imageUrl || '',
     status: row.status || 'Active',
+    isTop10: Boolean(row.isTop10) && row.status === 'Active',
     displayOrder: row.displayOrder ?? '',
   }
 }
@@ -178,9 +180,6 @@ export default function RankManagementTab() {
     () => (editingId ? rankers.find((row) => row.id === editingId) : null),
     [editingId, rankers],
   )
-
-  const showDisplayOrderField =
-    Boolean(editingRow?.isTop10) && rankForm.status === 'Active'
 
   const courseOptions = useMemo(
     () => getCoursesForProgram(rankForm.program),
@@ -286,15 +285,32 @@ export default function RankManagementTab() {
 
   const saveRank = () => {
     const existing = rankers.find((r) => r.id === editingId)
-    const effectiveTop10 = rankForm.status === 'Active' && Boolean(existing?.isTop10)
+    const wantsTop10 = rankForm.status === 'Active' && rankForm.isTop10
+    const wasTop10 = Boolean(existing?.isTop10) && existing?.status === 'Active'
+
+    if (wantsTop10 && !wasTop10 && top10Count >= MAX_TOP10_RANKERS) {
+      toast.error('Maximum 10 Top Rankers allowed.')
+      return
+    }
+
     const errors = validateRankerForm(rankForm, {
-      isTop10: effectiveTop10,
       editingId,
       rankers,
     })
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       toast.error('Please fix the highlighted fields')
+      return
+    }
+
+    const displayOrder = wantsTop10
+      ? existing?.isTop10 && existing?.displayOrder
+        ? existing.displayOrder
+        : getNextDisplayOrder(rankers.filter((row) => String(row.id) !== String(editingId)))
+      : null
+
+    if (wantsTop10 && displayOrder == null) {
+      toast.error('Maximum 10 Top Rankers allowed.')
       return
     }
 
@@ -315,8 +331,8 @@ export default function RankManagementTab() {
           year: 'numeric',
         }),
       status: rankForm.status,
-      isTop10: effectiveTop10,
-      displayOrder: effectiveTop10 ? Number(rankForm.displayOrder) : null,
+      isTop10: wantsTop10,
+      displayOrder,
       createdAt: existing?.createdAt || new Date().toISOString(),
     }
 
@@ -503,15 +519,6 @@ export default function RankManagementTab() {
           }}
           onSave={saveRank}
         >
-          {isActiveTop10Ranker(editingRow) && (
-            <div className="mb-5 flex items-center gap-3 rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 via-amber-50/60 to-white px-4 py-3">
-              <RankTop10Badge />
-              <p className="text-sm font-medium text-amber-900">
-                This ranker is featured in the Top 10 list on the website
-                {editingRow.displayOrder ? ` (Display Order ${editingRow.displayOrder})` : ''}.
-              </p>
-            </div>
-          )}
           <div className="grid gap-6 sm:grid-cols-2">
             <WebsiteField label="Program" required>
               <select
@@ -610,59 +617,65 @@ export default function RankManagementTab() {
               <FieldError message={formErrors.rank} />
             </WebsiteField>
 
-            <WebsiteField label="Status" required>
-              <WebsiteStatusSelect
-                id="ranker-status"
-                value={rankForm.status}
-                onChange={(e) => {
-                  const status = e.target.value
-                  setRankForm((f) => ({
-                    ...f,
-                    status,
-                    ...(status === 'Inactive' ? { displayOrder: '' } : {}),
-                  }))
-                  clearFieldError('status')
-                  clearFieldError('displayOrder')
-                }}
-                required
-                className={formErrors.status ? inputErrorClass : undefined}
-              />
-              <FieldError message={formErrors.status} />
-              {editingRow?.isTop10 && rankForm.status === 'Inactive' && (
-                <p className="mt-1.5 text-xs font-medium text-amber-800">
-                  Inactive rankers are removed from the Top 10 list when saved.
-                </p>
-              )}
-            </WebsiteField>
-
-            {showDisplayOrderField && (
-              <WebsiteField label="Display Order" required>
-                <select
-                  value={rankForm.displayOrder}
+            <div className="grid gap-6 sm:grid-cols-2">
+              <WebsiteField label="Status" required>
+                <WebsiteStatusSelect
+                  id="ranker-status"
+                  value={rankForm.status}
                   onChange={(e) => {
-                    setRankForm((f) => ({ ...f, displayOrder: e.target.value }))
+                    const status = e.target.value
+                    setRankForm((f) => ({
+                      ...f,
+                      status,
+                      ...(status === 'Inactive' ? { displayOrder: '', isTop10: false } : {}),
+                    }))
+                    clearFieldError('status')
+                    clearFieldError('displayOrder')
+                    clearFieldError('isTop10')
+                  }}
+                  required
+                  className={formErrors.status ? inputErrorClass : undefined}
+                />
+                <FieldError message={formErrors.status} />
+              </WebsiteField>
+
+              <WebsiteField label="Mark as Top 10" required>
+                <select
+                  value={rankForm.isTop10 ? 'Yes' : 'No'}
+                  onChange={(e) => {
+                    const isTop10 = e.target.value === 'Yes'
+                    if (isTop10 && rankForm.status !== 'Active') {
+                      toast.error(TOP10_INACTIVE_MESSAGE)
+                      return
+                    }
+                    if (isTop10 && !editingRow?.isTop10 && top10LimitReached) {
+                      toast.error('Maximum 10 Top Rankers allowed.')
+                      return
+                    }
+                    setRankForm((f) => ({
+                      ...f,
+                      isTop10,
+                      ...(isTop10 ? {} : { displayOrder: '' }),
+                    }))
+                    clearFieldError('isTop10')
                     clearFieldError('displayOrder')
                   }}
-                  aria-invalid={Boolean(formErrors.displayOrder)}
+                  disabled={rankForm.status !== 'Active'}
+                  aria-invalid={Boolean(formErrors.isTop10)}
                   className={cn(
                     websiteInputClass,
                     'cursor-pointer',
-                    formErrors.displayOrder && inputErrorClass,
+                    rankForm.status !== 'Active' && 'cursor-not-allowed opacity-70',
+                    formErrors.isTop10 && inputErrorClass,
                   )}
+                  required
                 >
-                  <option value="">Select order (1–10)</option>
-                  {Array.from({ length: 10 }, (_, index) => index + 1).map((order) => (
-                    <option key={order} value={order}>
-                      {order}
-                    </option>
-                  ))}
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
                 </select>
-                <FieldError message={formErrors.displayOrder} />
-                <p className="mt-1.5 text-xs text-[#686868]">
-                  Lower numbers appear first in the Top 10 list on the website.
-                </p>
+                <FieldError message={formErrors.isTop10} />
               </WebsiteField>
-            )}
+            </div>
 
             <WebsiteField label="Image Upload" required className="sm:col-span-2">
               <WebsiteImageInput

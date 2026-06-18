@@ -41,14 +41,9 @@ export default function RecommendationViewModal({ open, rule, products, onClose 
           <DetailField label="Source Book">
             {productDisplayName(products, rule.sourceProductId)}
           </DetailField>
-          <DetailField label="Recommendation Type">
-            {rule.recommendationType || rule.type}
-          </DetailField>
-          <DetailField label="Placement">{rule.placement}</DetailField>
           <DetailField label="Status">
             <BookstoreStatusBadge status={rule.status} />
           </DetailField>
-          <DetailField label="Priority">{rule.priorityOrder ?? '—'}</DetailField>
           <DetailField label="Recommended Books" className="sm:col-span-2">
             {recommendedNames || '—'}
           </DetailField>

@@ -11,7 +11,6 @@ import {
   TrendingUp,
   FolderOpen,
   Download,
-  RefreshCw,
   Star,
   ArrowUp,
   ArrowDown,
@@ -70,7 +69,7 @@ function RankMedal({ rank }) {
 export default function BookstoreDashboardPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const { data, loading, refreshing, reload } = useBookstoreDashboard({ dateFrom, dateTo })
+  const { data, loading } = useBookstoreDashboard({ dateFrom, dateTo })
 
   const stats = data?.stats
   const trends = data?.kpiTrends || {}
@@ -275,16 +274,6 @@ export default function BookstoreDashboardPage() {
             onChange={(e) => setDateTo(e.target.value)}
             className="rounded-lg border border-white/30 bg-white/10 px-2 py-1 text-xs text-white"
           />
-          <button
-            type="button"
-            onClick={reload}
-            className={cn(
-              'inline-flex items-center gap-1 rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/10',
-              refreshing && 'opacity-70',
-            )}
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} /> Refresh
-          </button>
         </div>
       }
     >

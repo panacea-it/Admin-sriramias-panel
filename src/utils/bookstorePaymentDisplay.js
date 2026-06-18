@@ -1,3 +1,5 @@
+import { MOCK_BOOKSTORE_PAYMENTS } from '../data/bookstoreMockData'
+
 const ORDER_DISPLAY_HINTS = {
   'BSO-1001': {
     customerName: 'Aarav Patel',
@@ -24,4 +26,9 @@ export function withPaymentDisplayFields(payment) {
 
 export function withPaymentsDisplayFields(payments = []) {
   return payments.map(withPaymentDisplayFields)
+}
+
+export function updateMockPaymentStatus(paymentId, status) {
+  const payment = MOCK_BOOKSTORE_PAYMENTS.find((p) => p.id === paymentId)
+  if (payment) payment.status = status
 }

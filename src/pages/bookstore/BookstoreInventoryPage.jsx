@@ -92,7 +92,7 @@ export default function BookstoreInventoryPage() {
 
   const handleRestock = async () => {
     if (!restockId || !restockQty) return
-    await restockBookstoreProduct(restockId, Number(restockQty))
+    await restockBookstoreProduct(restockId, Number(restockQty), { reason: 'Restock' })
     toast.success('Stock restocked')
     setRestockOpen(false)
     setRestockQty('')
@@ -103,7 +103,9 @@ export default function BookstoreInventoryPage() {
     const product = products.find((p) => p.id === stockProductId)
     if (!product || newStock === '') return
     const delta = Number(newStock) - product.stockQuantity
-    if (delta !== 0) await restockBookstoreProduct(stockProductId, delta)
+    if (delta !== 0) {
+      await restockBookstoreProduct(stockProductId, delta, { reason: 'Stock Adjustment' })
+    }
     toast.success('Stock level updated')
     closeStockModal()
     load()

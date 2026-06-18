@@ -18,8 +18,9 @@ import {
 } from "../../api/enquiriesAPI";
 import {
   ENQUIRY_LEAD_STATUS_OPTIONS,
-  enquiryMatchesSelectedDate, // RESTORED IMPORT
+  enquiryMatchesSelectedDate,
   formatEnquiryLeadStatusLabel,
+  matchesSourcePage,
 } from "../../data/enquiriesData";
 
 // RESTORED FILTER FUNCTION
@@ -56,6 +57,7 @@ export default function EnquiriesPage() {
   const [centerFilter, setCenterFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
+  const [sourcePageFilter, setSourcePageFilter] = useState("all");
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
 
@@ -80,7 +82,7 @@ export default function EnquiriesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, centerFilter, typeFilter, dateFilter]);
+  }, [search, centerFilter, typeFilter, dateFilter, sourcePageFilter]);
 
   const loadLiveEnquiries = useCallback(
     async (signal) => {
@@ -104,6 +106,7 @@ export default function EnquiriesPage() {
               center: targetCenterId,
               type: typeFilter,
               date: dateFilter,
+              sourcePage: sourcePageFilter,
             },
             signal,
           ),
@@ -179,6 +182,7 @@ export default function EnquiriesPage() {
       centerFilter,
       typeFilter,
       dateFilter,
+      sourcePageFilter,
       availableCenters,
       currentPage,
       pageSize,
@@ -298,9 +302,10 @@ export default function EnquiriesPage() {
 
       const matchDate = enquiryMatchesSelectedDate(row.enquiryDate, dateFilter);
       const matchType = matchesType(row.enquiryType, typeFilter);
-      return matchSearch && matchCenter && matchDate && matchType;
+      const matchSourcePage = matchesSourcePage(row.sourcePage, sourcePageFilter);
+      return matchSearch && matchCenter && matchDate && matchType && matchSourcePage;
     });
-  }, [enquiries, search, centerFilter, dateFilter, typeFilter]);
+  }, [enquiries, search, centerFilter, dateFilter, typeFilter, sourcePageFilter]);
 
   const handleEditSave = useCallback(
     async (form) => {
@@ -363,7 +368,7 @@ export default function EnquiriesPage() {
     ? "No enquiries found for the selected date."
     : "No enquiries match your filters.";
 
-  const tableResetDeps = [search, centerFilter, dateFilter, typeFilter];
+  const tableResetDeps = [search, centerFilter, dateFilter, typeFilter, sourcePageFilter];
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
@@ -384,6 +389,8 @@ export default function EnquiriesPage() {
           onDateChange={setDateFilter}
           type={typeFilter}
           onTypeChange={(e) => setTypeFilter(e.target.value)}
+          sourcePage={sourcePageFilter}
+          onSourcePageChange={(e) => setSourcePageFilter(e.target.value)}
         />
 
         <EnquiryStatCards stats={statsData} />

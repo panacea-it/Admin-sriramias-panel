@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CreditCard } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
@@ -9,7 +9,7 @@ import Button from '../../components/ui/Button'
 import { fetchBookstorePayments } from '../../api/bookstoreAPI'
 import { formatINR } from '../../utils/financeFilters'
 import { toast } from '../../utils/toast'
-import { withPaymentsDisplayFields } from '../../utils/bookstorePaymentDisplay'
+import { withPaymentsDisplayFields, updateMockPaymentStatus } from '../../utils/bookstorePaymentDisplay'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
 
 function PaymentDetailField({ label, children }) {
@@ -27,6 +27,7 @@ export default function BookstorePaymentsPage() {
   const [details, setDetails] = useState(null)
   const [refundTarget, setRefundTarget] = useState(null)
   const [refundAmount, setRefundAmount] = useState('')
+  const refundTimersRef = useRef([])
 
   useEffect(() => {
     setLoading(true)
@@ -34,6 +35,50 @@ export default function BookstorePaymentsPage() {
       .then((res) => setPayments(res?.items || []))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(
+    () => () => {
+      refundTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
+      refundTimersRef.current = []
+    },
+    [],
+  )
+
+  const applyPaymentStatus = useCallback((paymentId, status) => {
+    setPayments((prev) =>
+      prev.map((payment) => (payment.id === paymentId ? { ...payment, status } : payment)),
+    )
+    setDetails((prev) => (prev?.id === paymentId ? { ...prev, status } : prev))
+    updateMockPaymentStatus(paymentId, status)
+  }, [])
+
+  const handleConfirmRefund = useCallback(() => {
+    if (!refundTarget) return
+
+    const paymentId = refundTarget.id
+    const amount = Number(refundAmount)
+
+    applyPaymentStatus(paymentId, 'REFUND_INITIATED')
+    toast.success(`Refund of ${formatINR(amount)} initiated`)
+    setRefundTarget(null)
+
+    const timerId = window.setTimeout(() => {
+      setPayments((prev) => {
+        const payment = prev.find((p) => p.id === paymentId)
+        if (payment?.status !== 'REFUND_INITIATED') return prev
+        return prev.map((p) => (p.id === paymentId ? { ...p, status: 'REFUNDED' } : p))
+      })
+      setDetails((prev) =>
+        prev?.id === paymentId && prev?.status === 'REFUND_INITIATED'
+          ? { ...prev, status: 'REFUNDED' }
+          : prev,
+      )
+      updateMockPaymentStatus(paymentId, 'REFUNDED')
+      refundTimersRef.current = refundTimersRef.current.filter((id) => id !== timerId)
+    }, 3000)
+
+    refundTimersRef.current.push(timerId)
+  }, [applyPaymentStatus, refundAmount, refundTarget])
 
   const displayPayments = useMemo(
     () => withPaymentsDisplayFields(payments),
@@ -122,10 +167,7 @@ export default function BookstorePaymentsPage() {
             <Button variant="ghost" onClick={() => setRefundTarget(null)}>Cancel</Button>
             <Button
               variant="danger"
-              onClick={() => {
-                toast.success(`Refund of ${formatINR(Number(refundAmount))} initiated`)
-                setRefundTarget(null)
-              }}
+              onClick={handleConfirmRefund}
             >
               Confirm refund
             </Button>

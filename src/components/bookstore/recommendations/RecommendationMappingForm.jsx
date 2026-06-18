@@ -1,8 +1,4 @@
-import {
-  RECOMMENDATION_PLACEMENTS,
-  RECOMMENDATION_STATUSES,
-  RECOMMENDATION_TYPES,
-} from '../../../constants/bookstoreRecommendations'
+import { RECOMMENDATION_STATUSES } from '../../../constants/bookstoreRecommendations'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../modal/bookstoreFormStyles'
 import BookProductPicker from './BookProductPicker'
 import SortableRecommendedBooks from './SortableRecommendedBooks'
@@ -46,40 +42,6 @@ export default function RecommendationMappingForm({
             </select>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Recommendation type</span>
-              <select
-                className={BOOKSTORE_INPUT_CLASS}
-                value={form.recommendationType}
-                onChange={(e) => patch('recommendationType', e.target.value)}
-              >
-                {RECOMMENDATION_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Placement</span>
-              <select
-                className={BOOKSTORE_INPUT_CLASS}
-                value={form.placement}
-                onChange={(e) => patch('placement', e.target.value)}
-              >
-                {RECOMMENDATION_PLACEMENTS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Priority order</span>
-              <input
-                type="number"
-                min={1}
-                className={BOOKSTORE_INPUT_CLASS}
-                value={form.priorityOrder}
-                onChange={(e) => patch('priorityOrder', Number(e.target.value) || 1)}
-              />
-            </label>
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>Status</span>
               <select

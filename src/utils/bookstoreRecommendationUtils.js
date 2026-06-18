@@ -70,10 +70,7 @@ export function resolveCartRecommendations(rules, products, {
 export function emptyRecommendationRule() {
   return {
     sourceProductId: '',
-    recommendationType: 'Cart Recommendations',
-    placement: 'Cart Drawer',
     recommendedProductIds: [],
-    priorityOrder: 1,
     status: 'active',
     bestsellerProductIds: [],
   }
@@ -83,5 +80,7 @@ export function normalizeRuleFromApi(rule) {
   return {
     ...rule,
     recommendedProductIds: rule.recommendedProductIds || rule.targetProductIds || [],
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
   }
 }

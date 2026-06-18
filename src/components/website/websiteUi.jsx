@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Edit3, Globe, ImageIcon, Trash2 } from 'lucide-react'
 import { StatusBadge } from '../academics/AcademicsUi'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
+import {
+  isResolvableRankerImageUrl,
+  PLACEHOLDER_IMAGE_LABEL,
+} from '../../utils/rankerImageUtils'
 
 export const websiteInputClass =
   'h-11 w-full rounded-lg border-0 bg-[#eef6fc] px-4 text-sm text-[#111] outline-none transition focus:ring-2 focus:ring-[#55ace7]/40'
@@ -103,6 +107,16 @@ export function WebsiteUrlInput({ value, onChange, id }) {
 
 export function WebsiteImageInput({ value, onChange, id, invalid }) {
   const [uploadError, setUploadError] = useState(null)
+  const [fileLabel, setFileLabel] = useState('')
+  const hasPreview = isResolvableRankerImageUrl(value)
+
+  useEffect(() => {
+    if (!value) {
+      setFileLabel('')
+    }
+  }, [value])
+
+  const openFilePicker = () => document.getElementById(`${id}-file`)?.click()
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
@@ -114,24 +128,53 @@ export function WebsiteImageInput({ value, onChange, id, invalid }) {
       return
     }
     setUploadError(null)
-    onChange(file.name)
+    setFileLabel(file.name)
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      onChange(reader.result)
+    }
+    reader.onerror = () => {
+      setUploadError('Could not read image file.')
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
   }
+
+  const inputClassName = cn(
+    websiteInputClass,
+    'cursor-pointer pr-11',
+    invalid && 'ring-2 ring-[#EF4444]/60 bg-red-50/40',
+  )
 
   return (
     <div>
       <div className="relative">
-        <input
-          id={id}
-          type="text"
-          readOnly
-          value={value || '312×214 Kb'}
-          className={cn(
-            websiteInputClass,
-            'cursor-pointer pr-11',
-            invalid && 'ring-2 ring-[#EF4444]/60 bg-red-50/40',
-          )}
-          onClick={() => document.getElementById(`${id}-file`)?.click()}
-        />
+        {hasPreview ? (
+          <button
+            type="button"
+            id={id}
+            onClick={openFilePicker}
+            className={cn(inputClassName, 'overflow-hidden p-0')}
+          >
+            <img
+              src={value}
+              alt={fileLabel || 'Uploaded image'}
+              className="h-full w-full object-cover object-center"
+            />
+          </button>
+        ) : (
+          <input
+            id={id}
+            type="text"
+            readOnly
+            value={
+              value && value !== PLACEHOLDER_IMAGE_LABEL ? value : PLACEHOLDER_IMAGE_LABEL
+            }
+            className={inputClassName}
+            onClick={openFilePicker}
+          />
+        )}
         <input
           id={`${id}-file`}
           type="file"

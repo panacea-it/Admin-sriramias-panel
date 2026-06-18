@@ -1,10 +1,7 @@
-const PLACEHOLDER_IMAGE_LABEL = '312×214 Kb'
+import { isResolvableRankerImageUrl } from './rankerImageUtils'
 
 export function hasRankerImageValue(image = '') {
-  const trimmed = String(image).trim()
-  if (!trimmed) return false
-  if (trimmed === PLACEHOLDER_IMAGE_LABEL) return false
-  return true
+  return isResolvableRankerImageUrl(image)
 }
 
 export function isValidRankValue(value = '') {
@@ -23,7 +20,7 @@ export function isValidRankValue(value = '') {
   return false
 }
 
-export function validateRankerForm(form, { isTop10 = false, editingId = null, rankers = [] } = {}) {
+export function validateRankerForm(form, { editingId = null, rankers = [] } = {}) {
   const errors = {}
 
   if (!form.program?.trim()) {
@@ -55,26 +52,6 @@ export function validateRankerForm(form, { isTop10 = false, editingId = null, ra
 
   if (!form.status) {
     errors.status = 'Status is required.'
-  }
-
-  if (isTop10 && form.status === 'Active') {
-    const order = Number(form.displayOrder)
-    if (form.displayOrder === '' || form.displayOrder == null) {
-      errors.displayOrder = 'Display order is required for Top 10 rankers.'
-    } else if (!Number.isInteger(order) || order < 1 || order > 10) {
-      errors.displayOrder = 'Enter a display order between 1 and 10.'
-    } else {
-      const duplicate = rankers.some(
-        (row) =>
-          String(row.id) !== String(editingId) &&
-          row.status === 'Active' &&
-          row.isTop10 &&
-          Number(row.displayOrder) === order,
-      )
-      if (duplicate) {
-        errors.displayOrder = 'This display order is already assigned.'
-      }
-    }
   }
 
   return errors

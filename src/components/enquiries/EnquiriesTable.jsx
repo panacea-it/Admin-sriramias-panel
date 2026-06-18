@@ -5,12 +5,13 @@ import EnquiryLeadStatusSelect from "./EnquiryLeadStatusSelect";
 import EnquiryTableActions from "./EnquiryTableActions";
 import { cn } from "../../utils/cn";
 
-const ENQUIRIES_TABLE_MIN_WIDTH = 1320;
+const ENQUIRIES_TABLE_MIN_WIDTH = 1470;
 
 const COLUMN = {
   student: 160,
   contact: 260,
   enquiryType: 160,
+  sourcePage: 150,
   center: 130,
   enquiryDate: 130,
   counselor: 180,
@@ -100,6 +101,19 @@ export default function EnquiriesTable({
         render: (row) => (
           <span className="block whitespace-nowrap text-sm font-medium leading-snug text-[#111111]">
             {row.enquiryType}
+          </span>
+        ),
+      },
+      {
+        key: "sourcePage",
+        label: "Source Page",
+        width: COLUMN.sourcePage,
+        headerTruncate: false,
+        headerClassName: CELL,
+        cellClassName: CELL,
+        render: (row) => (
+          <span className="block whitespace-nowrap text-sm font-medium leading-snug text-[#111111]">
+            {row.sourcePage || "Other"}
           </span>
         ),
       },

@@ -39,6 +39,7 @@ export async function fetchEnquiries(
     center = "",
     type = "all",
     date = null,
+    sourcePage = "all",
   } = {},
   signal,
 ) {
@@ -66,6 +67,10 @@ export async function fetchEnquiries(
   // Only attach the date parameter to the body if a date is actually selected
   if (formattedDate) {
     payload.date = formattedDate;
+  }
+
+  if (sourcePage && sourcePage !== "all") {
+    payload.sourcePage = sourcePage;
   }
 
   const response = await withRetry(() =>
@@ -100,6 +105,7 @@ export async function fetchEnquiries(
       center: row.center?.centerName || row.centerName || "—",
       centerId: row.center?._id || "",
       enquiryType: row.enquiryType || "—",
+      sourcePage: row.sourcePage || row.sourcePageName || "Other",
       enquiryDate: row.createdAt || new Date().toISOString(),
       assignedCounselor: counselorIdStr,
       assignedCounselorName: row.assignedCounselorName || "",

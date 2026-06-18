@@ -34,7 +34,7 @@ export default function RecommendationRuleModal({
       subtitle={
         editingId
           ? `Update cross-sell mapping · Rule ${editingId}`
-          : 'Configure source book, recommended titles, placement, and display order'
+          : 'Configure source book and recommended titles'
       }
       size="7xl"
       loading={saving}

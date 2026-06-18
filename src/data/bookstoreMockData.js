@@ -1,7 +1,29 @@
 const now = new Date()
 const iso = (d) => d.toISOString()
 
-export const BOOKSTORE_PRODUCT_TYPES = ['Physical Book', 'E-Book', 'Study Material']
+export const BOOKSTORE_EXAM_CATEGORIES = [
+  'UPSC',
+  'APPSC',
+  'TSPSC',
+  'Group 1',
+  'Group 2',
+  'SSC',
+  'Banking',
+  'Railways',
+  'Other',
+]
+
+export const BOOKSTORE_LANGUAGES = [
+  'English',
+  'Telugu',
+  'Hindi',
+  'Tamil',
+  'Kannada',
+  'Malayalam',
+  'Marathi',
+  'Bengali',
+]
+
 export const BOOKSTORE_ORDER_STATUSES = [
   'Pending',
   'Confirmed',
@@ -394,6 +416,7 @@ export let MOCK_BOOKSTORE_RECOMMENDATIONS = [
     priorityOrder: 1,
     status: 'active',
     bestsellerProductIds: ['BSP-002'],
+    createdAt: iso(new Date(now - 86400000 * 15)),
   },
   {
     id: 'REC-002',
@@ -404,6 +427,7 @@ export let MOCK_BOOKSTORE_RECOMMENDATIONS = [
     priorityOrder: 2,
     status: 'active',
     bestsellerProductIds: [],
+    createdAt: iso(new Date(now - 86400000 * 8)),
   },
   {
     id: 'REC-003',
@@ -414,6 +438,7 @@ export let MOCK_BOOKSTORE_RECOMMENDATIONS = [
     priorityOrder: 1,
     status: 'active',
     bestsellerProductIds: ['BSP-006'],
+    createdAt: iso(new Date(now - 86400000 * 3)),
   },
 ]
 
@@ -422,7 +447,7 @@ export const MOCK_BOOKSTORE_INVOICES = [
   { id: 'INV-5002', orderId: 'BSO-1002', gstin: '29AABCU9603R1ZX', amount: 1498, status: 'Generated', createdAt: iso(new Date(now - 86400000 * 1)) },
 ]
 
-export const MOCK_INVENTORY_LOGS = [
+export let MOCK_INVENTORY_LOGS = [
   { id: 'LOG-1', productId: 'BSP-001', change: -2, reason: 'Order BSO-1001', stockAfter: 240, createdAt: iso(new Date(now - 86400000 * 2)) },
   { id: 'LOG-2', productId: 'BSP-002', change: +50, reason: 'Restock', stockAfter: 68, createdAt: iso(new Date(now - 86400000 * 1)) },
 ]

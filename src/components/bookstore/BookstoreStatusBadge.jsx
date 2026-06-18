@@ -14,6 +14,8 @@ const STATUS_STYLES = {
   Paid: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
   Success: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
   Failed: 'bg-red-500/15 text-red-800 ring-red-500/25',
+  REFUND_INITIATED: 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
+  REFUNDED: 'bg-slate-500/15 text-slate-700 ring-slate-500/25',
   Generated: 'bg-blue-500/15 text-blue-800 ring-blue-500/25',
   'Low stock': 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
   'Out of stock': 'bg-red-500/15 text-red-800 ring-red-500/25',
