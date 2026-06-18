@@ -73,7 +73,7 @@ function buildEnrollmentListQuery({
   return query
 }
 
-/** GET /api/batch-enrollments/by-batch/:batchId */
+/** POST /api/batch-enrollments/by-batch — list enrollments for a batch */
 export async function getBatchStudents(batchId, params = {}, { signal } = {}) {
   if (isFrontendOnly) {
     return { students: [], meta: { total: 0, page: 1, pages: 1, limit: params.limit ?? 10 } }
@@ -81,13 +81,13 @@ export async function getBatchStudents(batchId, params = {}, { signal } = {}) {
 
   const resolvedBatchId = assertMongoBatchId(batchId)
   const query = buildEnrollmentListQuery(params)
-  const path = buildPath('by-batch', resolvedBatchId)
+  const path = buildPath('by-batch')
+  const body = { batchId: resolvedBatchId, ...query }
   const url = `${resolveApiBaseUrl()}${path}`
-  logBatchApiDev('getBatchStudents request', { batchId: resolvedBatchId, url, query })
+  logBatchApiDev('getBatchStudents request', { batchId: resolvedBatchId, url, body })
 
   try {
-    const response = await axiosInstance.get(path, {
-      params: query,
+    const response = await axiosInstance.post(path, body, {
       signal,
       skipAuthRedirect: true,
     })
@@ -121,21 +121,25 @@ export async function getBatchStudents(batchId, params = {}, { signal } = {}) {
   }
 }
 
-/** GET /api/batch-enrollments/:enrollmentId */
+/** POST /api/batch-enrollments/detail */
 export async function getEnrollmentById(enrollmentId, { signal } = {}) {
   if (isFrontendOnly) {
     throw new Error('Batch enrollment API is disabled in frontend-only mode')
   }
 
   const resolvedEnrollmentId = assertEnrollmentMongoId(enrollmentId)
-  const path = buildPath(resolvedEnrollmentId)
+  const path = buildPath('detail')
   logBatchApiDev('getEnrollmentById request', { enrollmentId: resolvedEnrollmentId })
 
   try {
-    const response = await axiosInstance.get(path, {
-      signal,
-      skipAuthRedirect: true,
-    })
+    const response = await axiosInstance.post(
+      path,
+      { id: resolvedEnrollmentId, enrollmentId: resolvedEnrollmentId },
+      {
+        signal,
+        skipAuthRedirect: true,
+      },
+    )
     logBatchApiDev('getEnrollmentById response', response.data)
     const doc = unwrapEnrollmentDoc(response.data)
     return mapApiEnrollmentStudents([doc])[0] || doc
@@ -250,33 +254,33 @@ export async function updateEnrollmentStatus(enrollmentId, status, { signal } = 
   }
 }
 
-/** PATCH /api/batch-enrollments/move/:enrollmentId */
+/** POST /api/batch-enrollments/:enrollmentId/move */
 export async function moveEnrollment(enrollmentId, payload, { signal } = {}) {
   if (isFrontendOnly) {
     throw new Error('Batch enrollment API is disabled in frontend-only mode')
   }
 
   const resolvedEnrollmentId = assertEnrollmentMongoId(enrollmentId)
-  const targetBatchId = assertMongoBatchId(payload.batchId || payload.targetBatchId)
+  const targetBatchId = assertMongoBatchId(payload.batchId || payload.targetBatchId || payload.toBatchId)
   const body = {
-    batchId: targetBatchId,
-    transferDate: payload.transferDate,
-    transferReason: String(payload.transferReason || '').trim(),
-    branch: String(payload.branch || '').trim(),
-    course: String(payload.course || '').trim(),
-    remarks: String(payload.remarks || payload.reason || '').trim(),
-    reason: String(payload.transferReason || payload.remarks || payload.reason || '').trim(),
-    performedBy: payload.performedBy,
-    transferAttendance: payload.transferAttendance !== false,
-    transferFee: payload.transferFee !== false,
-    transferTests: payload.transferTests !== false,
+    toBatchId: targetBatchId,
+    transferReason: String(
+      payload.transferReason || payload.remarks || payload.reason || '',
+    ).trim(),
+    effectiveTransferDate: payload.transferDate || payload.effectiveTransferDate,
+    transferAttendanceRecords: payload.transferAttendance !== false,
+    transferFeeRecords: payload.transferFee !== false,
+    transferTestRecords: payload.transferTests !== false,
+    paymentStatus: payload.paymentStatus,
+    attendancePercentage: payload.attendancePercentage,
+    courseProgressPercentage: payload.courseProgressPercentage,
   }
 
-  const path = buildPath('move', resolvedEnrollmentId)
+  const path = buildPath(resolvedEnrollmentId, 'move')
   logBatchApiDev('moveEnrollment request', { enrollmentId: resolvedEnrollmentId, body })
 
   try {
-    const response = await axiosInstance.patch(path, body, {
+    const response = await axiosInstance.post(path, body, {
       signal,
       skipAuthRedirect: true,
     })

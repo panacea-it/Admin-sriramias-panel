@@ -1,5 +1,8 @@
-import { createContext, useCallback, useContext, useMemo } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo } from 'react'
 import { useBatchStudents } from '../hooks/useBatchStudents'
+import { getFacultySubjects } from '../api/facultySubjectsAPI'
+import { normalizeFacultySubjectsListResponse } from '../utils/facultySubjectHelpers'
+import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
 
 const BatchManagementContext = createContext(null)
 
@@ -11,6 +14,25 @@ export function resolveStudentKey(row, getStudents) {
 }
 
 export function BatchManagementProvider({ children }) {
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await getFacultySubjects({ page: 1, limit: 200 })
+        if (cancelled) return
+        const normalized = normalizeFacultySubjectsListResponse(data, { page: 1, limit: 200 })
+        if (normalized.items?.length) {
+          syncFacultySubjectsToLocalStorage(normalized.items)
+        }
+      } catch {
+        /* batch forms fall back to last synced local faculty subjects */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const {
     getStudents,
     addStudent,

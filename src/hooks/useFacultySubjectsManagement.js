@@ -30,11 +30,10 @@ function loadSyncedLocalSubjects() {
 }
 
 function getInitialListState() {
-  const local = loadSyncedLocalSubjects()
   return {
-    subjects: local,
-    totalItems: local.length,
-    totalPages: Math.max(1, Math.ceil(local.length / DEFAULT_PAGE_SIZE) || 1),
+    subjects: [],
+    totalItems: 0,
+    totalPages: 1,
   }
 }
 

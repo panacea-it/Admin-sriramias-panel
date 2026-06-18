@@ -208,6 +208,12 @@ export function normalizeCentersDropdown(data) {
         [];
 
   return (Array.isArray(list) ? list : [])
+    .filter((item) => {
+      const status = String(item?.status ?? "ACTIVE")
+        .trim()
+        .toUpperCase();
+      return status !== "DISABLED" && status !== "INACTIVE";
+    })
     .map((item) => {
       const centerName = String(item?.centerName || item?.name || "").trim();
       const centerCode = String(item?.centerCode || "").trim();
@@ -320,7 +326,7 @@ export const deleteCenter = async (centerId) => {
 export const getCentersDropdown = async () => {
   try {
     return await centersDropdownCache.fetch("centers-dropdown", async () => {
-      const response = await api.get("/api/admin/centers/dropdown");
+      const response = await api.get("/api/centers/dropdown");
       return response.data;
     });
   } catch (error) {
