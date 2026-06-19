@@ -1,11 +1,10 @@
 import { CheckCircle2, CornerUpRight, MailX } from 'lucide-react'
+import IconActionButton from '../common/IconActionButton'
 import { DateTimeInline } from '../website/websiteUi'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 
 export { default as HelpDeskStatusCell } from './HelpDeskStatusCell'
-
-const actionClassName =
-  'group inline-flex items-center gap-1.5 text-sm font-semibold transition-colors duration-150'
 
 export function HelpDeskContactCell({ email, mobile }) {
   return (
@@ -31,35 +30,29 @@ export function HelpDeskActionCell({ status, onReply, onToggleReplyStatus }) {
 
   return (
     <div
-      className="flex flex-col items-center justify-center gap-2 py-0.5"
+      className={cn(TABLE_ACTIONS_WRAP, 'justify-center')}
       role="group"
       aria-label="Help desk ticket actions"
     >
-      <button
-        type="button"
+      <IconActionButton
+        label="Reply"
         onClick={onReply}
-        className={cn(actionClassName, 'text-[#55ace7] hover:text-[#246392]')}
+        className="text-[#55ace7] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#246392] hover:shadow-sm"
       >
-        Reply
-        <CornerUpRight
-          className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-          strokeWidth={2.2}
-        />
-      </button>
-      <button
-        type="button"
+        <CornerUpRight className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+      </IconActionButton>
+
+      <IconActionButton
+        label={toggleLabel}
         onClick={onToggleReplyStatus}
-        aria-label={toggleLabel}
         className={cn(
-          actionClassName,
           isReplied
-            ? 'text-slate-500 hover:text-[#246392]'
-            : 'text-emerald-700 hover:text-emerald-800',
+            ? 'text-slate-500 hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392]'
+            : 'text-emerald-700 hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-800',
         )}
       >
-        <ToggleIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
-        {toggleLabel}
-      </button>
+        <ToggleIcon className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+      </IconActionButton>
     </div>
   )
 }

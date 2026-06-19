@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Edit3, PlusCircle } from 'lucide-react'
+import { PlusCircle } from 'lucide-react'
 import PageBanner from '../components/figma/PageBanner'
 import FilterToolbar from '../components/figma/FilterToolbar'
 import PaginatedFigmaTable from '../components/figma/PaginatedFigmaTable'
+import EditButton from '../components/common/EditButton'
+import { TABLE_ACTIONS_WRAP } from '../utils/tableColumnHelpers'
 
 const SAMPLE = [
   { id: 1, name: 'UPSC Foundation 2026', status: 'Active', updated: 'May 12, 2026', price: '12,000' },
@@ -90,14 +92,8 @@ export default function ModuleListPage({
       key: 'actions',
       label: 'Action',
       render: () => (
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#686868] transition hover:text-[#246392] sm:text-base"
-          >
-            <Edit3 className="h-4 w-4" strokeWidth={2.35} />
-            Edit
-          </button>
+        <div className={TABLE_ACTIONS_WRAP}>
+          <EditButton onClick={() => {}} />
         </div>
       ),
     },

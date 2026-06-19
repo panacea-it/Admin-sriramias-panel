@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Ban, Pencil } from 'lucide-react'
+import { Ban, Check } from 'lucide-react'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
 import { cn } from '../../utils/cn'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 import { normalizeRankInput } from '../../utils/youtubeVideoPriority'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
 
 export default function YoutubeRowActions({
   rowName = 'video',
@@ -48,40 +48,28 @@ export default function YoutubeRowActions({
     <div
       role="group"
       aria-label={`Actions for ${rowName}`}
-      className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5"
+      className={cn(TABLE_ACTIONS_WRAP, 'items-center')}
     >
       {!rankOnly && (
         <>
-          <button
-            type="button"
+          <EditButton
             onClick={(e) => {
-              e.stopPropagation()
+              e?.stopPropagation?.()
               onEdit?.()
             }}
-            title="Edit"
-            aria-label={`Edit ${rowName}`}
-            className={cn(
-              actionButtonClass,
-              'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-            )}
-          >
-            <Pencil className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">Edit</span>
-          </button>
+            label={`Edit ${rowName}`}
+          />
 
-          <button
-            type="button"
+          <IconActionButton
+            label={isActive ? `Set ${rowName} inactive` : `Set ${rowName} active`}
             onClick={(e) => {
-              e.stopPropagation()
+              e?.stopPropagation?.()
               onStatusChange?.(isActive ? 'Inactive' : 'Active')
             }}
-            title={isActive ? 'Set Inactive' : 'Set Active'}
-            aria-label={isActive ? `Set ${rowName} inactive` : `Set ${rowName} active`}
-            className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+            className="text-amber-700 hover:border-amber-100 hover:bg-amber-50 hover:text-amber-800"
           >
-            <Ban className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">{isActive ? 'Inactive' : 'Active'}</span>
-          </button>
+            <Ban className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+          </IconActionButton>
         </>
       )}
 
@@ -112,9 +100,11 @@ export default function YoutubeRowActions({
             type="button"
             onClick={submitRank}
             disabled={settingRank}
-            className="rounded-md bg-[#246392] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#1a3a5c] disabled:opacity-60"
+            title="Set rank"
+            aria-label="Set priority rank"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#246392] text-white hover:bg-[#1a3a5c] disabled:opacity-60"
           >
-            {settingRank ? '…' : 'Set'}
+            <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
           </button>
           {priorityOrder && onRemoveRank ? (
             <button

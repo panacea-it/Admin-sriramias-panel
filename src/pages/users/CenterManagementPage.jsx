@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Ban, Building2, CheckCircle2, Eye, Pencil, Plus } from 'lucide-react';
+import { Ban, Building2, CheckCircle2, Plus } from 'lucide-react';
 import ErrorState from "../../components/feedback/ErrorState";
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
@@ -9,12 +9,16 @@ import ViewCenterDrawer from "../../components/center-management/ViewCenterDrawe
 import ConfirmCenterStatusModal from "../../components/center-management/ConfirmCenterStatusModal";
 import CenterBulkActionsBar from "../../components/center-management/CenterBulkActionsBar";
 import CenterManagementTable from "../../components/center-management/CenterManagementTable";
+import ViewButton from "../../components/common/ViewButton";
+import EditButton from "../../components/common/EditButton";
+import IconActionButton from "../../components/common/IconActionButton";
 import { useCenters } from "../../contexts/CentersContext";
 import { useCenterManagement } from "../../hooks/useCenterManagement";
 import { useTableRowSelection } from "../../hooks/useTableRowSelection";
 import { useInitialRouteSearch } from "../../hooks/useInitialRouteSearch";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { cn } from "../../utils/cn";
+import { TABLE_ACTIONS_WRAP } from "../../utils/tableColumnHelpers";
 import {
   buildUpdateCenterPayloadFromPatch,
   deleteCenter as deleteCenterApi,
@@ -28,63 +32,28 @@ const CENTER_STATUS_OPTIONS = [
   { value: "disabled", label: "Deactivated" },
 ];
 
-const actionButtonClass =
-  "inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5";
-
 function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
+  const isActive = row.status === "active";
+
   return (
-    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onView}
-        title="View"
-        aria-label={`View ${row.centerName}`}
-        className={cn(
-          actionButtonClass,
-          "text-slate-500 hover:bg-slate-100 hover:text-[#246392]",
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label={`Edit ${row.centerName}`}
-        className={cn(
-          actionButtonClass,
-          "text-slate-500 hover:bg-slate-100 hover:text-[#246392]",
-        )}
-      >
-        <Pencil className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Edit</span>
-      </button>
-      <button
-        type="button"
+    <div className={TABLE_ACTIONS_WRAP}>
+      <ViewButton onClick={onView} label={`View ${row.centerName}`} />
+      <EditButton onClick={onEdit} label={`Edit ${row.centerName}`} />
+      <IconActionButton
+        label={isActive ? `Disable ${row.centerName}` : `Enable ${row.centerName}`}
         onClick={onStatusToggle}
-        title={row.status === "active" ? "Disable" : "Enable"}
-        aria-label={
-          row.status === "active"
-            ? `Disable ${row.centerName}`
-            : `Enable ${row.centerName}`
-        }
         className={cn(
-          actionButtonClass,
-          row.status === "active"
-            ? "text-rose-600 hover:bg-rose-50"
-            : "text-emerald-600 hover:bg-emerald-50",
+          isActive
+            ? "text-rose-600 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-700"
+            : "text-emerald-600 hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700",
         )}
       >
-        {row.status === "active" ? (
-          <Ban className="h-3.5 w-3.5 shrink-0" />
+        {isActive ? (
+          <Ban className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
         ) : (
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
         )}
-        <span className="hidden sm:inline">
-          {row.status === "active" ? "Disable" : "Enable"}
-        </span>
-      </button>
+      </IconActionButton>
     </div>
   );
 }

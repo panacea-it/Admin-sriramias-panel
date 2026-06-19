@@ -11,6 +11,7 @@ import {
 } from '../../constants/freeLearningResourceConstants'
 import { fetchFreeLearningResources } from '../../api/freeLearningResourcesAPI'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '@/utils/toast'
 
 export default function FreeLearningResourcesTab() {
@@ -24,7 +25,7 @@ export default function FreeLearningResourcesTab() {
       const rows = await fetchFreeLearningResources()
       setResources(rows)
     } catch (error) {
-      toast.error(error?.message || 'Failed to load free learning resources')
+      toast.error(getApiErrorMessage(error, 'Failed to load free learning resources'))
       setResources([])
     } finally {
       setLoading(false)
