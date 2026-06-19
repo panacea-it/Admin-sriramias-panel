@@ -1,15 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  Coins,
-  Gift,
-  Users,
-  Clock,
-  ShieldAlert,
-  UserPlus,
-  Download,
-  RefreshCw,
-  LayoutDashboard,
-} from 'lucide-react'
+import { Coins, Gift, Users, Clock, ShieldAlert, UserPlus, Download, RefreshCw, LayoutDashboard } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
 import RewardsStatCard from '../../../components/rewards/RewardsStatCard'
 import {

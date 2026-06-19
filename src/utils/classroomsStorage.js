@@ -8,7 +8,7 @@ function nowIso() {
 }
 
 export function normalizeClassroomStatus(status) {
-  if (status === 'Inactive' || status === 'In Active') return 'Inactive'
+  if (status === 'Deactivated' || status === 'In Active') return 'Deactivated'
   return 'Active'
 }
 

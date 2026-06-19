@@ -52,6 +52,9 @@ export const CenterManagementPage = lazyRoute(() => import('../pages/users/Cente
 export const ManageUsersPage = lazyRoute(() => import('../pages/users/ManageUsersPage'))
 export const StudentDetailPage = lazyRoute(() => import('../pages/users/StudentDetailPage'))
 export const ModuleListPage = lazyRoute(() => import('../pages/ModuleListPage'))
+export const ActivityHistoryPage = lazyRoute(
+  () => import('../pages/operations/ActivityHistoryPage'),
+)
 export const FinanceLayout = lazyRoute(
   () => import('../layouts/FinanceLayout'),
   'Finance layout',

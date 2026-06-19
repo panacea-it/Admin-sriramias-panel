@@ -189,7 +189,7 @@ export function YoutubeVideosProvider({ children }) {
 
       applyLocalVideos(setVideos, (prev) => {
         let next = prev
-        if (newStatus === 'Inactive' && hadRank) {
+        if (newStatus === 'Deactivated' && hadRank) {
           const result = mockRemoveRank(prev, row.id, true)
           next = result?.videos ?? prev
         }
@@ -199,7 +199,7 @@ export function YoutubeVideosProvider({ children }) {
       })
 
       try {
-        if (newStatus === 'Inactive' && hadRank) {
+        if (newStatus === 'Deactivated' && hadRank) {
           await removeYoutubeRank(row.id, true)
         }
         await updateYoutubeVideo(row.id, { status: newStatus })

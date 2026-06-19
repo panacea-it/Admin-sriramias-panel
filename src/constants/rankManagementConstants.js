@@ -132,7 +132,7 @@ const SEED_RANKS = [
 export function enrichRankerSeedRow(row, index) {
   const createdAt = new Date(Date.now() - index * 86400000).toISOString()
   const created = new Date(createdAt)
-  const isActive = row.status !== 'Inactive'
+  const isActive = row.status !== 'Deactivated'
   const top10SeedOrder = isActive && index >= 1 && index <= 3 ? index : null
 
   return {

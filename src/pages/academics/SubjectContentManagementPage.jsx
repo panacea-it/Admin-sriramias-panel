@@ -6,7 +6,6 @@ import HierarchyExplorer from '../../components/subject-content/HierarchyExplore
 import SubjectContentFormPanel, {
   buildItemSavePayload,
 } from '../../components/subject-content/SubjectContentFormPanel'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import ContentBulkConfirmDialog from '../../components/subject-content/ContentBulkConfirmDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
@@ -613,7 +612,7 @@ export default function SubjectContentManagementPage() {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedRowIds.length) return
-    setBulkConfirm({ type: 'delete', count: selectedRowIds.length })
+    setBulkConfirm({ type: 'deactivate', count: selectedRowIds.length })
   }
 
   const handleBulkDisableRequest = () => {
@@ -1030,29 +1029,9 @@ export default function SubjectContentManagementPage() {
         </div>
       )}
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteFolderTarget)}
-        title="Delete folder?"
-        message="All entries in this folder will be removed."
-        onConfirm={confirmDeleteFolder}
-        onCancel={() => setDeleteFolderTarget(null)}
-      />
+      
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteItemTarget)}
-        title={
-          activeCategory?.categoryType === 'LIVE_CLASS'
-            ? 'Delete live class?'
-            : 'Delete entry?'
-        }
-        message={
-          activeCategory?.categoryType === 'LIVE_CLASS'
-            ? 'Are you sure you want to delete this Live Class?'
-            : 'This will permanently remove this content entry.'
-        }
-        onConfirm={confirmDeleteItem}
-        onCancel={() => setDeleteItemTarget(null)}
-      />
+      
       <ContentBulkConfirmDialog
         open={Boolean(bulkConfirm)}
         type={bulkConfirm?.type}

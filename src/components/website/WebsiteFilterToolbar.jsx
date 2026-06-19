@@ -138,7 +138,7 @@ export default function WebsiteFilterToolbar({
             options={[
               { value: 'all', label: 'Status' },
               { value: 'Active', label: 'Active' },
-              { value: 'Inactive', label: 'Inactive' },
+              { value: 'Deactivated', label: 'Deactivated' },
             ]}
           />
         )}

@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { CourseInput } from '../../courses/CourseFormField'
 import { cn } from '../../../utils/cn'
 
@@ -45,7 +45,7 @@ export default function OptionField({
           className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-40"
           aria-label={`Remove option ${option.label}`}
         >
-          <Trash2 className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </button>
       ) : (
         <span className="hidden sm:block sm:w-10" />

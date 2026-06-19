@@ -14,7 +14,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronDown, ChevronUp, GripVertical, Star, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, GripVertical, Star, X } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 import { formatINR } from '../../../utils/financeFilters'
 import { productById } from '../../../utils/bookstoreRecommendationUtils'
@@ -95,8 +95,9 @@ function SortableRow({ item, index, total, product, isBestseller, onRemove, onMo
           type="button"
           onClick={() => onRemove(product.id)}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+          aria-label="Remove"
         >
-          <Trash2 className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </button>
       </div>
     </div>

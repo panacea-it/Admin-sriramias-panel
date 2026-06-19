@@ -79,7 +79,7 @@ export default function LiveClassListingToolbar({
             options={[
               { value: 'all', label: 'All Status' },
               { value: 'Active', label: 'Active' },
-              { value: 'In Active', label: 'Inactive' },
+              { value: 'In Active', label: 'Deactivated' },
             ]}
           />
         )}

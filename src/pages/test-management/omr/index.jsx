@@ -5,7 +5,6 @@ import CourseFilterToolbar from '../../../components/courses/CourseFilterToolbar
 import OmrManagementTable from '../../../components/test-management/omr/OmrManagementTable'
 import OmrErrorState from '../../../components/test-management/omr/OmrErrorState'
 import OmrTableActions from '../../../components/test-management/omr/OmrTableActions'
-import ConfirmOmrDeleteModal from '../../../components/test-management/omr/ConfirmOmrDeleteModal'
 import OmrExamFormModal from '../../../components/test-management/omr/OmrExamFormModal'
 import OmrUploadResultModal from '../../../components/test-management/omr/OmrUploadResultModal'
 import { useOmrManagement } from '../../../hooks/useOmrManagement'
@@ -17,7 +16,7 @@ import { deleteOmrExam, downloadOmrResultSheet } from '../../../services/omrServ
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'All statuses' },
   { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
+  { value: 'Deactivated', label: 'Deactivated' },
 ]
 
 export default function OmrManagementPage() {
@@ -207,13 +206,7 @@ export default function OmrManagementPage() {
         }}
       />
 
-      <ConfirmOmrDeleteModal
-        open={Boolean(deleteTarget)}
-        examName={deleteTarget?.examName}
-        loading={deleteLoading}
-        onCancel={() => !deleteLoading && setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-      />
+      
     </TestManagementPageShell>
   )
 }

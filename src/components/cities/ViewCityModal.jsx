@@ -16,7 +16,7 @@ function DetailItem({ label, children }) {
 export default function ViewCityModal({ open, onClose, city, loading = false }) {
   if (!open) return null
 
-  const status = city?.status === 'Inactive' ? 'In Active' : city?.status
+  const status = city?.status === 'Deactivated' ? 'In Active' : city?.status
   const displayCode = getCityDisplayCode(city)
 
   return (

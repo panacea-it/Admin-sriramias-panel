@@ -68,7 +68,7 @@ export default function BlogFilterToolbar({
           options={[
             { value: 'all', label: 'Status' },
             { value: 'published', label: 'Active' },
-            { value: 'draft', label: 'Inactive' },
+            { value: 'draft', label: 'Deactivated' },
           ]}
         />
       </div>

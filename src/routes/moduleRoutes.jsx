@@ -1,13 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
-import {
-  FileSearch,
-  Tv,
-  SlidersHorizontal,
-  ScrollText,
-  Database,
-  Plug,
-  ListOrdered,
-} from 'lucide-react'
+import { FileSearch, Tv, SlidersHorizontal, ScrollText, Database, Plug, ListOrdered } from 'lucide-react'
 import RoleRoute from './RoleRoute'
 import { ROLES } from '../constants/roles'
 import {
@@ -41,6 +33,7 @@ import {
   HelpDeskPage,
   PushNotificationsPage,
   ModuleListPage,
+  ActivityHistoryPage,
   TestManagementLayout,
   RewardsLayout,
   StudentRewardsLayout,
@@ -147,7 +140,7 @@ export const MODULE_ROUTE_ELEMENTS = [
   },
   {
     path: 'operations/audit-logs',
-    element: module(ScrollText, 'Audit Logs', 'Export Logs', 'Search logs'),
+    element: <ActivityHistoryPage title="Audit Logs" />,
   },
   {
     path: 'system/data-import-export',

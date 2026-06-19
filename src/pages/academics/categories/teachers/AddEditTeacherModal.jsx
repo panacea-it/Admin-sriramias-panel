@@ -67,7 +67,7 @@ export default function AddEditTeacherModal({
     setForm(buildForm(item))
   }, [open, item, detailLoading])
 
-  const title = isEdit ? 'Edit Teachers' : 'Add Teachers'
+  const title = isEdit ? 'Edit Faculty' : 'Add Faculty'
 
   const handleClose = () => {
     if (closingRef.current || submitting) return
@@ -125,12 +125,12 @@ export default function AddEditTeacherModal({
         />
 
         <div className="mx-4 rounded-xl bg-white px-4 py-3 text-center shadow-[0_6px_20px_rgba(15,23,42,0.08)] sm:mx-6">
-          <p className="text-sm font-semibold text-[#246392]">Teachers Details</p>
+          <p className="text-sm font-semibold text-[#246392]">Faculty Details</p>
         </div>
 
         {detailLoading ? (
           <div className="flex min-h-[200px] items-center justify-center px-6 py-10 text-sm font-medium text-[#686868]">
-            Loading teacher details…
+            Loading faculty details…
           </div>
         ) : (
           <div className="space-y-4 px-5 py-6 sm:px-6 sm:py-7">
@@ -165,7 +165,7 @@ export default function AddEditTeacherModal({
                 </select>
               </Field>
 
-              <Field label="Teacher Name" required error={errors.name}>
+              <Field label="Faculty Name" required error={errors.name}>
                 <input
                   type="text"
                   value={form.name}

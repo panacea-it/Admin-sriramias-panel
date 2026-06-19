@@ -7,6 +7,7 @@ import LoginPage from '../pages/auth/LoginPage'
 import DashboardPage from '../pages/dashboard/DashboardPage'
 import SettingsPage from '../pages/settings/SettingsPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import { ActivityHistoryPage } from './lazyPages'
 import { MODULE_ROUTE_ELEMENTS } from './moduleRoutes'
 
 export default function AppRoutes() {
@@ -43,6 +44,7 @@ export default function AppRoutes() {
             element={<SettingsPage title="Notification Settings" section="notifications" />}
           />
           <Route path="settings/general" element={<SettingsPage title="General Settings" section="general" />} />
+          <Route path="settings/activity-history" element={<ActivityHistoryPage />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Route>

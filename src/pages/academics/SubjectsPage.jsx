@@ -9,7 +9,6 @@ import ViewFacultySubjectModal from '../../components/subjects/ViewFacultySubjec
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
 import SubjectBulkConfirmDialog from '../../components/subjects/SubjectBulkConfirmDialog'
 import CurrentAffairsBulkActionsBar from '../../components/current-affairs/CurrentAffairsBulkActionsBar'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { useFacultySubjectsManagement } from '../../hooks/useFacultySubjectsManagement'
 import { clearFacultySubjectFormOptionsCache } from '../../hooks/useFacultySubjectFormOptions'
 import {
@@ -74,7 +73,7 @@ export default function SubjectsPage() {
   const teacherOptions = useMemo(() => {
     const teachers = [...new Set(subjects.map((s) => s.teacher).filter(Boolean))].sort()
     return [
-      { value: 'all', label: 'All Teachers' },
+      { value: 'all', label: 'All Faculty' },
       ...teachers.map((t) => ({ value: t, label: t })),
     ]
   }, [subjects])
@@ -276,7 +275,7 @@ export default function SubjectsPage() {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }
 
   const handleBulkDisableRequest = () => {
@@ -503,18 +502,7 @@ export default function SubjectsPage() {
         }}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title={`Delete ${facultySubjectLabels.singular.toLowerCase()}?`}
-        message={
-          deleteTarget
-            ? `Remove "${deleteTarget.subjectName}" and all linked content? This cannot be undone.`
-            : ''
-        }
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteTarget(null)}
-        loading={deleteLoading}
-      />
+      
     </div>
   )
 }

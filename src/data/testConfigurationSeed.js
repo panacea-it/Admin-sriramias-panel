@@ -1,4 +1,4 @@
-/** @typedef {'Active' | 'Inactive'} ConfigStatus */
+/** @typedef {'Active' | 'Deactivated'} ConfigStatus */
 /** @typedef {'Full Length' | 'Sectional'} SectionTestType */
 /** @typedef {'LTR' | 'RTL'} TextDirection */
 
@@ -74,7 +74,7 @@ export const SEED_EXAM_PATTERNS = [
   {
     id: 'INS-1007',
     instructionDescription: 'Mobile phones are strictly prohibited.',
-    status: 'Inactive',
+    status: 'Deactivated',
     createdOn: '2026-02-15',
     modifiedOn: '2026-04-01',
   },
@@ -133,7 +133,7 @@ export const SEED_SECTION_CONFIGS = [
   {
     id: 'SEC-1007',
     sectionName: 'Prelims Section B',
-    status: 'Inactive',
+    status: 'Deactivated',
     createdOn: '2026-02-15',
     modifiedOn: '2026-04-01',
   },
@@ -242,7 +242,7 @@ export const SEED_MARKING_RULES = [
     partialMarksValue: 0,
     description: 'Zero negative marking for practice and mock tests.',
     applicableTests: ['Sectional', 'Full Length', 'Objective'],
-    status: 'Inactive',
+    status: 'Deactivated',
     createdAt: '2026-03-15',
   },
   {
@@ -305,7 +305,7 @@ export const SEED_LANGUAGES = [
   {
     id: 'LG-4007',
     languageName: 'Arabic',
-    status: 'Inactive',
+    status: 'Deactivated',
     createdOn: '2026-03-01',
     modifiedOn: '2026-03-01',
   },

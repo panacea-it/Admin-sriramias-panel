@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { UserCheck } from "lucide-react";
+import { UserCheck } from 'lucide-react';
 import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
 import { cn } from "../../utils/cn";
 

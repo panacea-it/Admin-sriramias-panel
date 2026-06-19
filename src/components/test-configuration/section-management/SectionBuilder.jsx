@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import { DIFFICULTY_LEVELS } from '../../../data/testConfigurationSeed'
 import { createEmptySection } from '../../../utils/testConfigurationValidation'
@@ -50,7 +50,7 @@ export default function SectionBuilder({ sections, onChange, errors = {} }) {
                 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40',
               )}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
               Remove
             </button>
           </div>

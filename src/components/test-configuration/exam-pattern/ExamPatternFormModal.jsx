@@ -131,7 +131,7 @@ export default function ExamPatternFormModal({
                     disabled={saving}
                   >
                     <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
+                    <option value="Deactivated">Inactive</option>
                   </CourseSelect>
                 </CourseFormField>
               </div>

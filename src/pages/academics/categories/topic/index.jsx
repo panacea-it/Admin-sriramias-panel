@@ -6,7 +6,6 @@ import CategoryFilterBar from '../../../../components/categories/CategoryFilterB
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
-import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useTopicManagement } from '../../../../hooks/useTopicManagement'
@@ -48,7 +47,7 @@ import { getSubjectsDropdown } from '../../../../services/subjectService'
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Inactive' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 function AddButton({ onClick, children, disabled }) {
@@ -271,7 +270,7 @@ export default function TopicSection({ section }) {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }
 
   const confirmBulkAction = async () => {
@@ -455,14 +454,7 @@ export default function TopicSection({ section }) {
           onConfirm={confirmStatusChange}
         />
 
-        <ConfirmDeleteDialog
-          open={Boolean(deleteTarget)}
-          title={deleteTarget?.ids?.length > 1 ? 'Delete selected topics?' : 'Delete topic?'}
-          message={deleteMessage}
-          confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
-          onCancel={() => !deleteLoading && setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
+        
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

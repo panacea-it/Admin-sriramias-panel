@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  MapPin,
-  ChevronDown,
-  Search,
-  Star,
-  Check,
-  Building2,
-} from 'lucide-react'
+import { MapPin, ChevronDown, Search, Star, Check, Building2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { useCenters } from '../../contexts/CentersContext'

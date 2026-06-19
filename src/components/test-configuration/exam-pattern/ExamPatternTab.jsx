@@ -4,7 +4,6 @@ import { toast } from '@/utils/toast'
 import PageBanner from '../../figma/PageBanner'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   ExamPatternTableActions,
   testConfigActionsColumnWide,
@@ -306,14 +305,7 @@ export default function ExamPatternTab() {
         onConfirm={confirmStatusChange}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete Instruction?"
-        message="This action cannot be undone."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-        loading={deleteLoading}
-      />
+      
     </div>
   )
 }

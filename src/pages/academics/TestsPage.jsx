@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ClipboardList, Trash2 } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import EditButton from '../../components/common/EditButton'
 import PageBanner from '../../components/figma/PageBanner'
@@ -63,15 +63,7 @@ export default function TestsPage() {
       render: (row) => (
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <EditButton onClick={() => modal.openEdit(row)} />
-          <button
-            type="button"
-            onClick={() => handleDelete(row.id)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#c96565] transition hover:text-[#b94b4b] sm:text-base"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-            Delete
-          </button>
-        </div>
+          </div>
       ),
     },
   ]

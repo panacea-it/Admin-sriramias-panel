@@ -20,11 +20,11 @@ export function normalizeBatchUiStatus(status) {
     .trim()
     .toUpperCase()
     .replace(/\s+/g, '_')
-  if (INACTIVE_API_STATUSES.has(upper)) return 'Inactive'
+  if (INACTIVE_API_STATUSES.has(upper)) return 'Deactivated'
   return 'Active'
 }
 
-export const NON_TRANSFER_TARGET_STATUSES = ['Inactive']
+export const NON_TRANSFER_TARGET_STATUSES = ['Deactivated']
 
 export function getBatchCapacity(row) {
   const fd = row?.formData || {}
@@ -109,6 +109,6 @@ export function batchStatusFilterOptions() {
   return [
     { value: 'all', label: 'All Statuses' },
     { value: 'Active', label: 'Active' },
-    { value: 'Inactive', label: 'Inactive' },
+    { value: 'Deactivated', label: 'Deactivated' },
   ]
 }

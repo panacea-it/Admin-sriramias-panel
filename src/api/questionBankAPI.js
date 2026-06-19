@@ -58,7 +58,7 @@ function statusUiToApi(value) {
   return String(value || '').toLowerCase() === 'inactive' ? 'INACTIVE' : 'ACTIVE'
 }
 function statusApiToUi(value) {
-  return String(value || '').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'
+  return String(value || '').toUpperCase() === 'INACTIVE' ? 'Deactivated' : 'Active'
 }
 function difficultyUiToApi(value) {
   const raw = String(value || '').toUpperCase()

@@ -1,16 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Download,
-  ExternalLink,
-  FileImage,
-  FileText,
-  ImageOff,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
+import { Download, ExternalLink, FileImage, FileText, ImageOff, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import { cn } from '../../utils/cn'

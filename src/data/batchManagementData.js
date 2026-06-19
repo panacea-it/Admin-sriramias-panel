@@ -1,5 +1,5 @@
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partial', 'Overdue']
-const BATCH_STATUSES = ['Active', 'Inactive']
+const BATCH_STATUSES = ['Active', 'Deactivated']
 const STUDENT_STATUSES = ['Active', 'In Active']
 
 const TRANSFER_REASONS = [

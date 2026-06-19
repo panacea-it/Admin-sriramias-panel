@@ -57,7 +57,7 @@ export default function BookstoreReportsPage() {
 
         <section className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
           <h3 className="mb-5 text-sm font-bold text-[#111] sm:text-base">Product sales</h3>
-          <div className="overflow-hidden rounded-xl border border-slate-100">
+          <div className="min-w-0 rounded-xl border border-slate-100">
             <ReportsSalesTable
               rows={productSales}
               loading={loading}

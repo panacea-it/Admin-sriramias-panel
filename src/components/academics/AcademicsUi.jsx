@@ -1,5 +1,6 @@
 import { PlusCircle } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { displayRecordStatusLabel } from '../../constants/recordStatus'
 
 export function BannerButton({ children, onClick, showPlusIcon = true, className, ...rest }) {
   return (
@@ -20,24 +21,25 @@ export function BannerButton({ children, onClick, showPlusIcon = true, className
 
 const STATUS_STYLES = {
   Active: 'bg-[#69df66]',
-  Inactive: 'bg-[#ef4444]',
+  Deactivated: 'bg-[#efb36d]',
   Scheduled: 'bg-[#55ace7]',
   Completed: 'bg-[#9ca3af]',
-  'In Active': 'bg-[#ef4444]',
   Published: 'bg-[#10b981]',
   Unpublished: 'bg-[#efb36d]',
 }
 
 export function StatusBadge({ status }) {
-  const normalized = status === 'In Active' ? 'Inactive' : status
+  const label = displayRecordStatusLabel(status)
+  const tone =
+    label === 'Active' ? 'Active' : label === 'Deactivated' ? 'Deactivated' : status
   return (
     <span
       className={cn(
         'inline-flex min-w-[88px] items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold text-white',
-        STATUS_STYLES[normalized] || 'bg-[#efb36d]',
+        STATUS_STYLES[tone] || STATUS_STYLES[status] || 'bg-[#efb36d]',
       )}
     >
-      {normalized}
+      {label === 'Deactivated' || label === 'Active' ? label : status}
     </span>
   )
 }

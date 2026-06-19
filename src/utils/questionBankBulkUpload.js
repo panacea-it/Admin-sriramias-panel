@@ -22,7 +22,7 @@ export function isSupportedBulkFile(file) {
 export function normalizeStatus(raw) {
   const t = String(raw || '').trim().toLowerCase()
   if (t === 'active') return 'Active'
-  if (t === 'inactive' || t === 'in active') return 'Inactive'
+  if (t === 'inactive' || t === 'in active') return 'Deactivated'
   return ''
 }
 
@@ -105,7 +105,7 @@ export function templateDefinition(type) {
             subject: 'Polity',
             topic: 'Judiciary',
             tags: 'constitution,judiciary',
-            status: 'Inactive',
+            status: 'Deactivated',
           },
         ],
       }
@@ -186,7 +186,7 @@ export function templateDefinition(type) {
             subject: 'History',
             topic: 'Indian History',
             tags: 'history',
-            status: 'Inactive',
+            status: 'Deactivated',
           },
         ],
       }
@@ -228,7 +228,7 @@ export function templateDefinition(type) {
             subject: 'Polity',
             topic: 'DPSP',
             tags: 'constitution',
-            status: 'Inactive',
+            status: 'Deactivated',
           },
         ],
       }

@@ -9,7 +9,6 @@ import CurrentAffairsBulkActionsBar from '../../components/current-affairs/Curre
 import CurrentAffairsBulkConfirmDialog from '../../components/current-affairs/CurrentAffairsBulkConfirmDialog'
 import CurrentAffairsTableActions from '../../components/current-affairs/CurrentAffairsTableActions'
 import ViewCurrentAffairsModal from '../../components/current-affairs/ViewCurrentAffairsModal'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
 import { CURRENT_AFFAIRS_FORM_CATEGORIES } from '../../constants/currentAffairsForm'
 import { CURRENT_AFFAIRS_CATEGORIES } from '../../data/currentAffairsData'
@@ -374,7 +373,7 @@ export default function CurrentAffairsPage() {
           onClearSelection={() => setSelectedIds([])}
           onEnable={() => setBulkConfirm({ type: 'enable' })}
           onDisable={() => setBulkConfirm({ type: 'disable' })}
-          onDelete={() => setBulkConfirm({ type: 'delete' })}
+          onDelete={() => setBulkConfirm({ type: 'deactivate' })}
         />
 
         <PaginatedFigmaTable
@@ -389,7 +388,7 @@ export default function CurrentAffairsPage() {
           density="comfortable"
           tableLayoutFixed
           tableMinWidth={0}
-          className="overflow-hidden rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
+          className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
           tableClassName="rounded-none border-0 shadow-none"
           selection={{
             selectedIds,
@@ -416,16 +415,7 @@ export default function CurrentAffairsPage() {
         onClose={() => setViewItem(null)}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.ids?.length > 1 ? 'Delete selected entries?' : 'Delete entry?'}
-        message={deleteMessage}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => {
-          if (!deleteLoading) setDeleteTarget(null)
-        }}
-        loading={deleteLoading}
-      />
+      
 
       <CurrentAffairsBulkConfirmDialog
         open={Boolean(bulkConfirm)}

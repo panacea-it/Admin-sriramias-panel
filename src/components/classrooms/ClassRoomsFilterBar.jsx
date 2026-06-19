@@ -26,7 +26,7 @@ function FilterSelect({ label, value, onChange, options }) {
 const DEFAULT_STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
+  { value: 'Deactivated', label: 'Deactivated' },
 ]
 
 export default function ClassRoomsFilterBar({

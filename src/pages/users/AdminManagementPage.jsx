@@ -6,7 +6,6 @@ import PageBanner from '../../components/figma/PageBanner'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import CreateAdminModal from '../../components/admin-management/CreateAdminModal'
 import ViewAdminDrawer from '../../components/admin-management/ViewAdminDrawer'
-import ConfirmAdminDeleteModal from '../../components/admin-management/ConfirmAdminDeleteModal'
 import ConfirmAdminStatusModal from '../../components/admin-management/ConfirmAdminStatusModal'
 import AdminBulkActionsBar from '../../components/admin-management/AdminBulkActionsBar'
 import AdminManagementTable from '../../components/admin-management/AdminManagementTable'
@@ -306,19 +305,7 @@ export default function AdminManagementPage() {
 
         <ViewAdminDrawer open={!!viewingId} adminAccessId={viewingId} onClose={() => setViewingId(null)} />
 
-        <ConfirmAdminDeleteModal
-          open={!!deleteTarget || !!bulkDeleteIds?.length}
-          employeeName={deleteTarget?.employeeName}
-          bulkCount={bulkDeleteIds?.length || 0}
-          loading={deleteLoading}
-          onCancel={() => {
-            if (!deleteLoading) {
-              setDeleteTarget(null)
-              setBulkDeleteIds(null)
-            }
-          }}
-          onConfirm={confirmDelete}
-        />
+        
 
         <ConfirmAdminStatusModal
           open={!!statusTarget || !!bulkDisableIds?.length}

@@ -1,15 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Search,
-  GraduationCap,
-  User,
-  Folder,
-  FolderOpen,
-  FileCheck,
-  RefreshCw,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, GraduationCap, User, Folder, FolderOpen, FileCheck, RefreshCw } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 
 function TreeNode({

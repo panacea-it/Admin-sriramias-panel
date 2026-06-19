@@ -26,7 +26,7 @@ export default function PaginatedFigmaTable({
   stickyLastColumn = false,
   animateRows = false,
   onRowClick,
-  tableMinWidth = 720,
+  tableMinWidth = 0,
   bodyMaxHeight,
   headerVariant = 'default',
   headerAlign,
@@ -113,9 +113,10 @@ export default function PaginatedFigmaTable({
     <div
       ref={tableRef}
       className={cn(
-        'w-full max-w-full overflow-hidden rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
+        'w-full min-w-0 max-w-full rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
         bodyMaxHeight && 'flex flex-col',
         className,
+        'overflow-x-auto',
       )}
     >
       <FigmaTable

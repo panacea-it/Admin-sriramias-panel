@@ -253,7 +253,7 @@ function uiStatusToApi(status) {
 }
 
 function apiStatusToUi(status) {
-  return String(status || '').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'
+  return String(status || '').toUpperCase() === 'INACTIVE' ? 'Deactivated' : 'Active'
 }
 
 function friendlyDate(value) {
@@ -397,7 +397,7 @@ async function upsertSectionConfigLocal(payload, { id, isEdit } = {}) {
   const now = new Date().toISOString().slice(0, 10)
   const cleanPayload = {
     sectionName: String(payload.sectionName || '').trim(),
-    status: payload.status === 'Inactive' ? 'Inactive' : 'Active',
+    status: payload.status === 'Deactivated' ? 'Deactivated' : 'Active',
   }
   if (isEdit && id) {
     const next = list.map((row) =>
@@ -460,7 +460,7 @@ async function upsertLanguageLocal(payload, { id, isEdit } = {}) {
   const now = new Date().toISOString().slice(0, 10)
   const cleanPayload = {
     languageName: String(payload.languageName || '').trim(),
-    status: payload.status === 'Inactive' ? 'Inactive' : 'Active',
+    status: payload.status === 'Deactivated' ? 'Deactivated' : 'Active',
   }
   if (isEdit && id) {
     const next = list.map((row) =>

@@ -1,5 +1,6 @@
 import { BookMarked } from 'lucide-react'
 import DashboardProgressBar from './DashboardProgressBar'
+import DashboardNavLink from './DashboardNavLink'
 
 function SectionTitle({ icon: Icon, title }) {
   return (
@@ -19,13 +20,12 @@ function SectionTitle({ icon: Icon, title }) {
   )
 }
 
-export default function PopularCoursesSection({ courses }) {
-  return (
-    <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] sm:p-6">
-      <SectionTitle icon={BookMarked} title="Popular Courses" />
-      <div className="space-y-4">
-        {courses.map((course, i) => (
-          <article key={course.name} className="rounded-xl p-4" style={{ background: course.bg }}>
+export default function PopularCoursesSection({ courses, embedded = false }) {
+  const content = (
+    <div className="space-y-4">
+      {courses.map((course, i) => {
+        const card = (
+          <>
             <div className="mb-3 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="text-sm font-extrabold text-gray-800">
@@ -48,9 +48,38 @@ export default function PopularCoursesSection({ courses }) {
               color="linear-gradient(90deg,#33b8ff,#005b9a)"
               className="h-2.5"
             />
-          </article>
-        ))}
-      </div>
+          </>
+        )
+
+        if (!course.href) {
+          return (
+            <article key={course.name} className="rounded-xl p-4" style={{ background: course.bg }}>
+              {card}
+            </article>
+          )
+        }
+
+        return (
+          <DashboardNavLink
+            key={course.name}
+            to={course.href}
+            ariaLabel={`Open ${course.name} in Course Management`}
+            className="rounded-xl p-4"
+            style={{ background: course.bg }}
+          >
+            {card}
+          </DashboardNavLink>
+        )
+      })}
+    </div>
+  )
+
+  if (embedded) return content
+
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] sm:p-6">
+      <SectionTitle icon={BookMarked} title="Popular Courses" />
+      {content}
     </section>
   )
 }

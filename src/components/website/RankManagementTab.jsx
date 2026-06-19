@@ -13,7 +13,6 @@ import {
   sortRankersForDisplay,
   TOP10_INACTIVE_MESSAGE,
 } from './rankManagementDisplay'
-import ConfirmDeleteDialog from '../subjects/ConfirmDeleteDialog'
 import {
   WebsiteField,
   WebsiteImageInput,
@@ -54,7 +53,7 @@ function resolveRankerCreatedAt(row, index = 0) {
 function normalizeRanker(row, index = 0) {
   const createdAt = resolveRankerCreatedAt(row, index)
   const created = new Date(createdAt)
-  const isActive = row.status !== 'Inactive'
+  const isActive = row.status !== 'Deactivated'
   const isTop10 = isActive ? Boolean(row.isTop10) : false
 
   return {
@@ -259,7 +258,7 @@ export default function RankManagementTab() {
           ? {
               ...r,
               status: newStatus,
-              ...(newStatus === 'Inactive'
+              ...(newStatus === 'Deactivated'
                 ? { isTop10: false, displayOrder: null }
                 : {}),
             }
@@ -627,7 +626,7 @@ export default function RankManagementTab() {
                     setRankForm((f) => ({
                       ...f,
                       status,
-                      ...(status === 'Inactive' ? { displayOrder: '', isTop10: false } : {}),
+                      ...(status === 'Deactivated' ? { displayOrder: '', isTop10: false } : {}),
                     }))
                     clearFieldError('status')
                     clearFieldError('displayOrder')
@@ -755,21 +754,7 @@ export default function RankManagementTab() {
         )}
       </WebsiteFormModal>
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete Ranker"
-        message={
-          deleteTarget
-            ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.`
-            : 'Are you sure you want to delete this ranker?'
-        }
-        onCancel={() => {
-          if (!deleting) setDeleteTarget(null)
-        }}
-        onConfirm={confirmDeleteRanker}
-        loading={deleting}
-        confirmLabel="Delete"
-      />
+      
     </div>
   )
 }

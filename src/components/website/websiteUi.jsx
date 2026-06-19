@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Edit3, Globe, ImageIcon, Trash2 } from 'lucide-react'
+import { Edit3, Globe, ImageIcon } from 'lucide-react'
 import { StatusBadge } from '../academics/AcademicsUi'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
@@ -49,29 +49,7 @@ export function TableRowActions({ onEdit, onDelete, compact = false }) {
         compact ? 'gap-4' : 'flex-wrap gap-3 sm:gap-4',
       )}
     >
-      <button
-        type="button"
-        onClick={onEdit}
-        className="group inline-flex items-center gap-1.5 text-sm font-medium text-[#686868] transition-colors hover:text-[#246392]"
-      >
-        <Edit3
-          className="h-4 w-4 transition-transform group-hover:scale-110"
-          strokeWidth={2.35}
-        />
-        Edit
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        className="group inline-flex items-center gap-1.5 text-sm font-medium text-[#c96565] transition-colors hover:text-[#b94b4b]"
-      >
-        <Trash2
-          className="h-4 w-4 transition-transform group-hover:scale-110"
-          strokeWidth={2.1}
-        />
-        Delete
-      </button>
-    </div>
+      </div>
   )
 }
 
@@ -204,7 +182,7 @@ export function WebsiteStatusSelect({ value, onChange, id, required, className }
       className={cn(websiteInputClass, 'cursor-pointer', className)}
     >
       <option value="Active">Active</option>
-      <option value="Inactive">Inactive</option>
+      <option value="Deactivated">Inactive</option>
     </select>
   )
 }

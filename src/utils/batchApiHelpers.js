@@ -37,7 +37,7 @@ export function unwrapCreateBatchDoc(body) {
 
 export function mapBatchStatusToApi(status) {
   const normalized = normalizeBatchUiStatus(status)
-  return normalized === 'Inactive' ? 'INACTIVE' : 'ACTIVE'
+  return normalized === 'Deactivated' ? 'INACTIVE' : 'ACTIVE'
 }
 
 export function mapApiBatchStatusToUi(status) {
@@ -249,7 +249,7 @@ export function mapAccountFilterToApi(filter) {
 
 export function mapAccountStatusToApi(status) {
   if (status === 'Active') return 'ACTIVE'
-  if (status === 'In Active' || status === 'Inactive') return 'INACTIVE'
+  if (status === 'In Active' || status === 'Deactivated') return 'INACTIVE'
   return String(status || 'ACTIVE')
     .trim()
     .toUpperCase()
@@ -262,7 +262,7 @@ export function mapEnrollmentStatusToUi(status) {
     .toUpperCase()
     .replace(/\s+/g, '_')
   if (normalized === 'ACTIVE') return 'Active'
-  if (normalized === 'INACTIVE' || normalized === 'IN_ACTIVE') return 'Inactive'
+  if (normalized === 'INACTIVE' || normalized === 'IN_ACTIVE') return 'Deactivated'
   const raw = String(status ?? '').trim()
   return raw || 'Active'
 }

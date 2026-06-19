@@ -135,7 +135,7 @@ export default function AssignedCounselorPage() {
             />
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-100">
+          <div className="min-w-0 rounded-xl border border-slate-100">
             <PaymentAttemptTable
               rows={sorted}
               loading={loading}

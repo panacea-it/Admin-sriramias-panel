@@ -88,7 +88,7 @@ export async function toggleClassroomStatus(id) {
   const list = loadClassrooms()
   const row = list.find((c) => c.id === id)
   if (!row) throw new Error('Classroom not found')
-  const next = row.status === 'Active' ? 'Inactive' : 'Active'
+  const next = row.status === 'Active' ? 'Deactivated' : 'Active'
   return saveClassroom({ ...row, status: next }, { isEdit: true, id })
 }
 

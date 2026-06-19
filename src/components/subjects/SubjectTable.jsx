@@ -88,7 +88,7 @@ export default function SubjectTable({
     },
     {
       key: 'teacher',
-      label: 'Teacher',
+      label: 'Faculty',
       width: '13%',
       headerClassName: OVERFLOW_CELL,
       cellClassName: OVERFLOW_CELL,
@@ -191,7 +191,7 @@ export default function SubjectTable({
       skeletonRowCount={8}
       tableMinWidth={1680}
       tableLayoutFixed
-      className="overflow-hidden rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
+      className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
       tableClassName="rounded-none border-0 shadow-none"
     />
   )

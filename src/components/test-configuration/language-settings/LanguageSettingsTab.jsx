@@ -4,7 +4,6 @@ import { toast } from '@/utils/toast'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import PageBanner from '../../figma/PageBanner'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   LanguageSettingsTableActions,
   testConfigActionsColumnWide,
@@ -80,7 +79,7 @@ export default function LanguageSettingsTab() {
   const confirmStatusChange = async () => {
     if (!statusTarget) return
     const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'Inactive'
+    const nextStatus = enabling ? 'Active' : 'Deactivated'
 
     setStatusLoading(true)
     try {
@@ -191,17 +190,7 @@ export default function LanguageSettingsTab() {
 
       <LanguageViewModal open={Boolean(viewRow)} onClose={() => setViewRow(null)} row={viewRow} />
 
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        title="Delete language?"
-        message={`Are you sure you want to delete "${deleteRow?.languageName || 'this language'}"?`}
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setDeleteOpen(false)
-          setDeleteRow(null)
-        }}
-        loading={deleting}
-      />
+      
 
       <ConfirmTestConfigStatusModal
         open={Boolean(statusTarget)}

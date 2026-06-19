@@ -27,7 +27,7 @@ function ncertPdfMaxSizeMessage() {
 
 export const DEFAULT_STATUS_OPTIONS = [
   { label: 'Active', value: 'ACTIVE' },
-  { label: 'Inactive', value: 'INACTIVE' },
+  { label: 'Deactivated', value: 'INACTIVE' },
 ]
 
 const FREE_RESOURCE_LIST_MAX_LIMIT = 50
@@ -255,7 +255,7 @@ export function normalizeStatusOptions(data) {
       const value = String(opt.value || '').toUpperCase()
       const label =
         value === 'INACTIVE'
-          ? 'Inactive'
+          ? 'Deactivated'
           : value === 'ACTIVE'
             ? 'Active'
             : opt.label

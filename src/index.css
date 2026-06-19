@@ -6,6 +6,7 @@
 
 :root {
   --color-primary: #246392;
+  --sidebar-width: 272px;
   --color-primary-hover: #1a4d73;
   --color-primary-light: #e8f4fc;
   --color-primary-text: #246392;
@@ -107,6 +108,23 @@ html.dashboard-layout-active .app-shell {
 /* Pages use min-h-screen; inside scrollable main use min-h-full instead */
 .admin-main-scroll .figma-admin-section.min-h-screen {
   min-height: 100%;
+}
+
+.admin-main-scroll {
+  min-width: 0;
+}
+
+.figma-admin-section {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.admin-page-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: auto;
 }
 
 ::-webkit-scrollbar {
@@ -246,6 +264,8 @@ html.dashboard-layout-active .app-shell {
 
 .table-responsive {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }

@@ -27,7 +27,6 @@ import {
   updateMockTestQuestion,
 } from '../../../api/freeResourcesAPI'
 import SectionBar from '../../courses/SectionBar'
-import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import { QUESTION_LIST_CHUNK } from '../../../utils/freeResourceFormConstants'
 import {
   getMockTestApiErrorMessage,
@@ -420,16 +419,7 @@ export default function TestQuestionsSection({
         questions={questions}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete question?"
-        message={`Delete ${deleteTarget?.label || 'this question'}? This cannot be undone.`}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => {
-          if (!deleteLoading) setDeleteTarget(null)
-        }}
-        loading={deleteLoading}
-      />
+      
     </div>
   )
 }

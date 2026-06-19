@@ -10,7 +10,6 @@ import YoutubeVideoTitleCell from './YoutubeVideoTitleCell'
 import YoutubeRowActions from './YoutubeRowActions'
 import YoutubePriorityPicker from './YoutubePriorityPicker'
 import YoutubeRankManagementSection from './YoutubeRankManagementSection'
-import ConfirmDeleteDialog from '../subjects/ConfirmDeleteDialog'
 import {
   DateTimeInline,
   WebsiteField,
@@ -464,21 +463,7 @@ export default function YoutubeManagementTab() {
         </WebsiteFormShell>
       </WebsiteFormModal>
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete Video"
-        message={
-          deleteTarget
-            ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.`
-            : 'Are you sure you want to delete this video?'
-        }
-        onCancel={() => {
-          if (!deleting) setDeleteTarget(null)
-        }}
-        onConfirm={confirmDelete}
-        loading={deleting}
-        confirmLabel="Delete"
-      />
+      
     </div>
   )
 }

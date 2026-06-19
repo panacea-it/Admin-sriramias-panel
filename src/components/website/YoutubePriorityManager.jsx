@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Search, Trash2 } from 'lucide-react'
+import { GripVertical, Search, X } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { getRankedVideos, getRankBadgeClass, getRankLabel, youtubeThumbnailUrl } from '../../utils/youtubeVideoPriority'
 
@@ -69,7 +69,7 @@ function RankedRow({ video, onRemove }) {
         className="rounded-lg p-2 text-[#c96565] hover:bg-red-50"
         aria-label="Remove rank"
       >
-        <Trash2 className="h-4 w-4" />
+        <X className="h-4 w-4" />
       </button>
     </div>
   )

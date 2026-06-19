@@ -30,8 +30,6 @@ import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { loadSubjects, saveSubjects, nextSubjectId } from '../../../utils/subjectsStorage'
 import { formatProgramLabel, loadPrograms } from '../../../utils/programsStorage'
 import { toast } from '../../../utils/toast'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
-
 function nextId(list) {
   const max = list.reduce((m, row) => Math.max(m, parseInt(row.id, 10) || 0), 0)
   return String(max + 1).padStart(3, '0')
@@ -462,14 +460,7 @@ export default function CategorySectionPage() {
           item={viewItem}
         />
 
-        <ConfirmDeleteDialog
-          open={Boolean(deleteTarget)}
-          title="Delete item?"
-          message="Are you sure you want to delete this item?"
-          confirmLabel="Confirm Delete"
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
+        
       </motion.div>
     </AnimatePresence>
   )

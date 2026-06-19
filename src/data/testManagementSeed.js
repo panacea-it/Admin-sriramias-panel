@@ -3,7 +3,7 @@ export const QUESTION_BANK_TYPES = ['MCQ', 'Numerical', 'Match the Following', '
 // Legacy (kept for backward compatibility with older stored data)
 export const QUESTION_TYPES = ['MCQ', 'Descriptive', 'True/False', 'Paragraph']
 export const QUESTION_DIFFICULTIES = ['Easy', 'Medium', 'Hard']
-export const QUESTION_STATUSES = ['Active', 'Inactive']
+export const QUESTION_STATUSES = ['Active', 'Deactivated']
 export const QUESTION_TAG_SUGGESTIONS = ['polity', 'constitution', 'economy', 'geography', 'environment', 'ethics', 'science-tech', 'history']
 
 export const TEST_CONFIG_STATUSES = ['Active', 'Draft', 'In Active']
@@ -53,7 +53,7 @@ export const SEED_QUESTIONS = [
     difficulty: 'Easy',
     tags: ['geography', 'prelims'],
     usageCount: 2,
-    status: 'Inactive',
+    status: 'Deactivated',
     content: {
       question: 'The Tropic of Cancer passes through how many Indian states?',
       numericalAnswer: '8',
@@ -81,7 +81,7 @@ export const SEED_QUESTIONS = [
   {
     id: 'Q-2005',
     category: 'Prelims',
-    status: 'Inactive',
+    status: 'Deactivated',
     type: 'MCQ',
     subject: 'Polity',
     topic: 'Judiciary',
@@ -134,7 +134,7 @@ export const SEED_QUESTIONS = [
     difficulty: 'Hard',
     tags: ['governance', 'policy'],
     usageCount: 0,
-    status: 'Inactive',
+    status: 'Deactivated',
     content: {
       question: '“Public policy in India is often constrained by implementation capacity.” Critically examine this statement with examples and suggest measures to strengthen implementation.',
       explanation: 'Discuss capacity constraints, institutions, accountability, tech, and implementation gaps.',
@@ -164,7 +164,7 @@ export const SEED_QUESTIONS = [
     difficulty: 'Hard',
     tags: ['ethics', 'ai'],
     usageCount: 1,
-    status: 'Inactive',
+    status: 'Deactivated',
     content: {
       question: 'Discuss the ethical issues in the use of artificial intelligence in governance. Suggest a framework to ensure accountability and transparency.',
       explanation: 'Bias, accountability, transparency, privacy, human oversight.',

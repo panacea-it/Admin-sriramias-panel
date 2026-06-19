@@ -38,7 +38,7 @@ export function normalizeCity(row, centersArg) {
     centerName: String(row.centerName || center?.centerName || '').trim(),
     placeName: String(row.placeName || '').trim(),
     code: String(row.code || '').trim().toUpperCase(),
-    status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+    status: row.status === 'Deactivated' ? 'Deactivated' : 'Active',
     createdAt: row.createdAt || nowIso(),
     modifiedAt: row.modifiedAt || row.createdAt || nowIso(),
   }

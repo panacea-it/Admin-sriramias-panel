@@ -1,12 +1,12 @@
 export function mapClassroomStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
-  if (statusFilter === 'Inactive') return 'INACTIVE'
+  if (statusFilter === 'Deactivated') return 'INACTIVE'
   return undefined
 }
 
 export function mapApiClassroomStatusToUi(status) {
   const raw = String(status || 'ACTIVE').toUpperCase().replace(/\s+/g, '_')
-  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'DISABLED') return 'Inactive'
+  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'DISABLED') return 'Deactivated'
   return 'Active'
 }
 

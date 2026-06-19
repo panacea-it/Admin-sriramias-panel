@@ -201,7 +201,7 @@ export default function BookstoreRecommendationsPage() {
             </button>
           )}
         </div>
-        <div className="overflow-hidden rounded-xl border border-slate-100">
+        <div className="min-w-0 rounded-xl border border-slate-100">
           <RecommendationsTable
             rules={rules}
             products={products}
@@ -251,9 +251,9 @@ export default function BookstoreRecommendationsPage() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
-        title="Delete recommendation rule"
+        title="Deactivate"
         message="Students will no longer see these configured recommendations for this source book."
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
       />
     </BookstorePageShell>
   )

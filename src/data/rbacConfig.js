@@ -59,7 +59,7 @@ export const RBAC_MODULE_FEATURES = {
         { id: 'courses', label: 'Courses' },
         { id: 'subject', label: 'Subject' },
         { id: 'topic', label: 'Topic' },
-        { id: 'teachers', label: 'Teachers' },
+        { id: 'teachers', label: 'Faculty' },
         { id: 'city', label: 'City' },
         { id: 'classrooms', label: 'Classrooms' },
       ],

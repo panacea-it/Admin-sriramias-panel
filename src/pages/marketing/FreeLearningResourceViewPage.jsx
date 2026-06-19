@@ -114,7 +114,7 @@ export default function FreeLearningResourceViewPage() {
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-[1000px] space-y-5">
+      <section className="admin-page-container mx-auto w-full max-w-[min(100%,1000px)] space-y-5">
         <CategoryBreadcrumb
           items={[
             { label: 'Marketing' },

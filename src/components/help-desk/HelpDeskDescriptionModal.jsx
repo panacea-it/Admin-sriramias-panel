@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, X, MessageSquareQuote } from "lucide-react";
+import { FileText, X, MessageSquareQuote } from 'lucide-react';
 import { fetchHelpDeskDetails } from "../../api/helpDeskAPI";
 
 export default function HelpDeskDescriptionModal({ ticket, open, onClose }) {

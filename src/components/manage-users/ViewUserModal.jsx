@@ -1,14 +1,5 @@
 import { motion } from 'framer-motion'
-import {
-  Building2,
-  Calendar,
-  Clock,
-  Mail,
-  Phone,
-  Shield,
-  User,
-  Users,
-} from 'lucide-react'
+import { Building2, Calendar, Clock, Mail, Phone, Shield, User, Users } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { roleLabel } from '../../data/manageUsersConfig'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'

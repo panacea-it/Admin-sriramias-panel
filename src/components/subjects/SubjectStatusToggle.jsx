@@ -33,7 +33,7 @@ export default function SubjectStatusToggle({ status, onChange, disabled = false
         />
       </button>
       <span className="whitespace-nowrap text-sm font-semibold text-[#333]">
-        {active ? 'Active' : 'Inactive'}
+        {active ? 'Active' : 'Deactivated'}
       </span>
     </div>
   )

@@ -27,7 +27,7 @@ export default function RankManagementTable({
       tableClassName="rounded-none border-0 shadow-none"
       tableMinWidth={1320}
       gradientActivePage
-      className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
+      className="min-w-0 rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
       paginationClassName={cn(
         'border-t border-[#E5E7EB] bg-white',
         '[&>div:last-child]:items-center',

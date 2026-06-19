@@ -99,7 +99,7 @@ export default function TeacherTable({
         data={teachers}
         loading={loading}
         skeletonRowCount={8}
-        itemLabel="teachers"
+        itemLabel="faculty"
         resetDeps={resetDeps}
         selection={selection}
         density="comfortable"

@@ -130,7 +130,7 @@ export default function AppModalWrapper({
         tabIndex={-1}
         onKeyDown={handlePanelKeyDown}
         className={cn(
-          'relative z-[1] w-full outline-none max-h-[calc(100dvh-2rem)] overflow-y-auto',
+          'relative z-[1] w-full outline-none max-h-[min(85vh,calc(100dvh-2rem))] overflow-y-auto',
           'modal-panel-animate',
           sizes[size] ?? sizes.lg,
           className,

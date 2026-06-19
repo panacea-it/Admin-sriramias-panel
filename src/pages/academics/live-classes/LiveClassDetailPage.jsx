@@ -99,7 +99,7 @@ export default function LiveClassDetailPage() {
 
           <dl className="mt-8 grid gap-4 sm:grid-cols-2">
             <div>
-              <dt className="text-xs font-semibold uppercase text-[#9ca0a8]">Teacher</dt>
+              <dt className="text-xs font-semibold uppercase text-[#9ca0a8]">Faculty</dt>
               <dd className="font-medium text-[#222]">{lesson.teacher}</dd>
             </div>
             <div>

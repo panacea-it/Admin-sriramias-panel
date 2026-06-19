@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Eye, Save, FilePlus, Trash2 } from 'lucide-react'
+import { Eye, Save, FilePlus } from 'lucide-react'
 import BlogRichEditor from '../../blogs/BlogRichEditor'
 import { generateContentId } from '../../../utils/facultySubjectContentStorage'
 import { cn } from '../../../utils/cn'
@@ -56,40 +56,7 @@ export default function NotesTab({ topic, onUpdateTopic }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
       <div className="space-y-2">
-        <button
-          type="button"
-          onClick={createNote}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:border-[#55ace7]"
-        >
-          <FilePlus className="h-4 w-4" />
-          New Note
-        </button>
-        {notes.map((note) => (
-          <div
-            key={note.id}
-            className={cn(
-              'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition',
-              activeNoteId === note.id
-                ? 'border-[#55ace7] bg-[#55ace7]/10 font-semibold text-[#1a3a5c]'
-                : 'border-slate-100 hover:bg-slate-50',
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => setActiveNoteId(note.id)}
-              className="min-w-0 flex-1 truncate text-left"
-            >
-              {note.title}
-            </button>
-            <button
-              type="button"
-              onClick={() => deleteNote(note.id)}
-              className="shrink-0 text-[#c96565]"
-              aria-label="Delete note"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        </div>
         ))}
         {notes.length === 0 && (
           <p className="px-2 py-4 text-center text-xs text-slate-400">No notes yet</p>

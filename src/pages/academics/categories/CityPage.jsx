@@ -8,7 +8,6 @@ import CityTable, { buildCityTableColumns } from '../../../components/cities/Cit
 import AddCityModal from '../../../components/cities/AddCityModal'
 import ViewCityModal from '../../../components/cities/ViewCityModal'
 import ConfirmCityStatusModal from '../../../components/cities/ConfirmCityStatusModal'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useCityManagement } from '../../../hooks/useCityManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
@@ -43,7 +42,7 @@ import {
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
+  { value: 'Deactivated', label: 'Deactivated' },
 ]
 
 function AddCityButton({ onClick, disabled, children }) {
@@ -269,7 +268,7 @@ export default function CityPage() {
 
   const handleBulkDeleteRequest = useCallback(() => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }, [selectedIds.length])
 
   const confirmBulkAction = useCallback(async () => {
@@ -456,15 +455,7 @@ export default function CityPage() {
         onConfirm={confirmStatusChange}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.ids?.length > 1 ? 'Delete selected cities?' : 'Delete City?'}
-        message={deleteMessage}
-        confirmLabel="Delete"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-        loading={deleteLoading}
-      />
+      
 
       <MasterBulkConfirmModal
         open={Boolean(bulkConfirm)}

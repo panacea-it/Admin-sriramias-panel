@@ -102,7 +102,7 @@ export default function SubjectCategoryModal({
     const next = {}
     if (!form.name.trim()) next.name = 'Subject name is required'
     if (!form.mainCategoryId) next.mainCategoryId = 'Subject is required'
-    if (!form.teacherId) next.teacherId = 'Teacher is required'
+    if (!form.teacherId) next.teacherId = 'Faculty is required'
     if (showLiveClassSection) {
       if (!form.classTitle.trim()) next.classTitle = 'Class title is required'
       if (!form.center) next.center = 'Center is required'
@@ -242,7 +242,7 @@ export default function SubjectCategoryModal({
               </CategorySelect>
             </CategoryFormField>
 
-            <CategoryFormField label="Teacher" required error={errors.teacherId}>
+            <CategoryFormField label="Faculty" required error={errors.teacherId}>
               <CategorySelect
                 value={form.teacherId}
                 onChange={(e) => {
@@ -250,7 +250,7 @@ export default function SubjectCategoryModal({
                   clearError('teacherId')
                 }}
               >
-                <option value="">Choose Teacher</option>
+                <option value="">Choose Faculty</option>
                 {SUBJECT_FORM_TEACHER_OPTIONS.filter((t) => t.name).map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}

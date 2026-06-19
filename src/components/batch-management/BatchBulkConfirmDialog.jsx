@@ -1,45 +1,36 @@
-import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react'
+import { Ban, CheckCircle2 } from 'lucide-react'
 import AppModalWrapper from '../ui/AppModalWrapper'
 import { cn } from '../../utils/cn'
+import { BULK_STATUS_CONFIRM_COPY } from '../common/ConfirmStatusChangeModal'
 
 const COPY = {
-  enable: {
-    title: 'Enable Selected Batches',
-    message: 'Are you sure you want to enable all selected inactive batches?',
-    confirmLabel: 'Enable',
-    loadingLabel: 'Enabling…',
+  activate: {
+    ...BULK_STATUS_CONFIRM_COPY.activate,
+    title: 'Activate Selected Batches',
     icon: CheckCircle2,
     iconClassName: 'bg-emerald-50 text-emerald-600',
     buttonClassName: 'bg-emerald-600 hover:bg-emerald-700',
   },
-  disable: {
-    title: 'Disable Selected Batches',
-    message: 'Are you sure you want to disable all selected active batches?',
-    confirmLabel: 'Disable',
-    loadingLabel: 'Disabling…',
+  deactivate: {
+    ...BULK_STATUS_CONFIRM_COPY.deactivate,
+    title: 'Deactivate Selected Batches',
     icon: Ban,
     iconClassName: 'bg-amber-50 text-amber-600',
     buttonClassName: 'bg-amber-600 hover:bg-amber-700',
-  },
-  delete: {
-    title: 'Delete Selected Batches',
-    message: 'Are you sure you want to permanently delete all selected batches?',
-    confirmLabel: 'Delete',
-    loadingLabel: 'Deleting…',
-    icon: AlertTriangle,
-    iconClassName: 'bg-[#fef2f2] text-[#dc2626]',
-    buttonClassName: 'bg-[#dc2626] hover:bg-[#b91c1c]',
   },
 }
 
 export default function BatchBulkConfirmDialog({
   open,
-  type = 'delete',
+  type = 'deactivate',
   onConfirm,
   onCancel,
   loading = false,
 }) {
-  const config = COPY[type] || COPY.delete
+  const resolvedType = type === 'enable' ? 'activate' : type === 'disable' ? 'deactivate' : type
+  if (resolvedType === 'delete') return null
+
+  const config = COPY[resolvedType] || COPY.deactivate
   const Icon = config.icon
 
   const handleConfirm = async (e) => {
@@ -58,7 +49,7 @@ export default function BatchBulkConfirmDialog({
       title={config.title}
       size="md"
       role="alertdialog"
-      zIndex={120}
+      zIndex={130}
     >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80">
         <div className="border-b border-slate-200/80 px-6 py-4 pr-14">
@@ -87,7 +78,7 @@ export default function BatchBulkConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl border border-slate-200 bg-white px-6 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40 disabled:opacity-60"
+            className="inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
             Cancel
           </button>
@@ -96,7 +87,7 @@ export default function BatchBulkConfirmDialog({
             onClick={handleConfirm}
             disabled={loading}
             className={cn(
-              'inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40 disabled:opacity-60',
+              'inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl px-6 text-sm font-bold text-white shadow-sm transition disabled:opacity-60',
               config.buttonClassName,
             )}
           >

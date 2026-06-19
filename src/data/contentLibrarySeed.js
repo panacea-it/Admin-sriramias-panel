@@ -150,7 +150,7 @@ export const INITIAL_CONTENT_ITEMS = [
       maxDownloads: 5,
     },
     status: 'Draft',
-    uploadedBy: 'Teacher Panel',
+    uploadedBy: 'Faculty Panel',
     uploadedAt: daysAgo(1),
     publishedAt: '',
     scheduledAt: '',

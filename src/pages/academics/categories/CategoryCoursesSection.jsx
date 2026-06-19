@@ -19,6 +19,7 @@ import {
 import { CATEGORY_HUB_SECTIONS } from '../../../constants/categoryHubSections'
 import { useEditModal } from '../../../hooks/useEditModal'
 import { useCourseManagement } from '../../../hooks/useCourseManagement'
+import { useInitialRouteFilterSearch } from '../../../hooks/useInitialRouteSearch'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { syncAcademicCoursesCatalog } from '../../../api/academicCoursesAPI'
 import { getApiErrorMessage } from '../../../utils/apiError'
@@ -32,8 +33,6 @@ import {
   filterDisableableIds,
   filterEnableableIds,
 } from '../../../utils/masterBulkActions'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
-
 const section = CATEGORY_HUB_SECTIONS.courses
 
 function AddCourseButton({ onClick, disabled }) {
@@ -71,6 +70,7 @@ export default function CategoryCoursesSection() {
     removeCourseLocally,
   } = useCourseManagement()
   const [filters, setFilters] = useState({ search: '', status: 'all', centre: 'all', program: 'all' })
+  useInitialRouteFilterSearch(setFilters)
   const [selectedIds, setSelectedIds] = useState([])
   const [createLoading, setCreateLoading] = useState(false)
   const modal = useEditModal()
@@ -239,7 +239,7 @@ export default function CategoryCoursesSection() {
 
   const handleBulkDeleteRequest = useCallback(() => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }, [selectedIds.length])
 
   const confirmBulkAction = useCallback(async () => {
@@ -485,14 +485,7 @@ export default function CategoryCoursesSection() {
         item={viewItem}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.ids?.length > 1 ? 'Delete selected courses?' : 'Delete course?'}
-        message={deleteMessage}
-        confirmLabel="Confirm Delete"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-      />
+      
 
       <MasterBulkConfirmModal
         open={Boolean(bulkConfirm)}

@@ -15,16 +15,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  Play,
-  Star,
-  GripVertical,
-  Pencil,
-  Trash2,
-  Upload,
-  Link as LinkIcon,
-  BarChart3,
-} from 'lucide-react'
+import { Play, Star, GripVertical, Pencil, Upload, Link as LinkIcon, BarChart3 } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 import { generateContentId } from '../../../utils/facultySubjectContentStorage'
 
@@ -40,68 +31,7 @@ function SortableVideoCard({ video, onEdit, onDelete, onToggleFeatured }) {
       style={style}
       className="flex gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
     >
-      <button
-        type="button"
-        className="mt-1 cursor-grab text-slate-300 hover:text-slate-500"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-lg bg-slate-900">
-        {video.thumbnail ? (
-          <img src={video.thumbnail} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <Play className="h-8 w-8 text-[#55ace7]" />
-          </div>
-        )}
-        {video.duration && (
-          <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] text-white">
-            {video.duration}
-          </span>
-        )}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h4 className="truncate font-semibold text-[#1a3a5c]">{video.title || 'Untitled'}</h4>
-          {video.featured && (
-            <span className="rounded bg-[#55ace7]/15 px-2 py-0.5 text-[10px] font-bold text-[#246392]">
-              Featured
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{video.description || '—'}</p>
-        <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
-          <span>Views: {video.views ?? 0}</span>
-          <span>Watch: {video.watchProgress ?? 0}%</span>
-        </div>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => onToggleFeatured(video.id)}
-            className="inline-flex items-center gap-1 text-xs text-[#246392] hover:underline"
-          >
-            <Star className="h-3 w-3" />
-            {video.featured ? 'Unfeature' : 'Feature'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(video)}
-            className="inline-flex items-center gap-1 text-xs text-slate-600 hover:underline"
-          >
-            <Pencil className="h-3 w-3" />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(video.id)}
-            className="inline-flex items-center gap-1 text-xs text-[#c96565] hover:underline"
-          >
-            <Trash2 className="h-3 w-3" />
-            Delete
-          </button>
-        </div>
       </div>
     </div>
   )

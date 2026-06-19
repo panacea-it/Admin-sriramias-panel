@@ -9,7 +9,6 @@ import { buildClassroomTableColumns } from '../../../components/classrooms/Class
 import ClassroomFormModal from '../../../components/classrooms/ClassroomFormModal'
 import ViewClassroomModal from '../../../components/classrooms/ViewClassroomModal'
 import ConfirmClassroomStatusModal from '../../../components/classrooms/ConfirmClassroomStatusModal'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useClassroomManagement } from '../../../hooks/useClassroomManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
@@ -43,7 +42,7 @@ import {
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
+  { value: 'Deactivated', label: 'Deactivated' },
 ]
 
 function CreateButton({ onClick, disabled }) {
@@ -305,7 +304,7 @@ export default function ClassRoomsPage() {
 
   const handleBulkDeleteRequest = useCallback(() => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }, [selectedIds.length])
 
   const confirmBulkAction = useCallback(async () => {
@@ -446,7 +445,7 @@ export default function ClassRoomsPage() {
           }}
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
+        <div className="min-w-0 rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
           <PaginatedFigmaTable
             data={filteredClassrooms}
             columns={columns}
@@ -490,15 +489,7 @@ export default function ClassRoomsPage() {
         onConfirm={confirmStatusChange}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.ids?.length > 1 ? 'Delete selected classrooms?' : 'Delete Classroom?'}
-        message={deleteMessage}
-        confirmLabel="Delete"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-        loading={deleteLoading}
-      />
+      
 
       <MasterBulkConfirmModal
         open={Boolean(bulkConfirm)}

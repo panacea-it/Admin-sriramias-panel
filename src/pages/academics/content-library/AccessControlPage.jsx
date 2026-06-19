@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Lock, Plus, Trash2 } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { useContentLibrary } from '../../../contexts/ContentLibraryContext'
 import ContentEntityModal from '../../../components/content-library/ContentEntityModal'
-import { generateId, upsertAccessRule, deleteAccessRule } from '../../../api/contentLibraryAPI'
+import { generateId, upsertAccessRule } from '../../../api/contentLibraryAPI'
 import { ACCESS_SCOPES } from '../../../utils/contentLibraryTypes'
 
 export default function AccessControlPage() {
@@ -57,17 +57,6 @@ export default function AccessControlPage() {
                   {rule.contentIds?.length || 0} content item(s) · Targets: {rule.targetIds?.join(', ') || '—'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  deleteAccessRule(rule.id)
-                  toast.success('Rule deleted')
-                  refresh()
-                }}
-                className="text-[#c96565]"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
             </div>
           </article>
         ))}

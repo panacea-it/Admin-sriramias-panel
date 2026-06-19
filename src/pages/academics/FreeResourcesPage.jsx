@@ -22,8 +22,6 @@ import FreeResourcesBulkConfirmDialog from '../../components/content-library/fre
 
 import CourseTableActions from '../../components/categories/CourseTableActions'
 
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
-
 import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
 
 import { cn } from '../../utils/cn'
@@ -91,7 +89,7 @@ import { mapUiStatusToApi } from '../../utils/programHelpers'
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Inactive' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 const CELL = 'min-w-0 align-middle'
@@ -832,7 +830,7 @@ export default function FreeResourcesPage() {
           onClearSelection={() => setSelectedIds([])}
           onEnable={() => setBulkConfirm({ type: 'enable' })}
           onDisable={() => setBulkConfirm({ type: 'disable' })}
-          onDelete={() => setBulkConfirm({ type: 'delete' })}
+          onDelete={() => setBulkConfirm({ type: 'deactivate' })}
         />
 
         <PaginatedFigmaTable
@@ -847,7 +845,7 @@ export default function FreeResourcesPage() {
           skeletonRowCount={8}
           tableMinWidth={960}
           tableLayoutFixed
-          className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
+          className="min-w-0 rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
           tableClassName={cn(
             'rounded-none border-0 shadow-none',
             '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',
@@ -931,25 +929,7 @@ export default function FreeResourcesPage() {
 
 
 
-      <ConfirmDeleteDialog
-
-        open={Boolean(deleteTarget)}
-
-        title={deleteTarget?.ids?.length > 1 ? 'Delete selected resources?' : 'Delete resource?'}
-
-        message={deleteMessage}
-
-        onConfirm={handleConfirmDelete}
-
-        onCancel={() => {
-
-          if (!deleteLoading) setDeleteTarget(null)
-
-        }}
-
-        loading={deleteLoading}
-
-      />
+      
 
     </div>
 

@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import AdminTooltip from './AdminTooltip'
 
@@ -27,11 +27,10 @@ function ActionIconButton({ icon: Icon, label, onClick, variant = 'edit' }) {
   )
 }
 
-export default function TopicRowActionsMenu({ onEdit, onDelete }) {
+export default function TopicRowActionsMenu({ onEdit }) {
   return (
     <div className="flex items-center justify-end gap-1.5">
       <ActionIconButton icon={Pencil} label="Edit" onClick={onEdit} variant="edit" />
-      <ActionIconButton icon={Trash2} label="Delete" onClick={onDelete} variant="delete" />
     </div>
   )
 }

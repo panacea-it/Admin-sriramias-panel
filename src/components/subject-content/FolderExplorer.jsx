@@ -1,17 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  FileText,
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  Check,
-  X,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, FolderOpen, FileText, Plus, Search, Pencil, Check, X } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { buildFolderTree } from '../../utils/facultySubjectContentStorage'
 
@@ -30,151 +18,7 @@ function InlineInput({ value, onChange, onConfirm, onCancel, placeholder }) {
         placeholder={placeholder}
         className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-xs focus:border-[#55ace7] focus:outline-none"
       />
-      <button
-        type="button"
-        onClick={onConfirm}
-        className="rounded p-1 text-emerald-600 hover:bg-emerald-50"
-        aria-label="Confirm"
-      >
-        <Check className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded p-1 text-slate-400 hover:bg-slate-100"
-        aria-label="Cancel"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  )
-}
-
-function FolderNode({
-  folder,
-  depth,
-  expandedIds,
-  onToggleExpand,
-  selectedFolderId,
-  selectedTopicId,
-  onSelectFolder,
-  onSelectTopic,
-  onRenameFolder,
-  onDeleteFolder,
-  onAddTopic,
-  onRenameTopic,
-  onDeleteTopic,
-  editingFolderId,
-  setEditingFolderId,
-  editingTopicId,
-  setEditingTopicId,
-  editValue,
-  setEditValue,
-  addingTopicFolderId,
-  setAddingTopicFolderId,
-  newTopicName,
-  setNewTopicName,
-  onConfirmAddTopic,
-  searchQuery,
-}) {
-  const isExpanded = expandedIds.has(folder.id)
-  const isSelected = selectedFolderId === folder.id && !selectedTopicId
-  const q = searchQuery.toLowerCase().trim()
-
-  const visibleTopics = (folder.topics || []).filter(
-    (t) => !q || t.topicName.toLowerCase().includes(q),
-  )
-
-  const childFolders = folder.childFolders || []
-  const hasVisibleChildren =
-    childFolders.length > 0 ||
-    visibleTopics.length > 0 ||
-    (q && folder.folderName.toLowerCase().includes(q))
-
-  if (q && !hasVisibleChildren && !folder.folderName.toLowerCase().includes(q)) {
-    return null
-  }
-
-  return (
-    <div className="select-none">
-      <div
-        className={cn(
-          'group flex items-center gap-1 rounded-md px-1 py-1 text-sm transition',
-          isSelected && !selectedTopicId
-            ? 'bg-[#1a3a5c]/10 text-[#1a3a5c]'
-            : 'text-slate-700 hover:bg-slate-50',
-        )}
-        style={{ paddingLeft: `${depth * 12 + 4}px` }}
-      >
-        <button
-          type="button"
-          onClick={() => onToggleExpand(folder.id)}
-          className="shrink-0 rounded p-0.5 text-slate-400 hover:text-slate-600"
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
-        </button>
-        {isExpanded ? (
-          <FolderOpen className="h-4 w-4 shrink-0 text-[#55ace7]" />
-        ) : (
-          <Folder className="h-4 w-4 shrink-0 text-[#55ace7]" />
-        )}
-        {editingFolderId === folder.id ? (
-          <div className="min-w-0 flex-1">
-            <InlineInput
-              value={editValue}
-              onChange={setEditValue}
-              onConfirm={() => onRenameFolder(folder.id, editValue)}
-              onCancel={() => setEditingFolderId(null)}
-              placeholder="Folder name"
-            />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onSelectFolder(folder.id)}
-            className="min-w-0 flex-1 truncate text-left font-medium"
-          >
-            {folder.folderName}
-          </button>
-        )}
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
-          <button
-            type="button"
-            title="Add topic"
-            onClick={() => {
-              onToggleExpand(folder.id, true)
-              setAddingTopicFolderId(folder.id)
-              setNewTopicName('')
-            }}
-            className="rounded p-1 text-[#246392] hover:bg-slate-100"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            title="Rename folder"
-            onClick={() => {
-              setEditingFolderId(folder.id)
-              setEditValue(folder.folderName)
-            }}
-            className="rounded p-1 text-slate-500 hover:bg-slate-100"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            title="Delete folder"
-            onClick={() => onDeleteFolder(folder.id)}
-            className="rounded p-1 text-[#c96565] hover:bg-red-50"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
+      </div>
       </div>
 
       {isExpanded && (
@@ -218,46 +62,7 @@ function FolderNode({
                   />
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => onSelectTopic(folder.id, topic.id)}
-                  className="min-w-0 flex-1 truncate text-left"
-                >
-                  {topic.topicName}
-                </button>
-              )}
-              <div
-                className={cn(
-                  'flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100',
-                  selectedTopicId === topic.id && 'opacity-100',
-                )}
-              >
-                <button
-                  type="button"
-                  title="Rename topic"
-                  onClick={() => {
-                    setEditingTopicId(topic.id)
-                    setEditValue(topic.topicName)
-                  }}
-                  className={cn(
-                    'rounded p-1 hover:bg-white/10',
-                    selectedTopicId === topic.id ? 'text-white' : 'text-slate-500',
-                  )}
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  title="Delete topic"
-                  onClick={() => onDeleteTopic(folder.id, topic.id)}
-                  className={cn(
-                    'rounded p-1 hover:bg-white/10',
-                    selectedTopicId === topic.id ? 'text-white' : 'text-[#c96565]',
-                  )}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
+                </div>
             </div>
           ))}
           {childFolders.map((child) => (

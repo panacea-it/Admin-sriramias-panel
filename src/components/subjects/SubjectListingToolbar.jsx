@@ -44,7 +44,7 @@ export default function SubjectListingToolbar({
           type="search"
           value={search}
           onChange={onSearchChange}
-          placeholder="Search subjects by name, teacher, or ID…"
+          placeholder="Search subjects by name, faculty, or ID…"
           className="h-11 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 pl-11 pr-11 text-sm text-[#222] shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#55ace7] focus:bg-white focus:ring-2 focus:ring-[#55ace7]/20"
         />
         {search && (
@@ -67,12 +67,12 @@ export default function SubjectListingToolbar({
           options={[
             { value: 'all', label: 'All Status' },
             { value: 'Active', label: 'Active' },
-            { value: 'In Active', label: 'Disabled' },
+            { value: 'In Active', label: 'Deactivated' },
           ]}
         />
         {teacherOptions.length > 1 && (
           <FilterSelect
-            label="Teacher"
+            label="Faculty"
             value={teacher}
             onChange={onTeacherChange}
             options={teacherOptions}

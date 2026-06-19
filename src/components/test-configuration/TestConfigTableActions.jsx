@@ -1,5 +1,8 @@
-import { Ban, Eye, Pencil, Trash2 } from 'lucide-react'
-import { cn } from '../../utils/cn'
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 /** Matches Center Management `actionButtonClass` exactly. */
 export const testConfigActionButtonClass =
@@ -25,49 +28,20 @@ function isRowActive(status) {
   return String(status || '').trim().toLowerCase() === 'active'
 }
 
-function TestConfigInlineActions({ label, isActive, onView, onEdit, onToggleStatus, onDelete }) {
+function TestConfigInlineActions({ label, isActive, onView, onEdit, onToggleStatus, onDelete: _onDelete }) {
+  const statusAction = recordStatusActionLabel(isActive ? 'Active' : 'In Active')
+
   return (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onView}
-        title="View"
-        aria-label={`View ${label}`}
-        className={cn(testConfigActionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label={`Edit ${label}`}
-        className={cn(testConfigActionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
-      >
-        <Pencil className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Edit</span>
-      </button>
-      <button
-        type="button"
+      <ViewButton onClick={onView} label="View" />
+      <EditButton onClick={onEdit} label="Edit" />
+      <IconActionButton
+        label={statusAction}
         onClick={onToggleStatus}
-        title={isActive ? 'Disable' : 'Enable'}
-        aria-label={isActive ? `Disable ${label}` : `Enable ${label}`}
-        className={cn(testConfigActionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
       >
-        <Ban className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">{isActive ? 'Disable' : 'Enable'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="Delete"
-        aria-label={`Delete ${label}`}
-        className={cn(testConfigActionButtonClass, 'text-red-600 hover:bg-red-50')}
-      >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Delete</span>
-      </button>
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
     </div>
   )
 }

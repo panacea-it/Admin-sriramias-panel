@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, CheckSquare, Trash2 } from 'lucide-react'
+import { Ban, CheckCircle2, CheckSquare } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export default function CurrentAffairsBulkActionsBar({
@@ -8,7 +8,7 @@ export default function CurrentAffairsBulkActionsBar({
   onClearSelection,
   onEnable,
   onDisable,
-  onDelete,
+  onDelete: _onDelete,
   className,
 }) {
   if (!count) return null
@@ -43,27 +43,21 @@ export default function CurrentAffairsBulkActionsBar({
           type="button"
           onClick={onEnable}
           disabled={enableCount === 0}
+          title="Activate"
           className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
         >
           <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Enable All
+          Activate All
         </button>
         <button
           type="button"
           onClick={onDisable}
           disabled={disableCount === 0}
+          title="Deactivate"
           className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 bg-white px-3.5 py-2 text-xs font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
         >
           <Ban className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Disable All
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#dc2626] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#b91c1c] sm:text-sm"
-        >
-          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Delete All
+          Deactivate All
         </button>
       </div>
     </div>

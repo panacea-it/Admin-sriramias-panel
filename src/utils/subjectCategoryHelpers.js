@@ -135,7 +135,7 @@ export function deriveLiveStatus(subject) {
   const live = subject?.liveClasses || []
   if (!live.length) return 'None'
   const active = live.some((lc) => lc.status !== 'In Active' && lc.status !== 'Disabled')
-  return active ? 'Scheduled' : 'Inactive'
+  return active ? 'Scheduled' : 'Deactivated'
 }
 
 export function deriveRecordingStatus(subject) {

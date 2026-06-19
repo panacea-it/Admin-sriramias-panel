@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Trash2, Ban, CheckCircle2 } from 'lucide-react'
+import { Ban, CheckCircle2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export default function ContentBulkToolbar({
   selectedCount = 0,
-  onDelete,
+  onDelete: _onDelete,
   onDisable,
   onEnable,
   showEnableDisable = true,
@@ -30,29 +30,23 @@ export default function ContentBulkToolbar({
                   <button
                     type="button"
                     onClick={onEnable}
+                    title="Activate"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:shadow"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Enable
+                    Activate
                   </button>
                   <button
                     type="button"
                     onClick={onDisable}
+                    title="Deactivate"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 hover:shadow"
                   >
                     <Ban className="h-3.5 w-3.5" />
-                    Disable
+                    Deactivate
                   </button>
                 </>
               )}
-              <button
-                type="button"
-                onClick={onDelete}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#c96565] shadow-sm transition hover:bg-red-50 hover:shadow"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
-              </button>
             </div>
           </div>
         </motion.div>

@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { useContentLibrary } from '../../../contexts/ContentLibraryContext'
 import ContentEntityModal from '../../../components/content-library/ContentEntityModal'
-import { generateId, upsertContentCategory, deleteContentCategory } from '../../../api/contentLibraryAPI'
+import { generateId, upsertContentCategory } from '../../../api/contentLibraryAPI'
 
 export default function ContentCategoriesPage() {
   const { categories, refresh } = useContentLibrary()
@@ -57,19 +57,6 @@ export default function ContentCategoriesPage() {
               <button type="button" onClick={() => { setEdit(cat); setOpen(true) }} className="text-[#55ace7]">
                 <Pencil className="h-4 w-4" />
               </button>
-              {!cat.isSystem && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    deleteContentCategory(cat.id)
-                    toast.success('Category removed')
-                    refresh()
-                  }}
-                  className="text-[#c96565]"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
             </div>
           </article>
         ))}

@@ -20,8 +20,8 @@ export default function WebsiteFormShell({
   const sectionRest = sectionParts.slice(1).join(' ')
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
-      <header className="flex min-h-[56px] items-center justify-between gap-4 bg-gradient-to-r from-[#55ace7] via-[#4a9fd8] to-[#1a4d73] px-5 py-3.5 sm:px-6">
+    <article className="flex max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+      <header className="flex shrink-0 min-h-[56px] items-center justify-between gap-4 bg-gradient-to-r from-[#55ace7] via-[#4a9fd8] to-[#1a4d73] px-5 py-3.5 sm:px-6">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
             {iconNode ||
@@ -50,16 +50,18 @@ export default function WebsiteFormShell({
         </button>
       </header>
 
-      <div className="mx-5 mt-5 rounded-xl border border-slate-100 bg-white px-4 py-3.5 shadow-[0_4px_14px_rgba(15,23,42,0.06)] sm:mx-6 sm:px-6">
-        <h3 className="text-center text-base font-semibold">
-          <span className="text-[#246392]">{sectionFirst}</span>
-          {sectionRest && <span className="text-[#111]"> {sectionRest}</span>}
-        </h3>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-5 mt-5 rounded-xl border border-slate-100 bg-white px-4 py-3.5 shadow-[0_4px_14px_rgba(15,23,42,0.06)] sm:mx-6 sm:px-6">
+          <h3 className="text-center text-base font-semibold">
+            <span className="text-[#246392]">{sectionFirst}</span>
+            {sectionRest && <span className="text-[#111]"> {sectionRest}</span>}
+          </h3>
+        </div>
+
+        <div className="space-y-6 px-5 pb-2 pt-6 sm:px-8 sm:pt-8">{children}</div>
       </div>
 
-      <div className="space-y-6 px-5 pb-2 pt-6 sm:px-8 sm:pt-8">{children}</div>
-
-      <div className="flex flex-wrap justify-center gap-3 px-5 pb-8 pt-4 sm:gap-4 sm:px-8">
+      <div className="flex shrink-0 flex-wrap justify-center gap-3 border-t border-[#eef2fc] bg-[#fafcff] px-5 py-4 sm:gap-4 sm:px-8">
         <button
           type="button"
           onClick={onReset}

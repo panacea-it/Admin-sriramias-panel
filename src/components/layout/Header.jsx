@@ -1,16 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import {
-  Bell,
-  ChevronDown,
-  Download,
-  LogOut,
-  Menu,
-  Plus,
-  Search,
-  Settings,
-  User,
-  Users,
-} from 'lucide-react'
+import { Bell, ChevronDown, Download, History, LogOut, Menu, Plus, Search, Settings, User, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { initialNotifications } from '../../data/notifications'
@@ -340,6 +329,13 @@ export default function Header({ onMenuClick }) {
                 onClick={() => setProfileOpen(false)}
               >
                 <Settings className="h-4 w-4 text-[#03045e]" /> Settings
+              </Link>
+              <Link
+                to="/settings/activity-history"
+                className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium text-slate-800 hover:bg-[#f4f6fb]"
+                onClick={() => setProfileOpen(false)}
+              >
+                <History className="h-4 w-4 text-[#03045e]" /> Activity History
               </Link>
               <button
                 type="button"

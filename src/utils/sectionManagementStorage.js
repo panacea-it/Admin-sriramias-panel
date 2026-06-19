@@ -24,7 +24,7 @@ export function normalizeSectionRow(row) {
   return {
     id: row.id,
     sectionName: String(row.sectionName || row.configurationName || '').trim(),
-    status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+    status: row.status === 'Deactivated' ? 'Deactivated' : 'Active',
     createdOn,
     modifiedOn,
   }

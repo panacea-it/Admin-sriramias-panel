@@ -121,7 +121,7 @@ export default function ManageUsersTable({
   return (
     <div
       ref={tableRef}
-      className="overflow-hidden rounded-2xl border border-[#E7ECF5] bg-white shadow-[0_8px_24px_rgba(7,19,63,0.06)]"
+      className="min-w-0 overflow-x-auto rounded-2xl border border-[#E7ECF5] bg-white shadow-[0_8px_24px_rgba(7,19,63,0.06)]"
     >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] border-collapse">

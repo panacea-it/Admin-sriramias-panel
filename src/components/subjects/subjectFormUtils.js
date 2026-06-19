@@ -374,7 +374,7 @@ export function validateSubjectForm(
   if (!liveClassOnly && !activeContent) {
     if (!values.subjectName?.trim()) errors.subjectName = 'Subject name is required'
     if (!values.subject?.trim()) errors.subject = 'Subject is required'
-    if (!values.teacher?.trim()) errors.teacher = 'Teacher is required'
+    if (!values.teacher?.trim()) errors.teacher = 'Faculty is required'
     const selectedCategories = Array.isArray(values.categories)
       ? values.categories.map(String).filter(Boolean)
       : []
@@ -460,7 +460,7 @@ export function validateSubjectForm(
       errors.recordingTopic = 'Topic is required'
     }
     if (!values.recordingTeacher?.trim()) {
-      errors.recordingTeacher = 'Teacher is required'
+      errors.recordingTeacher = 'Faculty is required'
     }
     const hasRecordingFile = values.recordingFile instanceof File
     if (!hasRecordingFile && !hasExistingRecordingFile) {

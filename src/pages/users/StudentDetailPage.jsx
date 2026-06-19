@@ -1,21 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import {
-  ArrowLeft,
-  BookOpen,
-  CalendarCheck,
-  ClipboardList,
-  CreditCard,
-  FolderOpen,
-  GraduationCap,
-  Mail,
-  MapPin,
-  Package,
-  Pencil,
-  Phone,
-  User,
-  Wallet,
-} from 'lucide-react'
+import { ArrowLeft, BookOpen, CalendarCheck, ClipboardList, CreditCard, FolderOpen, GraduationCap, Mail, MapPin, Package, Pencil, Phone, User, Wallet } from 'lucide-react'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import ProgressBar from '../../components/batch-management/ProgressBar'
 import AddOfflinePaymentModal from '../../components/finance/AddOfflinePaymentModal'

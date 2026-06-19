@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
 import StatCard from "../dashboard/StatCard";
-import { Target, TrendingDown, Trophy, Zap } from "lucide-react";
+import { Target, TrendingDown, Trophy, Zap } from 'lucide-react';
 import { cn } from "../../utils/cn";
 
 const HEAT_COLORS = ["#fee2e2", "#fef3c7", "#d1fae5", "#6ee7b7", "#059669"];

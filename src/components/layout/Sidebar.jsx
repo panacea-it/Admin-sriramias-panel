@@ -228,7 +228,7 @@ export default function Sidebar({ isOpen, isMobile, onClose }) {
           'z-50 flex flex-col overflow-hidden bg-[#05092b] text-white shadow-[0_12px_40px_rgba(0,0,0,0.35)] transition-transform duration-300 ease-out',
           isMobile
             ? 'fixed left-4 top-4 bottom-4 w-[min(100%,288px)] rounded-2xl'
-            : 'fixed inset-y-0 left-0 h-[100dvh] max-h-[100dvh] w-[272px] min-w-[260px] max-w-[288px] rounded-tr-[20px] rounded-br-[20px]',
+            : 'fixed inset-y-0 left-0 h-[100dvh] max-h-[100dvh] w-[var(--sidebar-width)] min-w-[260px] max-w-[288px] rounded-tr-[20px] rounded-br-[20px]',
           isMobile && !isOpen && '-translate-x-[calc(100%+2rem)]',
           !isMobile && 'translate-x-0',
         )}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, Loader2 } from "lucide-react";
+import { Layers, Loader2 } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
 import EnquiriesTable from "../../components/enquiries/EnquiriesTable";

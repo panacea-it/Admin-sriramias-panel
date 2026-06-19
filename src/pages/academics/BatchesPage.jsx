@@ -18,8 +18,6 @@ import BatchBulkConfirmDialog from '../../components/batch-management/BatchBulkC
 
 import CurrentAffairsBulkActionsBar from '../../components/current-affairs/CurrentAffairsBulkActionsBar'
 
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
-
 import ViewBatchModal from '../../components/courses/ViewBatchModal'
 
 import { useBatchManagementContext } from '../../contexts/BatchManagementContext'
@@ -60,7 +58,7 @@ import { toast } from '../../utils/toast'
 
 
 
-const DISABLED_STATUSES = new Set(['Inactive'])
+const DISABLED_STATUSES = new Set(['Deactivated'])
 
 
 
@@ -278,7 +276,7 @@ export default function BatchesPage() {
 
     () =>
 
-      selectedIds.filter((id) => batchesById.get(String(id))?.status === 'Inactive').length,
+      selectedIds.filter((id) => batchesById.get(String(id))?.status === 'Deactivated').length,
 
     [selectedIds, batchesById],
 
@@ -508,7 +506,7 @@ export default function BatchesPage() {
 
       const isDisabled = DISABLED_STATUSES.has(batch.status)
 
-      const nextStatus = isDisabled ? 'Active' : 'Inactive'
+      const nextStatus = isDisabled ? 'Active' : 'Deactivated'
 
       await handleStatusChange(batch, nextStatus)
 
@@ -606,7 +604,7 @@ export default function BatchesPage() {
 
           .map((id) => batchesById.get(String(id)))
 
-          .filter((row) => row && row.status === 'Inactive')
+          .filter((row) => row && row.status === 'Deactivated')
 
       }
 
@@ -680,7 +678,7 @@ export default function BatchesPage() {
 
         for (const batch of targets) {
 
-          await updateBatchStatus(batch, 'Inactive', { silent: true })
+          await updateBatchStatus(batch, 'Deactivated', { silent: true })
 
         }
 
@@ -884,7 +882,7 @@ export default function BatchesPage() {
 
           onDisable={() => setBulkConfirm({ type: 'disable' })}
 
-          onDelete={() => setBulkConfirm({ type: 'delete' })}
+          onDelete={() => setBulkConfirm({ type: 'deactivate' })}
 
         />
 
@@ -1004,33 +1002,7 @@ export default function BatchesPage() {
 
 
 
-      <ConfirmDeleteDialog
-
-        open={Boolean(deleteTarget)}
-
-        title="Delete batch?"
-
-        message={
-
-          deleteTarget
-
-            ? `Are you sure you want to permanently delete "${deleteTarget.batchName || deleteTarget.batchLabel}"? This action cannot be undone.`
-
-            : ''
-
-        }
-
-        loading={deleteLoading}
-
-        onConfirm={confirmDeleteBatch}
-
-        onCancel={() => {
-
-          if (!deleteLoading) setDeleteTarget(null)
-
-        }}
-
-      />
+      
 
 
 

@@ -1,19 +1,19 @@
 import { Edit3 } from 'lucide-react'
+import IconActionButton from './IconActionButton'
 import { cn } from '../../utils/cn'
 
 export default function EditButton({ onClick, className, label = 'Edit', disabled = false }) {
   return (
-    <button
-      type="button"
+    <IconActionButton
+      label={label}
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center gap-2 text-sm font-medium text-[#686868] transition hover:text-[#246392] disabled:cursor-not-allowed disabled:opacity-50 sm:text-base',
+        'text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm',
         className,
       )}
     >
-      <Edit3 className="h-4 w-4" strokeWidth={2.35} aria-hidden />
-      {label}
-    </button>
+      <Edit3 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+    </IconActionButton>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, Star } from "lucide-react";
+import { Layers, Star } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
 import PaginatedFigmaTable from "../../components/figma/PaginatedFigmaTable";
@@ -7,7 +7,6 @@ import CouponFilterToolbar from "../../components/coupons/CouponFilterToolbar";
 import AddCouponModal from "../../components/coupons/AddCouponModal";
 import CouponTableActions from "../../components/coupons/CouponTableActions";
 import CouponsBulkActionsBar from "../../components/coupons/CouponsBulkActionsBar";
-import ConfirmCouponDeleteModal from "../../components/coupons/ConfirmCouponDeleteModal";
 import ViewCouponModal from "../../components/coupons/ViewCouponModal";
 import {
   BannerButton,
@@ -334,19 +333,7 @@ export default function CouponsPage() {
 
       {/* Status modal removed: backend does not support enable/disable for coupons */}
 
-      <ConfirmCouponDeleteModal
-        open={Boolean(deleteTarget) || Boolean(bulkDeleteIds?.length)}
-        couponName={deleteTarget?.name}
-        bulkCount={bulkDeleteIds?.length || 0}
-        loading={deleteLoading}
-        onCancel={() => {
-          if (!deleteLoading) {
-            setDeleteTarget(null);
-            setBulkDeleteIds(null);
-          }
-        }}
-        onConfirm={confirmDelete}
-      />
+      
     </div>
   );
 }

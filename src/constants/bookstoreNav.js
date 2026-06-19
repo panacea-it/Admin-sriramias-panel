@@ -1,13 +1,4 @@
-import {
-  LayoutDashboard,
-  Package,
-  Warehouse,
-  ShoppingCart,
-  CreditCard,
-  Sparkles,
-  FileText,
-  BarChart3,
-} from 'lucide-react'
+import { LayoutDashboard, Package, Warehouse, ShoppingCart, CreditCard, Sparkles, FileText, BarChart3 } from 'lucide-react'
 
 export const BOOKSTORE_BASE = '/admin/bookstore'
 

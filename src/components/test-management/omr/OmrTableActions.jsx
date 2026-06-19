@@ -1,4 +1,4 @@
-import { Download, Pencil, Trash2, UploadCloud } from 'lucide-react'
+import { Download, Pencil, UploadCloud } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 
 const actionButtonClass =
@@ -47,15 +47,6 @@ export default function OmrTableActions({
             <Download className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
           </ActionButton>
         )}
-        {canDelete && (
-          <ActionButton
-            label="Delete"
-            onClick={onDelete}
-            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-          >
-            <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-          </ActionButton>
-        )}
       </div>
     )
   }
@@ -80,15 +71,7 @@ export default function OmrTableActions({
           <UploadCloud className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
         </ActionButton>
       )}
-      {canDelete && (
-        <ActionButton
-          label="Delete"
-          onClick={onDelete}
-          className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-        >
-          <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-        </ActionButton>
-      )}
+
     </div>
   )
 }

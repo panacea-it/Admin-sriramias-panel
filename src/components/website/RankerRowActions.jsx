@@ -1,4 +1,4 @@
-import { Ban, Eye, Pencil, Star, Trash2 } from 'lucide-react'
+import { Ban, Eye, Pencil, Star } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 const actionButtonClass =
@@ -42,11 +42,10 @@ export default function RankerRowActions({
   onEdit,
   onStatusChange,
   onToggleTop10,
-  onDelete,
 }) {
   const isActive = status === 'Active'
   const cannotAddTop10 = top10Disabled && !isTop10
-  const statusLabel = isActive ? 'Inactive' : 'Active'
+  const statusLabel = isActive ? 'Deactivated' : 'Active'
 
   return (
     <div
@@ -74,7 +73,7 @@ export default function RankerRowActions({
         label={statusLabel}
         title={isActive ? 'Set Inactive' : 'Set Active'}
         ariaLabel={isActive ? `Set ${rowName} inactive` : `Set ${rowName} active`}
-        onClick={() => onStatusChange?.(isActive ? 'Inactive' : 'Active')}
+        onClick={() => onStatusChange?.(isActive ? 'Deactivated' : 'Active')}
         icon={Ban}
         labelClassName="min-w-[3.25rem] text-center"
         className="text-amber-700 hover:bg-amber-50 sm:min-w-[5.25rem]"
@@ -111,13 +110,6 @@ export default function RankerRowActions({
         />
       )}
 
-      <RankerActionButton
-        label="Delete"
-        ariaLabel={`Delete ${rowName}`}
-        onClick={onDelete}
-        icon={Trash2}
-        className="text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]"
-      />
     </div>
   )
 }

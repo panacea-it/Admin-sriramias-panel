@@ -1,13 +1,5 @@
-import {
-  Building2,
-  Users,
-  UserCog,
-  BookOpen,
-  IndianRupee,
-  ClipboardList,
-  Trophy,
-  Star,
-} from 'lucide-react'
+import { Building2, Users, UserCog, BookOpen, IndianRupee, ClipboardList, Trophy, Star } from 'lucide-react'
+import { DASHBOARD_ROUTES, dashboardSearchRoute } from '../constants/dashboardNavigation'
 
 export const dashboardStats = [
   {
@@ -110,6 +102,7 @@ export const centerPerformance = [
     rating: 4.8,
     revenueW: 92,
     studentsW: 95,
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.centers, 'New Delhi'),
   },
   {
     name: 'Hyderabad',
@@ -120,6 +113,7 @@ export const centerPerformance = [
     rating: 4.6,
     revenueW: 78,
     studentsW: 83,
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.centers, 'Hyderabad'),
   },
   {
     name: 'Pune',
@@ -130,19 +124,65 @@ export const centerPerformance = [
     rating: 4.5,
     revenueW: 68,
     studentsW: 72,
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.centers, 'Pune'),
   },
 ]
 
 export const popularCourses = [
-  { name: 'UPSC Foundation', enrolled: 892, revenue: '12 L', rating: 4.8, bg: '#DFF4FF' },
-  { name: 'GS Foundation', enrolled: 720, revenue: '9.5 L', rating: 4.7, bg: '#EEF8EB' },
-  { name: 'IAS Foundation', enrolled: 580, revenue: '7.8 L', rating: 4.6, bg: '#F7EDF2' },
+  {
+    name: 'UPSC Foundation',
+    enrolled: 892,
+    revenue: '12 L',
+    rating: 4.8,
+    bg: '#DFF4FF',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.courses, 'UPSC Foundation'),
+  },
+  {
+    name: 'GS Foundation',
+    enrolled: 720,
+    revenue: '9.5 L',
+    rating: 4.7,
+    bg: '#EEF8EB',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.courses, 'GS Foundation'),
+  },
+  {
+    name: 'IAS Foundation',
+    enrolled: 580,
+    revenue: '7.8 L',
+    rating: 4.6,
+    bg: '#F7EDF2',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.courses, 'IAS Foundation'),
+  },
 ]
 
 export const revenueTrends = [
-  { month: 'January', total: '9L', delhi: 3, hyd: 3, pune: 3, bg: '#f8edf1' },
-  { month: 'February', total: '10L', delhi: 3.5, hyd: 3.5, pune: 3, bg: '#eef8eb' },
-  { month: 'March', total: '11L', delhi: 4, hyd: 3.5, pune: 3.5, bg: '#f7f5df' },
+  {
+    month: 'January',
+    total: '9L',
+    delhi: 3,
+    hyd: 3,
+    pune: 3,
+    bg: '#f8edf1',
+    href: DASHBOARD_ROUTES.financeReports,
+  },
+  {
+    month: 'February',
+    total: '10L',
+    delhi: 3.5,
+    hyd: 3.5,
+    pune: 3,
+    bg: '#eef8eb',
+    href: DASHBOARD_ROUTES.financeReports,
+  },
+  {
+    month: 'March',
+    total: '11L',
+    delhi: 4,
+    hyd: 3.5,
+    pune: 3.5,
+    bg: '#f7f5df',
+    href: DASHBOARD_ROUTES.financeReports,
+  },
 ]
 
 export const activities = [
@@ -151,24 +191,28 @@ export const activities = [
     sub: 'A New Student joined a course in the GS',
     time: '2 Hours ago',
     bg: '#EEF8EB',
+    href: DASHBOARD_ROUTES.students,
   },
   {
     text: 'New Batch Created – UPSC',
     sub: 'Batch B2 created for Delhi Center',
     time: '4 Hours ago',
     bg: '#F7F5DF',
+    href: DASHBOARD_ROUTES.batches,
   },
   {
     text: 'Fee Payment Received',
     sub: 'Rs.15,000 received from Priya Sharma',
     time: '6 Hours ago',
     bg: '#F7EDF2',
+    href: DASHBOARD_ROUTES.receipts,
   },
   {
     text: 'Attendance Alert',
     sub: 'Low attendance in Pune center – Batch C1',
     time: '8 Hours ago',
     bg: '#DFF4FF',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.centers, 'Pune'),
   },
 ]
 
@@ -181,6 +225,7 @@ export const topFaculty = [
     students: 72,
     classes: 5,
     bg: '#DFF4FF',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.teachers, 'Darshan Kotla'),
   },
   {
     rank: 2,
@@ -190,6 +235,7 @@ export const topFaculty = [
     students: 65,
     classes: 4,
     bg: '#EEF8EB',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.teachers, 'Priya Nair'),
   },
   {
     rank: 3,
@@ -199,6 +245,7 @@ export const topFaculty = [
     students: 58,
     classes: 6,
     bg: '#F7EDF2',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.teachers, 'Ramesh Kumar'),
   },
   {
     rank: 4,
@@ -208,6 +255,7 @@ export const topFaculty = [
     students: 52,
     classes: 3,
     bg: '#F7F5DF',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.teachers, 'Anita Singh'),
   },
   {
     rank: 5,
@@ -217,6 +265,7 @@ export const topFaculty = [
     students: 48,
     classes: 4,
     bg: '#DFF4FF',
+    href: dashboardSearchRoute(DASHBOARD_ROUTES.teachers, 'Suresh Babu'),
   },
 ]
 
@@ -228,8 +277,36 @@ export const demographics = [
 ]
 
 export const examSuccess = [
-  { name: 'UPSC Prelims', passed: 70, appeared: 130, pct: 85, bg: '#DFF4FF' },
-  { name: 'UPSC Mains', passed: 45, appeared: 70, pct: 64, bg: '#EEF8EB' },
-  { name: 'UPSC Interview', passed: 30, appeared: 45, pct: 67, bg: '#F7EDF2' },
-  { name: 'State PCS', passed: 88, appeared: 100, pct: 88, bg: '#F7F5DF' },
+  {
+    name: 'UPSC Prelims',
+    passed: 70,
+    appeared: 130,
+    pct: 85,
+    bg: '#DFF4FF',
+    href: DASHBOARD_ROUTES.testCbt,
+  },
+  {
+    name: 'UPSC Mains',
+    passed: 45,
+    appeared: 70,
+    pct: 64,
+    bg: '#EEF8EB',
+    href: DASHBOARD_ROUTES.testMains,
+  },
+  {
+    name: 'UPSC Interview',
+    passed: 30,
+    appeared: 45,
+    pct: 67,
+    bg: '#F7EDF2',
+    href: DASHBOARD_ROUTES.testMains,
+  },
+  {
+    name: 'State PCS',
+    passed: 88,
+    appeared: 100,
+    pct: 88,
+    bg: '#F7F5DF',
+    href: DASHBOARD_ROUTES.testDashboard,
+  },
 ]

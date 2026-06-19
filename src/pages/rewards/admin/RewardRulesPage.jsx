@@ -42,7 +42,7 @@ export default function RewardRulesPage() {
             {r.status === RULE_STATUS.ACTIVE ? 'Disable' : 'Enable'}
           </button>
           <button type="button" className="text-xs font-semibold text-rose-600" onClick={() => setDeleteTarget(r)}>
-            Delete
+            Deactivate
           </button>
         </div>
       ),
@@ -92,7 +92,7 @@ export default function RewardRulesPage() {
             options: [
               { value: 'all', label: 'All Status' },
               { value: RULE_STATUS.ACTIVE, label: 'Active' },
-              { value: RULE_STATUS.INACTIVE, label: 'Inactive' },
+              { value: RULE_STATUS.INACTIVE, label: 'Deactivated' },
             ],
           },
         ]}
@@ -105,9 +105,9 @@ export default function RewardRulesPage() {
       <RewardRuleFormModal open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null) }} initial={editing} onSubmit={handleSubmit} loading={submitting} />
       <ConfirmRewardActionModal
         open={Boolean(deleteTarget)}
-        title="Delete rule?"
+        title="Deactivate"
         description={`Remove "${deleteTarget?.name}" permanently?`}
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         variant="danger"
         loading={submitting}
         onCancel={() => setDeleteTarget(null)}

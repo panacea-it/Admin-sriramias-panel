@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import FinanceCategoryBadge from './FinanceCategoryBadge'
 import FinanceToggleSwitch from './FinanceToggleSwitch'
 import FinanceIconButton from './FinanceIconButton'
@@ -40,7 +40,7 @@ export default function FinancePaymentModeCard({
                 mode.enabled ? 'bg-[#69df66]/15 text-[#1a3a5c]' : 'bg-slate-200 text-slate-600',
               )}
             >
-              {mode.enabled ? 'Active' : 'Inactive'}
+              {mode.enabled ? 'Active' : 'Deactivated'}
             </span>
           </div>
           {mode.description ? (
@@ -57,8 +57,8 @@ export default function FinancePaymentModeCard({
           ) : null}
           {canDelete && onDelete ? (
             <FinanceIconButton
-              icon={Trash2}
-              label={`Delete ${mode.label}`}
+              icon={X}
+              label={`Remove ${mode.label}`}
               variant="danger"
               onClick={() => onDelete(mode)}
             />

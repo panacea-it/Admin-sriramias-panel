@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Ban, Pencil, Trash2 } from 'lucide-react'
+import { Ban, Pencil } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { normalizeRankInput } from '../../utils/youtubeVideoPriority'
 
@@ -9,7 +9,6 @@ const actionButtonClass =
 export default function YoutubeRowActions({
   rowName = 'video',
   onEdit,
-  onDelete,
   onSetRank,
   onRemoveRank,
   onStatusChange,
@@ -136,25 +135,6 @@ export default function YoutubeRowActions({
           <span className="text-[10px] font-medium text-[#dc2626]">{rankError}</span>
         )}
       </div>
-
-      {!rankOnly && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete?.()
-          }}
-          title="Delete"
-          aria-label={`Delete ${rowName}`}
-          className={cn(
-            actionButtonClass,
-            'text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]',
-          )}
-        >
-          <Trash2 className="h-3.5 w-3.5 shrink-0" />
-          <span className="hidden sm:inline">Delete</span>
-        </button>
-      )}
     </div>
   )
 }

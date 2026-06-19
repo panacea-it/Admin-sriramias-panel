@@ -189,7 +189,7 @@ export function useFacultySubjectFormOptions({ open, enabled = true }) {
         if (seq !== formSeqRef.current) return null
         setTopicOptions([])
         setTeacherOptions([])
-        toast.error(getApiErrorMessage(error, 'Failed to load topics and teachers'))
+        toast.error(getApiErrorMessage(error, 'Failed to load topics and faculty'))
         return null
       } finally {
         if (seq === formSeqRef.current) setLoadingFormOptions(false)

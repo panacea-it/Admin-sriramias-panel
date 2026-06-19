@@ -11,7 +11,6 @@ import CategoryTableActions from '../../../components/categories/CategoryTableAc
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import SubjectCategoryModal from '../../../components/categories/SubjectCategoryModal'
 import ViewSubjectCategoryModal from '../../../components/categories/ViewSubjectCategoryModal'
-import ConfirmCategoryDeleteModal from '../../../components/categories/ConfirmCategoryDeleteModal'
 import { INITIAL_MAIN_CATEGORIES } from '../../../data/mainCategoriesData'
 import { INITIAL_SUBJECT_CATEGORIES } from '../../../data/subjectCategoriesData'
 import { useEditModal } from '../../../hooks/useEditModal'
@@ -290,13 +289,7 @@ export default function SubjectCategoryPage() {
         item={viewItem}
       />
 
-      <ConfirmCategoryDeleteModal
-        open={Boolean(deleteTarget)}
-        itemName={deleteTarget?.name}
-        entityLabel="subject category"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-      />
+      
     </motion.div>
   )
 }

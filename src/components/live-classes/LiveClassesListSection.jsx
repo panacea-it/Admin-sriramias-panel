@@ -216,7 +216,7 @@ export default function LiveClassesListSection({
         </span>
       ),
     },
-    { key: 'teacher', label: 'Teacher' },
+    { key: 'teacher', label: 'Faculty' },
     { key: 'lessonType', label: 'Type' },
     { key: 'scheduledDisplay', label: 'Scheduled' },
     {
@@ -315,7 +315,7 @@ export default function LiveClassesListSection({
       <RecurrenceScopeDialog
         open={Boolean(deleteTarget)}
         mode="delete"
-        title="Delete recurring class"
+        title="Deactivate"
         lessonName={deleteTarget?.lessonName ?? ''}
         scopes={RECURRENCE_DELETE_SCOPES}
         onCancel={() => setDeleteTarget(null)}

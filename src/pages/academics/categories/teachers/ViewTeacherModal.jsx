@@ -18,10 +18,10 @@ export default function ViewTeacherModal({ open, onClose, item, loading = false 
 
   if (loading) {
     return (
-      <Modal open={open} onClose={onClose} size="md" title="View teacher" showCloseButton={false}>
+      <Modal open={open} onClose={onClose} size="md" title="View faculty" showCloseButton={false}>
         <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
           <ModalPanelHeader
-            title="View teacher"
+            title="View faculty"
             onClose={onClose}
             icon={Users}
             iconClassName="text-[#246392]"
@@ -29,7 +29,7 @@ export default function ViewTeacherModal({ open, onClose, item, loading = false 
             plainCloseIcon
           />
           <div className="flex min-h-[240px] items-center justify-center p-8 text-sm font-medium text-[#686868]">
-            Loading teacher details…
+            Loading faculty details…
           </div>
         </div>
       </Modal>
@@ -53,11 +53,11 @@ export default function ViewTeacherModal({ open, onClose, item, loading = false 
 
         <div className="space-y-4 p-5 sm:p-6">
           <h3 className="border-b border-[#eef2fc] pb-2 text-sm font-bold uppercase tracking-wide text-[#246392]">
-            Teachers Details
+            Faculty Details
           </h3>
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailItem label="ID">{item.displayId || item.teacherId || item.id}</DetailItem>
-            <DetailItem label="Teacher Name">{item.name}</DetailItem>
+            <DetailItem label="Faculty Name">{item.name}</DetailItem>
             <DetailItem label="Subject">{item.subject || '—'}</DetailItem>
             <DetailItem label="Center">{item.centerName || '—'}</DetailItem>
             <DetailItem label="Status">

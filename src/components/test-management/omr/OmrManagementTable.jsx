@@ -14,7 +14,7 @@ function StatusPill({ status }) {
           : 'bg-slate-200/80 text-slate-700 ring-slate-300/50',
       )}
     >
-      {active ? 'Active' : 'Inactive'}
+      {active ? 'Active' : 'Deactivated'}
     </span>
   )
 }

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Eye, Pencil, Trash2, Scale, CheckCircle, XCircle } from 'lucide-react'
+import { Eye, Pencil, Scale, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
 import TableActionMenu from '../../common/TableActionMenu'
 import StatCard from '../../dashboard/StatCard'
-import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import { useEditModal } from '../../../hooks/useEditModal'
-import { deleteMarkingRule, fetchMarkingRules, upsertMarkingRule } from '../../../api/testConfigurationAPI'
+import { fetchMarkingRules, upsertMarkingRule } from '../../../api/testConfigurationAPI'
 import ConfigFilterToolbar from '../ConfigFilterToolbar'
 import ConfigViewModal from '../ConfigViewModal'
 import MarkingRuleFormModal from './MarkingRuleFormModal'
@@ -19,9 +18,6 @@ export default function MarkingRulesTab() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [viewRow, setViewRow] = useState(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteRow, setDeleteRow] = useState(null)
-  const [deleting, setDeleting] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -54,20 +50,6 @@ export default function MarkingRulesTab() {
       }
       return [saved, ...prev]
     })
-  }
-
-  const handleDelete = async () => {
-    if (!deleteRow) return
-    setDeleting(true)
-    try {
-      await deleteMarkingRule(deleteRow.id)
-      setRows((prev) => prev.filter((r) => String(r.id) !== String(deleteRow.id)))
-      toast.success('Marking rule deleted')
-      setDeleteOpen(false)
-      setDeleteRow(null)
-    } finally {
-      setDeleting(false)
-    }
   }
 
   const columns = [
@@ -103,15 +85,6 @@ export default function MarkingRulesTab() {
           items={[
             { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
             { label: 'Edit', icon: Pencil, onClick: () => modal.openEdit(row) },
-            {
-              label: 'Delete',
-              icon: Trash2,
-              danger: true,
-              onClick: () => {
-                setDeleteRow(row)
-                setDeleteOpen(true)
-              },
-            },
           ]}
         />
       ),
@@ -192,17 +165,6 @@ export default function MarkingRulesTab() {
         fields={viewFields}
       />
 
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        title="Delete marking rule?"
-        message="Are you sure you want to delete this?"
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setDeleteOpen(false)
-          setDeleteRow(null)
-        }}
-        loading={deleting}
-      />
     </div>
   )
 }

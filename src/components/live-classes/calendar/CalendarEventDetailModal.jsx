@@ -1,15 +1,4 @@
-import {
-  Calendar,
-  Clock,
-  ExternalLink,
-  MapPin,
-  DoorOpen,
-  Pencil,
-  Repeat,
-  Trash2,
-  User,
-  BookOpen,
-} from 'lucide-react'
+import { Calendar, Clock, ExternalLink, MapPin, DoorOpen, Pencil, Repeat, User, BookOpen } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import LiveClassStatusBadge from '../LiveClassStatusBadge'
@@ -107,14 +96,6 @@ export default function CalendarEventDetailModal({
         )}
 
         <div className="flex flex-col-reverse gap-3 border-t border-[#f0ebfa] pt-4 sm:flex-row sm:justify-between">
-          <button
-            type="button"
-            onClick={() => onDelete?.(event)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Event
-          </button>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <button
               type="button"

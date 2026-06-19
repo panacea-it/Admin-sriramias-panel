@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  LayoutDashboard,
-  Users,
-  CalendarClock,
-  Phone,
-  TrendingUp,
-  AlertCircle,
-  Radio,
-} from 'lucide-react'
+import { LayoutDashboard, Users, CalendarClock, Phone, TrendingUp, AlertCircle, Radio } from 'lucide-react'
 import SalesPageShell from '../../components/sales-analytics/SalesPageShell'
 import SalesStatCard from '../../components/sales-analytics/SalesStatCard'
 import SalesChartPanel from '../../components/sales-analytics/SalesChartPanel'

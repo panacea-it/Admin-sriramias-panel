@@ -62,7 +62,7 @@ function filterByQuery(list, q, keys) {
 }
 
 function normalizeStatus(status) {
-  if (status === 'In Active') return 'Inactive'
+  if (status === 'In Active') return 'Deactivated'
   return status
 }
 

@@ -29,7 +29,7 @@ export const TRANSACTION_TYPES = {
 
 export const RULE_STATUS = {
   ACTIVE: 'Active',
-  INACTIVE: 'Inactive',
+  INACTIVE: 'Deactivated',
 }
 
 export const REDEMPTION_STATUS = {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFieldArray, useForm, Controller } from 'react-hook-form'
-import { ChevronDown, ChevronUp, ImageIcon, Sparkles, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronUp, ImageIcon, Sparkles, Upload, X } from 'lucide-react'
 import { CourseAddMoreLink, CourseFormField, CourseInput, CourseTextarea } from './CourseFormField'
 import { emptyWhyChooseFeature, normalizeWhyChooseFeatures } from '../../utils/whyChooseFeatures'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
@@ -154,7 +154,7 @@ function FeatureCardEditor({
               onClick={onRemove}
               className="ml-1 flex h-9 items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 transition hover:bg-red-100"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
               Remove
             </button>
           )}

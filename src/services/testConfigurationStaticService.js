@@ -33,7 +33,7 @@ function parseSortPreset(sortPreset) {
 function mapLocalStatusFilter(statusFilter) {
   const apiStatus = mapExamPatternStatusFilterToApi(statusFilter)
   if (apiStatus === 'ACTIVE') return 'Active'
-  if (apiStatus === 'INACTIVE') return 'Inactive'
+  if (apiStatus === 'INACTIVE') return 'Deactivated'
   return statusFilter || 'all'
 }
 

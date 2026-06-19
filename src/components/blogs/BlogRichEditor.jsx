@@ -1,22 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Bold,
-  Code,
-  Heading1,
-  Heading2,
-  Heading3,
-  Heading4,
-  Image,
-  Italic,
-  Link,
-  List,
-  ListOrdered,
-  Quote,
-  Redo2,
-  Type,
-  Underline,
-  Undo2,
-} from 'lucide-react'
+import { Bold, Code, Heading1, Heading2, Heading3, Heading4, Image, Italic, Link, List, ListOrdered, Quote, Redo2, Type, Underline, Undo2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'

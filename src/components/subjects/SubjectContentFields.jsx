@@ -404,13 +404,13 @@ export default function SubjectContentFields({
               />
             </div>
             <div>
-              <FieldLabel required>Teacher</FieldLabel>
+              <FieldLabel required>Faculty</FieldLabel>
               <FormSelect
                 register={register}
                 name="recordingTeacher"
                 error={errors.recordingTeacher}
                 options={recordingTeacherOptions}
-                placeholder={recordingTeachersLoading ? 'Loading teachers…' : 'Choose Teacher'}
+                placeholder={recordingTeachersLoading ? 'Loading faculty…' : 'Choose Faculty'}
                 disabled={recordingTeachersLoading}
               />
             </div>

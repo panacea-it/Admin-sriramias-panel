@@ -1,11 +1,4 @@
-import {
-  IndianRupee,
-  Wallet,
-  Percent,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-} from 'lucide-react'
+import { IndianRupee, Wallet, Percent, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react'
 import FinanceStatCard from '../FinanceStatCard'
 import { formatINR } from '../../../utils/financeFilters'
 import { cn } from '../../../utils/cn'

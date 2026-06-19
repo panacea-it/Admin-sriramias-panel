@@ -15,7 +15,7 @@ function ProductStatusPill({ status }) {
           : 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
       )}
     >
-      {active ? 'Active' : 'Inactive'}
+      {active ? 'Active' : 'Deactivated'}
     </span>
   )
 }

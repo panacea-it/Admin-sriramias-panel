@@ -516,9 +516,9 @@ export function validateRecordingApiPayload(
   }
 
   const teacherId = String(resolved.recordingTeacher || '').trim()
-  if (!teacherId) errors.push('Teacher is required')
+  if (!teacherId) errors.push('Faculty is required')
   else if (!isValidRecordingOptionId(teacherId, options.teachers)) {
-    errors.push('Select a valid teacher from the list')
+    errors.push('Select a valid faculty member from the list')
   }
 
   const file = values.recordingFile

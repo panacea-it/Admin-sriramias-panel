@@ -19,7 +19,7 @@ import { toast } from '../../utils/toast'
 const PRODUCT_STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: 'inactive', label: 'Deactivated' },
 ]
 
 export default function BookstoreProductsPage() {
@@ -163,9 +163,9 @@ export default function BookstoreProductsPage() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
-        title="Delete product"
+        title="Deactivate"
         message="This product will be removed from the bookstore catalog. This action cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
       />
     </BookstorePageShell>
   )

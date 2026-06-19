@@ -17,7 +17,7 @@ export const OMR_RESULT_UPLOAD_PROFILE = {
 
 export function mapOmrStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
-  if (statusFilter === 'Inactive') return 'INACTIVE'
+  if (statusFilter === 'Deactivated') return 'INACTIVE'
   return undefined
 }
 
@@ -25,7 +25,7 @@ export function buildOmrExamApiPayload(form) {
   return {
     examName: String(form.examName || '').trim(),
     examDate: form.examDate,
-    status: mapUiStatusToApi(form.status === 'Inactive' ? 'In Active' : form.status),
+    status: mapUiStatusToApi(form.status === 'Deactivated' ? 'In Active' : form.status),
   }
 }
 
@@ -57,7 +57,7 @@ export function mapApiOmrExamToLocal(data) {
     id: String(id),
     examName: String(row.examName || row.name || '').trim(),
     examDate: row.examDate || row.exam_date || '',
-    status: String(row.status || '').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active',
+    status: String(row.status || '').toUpperCase() === 'INACTIVE' ? 'Deactivated' : 'Active',
     resultSheetUploaded: uploaded,
     resultSheet: uploaded
       ? {

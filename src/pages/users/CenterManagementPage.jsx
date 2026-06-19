@@ -1,18 +1,18 @@
 import { useCallback, useMemo, useState } from "react";
-import { Ban, Building2, CheckCircle2, Eye, Pencil, Plus } from "lucide-react";
+import { Ban, Building2, CheckCircle2, Eye, Pencil, Plus } from 'lucide-react';
 import ErrorState from "../../components/feedback/ErrorState";
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
 import CourseFilterToolbar from "../../components/courses/CourseFilterToolbar";
 import CenterFormDrawer from "../../components/center-management/CenterFormDrawer";
 import ViewCenterDrawer from "../../components/center-management/ViewCenterDrawer";
-import ConfirmCenterDeleteModal from "../../components/center-management/ConfirmCenterDeleteModal";
 import ConfirmCenterStatusModal from "../../components/center-management/ConfirmCenterStatusModal";
 import CenterBulkActionsBar from "../../components/center-management/CenterBulkActionsBar";
 import CenterManagementTable from "../../components/center-management/CenterManagementTable";
 import { useCenters } from "../../contexts/CentersContext";
 import { useCenterManagement } from "../../hooks/useCenterManagement";
 import { useTableRowSelection } from "../../hooks/useTableRowSelection";
+import { useInitialRouteSearch } from "../../hooks/useInitialRouteSearch";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { cn } from "../../utils/cn";
 import {
@@ -25,7 +25,7 @@ import {
 const CENTER_STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "active", label: "Active" },
-  { value: "disabled", label: "Disabled" },
+  { value: "disabled", label: "Deactivated" },
 ];
 
 const actionButtonClass =
@@ -107,6 +107,8 @@ export default function CenterManagementPage() {
     patchCenterLocally,
     removeCenterLocally,
   } = useCenterManagement();
+
+  useInitialRouteSearch(setSearch);
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection(
     (row) => row.centerId,
@@ -485,19 +487,7 @@ export default function CenterManagementPage() {
         onClose={() => setViewingId(null)}
       />
 
-      <ConfirmCenterDeleteModal
-        open={!!deleteTarget || !!bulkDeleteIds?.length}
-        centerName={deleteTarget?.centerName}
-        bulkCount={bulkDeleteIds?.length || 0}
-        loading={deleteLoading}
-        onCancel={() => {
-          if (!deleteLoading) {
-            setDeleteTarget(null);
-            setBulkDeleteIds(null);
-          }
-        }}
-        onConfirm={confirmDelete}
-      />
+      
 
       <ConfirmCenterStatusModal
         open={

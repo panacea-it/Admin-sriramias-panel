@@ -99,7 +99,7 @@ export default function ViewFacultySubjectModal({ open, onClose, item, loading =
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailItem label="Subject Name">{item.subjectName || '—'}</DetailItem>
             <DetailItem label="Subject">{item.subjectLabel || item.subject || '—'}</DetailItem>
-            <DetailItem label="Teacher">{teacherName}</DetailItem>
+            <DetailItem label="Faculty">{teacherName}</DetailItem>
             <DetailItem label="Status">
               <SubjectStatusToggle status={item.status} disabled />
             </DetailItem>

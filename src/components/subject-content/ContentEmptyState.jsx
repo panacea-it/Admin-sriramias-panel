@@ -1,11 +1,4 @@
-import {
-  Video,
-  Film,
-  ClipboardList,
-  PenLine,
-  FileText,
-  Plus,
-} from 'lucide-react'
+import { Video, Film, ClipboardList, PenLine, FileText, Plus } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { CATEGORY_TYPES } from '../../utils/facultySubjectHierarchy'
 

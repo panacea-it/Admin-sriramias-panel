@@ -21,7 +21,7 @@ export function seedCitiesFromCenters(centers, ts) {
       centerName: center.centerName,
       placeName: row.placeName,
       code: row.code,
-      status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+      status: row.status === 'Deactivated' ? 'Deactivated' : 'Active',
       createdAt: now,
       modifiedAt: now,
     }

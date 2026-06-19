@@ -1,15 +1,5 @@
 import { useMemo } from 'react'
-import {
-  Eye,
-  Pencil,
-  Trash2,
-  Upload,
-  Copy,
-  Play,
-  Download,
-  FileText,
-  BarChart3,
-} from 'lucide-react'
+import { Eye, Pencil, Upload, Copy, Play, Download, FileText, BarChart3 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { contentTypeFromCategoryType, CATEGORY_TYPES } from '../../utils/facultySubjectHierarchy'
 import ContentEmptyState from './ContentEmptyState'
@@ -258,7 +248,6 @@ export default function FolderContentList({
           <RowActions>
             <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
             <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
-            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
             <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
             <IconActionButton icon={Copy} label="Duplicate" onClick={() => onDuplicate(r)} />
           </RowActions>
@@ -296,7 +285,6 @@ export default function FolderContentList({
             <IconActionButton icon={Play} label="Play" onClick={() => onPlay(r)} variant="view" />
             <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
             <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
-            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
             <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
           </RowActions>
         ),
@@ -332,7 +320,6 @@ export default function FolderContentList({
           <RowActions>
             <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
             <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
-            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
             <IconActionButton icon={Play} label="Start Test" onClick={() => onStartTest(r)} />
             <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
             <IconActionButton icon={BarChart3} label="Results" onClick={() => onView(r)} />
@@ -369,7 +356,6 @@ export default function FolderContentList({
           <RowActions>
             <IconActionButton icon={Eye} label="View" onClick={() => onView(r)} variant="view" />
             <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
-            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
             <IconActionButton icon={Upload} label="Publish" onClick={() => onPublish(r)} variant="success" />
             <IconActionButton icon={BarChart3} label="Evaluate" onClick={() => onEvaluate(r)} />
           </RowActions>
@@ -402,7 +388,6 @@ export default function FolderContentList({
           <RowActions>
             <IconActionButton icon={Eye} label="View" onClick={() => onPreviewPdf(r)} variant="view" />
             <IconActionButton icon={Pencil} label="Edit" onClick={() => onEdit(r)} variant="edit" />
-            <IconActionButton icon={Trash2} label="Delete" onClick={() => onDelete(r)} variant="delete" />
             <IconActionButton icon={Download} label="Download" onClick={() => onDownload(r)} />
           </RowActions>
         ),

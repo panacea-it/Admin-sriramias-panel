@@ -268,7 +268,7 @@ export default function BatchManagementTable({
       skeletonRowCount={8}
       tableMinWidth={1680}
       tableLayoutFixed
-      className="overflow-hidden rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
+      className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
       tableClassName={cn(
         'rounded-none border-0 shadow-none',
         '[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]',

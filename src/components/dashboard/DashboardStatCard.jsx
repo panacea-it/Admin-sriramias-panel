@@ -1,5 +1,7 @@
 import MiniSparkline from './charts/MiniSparkline'
 import MiniBarChart from './charts/MiniBarChart'
+import DashboardNavLink from './DashboardNavLink'
+import { dashboardStatRoutes } from '../../constants/dashboardNavigation'
 
 export default function DashboardStatCard({
   title,
@@ -11,10 +13,12 @@ export default function DashboardStatCard({
   badgeLabel,
   badgeDown,
   chartType = 'sparkline',
+  href,
 }) {
   const chart = graphColor || color
+  const target = href || dashboardStatRoutes[title]
 
-  return (
+  const card = (
     <article className="relative flex min-h-[148px] flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-[0_4px_16px_rgba(0,0,0,0.06)] sm:min-h-[156px] sm:p-5">
       <div className="mb-3 flex items-start gap-3">
         <div
@@ -54,5 +58,13 @@ export default function DashboardStatCard({
         )}
       </div>
     </article>
+  )
+
+  if (!target) return card
+
+  return (
+    <DashboardNavLink to={target} ariaLabel={`Open ${title}`} className="rounded-2xl">
+      {card}
+    </DashboardNavLink>
   )
 }

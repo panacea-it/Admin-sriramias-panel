@@ -1,14 +1,4 @@
-import {
-  LayoutDashboard,
-  FileSpreadsheet,
-  ShieldCheck,
-  CalendarClock,
-  Receipt,
-  UserCircle,
-  History,
-  Banknote,
-  Settings2,
-} from 'lucide-react'
+import { LayoutDashboard, FileSpreadsheet, ShieldCheck, CalendarClock, Receipt, UserCircle, History, Banknote, Settings2 } from 'lucide-react'
 
 export const FINANCE_BASE = '/finance'
 

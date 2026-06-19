@@ -1,15 +1,4 @@
-import {
-  LayoutDashboard,
-  Route,
-  Users,
-  Filter,
-  PieChart,
-  UserCheck,
-  CalendarClock,
-  AlertCircle,
-  FileSpreadsheet,
-  Settings2,
-} from 'lucide-react'
+import { LayoutDashboard, Route, Users, Filter, PieChart, UserCheck, CalendarClock, AlertCircle, FileSpreadsheet, Settings2 } from 'lucide-react'
 
 export const SALES_ANALYTICS_BASE = '/sales-analytics'
 

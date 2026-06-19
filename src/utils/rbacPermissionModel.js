@@ -3,7 +3,7 @@ export const PERMISSION_ACTIONS = [
   { key: 'view', label: 'View' },
   { key: 'create', label: 'Create' },
   { key: 'edit', label: 'Edit' },
-  { key: 'delete', label: 'Delete' },
+  { key: 'delete', label: 'Deactivate' },
   { key: 'export', label: 'Export' },
   { key: 'disable', label: 'Disable' },
 ]

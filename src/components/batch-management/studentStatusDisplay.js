@@ -10,7 +10,7 @@ export function resolveStudentEnrollmentStatus(status) {
   }
 
   if (normalized === 'INACTIVE' || normalized === 'IN_ACTIVE') {
-    return { label: 'Inactive', isActive: false }
+    return { label: 'Deactivated', isActive: false }
   }
 
   const raw = String(status ?? '').trim()

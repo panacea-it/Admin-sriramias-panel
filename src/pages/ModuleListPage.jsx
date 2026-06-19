@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Edit3, PlusCircle, Trash2 } from 'lucide-react'
+import { Edit3, PlusCircle } from 'lucide-react'
 import PageBanner from '../components/figma/PageBanner'
 import FilterToolbar from '../components/figma/FilterToolbar'
 import PaginatedFigmaTable from '../components/figma/PaginatedFigmaTable'
@@ -97,13 +97,6 @@ export default function ModuleListPage({
           >
             <Edit3 className="h-4 w-4" strokeWidth={2.35} />
             Edit
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#c96565] transition hover:text-[#b94b4b] sm:text-base"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.1} />
-            Delete
           </button>
         </div>
       ),

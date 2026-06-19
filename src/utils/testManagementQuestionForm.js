@@ -34,7 +34,7 @@ export function createEmptyQuestionForm() {
 }
 
 function normalizeStatus(status) {
-  if (status === 'In Active') return 'Inactive'
+  if (status === 'In Active') return 'Deactivated'
   return status
 }
 
@@ -64,8 +64,8 @@ export function inferCategoryFromRow(row) {
 }
 
 export function nextQuestionStatus(current) {
-  const normalized = current === 'In Active' ? 'Inactive' : current
-  return normalized === 'Active' ? 'Inactive' : 'Active'
+  const normalized = current === 'In Active' ? 'Deactivated' : current
+  return normalized === 'Active' ? 'Deactivated' : 'Active'
 }
 
 export function questionRowToForm(row) {

@@ -31,7 +31,7 @@ function FilterSelect({ label, value, onChange, options, icon: Icon, formatOptio
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Inactive' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 const formatStatusOptionLabel = (opt) =>

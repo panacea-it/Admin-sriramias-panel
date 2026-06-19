@@ -1,4 +1,4 @@
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown } from 'lucide-react';
 import { cn } from "../../utils/cn";
 
 const controlHeight = "h-11 min-h-[44px]";
@@ -91,7 +91,7 @@ export default function ManageUsersFilterToolbar({
           options={[
             { value: "all", label: "All status" },
             { value: "Active", label: "Active" },
-            { value: "In Active", label: "In Active" },
+            { value: "In Active", label: "Deactivated" },
           ]}
         />
       </div>

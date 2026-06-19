@@ -59,7 +59,7 @@ export default function LiveClassesFilterBar({
             type="search"
             value={search}
             onChange={onSearchChange}
-            placeholder="Search lessons, teachers, subjects…"
+            placeholder="Search lessons, faculty, subjects…"
             className={cn(liveClassesTw.searchInput, 'sm:pl-11')}
           />
         </div>
@@ -93,7 +93,7 @@ export default function LiveClassesFilterBar({
               { value: 'Scheduled', label: 'Scheduled' },
               { value: 'Live', label: 'Live' },
               { value: 'Completed', label: 'Completed' },
-              { value: 'Disabled', label: 'Disabled' },
+              { value: 'Disabled', label: 'Deactivated' },
               { value: 'Draft', label: 'Draft' },
             ]}
           />
@@ -122,7 +122,7 @@ export default function LiveClassesFilterBar({
               onClick={onBulkDelete}
               className="rounded-lg bg-[#c96565] px-3 py-1.5 font-medium text-white shadow-sm hover:bg-[#b94b4b]"
             >
-              Delete
+              Deactivate
             </button>
           </div>
         </div>

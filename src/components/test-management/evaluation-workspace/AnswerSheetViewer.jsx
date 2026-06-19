@@ -1,14 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  Highlighter,
-  MessageSquare,
-  RotateCw,
-  ZoomIn,
-  ZoomOut,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-} from 'lucide-react'
+import { Highlighter, MessageSquare, RotateCw, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import PdfViewer from '../../evaluation-management/PdfViewer'
 import { fetchSubmissionPdfBlobUrl } from '../../../api/evaluationOversightAPI'
 import { cn } from '../../../utils/cn'

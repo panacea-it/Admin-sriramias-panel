@@ -117,7 +117,7 @@ export default function CategoryHubFormModal({
 
   const nameLabel =
     section.id === 'teachers'
-      ? 'Teacher Name'
+      ? 'Faculty Name'
       : section.id === 'exam-sub-category'
         ? 'Exam Sub-Category Name'
         : section.id === 'subject'

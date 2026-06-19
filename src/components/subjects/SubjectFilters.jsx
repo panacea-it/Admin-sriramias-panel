@@ -95,7 +95,7 @@ export default function SubjectFilters({
             options={[
               { value: 'all', label: 'Status' },
               { value: 'Active', label: 'Active' },
-              { value: 'In Active', label: 'In Active' },
+              { value: 'In Active', label: 'Deactivated' },
             ]}
           />
         )}

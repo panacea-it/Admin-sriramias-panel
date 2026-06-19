@@ -97,7 +97,7 @@ export default function FigmaTable({
   stickyLastColumn = false,
   animateRows = false,
   onRowClick,
-  tableMinWidth = 720,
+  tableMinWidth = 0,
   bodyMaxHeight,
   headerVariant = 'default',
   headerAlign,
@@ -321,7 +321,7 @@ export default function FigmaTable({
   return (
     <div
       className={cn(
-        'w-full bg-white',
+        'w-full min-w-0 bg-white',
         !containedScroll && 'overflow-x-auto',
         className,
       )}

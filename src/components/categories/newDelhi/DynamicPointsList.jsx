@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import { CourseFormField, CourseInput } from '../../courses/CourseFormField'
 import { cn } from '../../../utils/cn'
 
@@ -84,7 +84,7 @@ export default function DynamicPointsList({
                 className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-600 transition hover:bg-red-100"
                 aria-label="Remove point"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ))}

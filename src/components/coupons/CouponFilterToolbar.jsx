@@ -1,4 +1,4 @@
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown } from 'lucide-react';
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
@@ -82,7 +82,7 @@ export default function CouponFilterToolbar({
             options={[
               { value: "all", label: "Status" },
               { value: "Active", label: "Active" },
-              { value: "In Active", label: "In Active" },
+              { value: "In Active", label: "Deactivated" },
             ]}
           />
         </div>

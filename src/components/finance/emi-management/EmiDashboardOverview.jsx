@@ -1,14 +1,4 @@
-import {
-  Users,
-  CalendarClock,
-  AlertTriangle,
-  Wallet,
-  CalendarDays,
-  CheckCircle2,
-  FileWarning,
-  UserX,
-  TrendingUp,
-} from 'lucide-react'
+import { Users, CalendarClock, AlertTriangle, Wallet, CalendarDays, CheckCircle2, FileWarning, UserX, TrendingUp } from 'lucide-react'
 import FinanceStatCard from '../FinanceStatCard'
 import FinanceChartContainer from '../FinanceChartContainer'
 import { formatINR } from '../../../utils/financeFilters'

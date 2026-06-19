@@ -60,7 +60,7 @@ export function buildCityTableColumns({ onView, onEdit, onToggle, onDelete }) {
       align: 'center',
       headerClassName: 'min-w-[6rem]',
       render: (row) => (
-        <CategoryStatusBadge status={row.status === 'Inactive' ? 'In Active' : row.status} />
+        <CategoryStatusBadge status={row.status === 'Deactivated' ? 'In Active' : row.status} />
       ),
     },
     {
@@ -72,7 +72,7 @@ export function buildCityTableColumns({ onView, onEdit, onToggle, onDelete }) {
       render: (row) => (
         <CourseTableActions
           row={{ ...row, name: row.placeName }}
-          status={row.status === 'Inactive' ? 'In Active' : row.status}
+          status={row.status === 'Deactivated' ? 'In Active' : row.status}
           onView={() => onView(row)}
           onEdit={() => onEdit(row)}
           onToggleStatus={() => onToggle(row)}

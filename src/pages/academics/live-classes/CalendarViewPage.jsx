@@ -242,7 +242,7 @@ export default function CalendarViewPage() {
                 onClick={() => confirmDelete('this')}
                 className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white"
               >
-                {deleteLoading ? 'Deleting…' : 'Delete'}
+                {deleteLoading ? 'Cancelling…' : 'Cancel'}
               </button>
             </div>
           </div>

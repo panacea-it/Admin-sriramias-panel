@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import BatchFormSection from '../courses/BatchFormSection'
-import ConfirmDeleteDialog from '../subjects/ConfirmDeleteDialog'
 import HelpSectionMediaUpload, { revokeBlobUrl } from './HelpSectionMediaUpload'
 import { cn } from '../../utils/cn'
 
@@ -66,7 +65,7 @@ function HelpSectionCard({ index, block, onUpdateSlot, onRequestRemove }) {
           onClick={onRequestRemove}
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 transition hover:bg-red-100"
         >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          <X className="h-3.5 w-3.5" aria-hidden />
           Remove Section
         </button>
       </header>
@@ -193,14 +192,7 @@ export default function HelpSectionCardsSection({ howWill = [], setForm }) {
         </button>
       </div>
 
-      <ConfirmDeleteDialog
-        open={deleteTarget != null}
-        title="Remove this help section?"
-        message="This will remove the video and images in this section. Other sections will not be affected."
-        confirmLabel="Remove"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmRemove}
-      />
+      
     </BatchFormSection>
   )
 }

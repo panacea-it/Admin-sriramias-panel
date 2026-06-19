@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AlarmClock, TicketPercent } from "lucide-react";
+import { AlarmClock, TicketPercent } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import { cn } from "../../utils/cn";
 import { getModalEditKey, useInitOnModalOpen } from "../../hooks/modalFormSync";

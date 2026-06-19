@@ -1,11 +1,4 @@
-import {
-  LayoutDashboard,
-  Monitor,
-  Database,
-  ClipboardCheck,
-  ScanLine,
-  ListChecks,
-} from 'lucide-react'
+import { LayoutDashboard, Monitor, Database, ClipboardCheck, ScanLine, ListChecks } from 'lucide-react'
 import { TEST_CONFIGURATION_SUBMENU } from './testConfigurationNav'
 
 export const TEST_MANAGEMENT_BASE = '/test-management'

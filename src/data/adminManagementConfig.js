@@ -1,15 +1,4 @@
-import {
-  BookOpen,
-  Users,
-  MessageCircle,
-  Megaphone,
-  Settings,
-  Kanban,
-  ClipboardList,
-  Wallet,
-  TrendingUp,
-  Coins,
-} from 'lucide-react'
+import { BookOpen, Users, MessageCircle, Megaphone, Settings, Kanban, ClipboardList, Wallet, TrendingUp, Coins } from 'lucide-react'
 
 export const PERMISSION_MODULES = [
   {

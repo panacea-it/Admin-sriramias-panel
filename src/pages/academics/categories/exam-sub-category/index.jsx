@@ -12,7 +12,6 @@ import ConfirmExamSubCategoryStatusModal from '../../../../components/categories
 import ExamSubCategoryTableSkeleton from '../../../../components/categories/ExamSubCategoryTableSkeleton'
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
-import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamSubCategoryManagement } from '../../../../hooks/useExamSubCategoryManagement'
@@ -49,7 +48,7 @@ import {
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Inactive' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 function CreateButton({ onClick, disabled }) {
@@ -318,7 +317,7 @@ export default function ExamSubCategorySection({ section }) {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }
 
   const confirmBulkAction = async () => {
@@ -569,7 +568,7 @@ export default function ExamSubCategorySection({ section }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
+          <div className="min-w-0 rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
             <PaginatedFigmaTable
               columns={columns}
               data={displayedSubCategories}
@@ -623,18 +622,7 @@ export default function ExamSubCategorySection({ section }) {
           onConfirm={confirmStatusChange}
         />
 
-        <ConfirmDeleteDialog
-          open={Boolean(deleteTarget)}
-          title={
-            deleteTarget?.ids?.length > 1
-              ? 'Delete selected sub-categories?'
-              : 'Delete exam sub-category?'
-          }
-          message={deleteMessage}
-          confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
-          onCancel={() => !deleteLoading && setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
+        
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

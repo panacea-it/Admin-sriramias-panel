@@ -85,7 +85,7 @@ export function sortYoutubeVideos(videos) {
 
 export function getRankedVideos(videos) {
   return (videos || [])
-    .filter((v) => v.priorityOrder != null && v.status !== 'Inactive')
+    .filter((v) => v.priorityOrder != null && v.status !== 'Deactivated')
     .sort((a, b) => a.priorityOrder - b.priorityOrder)
 }
 

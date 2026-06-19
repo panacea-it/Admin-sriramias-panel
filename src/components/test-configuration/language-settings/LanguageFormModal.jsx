@@ -103,7 +103,7 @@ export default function LanguageFormModal({ open, onClose, item, existingRows = 
               <CourseFormField label="Status">
                 <CourseSelect value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
                   <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Deactivated">Inactive</option>
                 </CourseSelect>
               </CourseFormField>
             </div>

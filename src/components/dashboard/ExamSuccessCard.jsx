@@ -1,8 +1,9 @@
 import DashboardProgressBar from './DashboardProgressBar'
+import DashboardNavLink from './DashboardNavLink'
 
 export default function ExamSuccessCard({ exam }) {
-  return (
-    <article className="rounded-xl p-4" style={{ background: exam.bg }}>
+  const content = (
+    <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-800 shadow-sm">
@@ -23,6 +24,25 @@ export default function ExamSuccessCard({ exam }) {
         color="linear-gradient(90deg,#33b8ff,#005b9a)"
         className="h-2.5"
       />
-    </article>
+    </>
+  )
+
+  if (!exam.href) {
+    return (
+      <article className="rounded-xl p-4" style={{ background: exam.bg }}>
+        {content}
+      </article>
+    )
+  }
+
+  return (
+    <DashboardNavLink
+      to={exam.href}
+      ariaLabel={`Open ${exam.name} in Test Management`}
+      className="rounded-xl p-4"
+      style={{ background: exam.bg }}
+    >
+      {content}
+    </DashboardNavLink>
   )
 }

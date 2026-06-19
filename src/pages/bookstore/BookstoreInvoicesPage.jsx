@@ -54,7 +54,7 @@ export default function BookstoreInvoicesPage() {
       </p>
 
       <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-        <div className="overflow-hidden rounded-xl border border-slate-100">
+        <div className="min-w-0 rounded-xl border border-slate-100">
           <InvoicesTable
             invoices={displayInvoices}
             loading={loading}

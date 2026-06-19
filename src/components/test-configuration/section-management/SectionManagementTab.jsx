@@ -4,7 +4,6 @@ import { toast } from '@/utils/toast'
 import PageBanner from '../../figma/PageBanner'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   SectionManagementTableActions,
   testConfigActionsColumnWide,
@@ -110,7 +109,7 @@ export default function SectionManagementTab() {
   const confirmStatusChange = async () => {
     if (!statusTarget) return
     const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'Inactive'
+    const nextStatus = enabling ? 'Active' : 'Deactivated'
 
     setStatusLoading(true)
     try {
@@ -235,17 +234,7 @@ export default function SectionManagementTab() {
 
       <SectionViewModal open={Boolean(viewRow)} onClose={() => setViewRow(null)} row={viewRow} />
 
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        title="Delete section?"
-        message="Are you sure you want to delete this section?"
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setDeleteOpen(false)
-          setDeleteRow(null)
-        }}
-        loading={deleting}
-      />
+      
 
       <ConfirmTestConfigStatusModal
         open={Boolean(statusTarget)}

@@ -1,4 +1,4 @@
-import { Eye, Pencil, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
+import { Eye, Pencil, RefreshCw, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { isStudentEnrollmentActive } from './studentStatusDisplay'
 
@@ -44,30 +44,6 @@ export default function StudentTableActions({
       aria-label={`Actions for ${studentName}`}
       className="flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 sm:gap-1"
     >
-      <ActionBtn
-        label="View"
-        onClick={onView}
-        disabled={disabled}
-        className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-      </ActionBtn>
-      <ActionBtn
-        label="Edit"
-        onClick={onEdit}
-        disabled={disabled}
-        className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
-      >
-        <Pencil className="h-3.5 w-3.5 shrink-0" />
-      </ActionBtn>
-      <ActionBtn
-        label="Delete"
-        onClick={onDelete}
-        disabled={disabled}
-        className="text-[#c96565] hover:bg-red-50 hover:text-[#b94b4b]"
-      >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" />
-      </ActionBtn>
       {canMove && onMove && (
         <ActionBtn
           label="Move"
@@ -80,7 +56,7 @@ export default function StudentTableActions({
       )}
       {onToggleStatus && (
         <ActionBtn
-          label={isActive ? 'Disable' : 'Enable'}
+          label={isActive ? 'Deactivate' : 'Activate'}
           onClick={onToggleStatus}
           disabled={disabled}
           className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"

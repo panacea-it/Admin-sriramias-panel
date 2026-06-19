@@ -47,7 +47,7 @@ export function isBlogActive(status) {
 }
 
 export function blogStatusLabel(status) {
-  return isBlogActive(status) ? 'Active' : 'Inactive'
+  return isBlogActive(status) ? 'Active' : 'Deactivated'
 }
 
 export function toggleBlogStatus(status) {

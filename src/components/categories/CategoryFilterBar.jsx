@@ -26,7 +26,7 @@ function FilterSelect({ label, value, onChange, options }) {
 const DEFAULT_STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'In Active' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 export default function CategoryFilterBar({

@@ -6,7 +6,6 @@ import BannerFilterToolbar from '../../components/banners/BannerFilterToolbar'
 import BannerEditModal from '../../components/banners/BannerEditModal'
 import BannerImagePreviewModal from '../../components/banners/BannerImagePreviewModal'
 import { buildBannerTableColumns } from '../../components/banners/bannerTableColumns'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { BANNER_CATEGORIES, BANNER_CENTERS } from '../../data/bannersData'
 import { useBanners } from '../../hooks/useBanners'
 import { cn } from '../../utils/cn'
@@ -151,15 +150,7 @@ export default function BannersPage() {
         banner={previewBanner}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete banner?"
-        message="Are you sure you want to delete this banner?"
-        onCancel={cancelDelete}
-        onConfirm={handleDelete}
-        loading={deleting}
-        confirmLabel="Confirm"
-      />
+      
     </div>
   )
 }

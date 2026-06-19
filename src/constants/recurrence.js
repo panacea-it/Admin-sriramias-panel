@@ -35,18 +35,21 @@ export const RECURRENCE_EDIT_SCOPES = [
   },
 ]
 
-export const RECURRENCE_DELETE_SCOPES = [
-  { value: 'this', label: 'Delete single occurrence', description: 'Removes only this session.' },
+export const RECURRENCE_CANCEL_SCOPES = [
+  { value: 'this', label: 'Cancel this occurrence', description: 'Removes only this session.' },
   {
     value: 'future',
-    label: 'Delete future occurrences',
+    label: 'Cancel future occurrences',
     description: 'Removes this session and all later sessions in the series.',
   },
   {
     value: 'series',
-    label: 'Delete complete recurring schedule',
+    label: 'Cancel entire recurring schedule',
     description: 'Removes every session in this recurring series.',
   },
 ]
+
+/** @deprecated Use RECURRENCE_CANCEL_SCOPES */
+export const RECURRENCE_DELETE_SCOPES = RECURRENCE_CANCEL_SCOPES
 
 export const MAX_RECURRENCE_OCCURRENCES = 366

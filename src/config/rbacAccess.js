@@ -5,7 +5,12 @@ import { canAccessOmrPermission } from './omrRbac'
 import { OMR_PERMS } from '../constants/omrPermissions'
 
 /** Route prefixes each role may access (settings profile always allowed) */
-const SETTINGS_PATHS = ['/settings/profile', '/settings/notifications', '/settings/general']
+const SETTINGS_PATHS = [
+  '/settings/profile',
+  '/settings/notifications',
+  '/settings/general',
+  '/settings/activity-history',
+]
 
 const ROLE_ROUTE_PREFIXES = {
   [ROLES.SUPER_ADMIN]: ['*'],

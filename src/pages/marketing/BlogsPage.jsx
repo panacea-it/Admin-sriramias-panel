@@ -6,7 +6,6 @@ import AddBlogModal from '../../components/blogs/AddBlogModal'
 import BlogManagementTable from '../../components/blogs/BlogManagementTable'
 import BlogRowActions from '../../components/blogs/BlogRowActions'
 import BlogStatusBadge from '../../components/blogs/BlogStatusBadge'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import {
   blogStatusLabel,
   isBlogActive,
@@ -367,19 +366,7 @@ export default function BlogsPage() {
         </div>
       )}
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete Blog"
-        message={
-          deleteTarget
-            ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.`
-            : 'Are you sure you want to delete this blog?'
-        }
-        onCancel={cancelDelete}
-        onConfirm={handleConfirmDelete}
-        loading={deleting}
-        confirmLabel="Delete"
-      />
+      
     </div>
   )
 }

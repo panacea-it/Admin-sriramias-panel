@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle2, ChevronDown, Copy, GripVertical, Trash2 } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Copy, GripVertical, Minus } from 'lucide-react'
 import BlogRichEditor from '../../blogs/BlogRichEditor'
 import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import { cn } from '../../../utils/cn'
@@ -260,8 +260,8 @@ function QuestionCard({
                   onClick={onDelete}
                   className="inline-flex items-center gap-2 rounded-full border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
+                  <Minus className="h-4 w-4" />
+                  Remove
                 </button>
                 <button
                   type="button"

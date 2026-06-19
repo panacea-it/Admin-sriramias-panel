@@ -43,7 +43,7 @@ const COURSE_NAMES = [
 export const BANNER_COURSE_OPTIONS = COURSE_NAMES
 
 function normalizeStatus(status) {
-  if (status === 'Inactive' || status === 'InActive') return 'In Active'
+  if (status === 'Deactivated' || status === 'InActive') return 'In Active'
   if (status === 'In Active' || status === 'Active') return status
   return status === 'Active' ? 'Active' : 'In Active'
 }

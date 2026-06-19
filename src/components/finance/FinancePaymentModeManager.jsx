@@ -182,7 +182,7 @@ export default function FinancePaymentModeManager({
             <div className="flex flex-wrap gap-2">
               {[
                 { label: 'Active', value: activeCount },
-                { label: 'Inactive', value: inactiveCount },
+                { label: 'Deactivated', value: inactiveCount },
                 { label: 'Total', value: draft.length },
               ].map((stat) => (
                 <span
@@ -299,13 +299,13 @@ export default function FinancePaymentModeManager({
 
       <FinanceConfirmDialog
         open={!!confirmDelete}
-        title="Delete payment mode?"
+        title="Deactivate"
         message={
           confirmDelete
             ? `Permanently remove "${confirmDelete.label}"? This cannot be undone.`
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         variant="danger"
         onConfirm={async () => {
           if (!confirmDelete || saving) {

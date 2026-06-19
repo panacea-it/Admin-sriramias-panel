@@ -1,9 +1,10 @@
 import { MapPin } from 'lucide-react'
 import DashboardProgressBar from './DashboardProgressBar'
+import DashboardNavLink from './DashboardNavLink'
 
 export default function CenterPerformanceCard({ center }) {
-  return (
-    <article className="rounded-xl bg-[#dff4ff] p-4 sm:p-5">
+  const content = (
+    <>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
@@ -64,6 +65,20 @@ export default function CenterPerformanceCard({ center }) {
           </div>
         ))}
       </div>
-    </article>
+    </>
+  )
+
+  if (!center.href) {
+    return <article className="rounded-xl bg-[#dff4ff] p-4 sm:p-5">{content}</article>
+  }
+
+  return (
+    <DashboardNavLink
+      to={center.href}
+      ariaLabel={`Open ${center.name} in Centers Management`}
+      className="rounded-xl bg-[#dff4ff] p-4 sm:p-5"
+    >
+      {content}
+    </DashboardNavLink>
   )
 }

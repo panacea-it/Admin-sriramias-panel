@@ -214,7 +214,7 @@ export default function ClassroomFormModal({
               <CourseFormField label="Status">
                 <CourseSelect {...register('status')}>
                   <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Deactivated">Inactive</option>
                 </CourseSelect>
               </CourseFormField>
             </>

@@ -92,7 +92,7 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
         ...form,
         category: resolvedCategory,
         type,
-        status: form.status === 'In Active' ? 'Inactive' : form.status,
+        status: form.status === 'In Active' ? 'Deactivated' : form.status,
         content: {
           question: String(content.question || ''),
           explanation: String(content.explanation || ''),

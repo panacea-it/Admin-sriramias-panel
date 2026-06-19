@@ -68,7 +68,7 @@ function normalizeCreateFormStatus(status) {
   const value = String(status || '').trim()
   if (value === 'ACTIVE' || value === 'INACTIVE') return value
   if (value === 'Active') return 'ACTIVE'
-  if (value === 'In Active' || value === 'Inactive') return 'INACTIVE'
+  if (value === 'In Active' || value === 'Deactivated') return 'INACTIVE'
   return 'ACTIVE'
 }
 

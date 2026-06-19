@@ -24,7 +24,7 @@ export const ROLE_LABELS = {
   [ROLES.OPERATION_ADMIN]: 'Operation Admin',
   [ROLES.CONTENT_ADMIN]: 'Content Admin',
   [ROLES.MENTOR_ADMIN]: 'Mentor Admin',
-  [ROLES.TEACHER_ADMIN]: 'Teacher Admin',
+  [ROLES.TEACHER_ADMIN]: 'Faculty Admin',
   [ROLES.COUNSELING_ADMIN]: 'Counseling Admin',
 }
 
@@ -35,6 +35,6 @@ export const LOGIN_ROLE_OPTIONS = [
   { id: ROLES.OPERATION_ADMIN, label: 'Operation Admin', short: 'Courses & batch ops' },
   { id: ROLES.CONTENT_ADMIN, label: 'Content Admin', short: 'Blogs & learning content' },
   { id: ROLES.MENTOR_ADMIN, label: 'Mentor Admin', short: 'Mentor review & analytics' },
-  { id: ROLES.TEACHER_ADMIN, label: 'Teacher Admin', short: 'Classes & materials' },
+  { id: ROLES.TEACHER_ADMIN, label: 'Faculty Admin', short: 'Classes & materials' },
   { id: ROLES.COUNSELING_ADMIN, label: 'Counseling Admin', short: 'Leads & admissions' },
 ]

@@ -49,7 +49,7 @@ const makeYoutubeRows = () => {
     time: `${9 + (i % 4)} AM`,
     date: '14 May 2026',
     dateBucket: i < 6 ? 'Today' : i < 12 ? 'This Week' : 'This Month',
-    status: i % 4 === 0 ? 'Inactive' : 'Active',
+    status: i % 4 === 0 ? 'Deactivated' : 'Active',
     priorityOrder: i < 8 ? i + 1 : null,
     priorityLevel: 0,
     customOrder: i,
@@ -69,7 +69,7 @@ const makeRankRows = () =>
     time: '10 AM',
     date: '14 May 2026',
     dateBucket: i < 6 ? 'Today' : i < 12 ? 'This Week' : 'This Month',
-    status: i % 4 === 0 ? 'Inactive' : 'Active',
+    status: i % 4 === 0 ? 'Deactivated' : 'Active',
   }))
 
 export const INITIAL_RANKERS = makeRankRows()

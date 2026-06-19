@@ -1,4 +1,4 @@
-import { UserRound } from "lucide-react";
+import { UserRound } from 'lucide-react';
 import Modal from "../ui/Modal";
 import ModalPanelHeader from "../courses/ModalPanelHeader";
 import { formatLeadStatusLabel } from "../../data/leadsData";

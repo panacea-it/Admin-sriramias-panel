@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { UploadCloud, FileDown, FileSpreadsheet, AlertTriangle, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
+import { UploadCloud, FileDown, FileSpreadsheet, AlertTriangle, CheckCircle2, X, XCircle } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
@@ -308,7 +308,7 @@ export default function QuestionBulkUploadModal({ open, onClose, onUploaded }) {
                         onClick={resetAll}
                         className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                         Remove
                       </button>
                     </div>

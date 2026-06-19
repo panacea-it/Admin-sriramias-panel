@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Trash2, Ban, CheckCircle2, X } from 'lucide-react'
+import { Ban, CheckCircle2, X } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
 
@@ -7,7 +7,7 @@ export default function SubjectBulkToolbar({
   selectedCount = 0,
   onEnable,
   onDisable,
-  onDelete,
+  onDelete: _onDelete,
   onClearSelection,
   className,
 }) {
@@ -34,30 +34,25 @@ export default function SubjectBulkToolbar({
               <button
                 type="button"
                 onClick={onEnable}
+                title="Activate"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:scale-[1.02] hover:bg-emerald-50 hover:shadow active:scale-[0.98]"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Enable Selected
+                Activate Selected
               </button>
               <button
                 type="button"
                 onClick={onDisable}
+                title="Deactivate"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 shadow-sm transition hover:scale-[1.02] hover:bg-amber-50 hover:shadow active:scale-[0.98]"
               >
                 <Ban className="h-3.5 w-3.5" />
-                Disable Selected
-              </button>
-              <button
-                type="button"
-                onClick={onDelete}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-[#c96565] shadow-sm transition hover:scale-[1.02] hover:bg-red-50 hover:shadow active:scale-[0.98]"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Selected
+                Deactivate Selected
               </button>
               <button
                 type="button"
                 onClick={onClearSelection}
+                title="Clear selection"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
               >
                 <X className="h-3.5 w-3.5" />

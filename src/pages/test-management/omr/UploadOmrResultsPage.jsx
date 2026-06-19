@@ -5,19 +5,16 @@ import {
   Download,
   FileSpreadsheet,
   ScanLine,
-  Trash2,
   UploadCloud,
 } from 'lucide-react'
 import TestManagementPageShell from '../../../components/test-management/TestManagementPageShell'
 import OmrTableSkeleton from '../../../components/test-management/omr/OmrTableSkeleton'
-import ConfirmOmrResultDeleteModal from '../../../components/test-management/omr/ConfirmOmrResultDeleteModal'
 import { CourseFormField } from '../../../components/courses/CourseFormField'
 import { UploadFieldHint, UploadValidationMessage } from '../../../components/common/UploadFieldHint'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useOmrPermissions } from '../../../hooks/useOmrPermissions'
 import {
-  deleteOmrResultSheet,
   downloadOmrResultSheet,
   getOmrExamById,
   replaceOmrResultSheet,
@@ -34,15 +31,13 @@ export default function UploadOmrResultsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { canUploadResult, canDownloadResult, canDeleteResult } = useOmrPermissions()
+  const { canUploadResult, canDownloadResult } = useOmrPermissions()
 
   const [exam, setExam] = useState(null)
   const [loading, setLoading] = useState(true)
   const [file, setFile] = useState(null)
   const [fileError, setFileError] = useState('')
   const [uploading, setUploading] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
 
@@ -103,20 +98,6 @@ export default function UploadOmrResultsPage() {
       toast.success('Download started')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to download result sheet'))
-    }
-  }
-
-  const confirmDelete = async () => {
-    setDeleteLoading(true)
-    try {
-      const updated = await deleteOmrResultSheet(id)
-      setExam(mapApiOmrExamToLocal(updated) || updated)
-      setDeleteOpen(false)
-      toast.success('Result sheet deleted')
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to delete result sheet'))
-    } finally {
-      setDeleteLoading(false)
     }
   }
 
@@ -222,7 +203,7 @@ export default function UploadOmrResultsPage() {
               <button
                 type="button"
                 onClick={() => navigate(TEST_MANAGEMENT_ROUTES.omr)}
-                disabled={uploading || deleteLoading}
+                disabled={uploading}
                 className="inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl border border-slate-200 bg-white px-6 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
               >
                 Cancel
@@ -232,7 +213,7 @@ export default function UploadOmrResultsPage() {
                 <button
                   type="button"
                   onClick={handleDownload}
-                  disabled={uploading || deleteLoading}
+                  disabled={uploading}
                   className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-[#55ace7]/30 bg-white px-6 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef6fc] disabled:opacity-60"
                 >
                   <Download className="h-4 w-4" />
@@ -240,23 +221,11 @@ export default function UploadOmrResultsPage() {
                 </button>
               )}
 
-              {canDeleteResult && hasExisting && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteOpen(true)}
-                  disabled={uploading || deleteLoading}
-                  className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-6 text-sm font-semibold text-[#c96565] shadow-sm transition hover:bg-red-50 disabled:opacity-60"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete File
-                </button>
-              )}
-
               {canUploadResult && (
                 <button
                   type="button"
                   onClick={handleUpload}
-                  disabled={!file || uploading || deleteLoading}
+                  disabled={!file || uploading}
                   className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 text-sm font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
                 >
                   <UploadCloud className="h-4 w-4" />
@@ -272,14 +241,6 @@ export default function UploadOmrResultsPage() {
         </div>
       )}
 
-      <ConfirmOmrResultDeleteModal
-        open={deleteOpen}
-        examName={exam?.examName}
-        fileName={exam?.resultSheet?.fileName}
-        loading={deleteLoading}
-        onCancel={() => !deleteLoading && setDeleteOpen(false)}
-        onConfirm={confirmDelete}
-      />
     </TestManagementPageShell>
   )
 }

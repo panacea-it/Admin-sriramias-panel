@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getModalEditKey, useInitOnModalOpen } from "../../hooks/modalFormSync";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Building2, Loader2, X } from "lucide-react";
+import { Building2, Loader2, X } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import {
   buildCreateCenterPayload,

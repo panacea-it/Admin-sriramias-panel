@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Eye, Trash2 } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import {
   REMARK_PREVIEW_MAX_LENGTH,
@@ -20,30 +20,7 @@ export default function CounselorRemarksTable({
 }) {
   const renderActions = (row) => (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={() => onViewRemark?.(row)}
-        title="View"
-        aria-label={`View remark for ${row.attemptId}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => onRequestDeleteRemark?.(row)}
-        title="Delete"
-        aria-label={`Delete remark for ${row.attemptId}`}
-        className={cn(actionButtonClass, 'text-red-600 hover:bg-red-50')}
-      >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Delete</span>
-      </button>
-    </div>
+      </div>
   )
 
   const columns = useMemo(

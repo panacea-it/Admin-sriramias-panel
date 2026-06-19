@@ -6,10 +6,10 @@ import CategoryFilterBar from '../../../../components/categories/CategoryFilterB
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
-import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useTeacherManagement } from '../../../../hooks/useTeacherManagement'
+import { useInitialRouteSearch } from '../../../../hooks/useInitialRouteSearch'
 import { useSubjectsDropdown } from '../../../../hooks/useSubjectsDropdown'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
 import { toast, TOAST_DURATION } from '../../../../utils/toast'
@@ -46,7 +46,7 @@ import TeacherTable from './TeacherTable'
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Inactive' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 function AddButton({ onClick, children, disabled }) {
@@ -80,6 +80,8 @@ export default function TeacherSection({ section }) {
     patchTeacherLocally,
     removeTeacherLocally,
   } = useTeacherManagement()
+
+  useInitialRouteSearch(setSearch)
 
   const { options: subjectDropdownOptions, loading: subjectsLoading } = useSubjectsDropdown()
   const { options: centerDropdownOptions } = useCentersDropdownOptions()
@@ -136,7 +138,7 @@ export default function TeacherSection({ section }) {
         const detail = await loadTeacherDetail(row)
         if (detail) setViewItem(detail)
       } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load teacher details'))
+        toast.error(getApiErrorMessage(error, 'Failed to load faculty details'))
         setViewItem(null)
       } finally {
         setViewLoading(false)
@@ -154,7 +156,7 @@ export default function TeacherSection({ section }) {
         const detail = await loadTeacherDetail(row)
         setEditDetail(detail || row)
       } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load teacher for edit'))
+        toast.error(getApiErrorMessage(error, 'Failed to load faculty for edit'))
         close()
       } finally {
         setEditDetailLoading(false)
@@ -176,15 +178,15 @@ export default function TeacherSection({ section }) {
       try {
         if (isEdit && id != null) {
           await updateTeacher(id, buildUpdateTeacherPayload(form))
-          toast.success('Teacher updated')
+          toast.success('Faculty updated')
         } else {
           await createTeacher(buildCreateTeacherPayload(form))
-          toast.success('Teacher created')
+          toast.success('Faculty created')
         }
         await refreshTeachers()
       } catch (error) {
         toast.error(
-          getApiErrorMessage(error, isEdit ? 'Failed to update teacher' : 'Failed to create teacher'),
+          getApiErrorMessage(error, isEdit ? 'Failed to update faculty' : 'Failed to create faculty'),
         )
         throw error
       } finally {
@@ -209,10 +211,10 @@ export default function TeacherSection({ section }) {
       ids.forEach((id) => removeTeacherLocally(id))
       setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
-      toast.success(ids.length > 1 ? `${ids.length} teachers deleted` : 'Teacher deleted')
+      toast.success(ids.length > 1 ? `${ids.length} faculty deleted` : 'Faculty deleted')
       await refreshTeachers()
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete teacher'))
+      toast.error(getApiErrorMessage(error, 'Failed to delete faculty'))
     } finally {
       setDeleteLoading(false)
     }
@@ -230,7 +232,7 @@ export default function TeacherSection({ section }) {
 
     try {
       await updateTeacherStatus(statusTarget.id, nextApi)
-      toast.success(enabling ? 'Teacher enabled' : 'Teacher disabled')
+      toast.success(enabling ? 'Faculty enabled' : 'Faculty disabled')
       setStatusTarget(null)
       await refreshTeachers()
     } catch (error) {
@@ -253,7 +255,7 @@ export default function TeacherSection({ section }) {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }
 
   const confirmBulkAction = async () => {
@@ -294,7 +296,7 @@ export default function TeacherSection({ section }) {
       }
       toast.error(
         bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected teachers')
+          ? getApiErrorMessage(error, 'Failed to delete selected faculty')
           : getMasterBulkErrorMessage(error, bulkConfirm.type),
       )
       if (bulkConfirm.type !== 'delete') {
@@ -337,8 +339,8 @@ export default function TeacherSection({ section }) {
 
   const deleteMessage =
     deleteTarget?.ids?.length > 1
-      ? `Delete ${deleteTarget.ids.length} selected teachers? This cannot be undone.`
-      : `Are you sure you want to delete "${deleteTarget?.name || 'this teacher'}"? This action cannot be undone.`
+      ? `Delete ${deleteTarget.ids.length} selected faculty? This cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this faculty member'}"? This action cannot be undone.`
 
   if (!section) return null
 
@@ -352,7 +354,7 @@ export default function TeacherSection({ section }) {
         transition={{ duration: 0.22 }}
         className="space-y-5 sm:space-y-6"
       >
-        <CategoryPageHeader title="Teachers">
+        <CategoryPageHeader title="Faculty">
           <AddButton onClick={openCreate} disabled={loading}>
             {section.addLabel}
           </AddButton>
@@ -439,21 +441,14 @@ export default function TeacherSection({ section }) {
 
         <ConfirmTeacherStatusModal
           open={Boolean(statusTarget)}
-          teacherName={statusTarget?.name || 'this teacher'}
+          teacherName={statusTarget?.name || 'this faculty member'}
           enabling={statusTarget?.status !== 'Active'}
           loading={statusLoading}
           onCancel={() => setStatusTarget(null)}
           onConfirm={confirmStatusChange}
         />
 
-        <ConfirmDeleteDialog
-          open={Boolean(deleteTarget)}
-          title={deleteTarget?.ids?.length > 1 ? 'Delete selected teachers?' : 'Delete teacher?'}
-          message={deleteMessage}
-          confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
-          onCancel={() => !deleteLoading && setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
+        
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

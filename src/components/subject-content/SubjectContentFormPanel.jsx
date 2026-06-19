@@ -466,7 +466,7 @@ export default function SubjectContentFormPanel({
           setError('batchIds', { type: 'manual', message })
         } else if (message.toLowerCase().includes('center')) {
           setError('recordingCenter', { type: 'manual', message })
-        } else if (message.toLowerCase().includes('teacher')) {
+        } else if (message.toLowerCase().includes('teacher') || message.toLowerCase().includes('faculty')) {
           setError('recordingTeacher', { type: 'manual', message })
         } else if (message.toLowerCase().includes('video') || message.toLowerCase().includes('upload')) {
           setError('recordingVideoFileName', { type: 'manual', message })

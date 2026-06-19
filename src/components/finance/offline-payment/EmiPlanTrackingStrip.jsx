@@ -1,12 +1,5 @@
 import { motion } from 'framer-motion'
-import {
-  AlertTriangle,
-  CalendarClock,
-  IndianRupee,
-  Percent,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react'
+import { AlertTriangle, CalendarClock, IndianRupee, Percent, TrendingUp, Wallet } from 'lucide-react'
 import { formatINR } from '../../../utils/financeFilters'
 import { formatDisplayDate } from '../../../utils/emiSchedule'
 

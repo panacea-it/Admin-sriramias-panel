@@ -1,9 +1,10 @@
 import { TOAST_DURATION } from './toast'
 
 export const MASTER_BULK_TOAST = {
-  enabled: 'Selected records enabled successfully.',
-  disabled: 'Selected records disabled successfully.',
-  deleted: 'Selected records deleted successfully.',
+  enabled: 'Selected records activated successfully.',
+  disabled: 'Selected records deactivated successfully.',
+  activated: 'Selected records activated successfully.',
+  deactivated: 'Selected records deactivated successfully.',
 }
 
 export const MASTER_BULK_TOAST_DURATION = TOAST_DURATION.short

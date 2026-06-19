@@ -1,11 +1,9 @@
 import { Bell, Clock3 } from 'lucide-react'
+import DashboardNavLink from './DashboardNavLink'
 
-export default function ActivityCard({ text, sub, time, bg }) {
-  return (
-    <article
-      className="flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between"
-      style={{ background: bg }}
-    >
+export default function ActivityCard({ text, sub, time, bg, href }) {
+  const content = (
+    <>
       <div className="flex min-w-0 items-start gap-3">
         <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
           <Bell className="h-5 w-5 text-[#c0b400]" />
@@ -20,6 +18,28 @@ export default function ActivityCard({ text, sub, time, bg }) {
         <Clock3 size={12} />
         <span className="whitespace-nowrap">{time}</span>
       </span>
-    </article>
+    </>
+  )
+
+  const layoutClass =
+    'flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between'
+
+  if (!href) {
+    return (
+      <article className={layoutClass} style={{ background: bg }}>
+        {content}
+      </article>
+    )
+  }
+
+  return (
+    <DashboardNavLink
+      to={href}
+      ariaLabel={`Open activity: ${text}`}
+      className={layoutClass}
+      style={{ background: bg }}
+    >
+      {content}
+    </DashboardNavLink>
   )
 }

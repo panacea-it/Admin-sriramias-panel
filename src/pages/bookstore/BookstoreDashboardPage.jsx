@@ -1,22 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  IndianRupee,
-  ShoppingCart,
-  Clock,
-  Truck,
-  AlertTriangle,
-  Users,
-  TrendingUp,
-  FolderOpen,
-  Download,
-  Star,
-  ArrowUp,
-  ArrowDown,
-  PackagePlus,
-  Medal,
-} from 'lucide-react'
+import { LayoutDashboard, IndianRupee, ShoppingCart, Clock, Truck, AlertTriangle, Users, TrendingUp, FolderOpen, Download, Star, ArrowUp, ArrowDown, PackagePlus, Medal } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import BookstoreDashboardSkeleton from '../../components/bookstore/BookstoreDashboardSkeleton'
 import BookstoreDashboardKpiCard from '../../components/bookstore/dashboard/BookstoreDashboardKpiCard'

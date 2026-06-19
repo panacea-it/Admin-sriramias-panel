@@ -8,7 +8,6 @@ import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import AdminRoleFormModal from '../../components/admin-management/roles/AdminRoleFormModal'
 import AdminRoleViewModal from '../../components/admin-management/roles/AdminRoleViewModal'
-import ConfirmRoleDeleteModal from '../../components/admin-management/roles/ConfirmRoleDeleteModal'
 import ConfirmRoleStatusModal from '../../components/admin-management/roles/ConfirmRoleStatusModal'
 import RoleBulkActionsBar from '../../components/admin-management/roles/RoleBulkActionsBar'
 import RoleManagementTable from '../../components/admin-management/roles/RoleManagementTable'
@@ -28,7 +27,7 @@ const BREADCRUMB = [
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'All status' },
   { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'In Active' },
+  { value: 'In Active', label: 'Deactivated' },
 ]
 
 function canToggleRoleStatus(role) {
@@ -392,19 +391,7 @@ export default function RoleAccessPage() {
         roleId={viewingId}
         onClose={() => setViewingId(null)}
       />
-      <ConfirmRoleDeleteModal
-        open={!!deleteTarget || !!bulkDeleteIds?.length}
-        roleLabel={deleteTarget?.label}
-        bulkCount={bulkDeleteIds?.length || 0}
-        loading={deleteLoading}
-        onCancel={() => {
-          if (!deleteLoading) {
-            setDeleteTarget(null)
-            setBulkDeleteIds(null)
-          }
-        }}
-        onConfirm={confirmDelete}
-      />
+      
       <ConfirmRoleStatusModal
         open={!!statusTarget || !!bulkDisableIds?.length}
         roleLabel={statusTarget?.label || 'this role'}

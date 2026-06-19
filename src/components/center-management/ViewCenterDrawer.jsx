@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Building2,
-  Calendar,
-  Loader2,
-  Mail,
-  MapPin,
-  Phone,
-  Users,
-} from "lucide-react";
+import { Building2, Calendar, Loader2, Mail, MapPin, Phone, Users } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import Modal from "../ui/Modal";
 import {

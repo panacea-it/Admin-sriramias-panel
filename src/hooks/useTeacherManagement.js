@@ -77,7 +77,7 @@ export function useTeacherManagement() {
         handleError: (error, { hydratedFromSession }) => {
           if (import.meta.env.DEV) console.error(error)
           fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, 'Failed to load teachers'),
+            fetchGuard.getListErrorMessage(error, 'Failed to load faculty'),
           )
           if (!hydratedFromSession) {
             setTeachers([])

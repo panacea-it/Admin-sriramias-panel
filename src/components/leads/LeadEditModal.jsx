@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Pencil } from "lucide-react";
+import { ChevronDown, Pencil } from 'lucide-react';
 import Modal from "../ui/Modal";
 import ModalPanelHeader from "../courses/ModalPanelHeader";
 import { cn } from "../../utils/cn";

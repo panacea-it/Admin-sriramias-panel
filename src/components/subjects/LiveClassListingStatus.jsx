@@ -35,7 +35,7 @@ export default function LiveClassListingStatus({ status, onChange, disabled = fa
           )}
         />
         <span className="text-[11px] font-bold tracking-wide">
-          {active ? 'Active' : 'Inactive'}
+          {active ? 'Active' : 'Deactivated'}
         </span>
         <span
           className={cn(

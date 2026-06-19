@@ -10,7 +10,6 @@ import CategoryTableActions from '../../../components/categories/CategoryTableAc
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import ProgramFormModal from '../../../components/categories/ProgramFormModal'
 import ViewProgramModal from '../../../components/categories/ViewProgramModal'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import ConfirmProgramStatusModal from '../../../components/categories/ConfirmProgramStatusModal'
 import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import { useCenters } from '../../../contexts/CentersContext'
@@ -83,7 +82,7 @@ function NoMatchesState() {
 const PROGRAM_STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+  { value: 'INACTIVE', label: 'Deactivated' },
 ]
 
 function statusFilterToSelectValue(statusFilter) {
@@ -324,7 +323,7 @@ export default function ProgramsPage() {
 
   const handleBulkDeleteRequest = () => {
     if (!selectedIds.length) return
-    setBulkConfirm({ type: 'delete' })
+    setBulkConfirm({ type: 'deactivate' })
   }
 
   const confirmBulkAction = async () => {
@@ -565,14 +564,7 @@ export default function ProgramsPage() {
           centresCatalog={centreRows}
         />
 
-        <ConfirmDeleteDialog
-          open={Boolean(deleteTarget)}
-          title={deleteTarget?.ids?.length > 1 ? 'Delete selected programs?' : 'Delete program?'}
-          message={deleteMessage}
-          confirmLabel={deleteLoading ? 'Deleting…' : 'Confirm Delete'}
-          onCancel={() => !deleteLoading && setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
+        
 
         <ConfirmProgramStatusModal
           open={Boolean(statusTarget)}

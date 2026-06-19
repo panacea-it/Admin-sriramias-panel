@@ -119,7 +119,7 @@ export default function SubjectCourseDetailsSection({
           )}
         </div>
         <div>
-          <FieldLabel required>Teacher</FieldLabel>
+          <FieldLabel required>Faculty</FieldLabel>
           <Controller
             control={control}
             name="teacher"
@@ -130,12 +130,12 @@ export default function SubjectCourseDetailsSection({
                 options={teacherOptions}
                 placeholder={
                   loadingFormOptions
-                    ? 'Loading teachers…'
+                    ? 'Loading faculty…'
                     : disabledTopicsTeachers
                       ? 'Choose Subject first'
                       : teacherOptions.length
-                        ? 'Choose Teacher'
-                        : 'No teachers available'
+                        ? 'Choose Faculty'
+                        : 'No faculty available'
                 }
                 disabled={disabledTopicsTeachers || loadingFormOptions}
               />

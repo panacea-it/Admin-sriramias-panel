@@ -6,7 +6,6 @@ import LiveClassListingToolbar from '../../components/subjects/LiveClassListingT
 import TopicTable from '../../components/subjects/TopicTable'
 import SubjectModal from '../../components/subjects/SubjectModal'
 import SubjectEmptyState from '../../components/subjects/SubjectEmptyState'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import RecurrenceScopeDialog from '../../components/live-classes/RecurrenceScopeDialog'
 import ExamCategoryTableSkeleton from '../../components/categories/ExamCategoryTableSkeleton'
 import { RECURRENCE_DELETE_SCOPES } from '../../constants/recurrence'
@@ -289,7 +288,7 @@ export default function SubjectViewListPage() {
       <RecurrenceScopeDialog
         open={Boolean(recurrenceDialog)}
         mode="delete"
-        title="Delete recurring live class"
+        title="Deactivate"
         lessonName={recurrenceDialog?.row?.classTitle}
         scopes={RECURRENCE_DELETE_SCOPES}
         loading={deleteLoading}
@@ -297,18 +296,7 @@ export default function SubjectViewListPage() {
         onCancel={() => setRecurrenceDialog(null)}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleteTarget)}
-        title="Delete live class?"
-        message={
-          deleteTarget
-            ? `Remove "${deleteTarget.classTitle}" from this subject?`
-            : ''
-        }
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteTarget(null)}
-        loading={deleteLoading}
-      />
+      
     </div>
   )
 }

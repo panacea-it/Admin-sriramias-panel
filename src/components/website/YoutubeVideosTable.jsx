@@ -38,7 +38,7 @@ export default function YoutubeVideosTable({
       tableLayoutFixed
       gradientActivePage
       rowClassName={rowClassName ?? 'hover:bg-[#eef6fc]/70'}
-      className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
+      className="min-w-0 rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
       tableClassName={TABLE_CLASS}
       paginationClassName="border-t border-[#E5E7EB] bg-white"
       zebraStriping

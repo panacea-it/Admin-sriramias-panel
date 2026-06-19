@@ -1,13 +1,5 @@
 import { useRef, useState } from 'react'
-import {
-  Download,
-  Eye,
-  FileText,
-  Loader2,
-  RefreshCw,
-  Trash2,
-  Upload,
-} from 'lucide-react'
+import { Download, Eye, FileText, Loader2, RefreshCw, Upload, X } from 'lucide-react'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
@@ -142,7 +134,7 @@ export default function BrochurePdfUpload({
                 disabled={disabled || uploading}
               />
               <ActionButton
-                icon={Trash2}
+                icon={X}
                 label="Remove Brochure"
                 onClick={handleRemove}
                 disabled={disabled || uploading}

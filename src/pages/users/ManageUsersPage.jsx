@@ -8,7 +8,6 @@ import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersF
 import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsersBulkActionsBar'
 import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
 import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
-import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
 import UserFormModal from '../../components/manage-users/UserFormModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
@@ -50,7 +49,7 @@ function roleDisplayLabel(role) {
     .trim()
     .toLowerCase();
 
-  if (normalized === "faculty") return "Teacher";
+  if (normalized === "faculty") return "Faculty";
   if (normalized === "counselor") return "Parent";
   if (normalized === "mentor_admin" || normalized === "mentor-admin")
     return "Mentor Admin";
@@ -75,7 +74,7 @@ function UserStatusBadge({ status }) {
         )}
         aria-hidden
       />
-      {isActive ? "Active" : "Inactive"}
+      {isActive ? "Active" : "Deactivated"}
     </span>
   );
 }
@@ -692,15 +691,7 @@ export default function ManageUsersPage() {
         onConfirm={confirmStatusChange}
       />
 
-      <ConfirmManageUserDeleteModal
-        open={Boolean(deleteTarget)}
-        user={deleteTarget}
-        loading={deleteLoading}
-        onCancel={() => {
-          if (!deleteLoading) setDeleteTarget(null);
-        }}
-        onConfirm={confirmDelete}
-      />
+      
     </div>
   );
 }

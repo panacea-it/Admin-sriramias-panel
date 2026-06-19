@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Pencil,
-  Trash2,
   Check,
   X,
 } from 'lucide-react'
@@ -120,14 +119,6 @@ function FolderNode({
             className="rounded p-1 text-slate-500 hover:bg-slate-100"
           >
             <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            title="Delete"
-            onClick={() => onDeleteFolder(folder.id)}
-            className="rounded p-1 text-[#c96565] hover:bg-red-50"
-          >
-            <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>

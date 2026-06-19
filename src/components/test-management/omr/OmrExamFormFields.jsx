@@ -55,7 +55,7 @@ export default function OmrExamFormFields({ form, setForm, errors, setErrors, di
           className={errors.status ? 'ring-2 ring-red-400' : undefined}
         >
           <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
+          <option value="Deactivated">Inactive</option>
         </CourseSelect>
         {errors.status && (
           <p className="mt-1 text-xs font-semibold text-red-600">{errors.status}</p>

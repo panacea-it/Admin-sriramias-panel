@@ -142,7 +142,7 @@ export default function ScheduleClassModal({
       return false
     }
     if (!form.teacher?.trim()) {
-      toast.error('Teacher is required')
+      toast.error('Faculty is required')
       return false
     }
     if (isLive) {
@@ -190,7 +190,7 @@ export default function ScheduleClassModal({
           ),
         )
         if (conflict) {
-          toast.error('Schedule conflict: teacher already booked for one or more recurring dates')
+          toast.error('Schedule conflict: faculty member already booked for one or more recurring dates')
           return false
         }
       } else {
@@ -204,7 +204,7 @@ export default function ScheduleClassModal({
             l.status !== 'Disabled',
         )
         if (conflict) {
-          toast.error('Schedule conflict: this teacher already has a class at that time')
+          toast.error('Schedule conflict: this faculty member already has a class at that time')
           return false
         }
       }
@@ -276,7 +276,7 @@ export default function ScheduleClassModal({
             <CourseFormField label="Topic">
               <CourseInput value={form.topic} onChange={update('topic')} />
             </CourseFormField>
-            <CourseFormField label="Teacher" required>
+            <CourseFormField label="Faculty" required>
               <CourseInput value={form.teacher} onChange={update('teacher')} />
             </CourseFormField>
             <CourseFormField label="Subject" required className="sm:col-span-2">

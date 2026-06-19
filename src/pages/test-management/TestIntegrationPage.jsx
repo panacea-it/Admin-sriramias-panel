@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plug, Copy, Trash2, Pencil, CalendarClock, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plug, Copy, Pencil, CalendarClock, ToggleLeft, ToggleRight } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
@@ -92,7 +92,6 @@ export default function TestIntegrationPage() {
               onClick: () => setIntegrationStatus(row, row.status === 'Published' ? 'Unpublished' : 'Published'),
             },
             { label: 'Duplicate', icon: Copy, onClick: () => modal.openDuplicate(row) },
-            { label: 'Delete', icon: Trash2, danger: true, onClick: () => handleDelete(row.id) },
             { label: 'Edit', icon: Pencil, onClick: () => modal.openEdit(row) },
           ]}
         />

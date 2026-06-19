@@ -1,12 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import {
-  BellRing,
-  Loader2,
-  Ticket,
-  MessageCircleCode,
-  Clock,
-  Activity,
-} from "lucide-react";
+import { BellRing, Loader2, Ticket, MessageCircleCode, Clock, Activity } from 'lucide-react';
 import PageBanner from "../../components/figma/PageBanner";
 import PaginatedFigmaTable from "../../components/figma/PaginatedFigmaTable";
 import HelpDeskFilterToolbar from "../../components/help-desk/HelpDeskFilterToolbar";
@@ -316,7 +309,7 @@ export default function HelpDeskPage() {
             columns={columns}
             data={tickets}
             emptyMessage={emptyMessage}
-            className="min-w-[1040px] rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
+            className="min-w-0 rounded-xl shadow-[0_11px_25px_rgba(15,23,42,0.07)]"
             itemLabel="tickets"
             initialPageSize={10}
             resetDeps={[search, dateFilter, statusFilter]}

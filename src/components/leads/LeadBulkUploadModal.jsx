@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Download, FileSpreadsheet, Upload, UploadCloud } from "lucide-react";
+import { Download, FileSpreadsheet, Upload, UploadCloud } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import Modal from "../ui/Modal";
 import ModalPanelHeader from "../courses/ModalPanelHeader";

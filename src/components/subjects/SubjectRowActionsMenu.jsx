@@ -1,13 +1,12 @@
-import { Eye, List, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Eye, List, Pencil, Plus } from 'lucide-react'
 import TableActionMenu from '../common/TableActionMenu'
 
-export default function SubjectRowActionsMenu({ onView, onEdit, onAdd, onViewList, onDelete }) {
+export default function SubjectRowActionsMenu({ onView, onEdit, onAdd, onViewList, onDelete: _onDelete }) {
   const menuItems = [
     { label: 'View', icon: Eye, onClick: onView },
     { label: 'Edit', icon: Pencil, onClick: onEdit },
     { label: 'Manage Content', icon: Plus, onClick: onAdd },
     { label: 'View List', icon: List, onClick: onViewList },
-    { label: 'Delete', icon: Trash2, onClick: onDelete, danger: true },
   ]
 
   return (

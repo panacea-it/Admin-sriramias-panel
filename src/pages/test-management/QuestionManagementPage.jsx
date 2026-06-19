@@ -24,7 +24,6 @@ import {
   QUESTION_STATUSES,
   QUESTION_TAG_SUGGESTIONS,
 } from '../../data/testManagementSeed'
-import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
 import { nextQuestionStatus, getQuestionPreviewText } from '../../utils/testManagementQuestionForm'
 import { useEditModal } from '../../hooks/useEditModal'
 
@@ -311,24 +310,7 @@ export default function QuestionManagementPage() {
 
       <QuestionBulkUploadModal open={bulkOpen} onClose={() => setBulkOpen(false)} onUploaded={() => reload()} />
 
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        title="Delete question?"
-        message={
-          deleteRow
-            ? `This will permanently delete ${deleteRow.questionCode || deleteRow.id}. This action cannot be undone.`
-            : 'This will permanently delete the question. This action cannot be undone.'
-        }
-        onCancel={() => {
-          if (!deleting) {
-            setDeleteOpen(false)
-            setDeleteRow(null)
-          }
-        }}
-        onConfirm={() => handleDelete(deleteRow?.id)}
-        loading={deleting}
-        confirmLabel="Delete"
-      />
+      
     </div>
   )
 }

@@ -10,7 +10,6 @@ import PaymentAttemptViewModal from '../../components/finance/payment-attempts/P
 import PaymentAttemptCounselorModal from '../../components/finance/payment-attempts/PaymentAttemptCounselorModal'
 import PaymentAttemptAddRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptAddRemarkModal'
 import PaymentAttemptViewRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptViewRemarkModal'
-import ConfirmCounselorRemarkDeleteModal from '../../components/finance/payment-attempts/ConfirmCounselorRemarkDeleteModal'
 import {
   filterAttemptLogs,
   filterAttemptsByFinanceCenters,
@@ -249,7 +248,7 @@ export default function PaymentAttemptLogsPage() {
           {showCounselorRemarksTable ? (
             <div className="mt-8">
               <h2 className="mb-4 text-lg font-bold text-[#1a3a5c] sm:text-xl">Counselor Remarks</h2>
-              <div className="overflow-hidden rounded-xl border border-slate-100">
+              <div className="min-w-0 rounded-xl border border-slate-100">
                 <CounselorRemarksTable
                   remarks={sortedRemarks}
                   onViewRemark={setViewRemark}
@@ -280,11 +279,7 @@ export default function PaymentAttemptLogsPage() {
         remark={viewRemark}
         onClose={() => setViewRemark(null)}
       />
-      <ConfirmCounselorRemarkDeleteModal
-        open={!!deleteRemarkTarget}
-        onCancel={handleCancelDeleteRemark}
-        onConfirm={handleConfirmDeleteRemark}
-      />
+      
     </div>
   )
 }

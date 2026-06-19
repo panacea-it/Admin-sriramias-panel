@@ -1,8 +1,8 @@
-import { Ban, Eye, Pencil, Trash2 } from 'lucide-react'
-import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function CourseTableActions({
   row,
@@ -10,53 +10,21 @@ export default function CourseTableActions({
   onView,
   onEdit,
   onToggleStatus,
-  onDelete,
+  onDelete: _onDelete,
 }) {
-  const isActive = status === 'Active'
-  const rowLabel = row?.name || 'course'
+  const statusAction = recordStatusActionLabel(status)
 
   return (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onView}
-        title="View"
-        aria-label={`View ${rowLabel}`}
-        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label={`Edit ${rowLabel}`}
-        className={cn(actionButtonClass, 'text-slate-500 hover:bg-slate-100 hover:text-[#246392]')}
-      >
-        <Pencil className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Edit</span>
-      </button>
-      <button
-        type="button"
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label={statusAction}
         onClick={onToggleStatus}
-        title={isActive ? 'Disable' : 'Enable'}
-        aria-label={isActive ? `Disable ${rowLabel}` : `Enable ${rowLabel}`}
-        className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
       >
-        <Ban className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">{isActive ? 'Disable' : 'Enable'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="Delete"
-        aria-label={`Delete ${rowLabel}`}
-        className={cn(actionButtonClass, 'text-rose-600 hover:bg-rose-50 hover:text-rose-700')}
-      >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Delete</span>
-      </button>
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
     </div>
   )
 }

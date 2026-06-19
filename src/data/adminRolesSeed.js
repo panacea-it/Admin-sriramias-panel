@@ -111,7 +111,7 @@ export const SEED_ADMIN_ROLES = [
   }),
   roleFromLegacy({
     id: 'teacher_admin',
-    label: 'Teacher Admin',
+    label: 'Faculty Admin',
     description: 'Manages class materials, PDFs, and teaching documents for assigned batches.',
     modules: ['Class PDFs', 'Documents', 'Assignments'],
     permissionCount: 14,

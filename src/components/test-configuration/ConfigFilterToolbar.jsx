@@ -30,7 +30,7 @@ export default function ConfigFilterToolbar({
           <option value="Active" className="bg-white text-[#222]">
             Active
           </option>
-          <option value="Inactive" className="bg-white text-[#222]">
+          <option value="Deactivated" className="bg-white text-[#222]">
             Inactive
           </option>
         </select>

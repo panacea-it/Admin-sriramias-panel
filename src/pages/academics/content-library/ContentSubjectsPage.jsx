@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, Pencil, Plus } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { useContentLibrary } from '../../../contexts/ContentLibraryContext'
 import ContentEntityModal from '../../../components/content-library/ContentEntityModal'
@@ -50,21 +50,7 @@ export default function ContentSubjectsPage() {
       label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <button type="button" onClick={() => { setEdit(row); setOpen(true) }} className="text-[#55ace7]">
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              deleteContentSubject(row.id)
-              toast.success('Subject deleted')
-              refresh()
-            }}
-            className="text-[#c96565]"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+          </div>
       ),
     },
   ]
@@ -101,7 +87,7 @@ export default function ContentSubjectsPage() {
             type: 'select',
             options: [
               { value: 'Active', label: 'Active' },
-              { value: 'In Active', label: 'In Active' },
+              { value: 'In Active', label: 'Deactivated' },
             ],
           },
         ]}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Upload, Pencil, Trash2, Download, Eye } from 'lucide-react'
+import { FileText, Upload, Pencil, Download, Eye } from 'lucide-react'
 import { generateContentId } from '../../../utils/facultySubjectContentStorage'
 
 function formatFileSize(bytes) {
@@ -94,93 +94,7 @@ export default function PdfsTab({ topic, onUpdateTopic }) {
               />
             </div>
             <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={savePdf}
-                className="rounded-lg bg-[#1a3a5c] px-4 py-2 text-sm font-semibold text-white"
-              >
-                Save
-              </button>
-              <button type="button" onClick={resetForm} className="rounded-lg border px-4 py-2 text-sm">
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {pdfs.length === 0 ? (
-          <div className="rounded-xl border border-dashed py-12 text-center text-sm text-slate-500">
-            No PDFs uploaded for this topic.
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {pdfs.map((pdf) => (
-              <div
-                key={pdf.id}
-                className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-50">
-                    <FileText className="h-6 w-6 text-red-500" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="truncate font-semibold text-[#1a3a5c]">{pdf.title}</h4>
-                    <p className="text-xs text-slate-500">{formatFileSize(pdf.fileSize)}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                      {pdf.description || '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPreview(pdf)}
-                    className="inline-flex items-center gap-1 text-xs text-[#246392]"
-                  >
-                    <Eye className="h-3 w-3" />
-                    Preview
-                  </button>
-                  {pdf.pdfUrl && (
-                    <a
-                      href={pdf.pdfUrl}
-                      download={pdf.fileName || 'document.pdf'}
-                      className="inline-flex items-center gap-1 text-xs text-slate-600"
-                    >
-                      <Download className="h-3 w-3" />
-                      Download
-                    </a>
-                  )}
-                  <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-slate-600">
-                    <Upload className="h-3 w-3" />
-                    Replace
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => handleUpload(e, pdf.id)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing(pdf)
-                      setForm(pdf)
-                      setFormOpen(true)
-                    }}
-                    className="inline-flex items-center gap-1 text-xs text-slate-600"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateTopic({ pdfs: pdfs.filter((p) => p.id !== pdf.id) })}
-                    className="inline-flex items-center gap-1 text-xs text-[#c96565]"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete
-                  </button>
-                </div>
+              </div>
               </div>
             ))}
           </div>

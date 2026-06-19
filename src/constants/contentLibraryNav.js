@@ -1,18 +1,4 @@
-import {
-  Archive,
-  BarChart3,
-  BookOpen,
-  LayoutDashboard,
-  Recycle,
-  Send,
-  Shield,
-  Tags,
-  Upload,
-  UploadCloud,
-  FileStack,
-  FileText,
-  Layers,
-} from 'lucide-react'
+import { Archive, BarChart3, BookOpen, LayoutDashboard, Recycle, Send, Shield, Tags, Upload, UploadCloud, FileStack, FileText, Layers } from 'lucide-react'
 
 export const CONTENT_LIBRARY_BASE = '/academics/content-library'
 

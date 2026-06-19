@@ -1,19 +1,4 @@
-import {
-  LayoutDashboard,
-  ScrollText,
-  Wallet,
-  SlidersHorizontal,
-  Gift,
-  Trophy,
-  Medal,
-  ShieldAlert,
-  FileSpreadsheet,
-  Settings2,
-  Coins,
-  Users,
-  Star,
-  Link2,
-} from 'lucide-react'
+import { LayoutDashboard, ScrollText, Wallet, SlidersHorizontal, Gift, Trophy, Medal, ShieldAlert, FileSpreadsheet, Settings2, Coins, Users, Star, Link2 } from 'lucide-react'
 
 export const REWARDS_ADMIN_BASE = '/admin/rewards'
 

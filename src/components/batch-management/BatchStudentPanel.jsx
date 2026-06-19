@@ -1,13 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  Search,
-  ChevronDown,
-  UserPlus,
-  Users,
-  GraduationCap,
-  Loader2,
-} from 'lucide-react'
+import { Search, ChevronDown, UserPlus, Users, GraduationCap, Loader2 } from 'lucide-react'
 import { usePagination } from '../../hooks/usePagination'
 import TablePagination from '../figma/TablePagination'
 import PaymentStatusBadge from './PaymentStatusBadge'
@@ -549,7 +542,7 @@ export default function BatchStudentPanel({
 
       <BatchConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete student?"
+        title="Deactivate"
         message={
           serverPaginated
             ? 'Are you sure you want to permanently delete this student enrollment?'
@@ -557,10 +550,10 @@ export default function BatchStudentPanel({
               ? `Remove ${deleteTarget.name} from ${batch.displayName}? This cannot be undone.`
               : ''
         }
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         variant="danger"
         loading={saving || deleteStudentSaving}
-        loadingLabel="Deleting…"
+        loadingLabel="Deactivating…"
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
       />

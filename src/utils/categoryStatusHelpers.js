@@ -2,7 +2,7 @@
 export function normalizeCategoryStatus(status) {
   if (!status) return ''
   const s = String(status).trim()
-  if (s === 'Inactive' || s === 'InActive') return 'In Active'
+  if (s === 'Deactivated' || s === 'InActive' || s === 'Deactivated') return 'In Active'
   return s
 }
 
@@ -18,7 +18,9 @@ export function formatCategoryStatusDisplayLabel(status) {
   }
 
   const raw = String(status).trim().toUpperCase().replace(/[\s-]+/g, '_')
-  if (raw === 'IN_ACTIVE' || raw === 'INACTIVE' || raw === 'DISABLED') return 'Inactive'
+  if (raw === 'IN_ACTIVE' || raw === 'INACTIVE' || raw === 'DISABLED' || raw === 'DEACTIVATED') {
+    return 'Deactivated'
+  }
   if (raw === 'ACTIVE') return 'Active'
   return status
 }

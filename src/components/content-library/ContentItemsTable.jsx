@@ -1,15 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Archive,
-  Copy,
-  Eye,
-  FolderInput,
-  Link2,
-  Pencil,
-  Send,
-  Trash2,
-} from 'lucide-react'
+import { Archive, Copy, Eye, FolderInput, Link2, Pencil, Send } from 'lucide-react'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import TableActionMenu from '../common/TableActionMenu'
 import { StatusBadge } from '../academics/AcademicsUi'
@@ -142,7 +133,6 @@ export default function ContentItemsTable({
             },
             { label: 'Share', icon: Link2, onClick: () => setShareItem(row) },
             { label: 'Archive', icon: Archive, onClick: () => onArchive?.(row) },
-            { label: 'Delete', icon: Trash2, danger: true, onClick: () => onDelete?.(row) },
             {
               label: 'Move',
               icon: FolderInput,

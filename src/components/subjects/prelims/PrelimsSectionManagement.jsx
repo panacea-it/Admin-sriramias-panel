@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react'
 import ExamToggleSwitch from '../../courses/exam/ExamToggleSwitch'
 import { examInputClass } from '../../courses/exam/examFormStyles'
 import { cn } from '../../../utils/cn'
@@ -298,8 +298,8 @@ function SectionCard({
                 onClick={onDelete}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Section
+                <Minus className="h-3.5 w-3.5" />
+                Remove Section
               </button>
             </div>
           ) : null}

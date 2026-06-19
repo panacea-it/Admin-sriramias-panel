@@ -1,11 +1,5 @@
 import { motion } from 'framer-motion'
-import {
-  UserPlus,
-  LogIn,
-  Shield,
-  AlertTriangle,
-  Activity,
-} from 'lucide-react'
+import { UserPlus, LogIn, Shield, AlertTriangle, Activity } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { RECENT_ACTIVITY } from '../../data/adminManagementConfig'
 

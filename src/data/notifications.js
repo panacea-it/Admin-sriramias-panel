@@ -1,9 +1,4 @@
-import {
-  Award,
-  CheckCircle2,
-  Clock,
-  MessageCircle,
-} from 'lucide-react'
+import { Award, CheckCircle2, Clock, MessageCircle } from 'lucide-react'
 import { REWARD_NOTIFICATION_SEEDS } from './rewardNotifications'
 
 export const initialNotifications = [

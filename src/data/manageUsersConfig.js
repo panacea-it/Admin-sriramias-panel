@@ -22,7 +22,7 @@ export const USER_TYPE_OPTIONS = [
 
 export const USER_STATUS_OPTIONS = [
   { value: "Active", label: "Active" },
-  { value: "In Active", label: "In Active" },
+  { value: "In Active", label: "Deactivated" },
 ];
 
 /** Fallback center names when CentersContext has no data yet */

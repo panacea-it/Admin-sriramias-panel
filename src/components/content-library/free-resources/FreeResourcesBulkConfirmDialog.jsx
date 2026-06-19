@@ -1,45 +1,36 @@
-import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react'
+import { Ban, CheckCircle2 } from 'lucide-react'
 import AppModalWrapper from '../../ui/AppModalWrapper'
 import { cn } from '../../../utils/cn'
+import { BULK_STATUS_CONFIRM_COPY } from '../../common/ConfirmStatusChangeModal'
 
 const COPY = {
-  enable: {
-    title: 'Enable Selected Resources',
-    message: 'Are you sure you want to enable all selected resources?',
-    confirmLabel: 'Enable',
-    loadingLabel: 'Enabling…',
+  activate: {
+    ...BULK_STATUS_CONFIRM_COPY.activate,
+    title: 'Activate Selected Resources',
     icon: CheckCircle2,
     iconClassName: 'bg-emerald-50 text-emerald-600',
     buttonClassName: 'bg-emerald-600 hover:bg-emerald-700',
   },
-  disable: {
-    title: 'Disable Selected Resources',
-    message: 'Are you sure you want to disable all selected resources?',
-    confirmLabel: 'Disable',
-    loadingLabel: 'Disabling…',
+  deactivate: {
+    ...BULK_STATUS_CONFIRM_COPY.deactivate,
+    title: 'Deactivate Selected Resources',
     icon: Ban,
     iconClassName: 'bg-amber-50 text-amber-600',
     buttonClassName: 'bg-amber-600 hover:bg-amber-700',
-  },
-  delete: {
-    title: 'Delete Selected Resources',
-    message: 'Are you sure you want to permanently delete all selected resources?',
-    confirmLabel: 'Delete',
-    loadingLabel: 'Deleting…',
-    icon: AlertTriangle,
-    iconClassName: 'bg-[#fef2f2] text-[#dc2626]',
-    buttonClassName: 'bg-[#dc2626] hover:bg-[#b91c1c]',
   },
 }
 
 export default function FreeResourcesBulkConfirmDialog({
   open,
-  type = 'delete',
+  type = 'deactivate',
   onConfirm,
   onCancel,
   loading = false,
 }) {
-  const config = COPY[type] || COPY.delete
+  const resolvedType = type === 'enable' ? 'activate' : type === 'disable' ? 'deactivate' : type
+  if (resolvedType === 'delete') return null
+
+  const config = COPY[resolvedType] || COPY.deactivate
   const Icon = config.icon
 
   const handleConfirm = async (e) => {

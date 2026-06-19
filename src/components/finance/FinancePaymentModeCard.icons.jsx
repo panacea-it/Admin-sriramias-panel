@@ -1,15 +1,4 @@
-import {
-  Banknote,
-  CircleDot,
-  CreditCard,
-  FileText,
-  Globe,
-  Landmark,
-  Plane,
-  Repeat,
-  Smartphone,
-  Wallet,
-} from 'lucide-react'
+import { Banknote, CircleDot, CreditCard, FileText, Globe, Landmark, Plane, Repeat, Smartphone, Wallet } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 const ICON_MAP = {

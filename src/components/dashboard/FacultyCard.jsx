@@ -1,9 +1,10 @@
 import { MapPin } from 'lucide-react'
 import DashboardProgressBar from './DashboardProgressBar'
+import DashboardNavLink from './DashboardNavLink'
 
 export default function FacultyCard({ faculty }) {
-  return (
-    <article className="rounded-xl p-4" style={{ background: faculty.bg }}>
+  const content = (
+    <>
       <div className="mb-3 flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-gray-800 shadow-sm">
           #{faculty.rank}
@@ -35,6 +36,25 @@ export default function FacultyCard({ faculty }) {
         color="linear-gradient(90deg,#33b8ff,#005b9a)"
         className="h-2.5"
       />
-    </article>
+    </>
+  )
+
+  if (!faculty.href) {
+    return (
+      <article className="rounded-xl p-4" style={{ background: faculty.bg }}>
+        {content}
+      </article>
+    )
+  }
+
+  return (
+    <DashboardNavLink
+      to={faculty.href}
+      ariaLabel={`Open ${faculty.name} in Faculty Management`}
+      className="rounded-xl p-4"
+      style={{ background: faculty.bg }}
+    >
+      {content}
+    </DashboardNavLink>
   )
 }

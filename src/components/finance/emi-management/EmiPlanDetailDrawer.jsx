@@ -1,13 +1,5 @@
 import { useState } from 'react'
-import {
-  Clock,
-  Building2,
-  FileText,
-  AlertOctagon,
-  Phone,
-  Scale,
-  Ban,
-} from 'lucide-react'
+import { Clock, Building2, FileText, AlertOctagon, Phone, Scale, Ban } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import FinanceTimeline from '../FinanceTimeline'
