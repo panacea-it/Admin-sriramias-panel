@@ -3,7 +3,7 @@ import { cn } from '../../utils/cn'
 
 function FilterSelect({ label, value, onChange, options, icon: Icon }) {
   return (
-    <div className="relative w-full sm:w-auto sm:min-w-[160px]">
+    <div className="relative min-w-0 w-full">
       {Icon && (
         <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/90" />
       )}
@@ -45,18 +45,19 @@ export default function ExamSubCategoryFilterBar({
   statusOptions = [],
 }) {
   return (
-    <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:px-4">
-      <div className="relative w-full min-w-0 flex-1 lg:max-w-xl">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180]" />
-        <input
-          type="search"
-          value={search}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          className="h-10 w-full min-h-[38px] rounded-xl bg-[#eef2fc] pl-11 pr-4 text-sm text-[#222] outline-none transition placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/40 sm:text-[15px]"
-        />
-      </div>
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+    <div className="rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:px-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] lg:items-center">
+        <div className="relative min-w-0 w-full sm:col-span-2 lg:col-span-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180]" />
+          <input
+            type="search"
+            value={search}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            className="h-10 w-full min-h-[38px] rounded-xl bg-[#eef2fc] pl-11 pr-4 text-sm text-[#222] outline-none transition placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/40 sm:text-[15px]"
+          />
+        </div>
+
         <FilterSelect
           label="Program"
           value={program}
