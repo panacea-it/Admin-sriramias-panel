@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, FileCheck, Folder, FolderOpen } from 'lucide-react'
+import ViewButton from '../../common/ViewButton'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
+import { StatusBadge } from '../../academics/AcademicsUi'
+import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 
 function SeriesRow({ node, depth, subjectId, expandedIds, onToggle }) {
   const navigate = useNavigate()
@@ -83,10 +85,9 @@ function SeriesRow({ node, depth, subjectId, expandedIds, onToggle }) {
         <StatusBadge status={node.status === 'published' ? 'Published' : 'Draft'} />
       </td>
       <td className="px-4 py-3 text-right sm:px-6">
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" showPlusIcon={false} onClick={openResults}>
-          <Eye className="h-4 w-4" />
-          View Results
-        </BannerButton>
+        <div className={TABLE_ACTIONS_WRAP}>
+          <ViewButton onClick={openResults} label="View Results" />
+        </div>
       </td>
     </tr>
   )

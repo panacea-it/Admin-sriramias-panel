@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
+import ViewButton from '../../common/ViewButton'
+import { StatusBadge } from '../../academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichCbtTestRow } from '../../../utils/cbtTestSeriesHierarchy'
+import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 
 function collectTestSeries(nodes = []) {
   const list = []
@@ -71,10 +73,12 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <BannerButton type="button" variant="secondary" className="!px-3 !py-1.5" showPlusIcon={false} onClick={() => openResults(row)}>
-          <Eye className="h-4 w-4" />
-          View Test Series
-        </BannerButton>
+        <div className={TABLE_ACTIONS_WRAP}>
+          <ViewButton
+            onClick={() => openResults(row)}
+            label="View Test Series"
+          />
+        </div>
       ),
     },
   ]

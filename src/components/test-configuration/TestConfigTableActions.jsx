@@ -3,6 +3,8 @@ import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
+import { cn } from '../../utils/cn'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 /** Matches Center Management `actionButtonClass` exactly. */
 export const testConfigActionButtonClass =
@@ -32,7 +34,7 @@ function TestConfigInlineActions({ label, isActive, onView, onEdit, onToggleStat
   const statusAction = recordStatusActionLabel(isActive ? 'Active' : 'In Active')
 
   return (
-    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
+    <div className={TABLE_ACTIONS_WRAP}>
       <ViewButton onClick={onView} label="View" />
       <EditButton onClick={onEdit} label="Edit" />
       <IconActionButton

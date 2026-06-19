@@ -1,9 +1,9 @@
 import { Copy, RefreshCw } from 'lucide-react'
-import { cn } from '../../utils/cn'
 import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 export default function QuestionTableActions({
   row,
@@ -16,7 +16,7 @@ export default function QuestionTableActions({
   const statusAction = recordStatusActionLabel(row.status)
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
+    <div className={TABLE_ACTIONS_WRAP}>
       <ViewButton onClick={onView} />
       <EditButton onClick={onEdit} />
       <IconActionButton

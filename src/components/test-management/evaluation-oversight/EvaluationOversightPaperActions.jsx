@@ -1,8 +1,7 @@
 import { Eye, PlayCircle, UserPlus } from 'lucide-react'
-import { cn } from '../../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+import ViewButton from '../../common/ViewButton'
+import IconActionButton from '../../common/IconActionButton'
+import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 
 export default function EvaluationOversightPaperActions({
   row,
@@ -15,54 +14,26 @@ export default function EvaluationOversightPaperActions({
   const evaluationLabel = isEvaluated ? 'View Evaluation' : 'Start Evaluation'
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={() => onViewPaper(row)}
-        title="View Paper"
-        aria-label={`View paper for ${row.studentName}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      <button
-        type="button"
+    <div className={TABLE_ACTIONS_WRAP}>
+      <ViewButton onClick={() => onViewPaper(row)} label="View Paper" />
+      <IconActionButton
+        label={hasMentor ? 'Reassign Evaluator' : 'Assign Evaluator'}
         onClick={() => onAssignEvaluator(row)}
-        title={hasMentor ? 'Reassign Evaluator' : 'Assign Evaluator'}
-        aria-label={
-          hasMentor
-            ? `Reassign evaluator for ${row.studentName}`
-            : `Assign evaluator for ${row.studentName}`
-        }
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
+        className="text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm"
       >
-        <UserPlus className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">{hasMentor ? 'Reassign' : 'Assign'}</span>
-      </button>
-      <button
-        type="button"
+        <UserPlus className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label={evaluationLabel}
         onClick={() => onOpenEvaluation(row)}
-        title={evaluationLabel}
-        aria-label={`${evaluationLabel} for ${row.studentName}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
+        className="text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm"
       >
         {isEvaluated ? (
-          <Eye className="h-3.5 w-3.5 shrink-0" />
+          <Eye className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
         ) : (
-          <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+          <PlayCircle className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
         )}
-        <span className="hidden sm:inline">{isEvaluated ? 'Results' : 'Evaluate'}</span>
-      </button>
+      </IconActionButton>
     </div>
   )
 }

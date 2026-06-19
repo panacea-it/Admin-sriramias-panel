@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { ClipboardCheck, Clock, CheckCircle, RotateCcw } from 'lucide-react'
+import { CheckCircle, ClipboardCheck, Clock, PlayCircle, RotateCcw } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
+import IconActionButton from '../../components/common/IconActionButton'
+import { StatusBadge } from '../../components/academics/AcademicsUi'
 import StatCard from '../../components/dashboard/StatCard'
 import {
   EVALUATIONS_COMPLETED,
@@ -12,6 +13,7 @@ import {
 } from '../../data/evaluationsWorkflowSeed'
 import { cn } from '../../utils/cn'
 import { toast } from '../../utils/toast'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 export default function EvaluationsWorkflowPage() {
   const [pending, setPending] = useState(EVALUATIONS_PENDING)
@@ -32,17 +34,18 @@ export default function EvaluationsWorkflowPage() {
       key: 'actions',
       label: '',
       render: (row) => (
-        <BannerButton
-          type="button"
-          variant="secondary"
-          className="!px-2 !py-1 text-xs"
-          onClick={() => {
-            setPending((p) => p.filter((x) => x.id !== row.id))
-            toast.success(`Evaluation started for ${row.student}`)
-          }}
-        >
-          Start
-        </BannerButton>
+        <div className={TABLE_ACTIONS_WRAP}>
+          <IconActionButton
+            label="Start Evaluation"
+            onClick={() => {
+              setPending((p) => p.filter((x) => x.id !== row.id))
+              toast.success(`Evaluation started for ${row.student}`)
+            }}
+            className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+          >
+            <PlayCircle className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+          </IconActionButton>
+        </div>
       ),
     },
   ]
@@ -95,19 +98,20 @@ export default function EvaluationsWorkflowPage() {
               key: 'actions',
               label: '',
               render: (row) => (
-                <BannerButton
-                  type="button"
-                  variant="secondary"
-                  className="!px-2 !py-1 text-xs"
-                  onClick={() => {
-                    setReeval((list) =>
-                      list.map((r) => (r.id === row.id ? { ...r, status: 'Approved' } : r)),
-                    )
-                    toast.success('Re-evaluation approved')
-                  }}
-                >
-                  Approve
-                </BannerButton>
+                <div className={TABLE_ACTIONS_WRAP}>
+                  <IconActionButton
+                    label="Approve Re-evaluation"
+                    onClick={() => {
+                      setReeval((list) =>
+                        list.map((r) => (r.id === row.id ? { ...r, status: 'Approved' } : r)),
+                      )
+                      toast.success('Re-evaluation approved')
+                    }}
+                    className="text-emerald-700 hover:border-emerald-200 hover:bg-emerald-50 hover:shadow-sm"
+                  >
+                    <CheckCircle className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+                  </IconActionButton>
+                </div>
               ),
             },
           ]}

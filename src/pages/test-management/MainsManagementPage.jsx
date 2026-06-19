@@ -1,35 +1,21 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, ListChecks } from 'lucide-react'
+import { ListChecks } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import EvaluationProgressCards from '../../components/test-management/EvaluationProgressCards'
 import MainsFacultySubjectsTable from '../../components/test-management/mains/MainsFacultySubjectsTable'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
+import ViewButton from '../../components/common/ViewButton'
 import { useMainsEvaluationHierarchy } from '../../hooks/useMainsEvaluationHierarchy'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 function FacultySubjectTableActions({ row, onView }) {
   const label = `${row.subjectName} by ${row.facultyName}`
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onView}
-        title="View Topics"
-        aria-label={`View topics for ${label}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View Topics</span>
-      </button>
+    <div className={TABLE_ACTIONS_WRAP}>
+      <ViewButton onClick={onView} label={`View topics for ${label}`} />
     </div>
   )
 }
