@@ -36,7 +36,7 @@ const ALIGN_CLASS = {
 }
 
 const PREMIUM_HEADER_BG = 'bg-gradient-to-r from-[#58A8DF] to-[#1F5E99]'
-const DEFAULT_HEADER_BG = 'bg-gradient-to-r from-[#4FA3D9] to-[#1F5E99]'
+const DEFAULT_HEADER_BG = 'bg-[#55ace7]'
 
 function resolveColumnWidthPx(width) {
   if (typeof width === 'number' && width > 0) return width
