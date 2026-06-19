@@ -6,6 +6,7 @@ import WebsiteFormModal from './WebsiteFormModal'
 import RankManagementTable from './RankManagementTable'
 import RankManagementImageCell from './RankManagementImageCell'
 import RankerRowActions from './RankerRowActions'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import RankTop10Badge from './RankTop10Badge'
 import {
   getNextDisplayOrder,
@@ -429,17 +430,11 @@ export default function RankManagementTab() {
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 4,
         align: 'right',
-        width: 420,
-        headerClassName: 'min-w-[420px] whitespace-nowrap pr-4 text-right sm:pr-6',
-        cellClassName:
-          'min-w-[420px] whitespace-nowrap align-middle pr-4 text-right sm:pr-6',
         render: (row) => (
-          <div className="flex items-center justify-end">
-            <RankerRowActions
+          <RankerRowActions
             rowName={row.name}
             status={row.status}
             isTop10={row.isTop10}
@@ -448,11 +443,9 @@ export default function RankManagementTab() {
             onEdit={() => openEditRank(row)}
             onStatusChange={(newStatus) => changeStatus(row, newStatus)}
             onToggleTop10={() => toggleTop10(row.id)}
-            onDelete={() => setDeleteTarget(row)}
-            />
-          </div>
+          />
         ),
-      },
+      }),
     ],
     [top10LimitReached, rankers],
   )

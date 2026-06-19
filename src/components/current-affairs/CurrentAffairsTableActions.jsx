@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
@@ -18,7 +19,7 @@ export default function CurrentAffairsTableActions({
     <div
       role="group"
       aria-label={`Actions for ${row.name}`}
-      className="flex w-full min-w-0 items-center justify-center gap-1"
+      className={TABLE_ACTIONS_WRAP}
     >
       <ViewButton onClick={onView} />
       <EditButton onClick={onEdit} />

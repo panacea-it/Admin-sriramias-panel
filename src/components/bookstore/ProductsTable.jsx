@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 import { formatINR } from '../../utils/financeFilters'
 import { getProductExamCategory } from '../../utils/bookstoreProductForm'
@@ -115,14 +116,11 @@ export default function ProductsTable({
         cellClassName: 'min-w-[110px] align-middle',
         render: (row) => <ProductStatusPill status={row.status} />,
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 3,
         align: 'right',
-        headerClassName: 'min-w-[260px] whitespace-nowrap pr-4 sm:pr-6',
-        cellClassName: 'min-w-[260px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

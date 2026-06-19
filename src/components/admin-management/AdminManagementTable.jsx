@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { StatusBadge } from '../academics/AcademicsUi'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 
 function formatCenterName(centerName) {
   const value = String(centerName || '').trim()
@@ -53,14 +54,11 @@ export default function AdminManagementTable({
           <span className="text-[#686868]">{formatCategoryDateTime(row.createdAt)}</span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        align: 'center',
-        headerClassName: 'px-4 text-center sm:px-6',
-        cellClassName: 'px-4 text-center align-middle sm:px-6',
+      createActionsColumn({
+        buttonCount: 3,
+        align: 'right',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

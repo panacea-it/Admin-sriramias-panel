@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import BookstoreStatusBadge from '../BookstoreStatusBadge'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 import { cn } from '../../../utils/cn'
 import { productDisplayName } from '../../../utils/bookstoreRecommendationUtils'
 import { formatBookstoreDate } from '../../../utils/formatDateTime'
@@ -72,14 +73,11 @@ export default function RecommendationsTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 3,
         align: 'right',
-        headerClassName: 'min-w-[280px] whitespace-nowrap pr-4 sm:pr-6',
-        cellClassName: 'min-w-[280px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [products, onSourceClick, renderActions],
   )

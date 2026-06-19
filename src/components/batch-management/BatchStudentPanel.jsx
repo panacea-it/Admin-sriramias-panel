@@ -372,7 +372,7 @@ export default function BatchStudentPanel({
                 <th className="px-4 py-3 text-center">Attendance %</th>
                 <th className="px-4 py-3 min-w-[120px]">Progress</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="min-w-[320px] px-4 py-3 text-center sm:px-5">Actions</th>
+                <th className="w-[200px] min-w-[200px] px-4 py-3 text-right sm:px-5">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -452,7 +452,7 @@ export default function BatchStudentPanel({
                       <td className="px-4 py-3.5 align-middle">
                         <StudentEnrollmentStatusBadge status={student.status} />
                       </td>
-                      <td className="min-w-[320px] px-4 py-3.5 align-middle text-center sm:px-5">
+                      <td className="w-[200px] min-w-[200px] px-4 py-3.5 align-middle text-right sm:px-5">
                         <div className="flex justify-center">
                           <StudentTableActions
                             studentName={student.name}

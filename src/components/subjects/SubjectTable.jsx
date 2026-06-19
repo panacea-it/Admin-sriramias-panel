@@ -5,13 +5,15 @@ import FacultySubjectTableActions from './FacultySubjectTableActions'
 import SubjectChipPopover from './SubjectChipPopover'
 import AdminTooltip from './AdminTooltip'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
+import {
+  CHIP_CELL,
+  OVERFLOW_CELL,
+  createActionsColumn,
+} from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 
-/** Required on fixed-layout cells so truncate/overflow works correctly. */
-const OVERFLOW_CELL = 'min-w-0 max-w-0 overflow-hidden align-middle'
-
 function CellWrap({ children, className }) {
-  return <div className={cn('w-full min-w-0 overflow-hidden', className)}>{children}</div>
+  return <div className={cn('w-full min-w-0', className)}>{children}</div>
 }
 
 function SubjectNameCell({ name }) {
@@ -81,7 +83,7 @@ export default function SubjectTable({
     {
       key: 'subjectName',
       label: 'Faculty Subject',
-      width: '19%',
+      width: '18%',
       headerClassName: OVERFLOW_CELL,
       cellClassName: OVERFLOW_CELL,
       render: (row) => <SubjectNameCell name={row.subjectName} />,
@@ -89,7 +91,7 @@ export default function SubjectTable({
     {
       key: 'teacher',
       label: 'Faculty',
-      width: '13%',
+      width: '12%',
       headerClassName: OVERFLOW_CELL,
       cellClassName: OVERFLOW_CELL,
       render: (row) => <TeacherCell name={row.teacher} />,
@@ -97,13 +99,13 @@ export default function SubjectTable({
     {
       key: 'status',
       label: 'Status',
-      width: '10%',
+      width: '9%',
       align: 'center',
       headerClassName: cn(OVERFLOW_CELL, 'text-center whitespace-nowrap'),
       cellClassName: cn(OVERFLOW_CELL, 'text-center'),
       headerTruncate: false,
       render: (row) => (
-        <div className="flex w-full items-center justify-center overflow-hidden px-1">
+        <div className="flex w-full items-center justify-center px-1">
           <StatusBadge status={row.status} />
         </div>
       ),
@@ -111,9 +113,9 @@ export default function SubjectTable({
     {
       key: 'topics',
       label: 'Topics',
-      width: '12%',
-      headerClassName: OVERFLOW_CELL,
-      cellClassName: OVERFLOW_CELL,
+      width: '14%',
+      headerClassName: CHIP_CELL,
+      cellClassName: CHIP_CELL,
       render: (row) => (
         <CellWrap>
           <SubjectChipPopover
@@ -127,9 +129,9 @@ export default function SubjectTable({
     {
       key: 'categories',
       label: 'Categories',
-      width: '12%',
-      headerClassName: OVERFLOW_CELL,
-      cellClassName: OVERFLOW_CELL,
+      width: '18%',
+      headerClassName: CHIP_CELL,
+      cellClassName: CHIP_CELL,
       render: (row) => (
         <CellWrap>
           <SubjectChipPopover
@@ -140,14 +142,9 @@ export default function SubjectTable({
         </CellWrap>
       ),
     },
-    {
-      key: 'actions',
-      label: 'Actions',
-      width: 520,
-      align: 'center',
-      headerClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
-      cellClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
-      headerTruncate: false,
+    createActionsColumn({
+      buttonCount: 4,
+      align: 'right',
       render: (row) => (
         <FacultySubjectTableActions
           row={row}
@@ -159,7 +156,7 @@ export default function SubjectTable({
           statusLoading={statusChangingId === row.id}
         />
       ),
-    },
+    }),
   ]
 
   const selection =
@@ -189,7 +186,7 @@ export default function SubjectTable({
       selection={selection}
       density="comfortable"
       skeletonRowCount={8}
-      tableMinWidth={1680}
+      tableMinWidth={1180}
       tableLayoutFixed
       className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
       tableClassName="rounded-none border-0 shadow-none"

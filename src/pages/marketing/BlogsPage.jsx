@@ -18,6 +18,7 @@ import {
   saveBlogs,
 } from '../../data/blogsData'
 import { isSameCalendarDay, startOfDay } from '../../utils/dailyCollectionUtils'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 
 function MainBlogBadge() {
@@ -233,13 +234,9 @@ export default function BlogsPage() {
         cellClassName: 'min-w-[110px] align-middle',
         render: (row) => <BlogStatusBadge status={row.status} />,
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 4,
         align: 'right',
-        headerClassName: 'min-w-[300px] whitespace-nowrap pr-4 text-right sm:pr-6',
-        cellClassName:
-          'min-w-[300px] whitespace-nowrap align-middle pr-4 text-right sm:pr-6',
         render: (row) => (
           <BlogRowActions
             title={row.title}
@@ -253,7 +250,7 @@ export default function BlogsPage() {
             onDelete={() => requestDelete(row)}
           />
         ),
-      },
+      }),
     ],
     [handleToggleStatus, statusUpdatingIds, toggleMainBlog],
   )

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { StatusBadge } from '../../academics/AcademicsUi'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 function roleStatus(role) {
   return role.enabled ? 'Active' : 'In Active'
@@ -72,14 +73,11 @@ export default function RoleManagementTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        align: 'center',
-        headerClassName: 'px-4 text-center sm:px-6',
-        cellClassName: 'px-4 text-center align-middle sm:px-6',
+      createActionsColumn({
+        buttonCount: 3,
+        align: 'right',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [roles, paginationStartIndex, statusUpdatingId, renderActions],
   )

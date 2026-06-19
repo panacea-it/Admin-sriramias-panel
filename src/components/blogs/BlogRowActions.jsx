@@ -4,6 +4,7 @@ import { isBlogActive } from '../../constants/blogManagementConstants'
 import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function BlogRowActions({
@@ -23,7 +24,7 @@ export default function BlogRowActions({
     <div
       role="group"
       aria-label={`Actions for ${title}`}
-      className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5"
+      className={TABLE_ACTIONS_WRAP}
     >
       <ViewButton onClick={() => onView?.()} />
       <EditButton onClick={() => onEdit?.()} disabled={loading} />

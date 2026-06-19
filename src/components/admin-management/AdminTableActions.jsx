@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
@@ -8,7 +9,7 @@ export default function AdminTableActions({ row, onView, onEdit, onStatusToggle,
   const statusAction = recordStatusActionLabel(row.status)
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-1.5">
+    <div className={TABLE_ACTIONS_WRAP}>
       <ViewButton onClick={onView} />
       <EditButton onClick={onEdit} />
       <IconActionButton

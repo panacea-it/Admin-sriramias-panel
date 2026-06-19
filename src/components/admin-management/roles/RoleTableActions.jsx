@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react'
+import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 import { cn } from '../../../utils/cn'
 import ViewButton from '../../common/ViewButton'
 import EditButton from '../../common/EditButton'
@@ -17,7 +18,7 @@ export default function RoleTableActions({
   const statusAction = recordStatusActionLabel(row.status)
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-1.5">
+    <div className={TABLE_ACTIONS_WRAP}>
       <ViewButton onClick={onView} />
       <EditButton onClick={onEdit} />
       <IconActionButton

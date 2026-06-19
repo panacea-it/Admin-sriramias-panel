@@ -3,6 +3,7 @@ import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 export default function BatchTableActions({
   batch,
@@ -20,7 +21,7 @@ export default function BatchTableActions({
     <div
       role="group"
       aria-label={`Actions for ${batchLabel}`}
-      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-1 sm:gap-1.5"
+      className={TABLE_ACTIONS_WRAP}
     >
       <ViewButton onClick={() => onView?.(batch)} disabled={disabled} />
       <EditButton onClick={() => onEdit?.(batch)} disabled={disabled} />

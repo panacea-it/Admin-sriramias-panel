@@ -1,5 +1,6 @@
 import { Ban, Eye, Pencil, Star } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 const actionButtonClass =
   'inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent p-0 text-xs font-semibold leading-none whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40 sm:h-9 sm:w-auto sm:min-w-[4.75rem] sm:px-2.5'
@@ -51,7 +52,7 @@ export default function RankerRowActions({
     <div
       role="group"
       aria-label={`Actions for ${rowName}`}
-      className="ml-auto inline-flex w-max max-w-full flex-nowrap items-center justify-end gap-1.5 sm:gap-2"
+      className={TABLE_ACTIONS_WRAP}
     >
       <RankerActionButton
         label="View"

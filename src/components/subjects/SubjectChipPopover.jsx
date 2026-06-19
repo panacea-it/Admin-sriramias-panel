@@ -74,11 +74,11 @@ export default function SubjectChipPopover({
 
   const chipBase =
     chipClassName ||
-    'inline-flex max-w-[5.5rem] shrink-0 truncate rounded-full bg-gradient-to-r from-[#eef2fc] to-[#e8f4fc] px-2.5 py-1 text-[11px] font-semibold leading-none text-[#246392] ring-1 ring-[#55ace7]/12 transition hover:ring-[#55ace7]/30'
+    'inline-flex max-w-[7.25rem] shrink-0 truncate rounded-full bg-gradient-to-r from-[#eef2fc] to-[#e8f4fc] px-2.5 py-1 text-[11px] font-semibold leading-none text-[#246392] ring-1 ring-[#55ace7]/12 transition hover:ring-[#55ace7]/30'
 
   return (
     <>
-      <div className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-hidden">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
         {visible.map((item) => (
           <AdminTooltip key={item} label={item}>
             <span className={chipBase}>{item}</span>

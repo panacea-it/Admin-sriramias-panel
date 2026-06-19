@@ -7,8 +7,7 @@ import BatchTableActions from './BatchTableActions'
 import { formatBatchDate } from '../../data/batchManagementData'
 import { batchDetailsPath } from '../../constants/batchNav'
 import { cn } from '../../utils/cn'
-
-const OVERFLOW_CELL = 'min-w-0 max-w-0 overflow-hidden align-middle'
+import { OVERFLOW_CELL, createActionsColumn } from '../../utils/tableColumnHelpers'
 
 const linkClassName =
   'font-semibold text-[#246392] underline-offset-2 transition hover:text-[#1a3a5c] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/50 rounded'
@@ -210,14 +209,9 @@ export default function BatchManagementTable({
           </div>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        width: 520,
-        align: 'center',
-        headerClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
-        cellClassName: 'min-w-[520px] whitespace-nowrap align-middle text-center px-2 sm:px-3',
-        headerTruncate: false,
+      createActionsColumn({
+        buttonCount: 4,
+        align: 'right',
         render: (batch) => (
           <BatchTableActions
             batch={batch}
@@ -229,7 +223,7 @@ export default function BatchManagementTable({
             disabled={statusUpdatingIds?.has(String(batch.id))}
           />
         ),
-      },
+      }),
     ],
     [
       listState,
@@ -266,7 +260,7 @@ export default function BatchManagementTable({
       rowClassName="hover:bg-[#eef6fc]/70"
       density="comfortable"
       skeletonRowCount={8}
-      tableMinWidth={1680}
+      tableMinWidth={1180}
       tableLayoutFixed
       className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
       tableClassName={cn(
