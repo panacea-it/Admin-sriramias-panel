@@ -1,6 +1,5 @@
 import { Copy, Eye, Pencil, RefreshCw } from 'lucide-react'
 import TableActionMenu from '../common/TableActionMenu'
-import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function LiveClassesTableActions({
   row,
@@ -10,7 +9,7 @@ export default function LiveClassesTableActions({
   onDisable,
   onDuplicate,
 }) {
-  const statusAction = recordStatusActionLabel(row.status === 'Disabled' ? 'In Active' : row.status)
+  const statusAction = row.status === 'Disabled' ? 'Activate' : 'Deactivate'
 
   const items = [
     { label: 'View', icon: Eye, onClick: () => onView?.(row) },
