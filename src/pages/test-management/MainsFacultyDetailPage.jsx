@@ -7,7 +7,7 @@ import StatCard from '../../components/dashboard/StatCard'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { useMainsFacultyTopics } from '../../hooks/useMainsFacultyTopics'
-import { BookOpen, ClipboardList, FileText } from 'lucide-react'
+import { BookOpen, ClipboardList, FileText, Loader2 } from 'lucide-react'
 
 export default function MainsFacultyDetailPage() {
   const { subjectId } = useParams()
@@ -18,7 +18,17 @@ export default function MainsFacultyDetailPage() {
     ? [{ key: 'faculty', label: `${faculty.subjectName} by ${faculty.facultyName}` }]
     : []
 
-  if (!loading && !faculty) {
+  if (loading) {
+    return (
+      <TestManagementPageShell icon={ListChecks} title="Faculty Subject">
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
+        </div>
+      </TestManagementPageShell>
+    )
+  }
+
+  if (!faculty) {
     return (
       <TestManagementPageShell icon={ListChecks} title="Faculty Subject">
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">

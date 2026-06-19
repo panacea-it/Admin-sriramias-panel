@@ -243,6 +243,7 @@ function wrapApi(_fetchLocal, upsertLocal, deleteLocal, basePath, { localOnly = 
 const EXAM_PATTERN_PATH = '/test-configuration/exam-patterns'
 const SECTION_PATH = '/test-configuration/sections'
 const LANGUAGE_PATH = '/test-configuration/languages'
+const MARKING_RULE_PATH = '/test-configuration/marking-rules'
 
 function uiStatusToApi(status) {
   const raw = String(status || '').toLowerCase()
@@ -328,6 +329,28 @@ function mapApiLanguage(row) {
   }
 }
 
+function mapApiMarkingRule(row) {
+  if (!row || typeof row !== 'object') return null
+  const mongoId = row._id ?? row.id
+  const markingRuleId = row.markingRuleId ?? ''
+  if (!mongoId && !markingRuleId) return null
+  return {
+    id: String(mongoId ?? markingRuleId),
+    markingRuleId: String(markingRuleId || mongoId),
+    ruleName: String(row.ruleName ?? '').trim(),
+    positiveMarks: Number(row.positiveMarks ?? 0),
+    negativeMarks: Number(row.negativeMarks ?? 0),
+    partialMarking: Boolean(row.partialMarking),
+    partialMarksValue: Number(row.partialMarksValue ?? 0),
+    description: String(row.description ?? ''),
+    applicableTests: Array.isArray(row.applicableTests) ? row.applicableTests : [],
+    status: apiStatusToUi(row.status),
+    createdOn: friendlyDate(row.createdAt || row.createdOn),
+    modifiedOn: friendlyDate(row.updatedAt || row.modifiedOn || row.createdAt || row.createdOn),
+    createdAt: friendlyDate(row.createdAt || row.createdOn),
+  }
+}
+
 async function fetchListFromApi(basePath, params, sortPreset, mapper) {
   const response = await apiCall('get', basePath, { params: buildListQuery(params, sortPreset) })
   const body = response.data
@@ -409,13 +432,6 @@ async function deleteSectionConfigLocal(id) {
     loadSectionStore().filter((row) => String(row.id) !== String(id)),
   )
 }
-
-const markingRuleCrud = createCrudHandlers({
-  key: KEYS.markingRules,
-  seed: SEED_MARKING_RULES,
-  idPrefix: 'MR',
-  searchKeys: ['id', 'ruleName', 'status'],
-})
 
 function applyLanguageFilters(rows, params) {
   let result = filterByQuery(rows, params.search, ['id', 'languageName', 'status'])
@@ -514,13 +530,47 @@ async function deleteSectionConfig(id) {
     throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete section')
   }
 }
-const markingRuleApi = wrapApi(
-  markingRuleCrud.fetchLocal,
-  markingRuleCrud.upsertLocal,
-  markingRuleCrud.deleteLocal,
-  '/test-management/marking-rules',
-  { localOnly: true },
-)
+
+async function fetchMarkingRules(params = {}) {
+  try {
+    const preset = presetFromSort(params.sortBy, params.sortDir, 'ruleName')
+    return await fetchListFromApi(MARKING_RULE_PATH, params, preset, mapApiMarkingRule)
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to load marking rules')
+  }
+}
+
+async function upsertMarkingRule(payload, meta) {
+  const body = {
+    ruleName: String(payload.ruleName || '').trim(),
+    positiveMarks: Number(payload.positiveMarks ?? 0),
+    negativeMarks: Number(payload.negativeMarks ?? 0),
+    partialMarking: Boolean(payload.partialMarking),
+    partialMarksValue: Number(payload.partialMarksValue ?? 0),
+    description: String(payload.description || '').trim(),
+    applicableTests: Array.isArray(payload.applicableTests) ? payload.applicableTests : [],
+    status: uiStatusToApi(payload.status) || 'ACTIVE',
+  }
+  try {
+    const response =
+      meta?.isEdit && meta?.id
+        ? await apiCall('put', `${MARKING_RULE_PATH}/${meta.id}`, { payload: body })
+        : await apiCall('post', MARKING_RULE_PATH, { payload: body })
+    notifyTestConfigurationUpdated({ entity: 'markingRules' })
+    return mapApiMarkingRule(response.data?.data ?? response.data)
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to save marking rule')
+  }
+}
+
+async function deleteMarkingRule(id) {
+  try {
+    await apiCall('delete', `${MARKING_RULE_PATH}/${id}`)
+    notifyTestConfigurationUpdated({ entity: 'markingRules' })
+  } catch (err) {
+    throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete marking rule')
+  }
+}
 export async function fetchLanguages(params = {}) {
   try {
     const preset = presetFromSort(params.sortBy, params.sortDir, 'languageName')
@@ -593,9 +643,7 @@ export async function deleteExamPattern(id) {
 
 export { fetchSectionConfigs, upsertSectionConfig, deleteSectionConfig }
 
-export const fetchMarkingRules = markingRuleApi.fetch
-export const upsertMarkingRule = markingRuleApi.upsert
-export const deleteMarkingRule = markingRuleApi.remove
+export { fetchMarkingRules, upsertMarkingRule, deleteMarkingRule }
 
 /** Local-only helpers — used by marking rules (no backend API yet). */
 export {

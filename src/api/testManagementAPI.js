@@ -185,13 +185,8 @@ async function deleteQuestionLocal(id) {
 export async function fetchQuestions(params = {}) {
   if (isFrontendOnly) return fetchQuestionsLocal(params)
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/test-management/questions', { params, skipAuthRedirect: true })
-    const body = response.data
-    const list = Array.isArray(body) ? body : body?.data ?? []
-    // If backend endpoint exists but returns empty/unsupported, fall back to local seeded store
-    if (Array.isArray(list) && list.length > 0) return list
-    return fetchQuestionsLocal(params)
+    const { fetchQuestions: fetchFromQuestionBank } = await import('./questionBankAPI')
+    return await fetchFromQuestionBank(params)
   } catch {
     return fetchQuestionsLocal(params)
   }
@@ -200,13 +195,8 @@ export async function fetchQuestions(params = {}) {
 export async function upsertQuestion(payload, meta) {
   if (isFrontendOnly) return upsertQuestionLocal(payload, meta)
   try {
-    const { default: api } = await import('./axiosInstance')
-    if (meta?.isEdit && meta?.id) {
-      const response = await api.put(`/test-management/questions/${meta.id}`, payload, { skipAuthRedirect: true })
-      return response.data?.data ?? response.data
-    }
-    const response = await api.post('/test-management/questions', payload, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
+    const { upsertQuestion: upsertInBank } = await import('./questionBankAPI')
+    return await upsertInBank(payload, meta)
   } catch {
     return upsertQuestionLocal(payload, meta)
   }
@@ -215,8 +205,8 @@ export async function upsertQuestion(payload, meta) {
 export async function deleteQuestion(id) {
   if (isFrontendOnly) return deleteQuestionLocal(id)
   try {
-    const { default: api } = await import('./axiosInstance')
-    await api.delete(`/test-management/questions/${id}`, { skipAuthRedirect: true })
+    const { deleteQuestion: deleteFromBank } = await import('./questionBankAPI')
+    return await deleteFromBank(id)
   } catch {
     return deleteQuestionLocal(id)
   }
@@ -255,39 +245,17 @@ async function deleteConfigLocal(id) {
 
 export async function fetchTestConfigs(params = {}) {
   if (isFrontendOnly) return fetchConfigsLocal(params)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/test-management/configs', { params, skipAuthRedirect: true })
-    const body = response.data
-    return Array.isArray(body) ? body : body?.data ?? []
-  } catch {
-    return fetchConfigsLocal(params)
-  }
+  return fetchConfigsLocal(params)
 }
 
 export async function upsertTestConfig(payload, meta) {
   if (isFrontendOnly) return upsertConfigLocal(payload, meta)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    if (meta?.isEdit && meta?.id) {
-      const response = await api.put(`/test-management/configs/${meta.id}`, payload, { skipAuthRedirect: true })
-      return response.data?.data ?? response.data
-    }
-    const response = await api.post('/test-management/configs', payload, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
-  } catch {
-    return upsertConfigLocal(payload, meta)
-  }
+  return upsertConfigLocal(payload, meta)
 }
 
 export async function deleteTestConfig(id) {
   if (isFrontendOnly) return deleteConfigLocal(id)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    await api.delete(`/test-management/configs/${id}`, { skipAuthRedirect: true })
-  } catch {
-    return deleteConfigLocal(id)
-  }
+  return deleteConfigLocal(id)
 }
 
 // ------------------ Integrations ------------------
@@ -322,39 +290,17 @@ async function deleteIntegrationLocal(id) {
 
 export async function fetchTestIntegrations(params = {}) {
   if (isFrontendOnly) return fetchIntegrationsLocal(params)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/test-management/integrations', { params, skipAuthRedirect: true })
-    const body = response.data
-    return Array.isArray(body) ? body : body?.data ?? []
-  } catch {
-    return fetchIntegrationsLocal(params)
-  }
+  return fetchIntegrationsLocal(params)
 }
 
 export async function upsertTestIntegration(payload, meta) {
   if (isFrontendOnly) return upsertIntegrationLocal(payload, meta)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    if (meta?.isEdit && meta?.id) {
-      const response = await api.put(`/test-management/integrations/${meta.id}`, payload, { skipAuthRedirect: true })
-      return response.data?.data ?? response.data
-    }
-    const response = await api.post('/test-management/integrations', payload, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
-  } catch {
-    return upsertIntegrationLocal(payload, meta)
-  }
+  return upsertIntegrationLocal(payload, meta)
 }
 
 export async function deleteTestIntegration(id) {
   if (isFrontendOnly) return deleteIntegrationLocal(id)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    await api.delete(`/test-management/integrations/${id}`, { skipAuthRedirect: true })
-  } catch {
-    return deleteIntegrationLocal(id)
-  }
+  return deleteIntegrationLocal(id)
 }
 
 // ------------------ Results & Analytics ------------------
@@ -368,14 +314,7 @@ async function fetchResultsLocal(params = {}) {
 
 export async function fetchResults(params = {}) {
   if (isFrontendOnly) return fetchResultsLocal(params)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/test-management/results', { params, skipAuthRedirect: true })
-    const body = response.data
-    return Array.isArray(body) ? body : body?.data ?? []
-  } catch {
-    return fetchResultsLocal(params)
-  }
+  return fetchResultsLocal(params)
 }
 
 // ------------------ Result & Analytics Engine ------------------

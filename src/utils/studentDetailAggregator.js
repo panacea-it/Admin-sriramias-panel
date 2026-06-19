@@ -57,6 +57,42 @@ export function getStudentProfile(manageUserId) {
   return findManageUserById(manageUserId)
 }
 
+export function mapManageUserRowToStudentProfile(row) {
+  if (!row) return null
+
+  const role = String(row.role || '')
+    .trim()
+    .toLowerCase()
+  if (role !== 'student') return null
+
+  const studentDetails =
+    row.studentDetails && typeof row.studentDetails === 'object'
+      ? row.studentDetails
+      : {}
+
+  return {
+    id: String(row.id || ''),
+    userId: String(row.userId || row.id || ''),
+    fullName: row.fullName === '—' ? '' : String(row.fullName || '').trim(),
+    email: row.email === '—' ? '' : String(row.email || '').trim(),
+    phone: row.phone === '—' ? '' : String(row.phone || '').trim(),
+    role: 'student',
+    assignedCenter:
+      row.assignedCenter === '-' ? '' : String(row.assignedCenter || '').trim(),
+    status: row.status === 'In Active' ? 'In Active' : 'Active',
+    profileImage: row.profileImage || '',
+    parentName: String(row.parentName || '').trim(),
+    parentPhone: String(row.parentPhone || '').trim(),
+    address: String(studentDetails.address || row.raw?.address || '').trim(),
+    city: String(studentDetails.city || row.raw?.city || '').trim(),
+    pinCode: String(
+      studentDetails.pinCode || studentDetails.pincode || row.raw?.pinCode || '',
+    ).trim(),
+    joinedAt: row.joinedAt || row.createdAt || null,
+    updatedAt: row.updatedAt || row.joinedAt || row.createdAt || null,
+  }
+}
+
 function collectBatchesFromStore() {
   const apiRows = loadBatchesStore()
   const fromInitial = INITIAL_BATCHES.map((b) => ({
@@ -216,8 +252,15 @@ export function getStudentOrders(profile) {
   return [...orders].sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
 }
 
-export function buildStudent360(manageUserId) {
-  const profile = getStudentProfile(manageUserId)
+export function buildStudent360(manageUserId, options = {}) {
+  const { apiProfile } = options
+  let profile = getStudentProfile(manageUserId)
+  if (!profile && apiProfile) {
+    profile = apiProfile
+  } else if (profile && apiProfile) {
+    profile = { ...profile, ...apiProfile }
+  }
+
   if (!profile || profile.role !== 'student') {
     return { profile: null, isStudent: false }
   }

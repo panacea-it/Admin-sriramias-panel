@@ -44,12 +44,12 @@ export default function AdminManagementPage() {
     options: roleDropdownOptions = [],
     error: rolesDropdownError,
     refresh: refreshRolesDropdown,
-  } = useRolesDropdown()
+  } = useRolesDropdown({ adminManagement: true })
   const {
     options: centerDropdownOptions = [],
     error: centersDropdownError,
     refresh: refreshCentersDropdown,
-  } = useCentersDropdownOptions()
+  } = useCentersDropdownOptions({ adminManagement: true })
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 

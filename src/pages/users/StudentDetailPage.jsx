@@ -23,7 +23,10 @@ import EmiEditModal from '../../components/finance/EmiEditModal'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
 import { StatusBadge } from '../../components/academics/AcademicsUi'
 import { fetchEmiPlans, submitOfflinePaymentReport, updateEmiPlan } from '../../api/financeAPI'
-import { buildStudent360 } from '../../utils/studentDetailAggregator'
+import {
+  buildStudent360,
+  mapManageUserRowToStudentProfile,
+} from '../../utils/studentDetailAggregator'
 import { enrichEnrollmentsWithPaymentInfo } from '../../utils/enrollmentPaymentLink'
 import { enrichEmiPlans } from '../../utils/emiManagement'
 import { formatINR } from '../../utils/financeFilters'
@@ -32,6 +35,10 @@ import { cn } from '../../utils/cn'
 import { toast } from '../../utils/toast'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import StudentContentPanel from '../../components/content-library/student/StudentContentPanel'
+import {
+  getUserById,
+  normalizeUnifiedUsersResponse,
+} from '../../services/userManagementService'
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: User },
@@ -566,8 +573,68 @@ function AddressTab({ profile }) {
 export default function StudentDetailPage() {
   const { userId } = useParams()
   const [activeTab, setActiveTab] = useState('overview')
+  const [apiProfile, setApiProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const data = useMemo(() => buildStudent360(userId), [userId])
+  useEffect(() => {
+    let active = true
+
+    const loadStudent = async () => {
+      if (!userId) {
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      try {
+        const response = await getUserById(userId)
+        const envelope = response?.data ?? response
+        const record = envelope?.summary ?? envelope
+        const normalized = normalizeUnifiedUsersResponse(record, {
+          page: 1,
+          limit: 1,
+        })
+        const row = normalized.items[0]
+
+        if (active && row) {
+          setApiProfile(mapManageUserRowToStudentProfile(row))
+        } else if (active) {
+          setApiProfile(null)
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error(error)
+        }
+        if (active) {
+          setApiProfile(null)
+          toast.error('Unable to load student profile from the API')
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadStudent()
+
+    return () => {
+      active = false
+    }
+  }, [userId])
+
+  const data = useMemo(
+    () => buildStudent360(userId, { apiProfile }),
+    [userId, apiProfile],
+  )
+
+  if (loading) {
+    return (
+      <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 py-12 text-center">
+        <p className="text-[#686868]">Loading student profile…</p>
+      </div>
+    )
+  }
 
   if (!data.profile) {
     return (

@@ -15,11 +15,6 @@ import {
 } from "../../components/academics/AcademicsUi";
 import { useTableRowSelection } from "../../hooks/useTableRowSelection";
 import {
-  createCoupon,
-  loadCoupons,
-  updateCoupon,
-} from "../../utils/couponsStorage";
-import {
   deleteAdminCoupon,
   fetchAdminCoupons,
   createAdminCoupon,
@@ -27,7 +22,7 @@ import {
 } from "../../api/couponsAPI";
 
 export default function CouponsPage() {
-  const [coupons, setCoupons] = useState(() => loadCoupons());
+  const [coupons, setCoupons] = useState([]);
   const [loadingCoupons, setLoadingCoupons] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -65,7 +60,7 @@ export default function CouponsPage() {
         if (mounted && !controller.signal.aborted) {
           console.error("Failed to load admin coupons:", error);
           toast.error("Unable to load coupons from the server.");
-          setCoupons(loadCoupons());
+          setCoupons([]);
         }
       } finally {
         if (mounted) {
@@ -93,7 +88,8 @@ export default function CouponsPage() {
       setCoupons(rows);
     } catch (error) {
       console.error("Failed to refresh coupons:", error);
-      setCoupons(loadCoupons());
+      toast.error("Unable to refresh coupons from the server.");
+      setCoupons([]);
     }
   }, [categoryFilter]);
 
@@ -130,26 +126,11 @@ export default function CouponsPage() {
       }
       await refresh();
     } catch (err) {
-      console.error(
-        "API create/update failed, falling back to local storage",
-        err,
+      console.error("API create/update failed", err);
+      toast.error(
+        editing ? "Failed to update coupon" : "Failed to create coupon",
       );
-
-      if (editing) {
-        // 2. Use targetId instead of editing.id
-        const result = updateCoupon(targetId, form);
-        if (!result.ok) {
-          toast.error(result.reason || "Failed to update coupon");
-          throw new Error("Fallback update failed"); // 3. Throw so the modal knows it failed
-        }
-      } else {
-        const result = createCoupon(form);
-        if (!result.ok) {
-          toast.error(result.reason || "Failed to create coupon");
-          throw new Error("Fallback create failed");
-        }
-      }
-      await refresh();
+      throw err;
     } finally {
       setEditingCoupon(null);
     }

@@ -1,4 +1,4 @@
-﻿import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+﻿import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronRight, Search, Shield, Pencil, Save } from 'lucide-react'
 import { toast } from '@/utils/toast'
@@ -26,6 +26,11 @@ import {
 } from '../../utils/rbacStorage'
 import { getStoredRolesOrSeed } from '../../utils/adminRolesStorage'
 import { getModuleFeatureCount, getModuleFeatureLabels } from '../../utils/matrixModuleMeta'
+import { fetchPermissionMatrix } from '../../services/permissionService'
+import {
+  backendMatrixToNestedRbac,
+  buildPermissionMatrixIndex,
+} from '../../utils/permissionMatrixSync'
 
 const MODULE_COL_WIDTH = 100
 const ROLE_COL_WIDTH = 236
@@ -49,6 +54,40 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
   const [activeRole, setActiveRole] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [hasUnsavedApiDraft, setHasUnsavedApiDraft] = useState(false)
+  const matrixIndexRef = useRef({})
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMatrixFromApi = async () => {
+      try {
+        const response = await fetchPermissionMatrix()
+        if (cancelled || !response?.data) return
+
+        matrixIndexRef.current = buildPermissionMatrixIndex(response)
+        const merged = backendMatrixToNestedRbac(response, roles)
+        setNestedRbac((prev) => {
+          const synced = syncNestedKeysForRoles(merged, roles)
+          try {
+            persistRbacState(synced)
+          } catch {
+            /* keep in-memory state even if local cache fails */
+          }
+          return synced
+        })
+      } catch {
+        if (!cancelled) {
+          setNestedRbac(readMergedRbac(roles))
+        }
+      }
+    }
+
+    loadMatrixFromApi()
+
+    return () => {
+      cancelled = true
+    }
+  }, [roleIdsKey, roles])
 
   useEffect(() => {
     setNestedRbac((prev) => syncNestedKeysForRoles(prev, roles))
@@ -179,7 +218,12 @@ const RoleAccessMatrix = forwardRef(function RoleAccessMatrix({ onSave, focusRol
       return
     }
 
-    onSave?.({ rbacPayload: payload, nestedState, fullExport })
+    onSave?.({
+      rbacPayload: payload,
+      nestedState,
+      fullExport,
+      matrixIndex: matrixIndexRef.current,
+    })
     setHasUnsavedApiDraft(false)
     setEditable(false)
   }

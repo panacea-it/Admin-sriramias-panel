@@ -1,50 +1,67 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@/utils/toast'
 import { getCentersDropdown, normalizeCentersDropdown } from '../services/centerService'
+import {
+  fetchCentersDropdownOptions as fetchAdminCentersDropdownOptions,
+} from '../services/adminAccessService'
 import { getApiErrorMessage } from '../utils/apiError'
 
-let sharedDropdownPromise = null
-let sharedDropdownOptions = null
-let sharedDropdownLoadedAt = 0
 const DROPDOWN_TTL_MS = 5 * 60_000
 
-export function clearCentersDropdownOptionsCache() {
-  sharedDropdownPromise = null
-  sharedDropdownOptions = null
-  sharedDropdownLoadedAt = 0
+const cacheBySource = {
+  default: { promise: null, options: null, loadedAt: 0 },
+  admin: { promise: null, options: null, loadedAt: 0 },
 }
 
-async function loadCentersDropdownOnce({ force = false } = {}) {
-  if (
-    !force &&
-    sharedDropdownOptions &&
-    Date.now() - sharedDropdownLoadedAt < DROPDOWN_TTL_MS
-  ) {
-    return sharedDropdownOptions
+function getCacheKey(adminManagement) {
+  return adminManagement ? 'admin' : 'default'
+}
+
+export function clearCentersDropdownOptionsCache() {
+  cacheBySource.default = { promise: null, options: null, loadedAt: 0 }
+  cacheBySource.admin = { promise: null, options: null, loadedAt: 0 }
+}
+
+async function loadCentersDropdownOnce({ force = false, adminManagement = false } = {}) {
+  const cacheKey = getCacheKey(adminManagement)
+  const cache = cacheBySource[cacheKey]
+
+  if (!force && cache.options && Date.now() - cache.loadedAt < DROPDOWN_TTL_MS) {
+    return cache.options
   }
 
-  if (!sharedDropdownPromise || force) {
-    sharedDropdownPromise = getCentersDropdown()
-      .then((centersResponse) => {
-        const mapped = normalizeCentersDropdown(centersResponse)
+  if (!cache.promise || force) {
+    const loader = adminManagement
+      ? fetchAdminCentersDropdownOptions
+      : async () => {
+          const centersResponse = await getCentersDropdown()
+          const mapped = normalizeCentersDropdown(centersResponse)
+          return Array.isArray(mapped) ? mapped : []
+        }
+
+    cache.promise = loader()
+      .then((mapped) => {
         const safeMapped = Array.isArray(mapped) ? mapped : []
         if (safeMapped.length > 0) {
-          sharedDropdownOptions = safeMapped
-          sharedDropdownLoadedAt = Date.now()
+          cache.options = safeMapped
+          cache.loadedAt = Date.now()
         }
         return safeMapped
       })
       .finally(() => {
-        sharedDropdownPromise = null
+        cache.promise = null
       })
   }
 
-  return sharedDropdownPromise
+  return cache.promise
 }
 
-export function useCentersDropdownOptions({ enabled = true } = {}) {
-  const [options, setOptions] = useState(() => sharedDropdownOptions || [])
-  const [loading, setLoading] = useState(() => enabled && !sharedDropdownOptions)
+export function useCentersDropdownOptions({ enabled = true, adminManagement = false } = {}) {
+  const cacheKey = getCacheKey(adminManagement)
+  const initialCache = cacheBySource[cacheKey]
+
+  const [options, setOptions] = useState(() => initialCache.options || [])
+  const [loading, setLoading] = useState(() => enabled && !initialCache.options)
   const [error, setError] = useState(null)
   const mountedRef = useRef(true)
 
@@ -55,7 +72,7 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
     setError(null)
 
     try {
-      const mapped = await loadCentersDropdownOnce({ force })
+      const mapped = await loadCentersDropdownOnce({ force, adminManagement })
       if (!mountedRef.current) return
       const safeMapped = Array.isArray(mapped) ? mapped : []
       setOptions(safeMapped)
@@ -70,7 +87,7 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
         setLoading(false)
       }
     }
-  }, [enabled])
+  }, [enabled, adminManagement])
 
   useEffect(() => {
     mountedRef.current = true
@@ -81,8 +98,9 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
       }
     }
 
-    if (sharedDropdownOptions?.length) {
-      setOptions(sharedDropdownOptions)
+    const cached = cacheBySource[cacheKey].options
+    if (cached?.length) {
+      setOptions(cached)
       setLoading(false)
       setError(null)
       return () => {
@@ -95,7 +113,7 @@ export function useCentersDropdownOptions({ enabled = true } = {}) {
     return () => {
       mountedRef.current = false
     }
-  }, [enabled, fetchOptions])
+  }, [enabled, adminManagement, cacheKey, fetchOptions])
 
   return {
     options: Array.isArray(options) ? options : [],

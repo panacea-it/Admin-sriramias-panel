@@ -114,13 +114,13 @@ export default function CreateAdminModal({
     loading: rolesLoading,
     error: rolesError,
     refresh: refreshRoles,
-  } = useRolesDropdown({ enabled: open })
+  } = useRolesDropdown({ enabled: open, adminManagement: true })
   const {
     options: centerOptions = [],
     loading: centersLoading,
     error: centersError,
     refresh: refreshCenters,
-  } = useCentersDropdownOptions({ enabled: open })
+  } = useCentersDropdownOptions({ enabled: open, adminManagement: true })
 
   const safeRoleOptions = Array.isArray(roleOptions) ? roleOptions : []
   const safeCenterOptions = Array.isArray(centerOptions) ? centerOptions : []

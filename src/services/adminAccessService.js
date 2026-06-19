@@ -293,7 +293,7 @@ export const deleteAdminUser = async (adminAccessId) => {
 
 export const getRolesDropdown = async () => {
   try {
-    const response = await api.get("/api/admin/user-roles");
+    const response = await api.get("/api/admin/roles/dropdown");
     return response.data;
   } catch (error) {
     throwApiError(error);
@@ -311,7 +311,23 @@ export const getCentersDropdown = async () => {
 
 export async function fetchRolesDropdownOptions() {
   const data = await getRolesDropdown();
-  return normalizeRolesDropdown(data);
+  const list = Array.isArray(data?.data) ? data.data : [];
+
+  return list
+    .map((item) => {
+      const label = String(item?.roleTitle || item?.label || "").trim();
+      const value = String(item?._id || item?.id || item?.value || "").trim();
+      const roleCode = String(item?.roleCode || item?.code || "").trim().toUpperCase();
+
+      return {
+        label,
+        value,
+        roleCode,
+        status: String(item?.status || "ACTIVE").trim(),
+        raw: item,
+      };
+    })
+    .filter((option) => option.label && option.value);
 }
 
 export async function fetchCentersDropdownOptions() {

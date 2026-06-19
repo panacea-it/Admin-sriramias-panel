@@ -23,10 +23,17 @@ function heatColor(value) {
   return HEAT_COLORS[0];
 }
 
-export default function TestManagementAnalyticsSection({ analyticsData }) {
-  // Map API data to the shape required by the charts/tables
-  const { subjectWisePerformance, accuracyHeatmap, topScorers, weakAreas } =
-    analyticsData;
+const EMPTY_ANALYTICS = {
+  summary: { avgAttemptRate: 0, topScorerAvg: 0, accuracyIndex: 0 },
+  subjectWisePerformance: [],
+  accuracyHeatmap: [],
+  topScorers: [],
+  weakAreas: [],
+}
+
+export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_ANALYTICS }) {
+  const data = analyticsData ?? EMPTY_ANALYTICS
+  const { subjectWisePerformance, accuracyHeatmap, topScorers, weakAreas } = data
 
   // 1. Process Heatmap data for the table
   const heatmap = useMemo(() => {
@@ -59,13 +66,13 @@ export default function TestManagementAnalyticsSection({ analyticsData }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Avg Attempt Rate"
-          value={`${analyticsData.summary?.avgAttemptRate || 0}%`}
+          value={`${data.summary?.avgAttemptRate || 0}%`}
           color="#55ace7"
           icon={Zap}
         />
         <StatCard
           title="Top Scorer Avg"
-          value={analyticsData.summary?.topScorerAvg || 0}
+          value={data.summary?.topScorerAvg || 0}
           color="#10b981"
           icon={Trophy}
         />
@@ -77,7 +84,7 @@ export default function TestManagementAnalyticsSection({ analyticsData }) {
         />
         <StatCard
           title="Accuracy Index"
-          value={`${analyticsData.summary?.accuracyIndex || 0}%`}
+          value={`${data.summary?.accuracyIndex || 0}%`}
           color="#8b5cf6"
           icon={Target}
         />

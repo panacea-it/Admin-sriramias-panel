@@ -23,6 +23,7 @@ import { fetchLiveTMData } from "../../api/tmDashboardAPI";
 
 export default function TestManagementDashboardPage() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -30,11 +31,14 @@ export default function TestManagementDashboardPage() {
     const loadRealData = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const result = await fetchLiveTMData(controller.signal);
         setData(result);
       } catch (error) {
-        if (error?.name !== "CanceledError")
+        if (error?.name !== "CanceledError") {
+          setLoadError(error?.message || "Failed to fetch live dashboard data");
           toast.error("Failed to fetch live dashboard data");
+        }
       } finally {
         setLoading(false);
       }
@@ -43,7 +47,7 @@ export default function TestManagementDashboardPage() {
     return () => controller.abort();
   }, []);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <TestManagementPageShell
         icon={LayoutDashboard}
@@ -51,6 +55,28 @@ export default function TestManagementDashboardPage() {
       >
         <div className="flex min-h-[60vh] items-center justify-center">
           <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
+        </div>
+      </TestManagementPageShell>
+    );
+  }
+
+  if (loadError || !data) {
+    return (
+      <TestManagementPageShell
+        icon={LayoutDashboard}
+        title="Test Management Dashboard"
+      >
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+          <p className="text-sm text-slate-600">
+            {loadError || "Dashboard data is unavailable."}
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-[#55ace7] px-4 py-2 text-sm font-semibold text-white"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
         </div>
       </TestManagementPageShell>
     );

@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Monitor } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
@@ -8,21 +7,15 @@ import StatCard from '../../components/dashboard/StatCard'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { getCbtFacultyBySubjectId } from '../../utils/cbtTestSeriesHierarchy'
-import { useCbtTestSeriesHierarchy } from '../../hooks/useCbtTestSeriesHierarchy'
+import { useCbtFacultySubject } from '../../hooks/useCbtFacultySubject'
 import { useCbtFacultyTopics } from '../../hooks/useCbtFacultyTopics'
-import { BookOpen, ClipboardList, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, Users, Loader2 } from 'lucide-react'
 
 export default function CbtFacultyDetailPage() {
   const { subjectId } = useParams()
   const navigate = useNavigate()
-  const { mappingRows, loading } = useCbtTestSeriesHierarchy()
+  const { faculty, loading } = useCbtFacultySubject(subjectId)
   const { topics, loading: topicsLoading } = useCbtFacultyTopics(subjectId)
-
-  const faculty = useMemo(() => {
-    const fromRows = mappingRows.find((r) => String(r.subjectId) === String(subjectId))
-    if (fromRows) return fromRows
-    return getCbtFacultyBySubjectId(subjectId)
-  }, [mappingRows, subjectId])
 
   const totalTests = topics.reduce((s, t) => s + (t.testCount ?? 0), 0)
 
@@ -35,7 +28,17 @@ export default function CbtFacultyDetailPage() {
       ]
     : []
 
-  if (!loading && !faculty) {
+  if (loading) {
+    return (
+      <TestManagementPageShell icon={Monitor} title="Faculty Test Series">
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
+        </div>
+      </TestManagementPageShell>
+    )
+  }
+
+  if (!faculty) {
     return (
       <TestManagementPageShell icon={Monitor} title="Faculty Test Series">
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
@@ -80,12 +83,6 @@ export default function CbtFacultyDetailPage() {
           </p>
           <CbtTopicsTable faculty={faculty} topics={topics} loading={topicsLoading} />
         </>
-      )}
-
-      {loading && !faculty && (
-        <div className="flex min-h-[200px] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
-        </div>
       )}
     </TestManagementPageShell>
   )

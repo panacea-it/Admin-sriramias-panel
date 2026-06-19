@@ -1,5 +1,12 @@
 import { isFrontendOnly } from '../config/appMode'
 import {
+  fetchEvaluationFilterOptions,
+  fetchEvaluationTableData,
+  fetchEvaluationPaperById,
+  saveEvaluationDraft as saveOversightDraft,
+  publishEvaluationResult,
+} from './evaluationOversightAPI'
+import {
   SEED_EVALUATIONS,
   SEED_EVALUATION_EVALUATORS,
   SEED_EVALUATION_STUDENTS,
@@ -91,16 +98,28 @@ function loadLookups() {
   }
 }
 
+function mapFilterOptionsToLookups(options = {}) {
+  const pick = (list = []) =>
+    list
+      .filter((item) => item?.value && item.value !== 'all')
+      .map((item) => ({ id: item.value, name: item.label || item.value }))
+
+  return {
+    students: pick(options.batches),
+    tests: pick(options.tests),
+    evaluators: pick(options.mentors),
+  }
+}
+
 export async function fetchEvaluationLookups() {
   if (isFrontendOnly) {
     await delay()
     return loadLookups()
   }
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/evaluation/lookups', { skipAuthRedirect: true })
-    const body = response.data
-    if (body?.students && body?.tests && body?.evaluators) return body
+    const options = await fetchEvaluationFilterOptions()
+    const mapped = mapFilterOptionsToLookups(options)
+    if (mapped.tests.length || mapped.evaluators.length) return mapped
     await delay()
     return loadLookups()
   } catch {
@@ -112,11 +131,8 @@ export async function fetchEvaluationLookups() {
 export async function fetchEvaluations(params = {}) {
   if (isFrontendOnly) return fetchEvaluationsLocal(params)
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get('/evaluation', { params, skipAuthRedirect: true })
-    const body = response.data
-    const list = Array.isArray(body) ? body : body?.data ?? []
-    if (Array.isArray(list) && list.length > 0) return list
+    const rows = await fetchEvaluationTableData(params)
+    if (Array.isArray(rows) && rows.length) return rows
     return fetchEvaluationsLocal(params)
   } catch {
     return fetchEvaluationsLocal(params)
@@ -167,9 +183,7 @@ async function fetchEvaluationsLocal(params = {}) {
 export async function fetchEvaluationById(evaluationId) {
   if (isFrontendOnly) return fetchEvaluationByIdLocal(evaluationId)
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.get(`/evaluation/${encodeURIComponent(String(evaluationId))}`, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
+    return await fetchEvaluationPaperById(evaluationId)
   } catch {
     return fetchEvaluationByIdLocal(evaluationId)
   }
@@ -188,13 +202,7 @@ async function fetchEvaluationByIdLocal(evaluationId) {
 
 export async function assignEvaluations(payload) {
   if (isFrontendOnly) return assignEvaluationsLocal(payload)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.post('/evaluation/assign', payload, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
-  } catch {
-    return assignEvaluationsLocal(payload)
-  }
+  return assignEvaluationsLocal(payload)
 }
 
 async function assignEvaluationsLocal(payload = {}) {
@@ -251,9 +259,7 @@ async function assignEvaluationsLocal(payload = {}) {
 export async function saveEvaluationDraft(evaluationId, patch, meta = {}) {
   if (isFrontendOnly) return saveEvaluationDraftLocal(evaluationId, patch, meta)
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.post('/evaluation/save', { evaluationId, ...patch }, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
+    return await saveOversightDraft(evaluationId, patch)
   } catch {
     return saveEvaluationDraftLocal(evaluationId, patch, meta)
   }
@@ -287,9 +293,7 @@ async function saveEvaluationDraftLocal(evaluationId, patch = {}, meta = {}) {
 export async function publishEvaluation(evaluationId, meta = {}) {
   if (isFrontendOnly) return publishEvaluationLocal(evaluationId, meta)
   try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.post('/evaluation/publish', { evaluationId }, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
+    return await publishEvaluationResult(evaluationId, meta)
   } catch {
     return publishEvaluationLocal(evaluationId, meta)
   }
@@ -321,13 +325,7 @@ async function publishEvaluationLocal(evaluationId, meta = {}) {
 
 export async function requestRecheck(evaluationId, payload = {}, meta = {}) {
   if (isFrontendOnly) return requestRecheckLocal(evaluationId, payload, meta)
-  try {
-    const { default: api } = await import('./axiosInstance')
-    const response = await api.post(`/evaluation/${encodeURIComponent(String(evaluationId))}/recheck`, payload, { skipAuthRedirect: true })
-    return response.data?.data ?? response.data
-  } catch {
-    return requestRecheckLocal(evaluationId, payload, meta)
-  }
+  return requestRecheckLocal(evaluationId, payload, meta)
 }
 
 async function requestRecheckLocal(evaluationId, payload = {}, meta = {}) {

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from '@/utils/toast'
 import { LayoutGrid } from 'lucide-react'
@@ -5,6 +6,10 @@ import PageBanner from '../../components/figma/PageBanner'
 import CategoryBreadcrumb from '../../components/categories/CategoryBreadcrumb'
 import RoleAccessMatrix from '../../components/admin-management/RoleAccessMatrix'
 import { useApiRolesCatalogSync } from '../../hooks/useApiRolesCatalogSync'
+import { useAdminRolesSafe } from '../../contexts/AdminRolesContext'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { syncPermissionMatrixBulk } from '../../services/permissionService'
+import { nestedRbacToBulkUpdates } from '../../utils/permissionMatrixSync'
 
 const BREADCRUMB = [
   { label: 'Admin Management' },
@@ -13,11 +18,12 @@ const BREADCRUMB = [
 
 export default function RoleAccessMatrixPage() {
   useApiRolesCatalogSync()
+  const adminRoles = useAdminRolesSafe()
 
   const [searchParams] = useSearchParams()
   const focusRoleId = searchParams.get('focus') || ''
 
-  const handleSavePermissions = (detail) => {
+  const handleSavePermissions = useCallback(async (detail) => {
     if (!detail?.rbacPayload || !detail?.nestedState || !Array.isArray(detail.rbacPayload.roles)) {
       toast.error('Unable to save permissions. Please refresh and try again.')
       return
@@ -28,10 +34,30 @@ export default function RoleAccessMatrixPage() {
       return
     }
 
-    toast.success('Permissions saved', {
-      description: 'Role permissions have been applied across the admin panel.',
-    })
-  }
+    const updates = nestedRbacToBulkUpdates(
+      detail.nestedState,
+      detail.matrixIndex,
+      adminRoles.roles,
+    )
+
+    if (!updates.length) {
+      toast.error('No backend permission modules available to sync.')
+      return
+    }
+
+    try {
+      const response = await syncPermissionMatrixBulk(updates)
+      if (response?.success === false) {
+        throw new Error(response?.message || 'Some permission updates failed')
+      }
+
+      toast.success('Permissions saved', {
+        description: 'Role permissions have been applied across the admin panel.',
+      })
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to save permissions to server'))
+    }
+  }, [adminRoles.roles])
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
@@ -50,4 +76,3 @@ export default function RoleAccessMatrixPage() {
     </div>
   )
 }
-

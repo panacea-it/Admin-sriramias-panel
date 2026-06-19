@@ -6,20 +6,15 @@ import CbtBreadcrumbNav from '../../components/test-management/cbt/CbtBreadcrumb
 import CbtTestsTable from '../../components/test-management/cbt/CbtTestsTable'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { getCbtFacultyBySubjectId } from '../../utils/cbtTestSeriesHierarchy'
-import { useCbtTestSeriesHierarchy } from '../../hooks/useCbtTestSeriesHierarchy'
+import { useCbtFacultySubject } from '../../hooks/useCbtFacultySubject'
 import { useCbtTopicTests } from '../../hooks/useCbtTopicTests'
+import { Loader2 } from 'lucide-react'
 
 export default function CbtTopicDetailPage() {
   const { subjectId, topicId } = useParams()
   const navigate = useNavigate()
-  const { mappingRows } = useCbtTestSeriesHierarchy()
-  const { tests, topic: topicHeader, loading } = useCbtTopicTests(topicId)
-
-  const faculty = useMemo(() => {
-    const fromRows = mappingRows.find((r) => String(r.subjectId) === String(subjectId))
-    return fromRows || getCbtFacultyBySubjectId(subjectId)
-  }, [mappingRows, subjectId])
+  const { faculty, loading: facultyLoading } = useCbtFacultySubject(subjectId)
+  const { tests, topic: topicHeader, loading: testsLoading } = useCbtTopicTests(topicId)
 
   const topic = useMemo(
     () => ({ id: topicId, title: topicHeader?.topicName || 'Topic' }),
@@ -63,16 +58,16 @@ export default function CbtTopicDetailPage() {
       <div className="mb-4">
         <CbtBreadcrumbNav items={breadcrumbs} />
       </div>
-      {loading ? (
+      {(facultyLoading || testsLoading) ? (
         <div className="flex min-h-[200px] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
+          <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
         </div>
       ) : (
         <CbtTestsTable
           faculty={faculty || { subjectId }}
           topic={topic}
           tests={tests}
-          loading={loading}
+          loading={testsLoading}
         />
       )}
     </TestManagementPageShell>

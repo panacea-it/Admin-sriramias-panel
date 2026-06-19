@@ -17,8 +17,6 @@ import {
   formatManageUserJoinDate,
 } from "../../components/manage-users/manageUsersStaticData";
 import { useTableRowSelection } from "../../hooks/useTableRowSelection";
-import { useRolesDropdown } from "../../hooks/useRolesDropdown";
-import { useCentersDropdownOptions } from "../../hooks/useCentersDropdownOptions";
 import { roleLabel } from "../../data/manageUsersConfig";
 import { cn } from "../../utils/cn";
 import {
@@ -30,6 +28,12 @@ import {
   updateUser,
   updateUserStatus,
 } from "../../services/userManagementService";
+import {
+  getUserCentersDropdown,
+  getUserRolesDropdown,
+  normalizeUserCentersDropdown,
+  normalizeUserRolesDropdown,
+} from "../../services/manageUsersService";
 
 const ROLE_BADGE_STYLES = {
   student: "bg-[#EEF5FF] text-[#1D72B8] ring-[#4CA6E8]/30",
@@ -118,13 +122,43 @@ export default function ManageUsersPage() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [actionUserId, setActionUserId] = useState(null);
+  const [roleDropdownOptions, setRoleDropdownOptions] = useState([]);
+  const [centerDropdownOptions, setCenterDropdownOptions] = useState([]);
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection(
     (row) => row.id,
   );
 
-  const { options: roleDropdownOptions = [] } = useRolesDropdown();
-  const { options: centerDropdownOptions = [] } = useCentersDropdownOptions();
+  useEffect(() => {
+    let active = true;
+
+    const loadFilterOptions = async () => {
+      try {
+        const [rolesData, centersData] = await Promise.all([
+          getUserRolesDropdown(),
+          getUserCentersDropdown(),
+        ]);
+
+        if (!active) return;
+
+        setRoleDropdownOptions(normalizeUserRolesDropdown(rolesData));
+        setCenterDropdownOptions(normalizeUserCentersDropdown(centersData));
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error(error);
+        }
+        if (active) {
+          toast.error("Failed to load user filter options from the API");
+        }
+      }
+    };
+
+    loadFilterOptions();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const normalizedRoleDropdownOptions = useMemo(() => {
     const seen = new Set();
@@ -137,16 +171,10 @@ export default function ManageUsersPage() {
         const rawValue = String(
           opt?.value || opt?._id || opt?.id || opt?.roleId || "",
         ).trim();
-        const roleCode = String(opt?.roleCode || opt?.code || "")
-          .trim()
-          .toUpperCase();
-
-        const normalizedValue = roleCode || rawValue;
 
         return {
-          value: normalizedValue,
+          value: rawValue,
           label: rawLabel || "Role",
-          roleCode,
           rawValue,
         };
       })

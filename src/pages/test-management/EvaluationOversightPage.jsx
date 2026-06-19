@@ -74,7 +74,7 @@ export default function EvaluationOversightPage() {
     setLoadError(null)
     try {
       const [statsRes, tableRes] = await Promise.all([
-        fetchEvaluationDashboardStats(queryParams),
+        fetchEvaluationDashboardStats(),
         fetchEvaluationTableData(queryParams),
       ])
       setStats(statsRes)
