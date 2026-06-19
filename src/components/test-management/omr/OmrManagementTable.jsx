@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 function StatusPill({ status }) {
   const active = status === 'Active'
@@ -116,14 +117,11 @@ export default function OmrManagementTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 2,
         align: 'right',
-        headerClassName: 'min-w-[220px] whitespace-nowrap pr-4 sm:pr-6',
-        cellClassName: 'min-w-[220px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

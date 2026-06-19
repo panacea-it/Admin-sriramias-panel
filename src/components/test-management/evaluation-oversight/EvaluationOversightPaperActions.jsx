@@ -1,7 +1,7 @@
 import { Eye, PlayCircle, UserPlus } from 'lucide-react'
 import ViewButton from '../../common/ViewButton'
 import IconActionButton from '../../common/IconActionButton'
-import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
+import { TABLE_ACTIONS_WRAP_CENTER } from '../../../utils/tableColumnHelpers'
 
 export default function EvaluationOversightPaperActions({
   row,
@@ -14,7 +14,7 @@ export default function EvaluationOversightPaperActions({
   const evaluationLabel = isEvaluated ? 'View Evaluation' : 'Start Evaluation'
 
   return (
-    <div className={TABLE_ACTIONS_WRAP}>
+    <div className={TABLE_ACTIONS_WRAP_CENTER}>
       <ViewButton onClick={() => onViewPaper(row)} label="View Paper" />
       <IconActionButton
         label={hasMentor ? 'Reassign Evaluator' : 'Assign Evaluator'}

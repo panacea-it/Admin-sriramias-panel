@@ -6,7 +6,7 @@ import ViewButton from '../../common/ViewButton'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { cn } from '../../../utils/cn'
-import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
+import { createActionsColumn, TABLE_ACTIONS_WRAP_CENTER } from '../../../utils/tableColumnHelpers'
 
 function formatLastUpdated(iso) {
   if (!iso) return '—'
@@ -36,7 +36,7 @@ function ScorePill({ pct }) {
 
 function CbtMappingTableActions({ row, onView }) {
   return (
-    <div className={TABLE_ACTIONS_WRAP}>
+    <div className={TABLE_ACTIONS_WRAP_CENTER}>
       <ViewButton onClick={onView} label={`View ${row.subjectName}`} />
     </div>
   )
@@ -146,16 +146,13 @@ export default function CbtMappingTable({ rows, loading }) {
           <span className="font-medium text-[#686868]">{formatLastUpdated(row.lastUpdated)}</span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        align: 'right',
-        headerClassName: 'min-w-[120px] whitespace-nowrap pr-4 sm:pr-6',
-        cellClassName: 'min-w-[120px] whitespace-nowrap align-middle pr-4 sm:pr-6',
+      createActionsColumn({
+        buttonCount: 1,
+        align: 'center',
         render: (row) => (
           <CbtMappingTableActions row={row} onView={() => openFaculty(row)} />
         ),
-      },
+      }),
     ],
     [openFaculty],
   )

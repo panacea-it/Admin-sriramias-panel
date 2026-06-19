@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 const MAINS_TESTS_TABLE_MIN_WIDTH = 1500
 
@@ -116,16 +117,11 @@ export default function MainsTestsManagementTable({
           </div>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        width: '6%',
+      createActionsColumn({
+        buttonCount: 1,
         align: 'center',
-        headerTruncate: false,
-        headerClassName: 'whitespace-nowrap text-center',
-        cellClassName: 'whitespace-nowrap align-middle text-center',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

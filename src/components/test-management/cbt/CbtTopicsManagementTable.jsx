@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 const OVERFLOW_CELL = 'min-w-0 max-w-0 overflow-hidden align-middle'
 
@@ -65,15 +66,11 @@ export default function CbtTopicsManagementTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        width: '15%',
-        align: 'right',
-        headerClassName: cn(OVERFLOW_CELL, 'whitespace-nowrap pr-4 sm:pr-6'),
-        cellClassName: cn(OVERFLOW_CELL, 'whitespace-nowrap pr-4 sm:pr-6'),
+      createActionsColumn({
+        buttonCount: 1,
+        align: 'center',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

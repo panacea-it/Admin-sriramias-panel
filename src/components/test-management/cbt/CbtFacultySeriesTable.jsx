@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, FileCheck, Folder, FolderOpen } from 'lucide
 import ViewButton from '../../common/ViewButton'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { StatusBadge } from '../../academics/AcademicsUi'
-import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
+import { TABLE_ACTIONS_WRAP_CENTER } from '../../../utils/tableColumnHelpers'
 
 function SeriesRow({ node, depth, subjectId, expandedIds, onToggle }) {
   const navigate = useNavigate()
@@ -84,8 +84,8 @@ function SeriesRow({ node, depth, subjectId, expandedIds, onToggle }) {
       <td className="px-4 py-3 sm:px-6">
         <StatusBadge status={node.status === 'published' ? 'Published' : 'Draft'} />
       </td>
-      <td className="px-4 py-3 text-right sm:px-6">
-        <div className={TABLE_ACTIONS_WRAP}>
+      <td className="w-16 px-2 py-3 text-center sm:px-3">
+        <div className={TABLE_ACTIONS_WRAP_CENTER}>
           <ViewButton onClick={openResults} label="View Results" />
         </div>
       </td>
@@ -127,7 +127,7 @@ export default function CbtFacultySeriesTable({ faculty, defaultExpanded = true 
               <th className="hidden px-4 py-3 text-left text-sm font-semibold sm:table-cell sm:px-6">Marks</th>
               <th className="hidden px-4 py-3 text-left text-sm font-semibold md:table-cell md:px-6">Duration</th>
               <th className="px-4 py-3 text-left text-sm font-semibold sm:px-6">Status</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold sm:px-6">Actions</th>
+              <th className="w-16 px-2 py-3 text-center text-sm font-semibold sm:px-3">Actions</th>
             </tr>
           </thead>
           <tbody>

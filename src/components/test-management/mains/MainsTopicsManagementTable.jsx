@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 export default function MainsTopicsManagementTable({
   topics,
@@ -15,7 +16,6 @@ export default function MainsTopicsManagementTable({
       {
         key: 'title',
         label: 'Topic',
-        width: '45%',
         headerClassName: 'min-w-[200px]',
         cellClassName: 'min-w-[200px] align-middle',
         render: (row) => (
@@ -32,7 +32,6 @@ export default function MainsTopicsManagementTable({
       {
         key: 'testCount',
         label: 'Tests / PDFs',
-        width: '20%',
         align: 'center',
         headerClassName: 'min-w-[120px] whitespace-nowrap',
         cellClassName: 'min-w-[120px] whitespace-nowrap align-middle',
@@ -40,15 +39,11 @@ export default function MainsTopicsManagementTable({
           <span className="font-medium tabular-nums text-[#111]">{row.testCount ?? 0}</span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        width: '35%',
+      createActionsColumn({
+        buttonCount: 1,
         align: 'center',
-        headerClassName: 'min-w-[160px] whitespace-nowrap',
-        cellClassName: 'min-w-[160px] whitespace-nowrap align-middle',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )

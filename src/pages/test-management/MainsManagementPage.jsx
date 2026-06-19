@@ -8,13 +8,13 @@ import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import ViewButton from '../../components/common/ViewButton'
 import { useMainsEvaluationHierarchy } from '../../hooks/useMainsEvaluationHierarchy'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
+import { TABLE_ACTIONS_WRAP_CENTER } from '../../utils/tableColumnHelpers'
 
 function FacultySubjectTableActions({ row, onView }) {
   const label = `${row.subjectName} by ${row.facultyName}`
 
   return (
-    <div className={TABLE_ACTIONS_WRAP}>
+    <div className={TABLE_ACTIONS_WRAP_CENTER}>
       <ViewButton onClick={onView} label={`View topics for ${label}`} />
     </div>
   )

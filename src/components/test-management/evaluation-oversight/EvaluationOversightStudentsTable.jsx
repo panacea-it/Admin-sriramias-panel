@@ -3,6 +3,7 @@ import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import PaperEvaluationStatusBadge from './PaperEvaluationStatusBadge'
 import EvaluationOversightPaperActions from './EvaluationOversightPaperActions'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 const TABLE_PAGINATION_CLASS = cn(
   '[&>div:last-child]:items-center',
@@ -191,12 +192,9 @@ export default function EvaluationOversightStudentsTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
+      createActionsColumn({
+        buttonCount: 3,
         align: 'center',
-        headerClassName: 'whitespace-nowrap px-4 text-center sm:px-6',
-        cellClassName: 'whitespace-nowrap align-middle px-4 text-center sm:px-6',
         render: (row) => (
           <EvaluationOversightPaperActions
             row={row}
@@ -205,7 +203,7 @@ export default function EvaluationOversightStudentsTable({
             onOpenEvaluation={onOpenEvaluation}
           />
         ),
-      },
+      }),
     ],
     [onViewPaper, onAssignEvaluator, onOpenEvaluation],
   )

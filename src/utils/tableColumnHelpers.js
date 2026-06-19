@@ -10,6 +10,10 @@ export const CHIP_CELL = 'min-w-0 align-middle'
 export const TABLE_ACTIONS_WRAP =
   'flex w-full flex-nowrap items-center justify-end gap-1.5'
 
+/** Use when the actions column is center-aligned (single icon). */
+export const TABLE_ACTIONS_WRAP_CENTER =
+  'flex w-full flex-nowrap items-center justify-center gap-1.5'
+
 const ICON_SIZE = 36
 const ICON_GAP = 6
 const CELL_PADDING = 28

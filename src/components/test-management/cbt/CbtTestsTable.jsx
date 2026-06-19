@@ -6,7 +6,7 @@ import ViewButton from '../../common/ViewButton'
 import { StatusBadge } from '../../academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichCbtTestRow } from '../../../utils/cbtTestSeriesHierarchy'
-import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 function collectTestSeries(nodes = []) {
   const list = []
@@ -42,46 +42,44 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
     })
   }
 
-  const columns = [
-    {
-      key: 'title',
-      label: 'Test Name',
-      render: (row) => <span className="font-medium text-[#333]">{row.title}</span>,
-    },
-    { key: 'uploadedDate', label: 'Uploaded Date' },
-    {
-      key: 'studentsAssigned',
-      label: 'Students Assigned',
-      render: (row) => <span className="tabular-nums">{row.studentsAssigned}</span>,
-    },
-    {
-      key: 'studentsDownloaded',
-      label: 'PDF Downloads',
-      render: (row) => <span className="tabular-nums">{row.studentsDownloaded}</span>,
-    },
-    {
-      key: 'studentsUploaded',
-      label: 'Answer Sheets Uploaded',
-      render: (row) => <span className="tabular-nums">{row.studentsUploaded}</span>,
-    },
-    {
-      key: 'evaluationStatus',
-      label: 'Evaluation Status',
-      render: (row) => <StatusBadge status={row.evaluationStatus} />,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className={TABLE_ACTIONS_WRAP}>
-          <ViewButton
-            onClick={() => openResults(row)}
-            label="View Test Series"
-          />
-        </div>
-      ),
-    },
-  ]
+  const columns = useMemo(
+    () => [
+      {
+        key: 'title',
+        label: 'Test Name',
+        render: (row) => <span className="font-medium text-[#333]">{row.title}</span>,
+      },
+      { key: 'uploadedDate', label: 'Uploaded Date' },
+      {
+        key: 'studentsAssigned',
+        label: 'Students Assigned',
+        render: (row) => <span className="tabular-nums">{row.studentsAssigned}</span>,
+      },
+      {
+        key: 'studentsDownloaded',
+        label: 'PDF Downloads',
+        render: (row) => <span className="tabular-nums">{row.studentsDownloaded}</span>,
+      },
+      {
+        key: 'studentsUploaded',
+        label: 'Answer Sheets Uploaded',
+        render: (row) => <span className="tabular-nums">{row.studentsUploaded}</span>,
+      },
+      {
+        key: 'evaluationStatus',
+        label: 'Evaluation Status',
+        render: (row) => <StatusBadge status={row.evaluationStatus} />,
+      },
+      createActionsColumn({
+        buttonCount: 1,
+        align: 'center',
+        render: (row) => (
+          <ViewButton onClick={() => openResults(row)} label="View Test Series" />
+        ),
+      }),
+    ],
+    [openResults],
+  )
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--card-shadow)]">

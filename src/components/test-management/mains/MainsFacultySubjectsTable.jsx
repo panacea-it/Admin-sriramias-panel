@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { cn } from '../../../utils/cn'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 export default function MainsFacultySubjectsTable({
   rows,
@@ -15,7 +16,6 @@ export default function MainsFacultySubjectsTable({
       {
         key: 'subjectName',
         label: 'Faculty Subject',
-        width: '35%',
         headerClassName: 'min-w-[200px]',
         cellClassName: 'min-w-[200px] align-middle',
         render: (row) => {
@@ -32,7 +32,6 @@ export default function MainsFacultySubjectsTable({
       {
         key: 'totalTopics',
         label: 'Topics',
-        width: '10%',
         align: 'center',
         headerClassName: 'min-w-[72px] whitespace-nowrap',
         cellClassName: 'min-w-[72px] whitespace-nowrap align-middle',
@@ -43,7 +42,6 @@ export default function MainsFacultySubjectsTable({
       {
         key: 'totalTests',
         label: 'Tests/PDFs',
-        width: '12%',
         align: 'center',
         headerClassName: 'min-w-[96px] whitespace-nowrap',
         cellClassName: 'min-w-[96px] whitespace-nowrap align-middle',
@@ -54,7 +52,6 @@ export default function MainsFacultySubjectsTable({
       {
         key: 'lastUpdated',
         label: 'Last Updated',
-        width: '23%',
         headerClassName: 'min-w-[180px] whitespace-nowrap',
         cellClassName: 'min-w-[180px] whitespace-nowrap align-middle',
         render: (row) => (
@@ -63,15 +60,11 @@ export default function MainsFacultySubjectsTable({
           </span>
         ),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        width: '20%',
+      createActionsColumn({
+        buttonCount: 1,
         align: 'center',
-        headerClassName: 'min-w-[160px] whitespace-nowrap',
-        cellClassName: 'min-w-[160px] whitespace-nowrap align-middle',
         render: (row) => renderActions(row),
-      },
+      }),
     ],
     [renderActions],
   )
