@@ -34,6 +34,7 @@ import {
   TrendingUp,
   Layers3,
   Coins,
+  BookOpenCheck,
 } from 'lucide-react'
 import { ACADEMICS_LIVE_CLASSES_SUBMENU } from './liveClassesNav'
 import { ACADEMICS_CONTENT_LIBRARY_SUBMENU } from './contentLibraryNav'
@@ -139,6 +140,11 @@ export const SIDEBAR_GROUPS = [
         children: [
           { label: 'Youtube Management', path: '/marketing/website', icon: Tv },
           { label: 'Rank Management', path: '/marketing/rank-management', icon: ListOrdered },
+          {
+            label: 'Free Learning Resources',
+            path: '/marketing/free-learning-resources',
+            icon: BookOpenCheck,
+          },
         ],
       },
       { label: 'SEO Landing page', path: '/marketing/seo-landing', icon: FileSearch },

@@ -39,7 +39,7 @@ export default function WebsiteFormModal({ open, onClose, children }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.28, ease: [0.21, 1.02, 0.48, 1] }}
-            className="relative w-full max-w-[920px]"
+            className="relative w-full max-w-[min(1000px,calc(100vw-2rem))]"
           >
             {children}
           </motion.div>

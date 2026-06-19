@@ -12,6 +12,18 @@ const RankManagementPage = lazyRoute(
   () => import('../pages/marketing/RankManagementPage'),
   'Rank Management',
 )
+const FreeLearningResourcesPage = lazyRoute(
+  () => import('../pages/marketing/FreeLearningResourcesPage'),
+  'Free Learning Resources',
+)
+const FreeLearningResourceViewPage = lazyRoute(
+  () => import('../pages/marketing/FreeLearningResourceViewPage'),
+  'View Free Learning Resource',
+)
+const FreeLearningResourceEditPage = lazyRoute(
+  () => import('../pages/marketing/FreeLearningResourceEditPage'),
+  'Edit Free Learning Resource',
+)
 
 function PageFallback() {
   return (
@@ -33,6 +45,15 @@ export default function HomePageManagementLayout() {
             <Route index element={<Navigate to="website" replace />} />
             <Route path="website" element={<YoutubeManagementPage />} />
             <Route path="rank-management" element={<RankManagementPage />} />
+            <Route path="free-learning-resources" element={<FreeLearningResourcesPage />} />
+            <Route
+              path="free-learning-resources/view/:resourceType"
+              element={<FreeLearningResourceViewPage />}
+            />
+            <Route
+              path="free-learning-resources/edit/:resourceType"
+              element={<FreeLearningResourceEditPage />}
+            />
             <Route path="*" element={<Navigate to="/marketing/website" replace />} />
           </Routes>
         </RouteErrorBoundary>
