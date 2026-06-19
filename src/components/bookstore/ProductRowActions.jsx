@@ -1,8 +1,9 @@
-import { Ban, Eye, Pencil } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function ProductRowActions({
   name = 'product',
@@ -11,9 +12,9 @@ export default function ProductRowActions({
   onView,
   onEdit,
   onStatusToggle,
-  onDelete,
+  onDelete: _onDelete,
 }) {
-  const isActive = status === 'active'
+  const statusAction = recordStatusActionLabel(status === 'active' ? 'Active' : 'In Active')
 
   return (
     <div
@@ -21,6 +22,19 @@ export default function ProductRowActions({
       aria-label={`Actions for ${name}`}
       className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5"
     >
-      </div>
+      <ViewButton onClick={onView} disabled={loading} />
+      <EditButton onClick={onEdit} disabled={loading} />
+      <IconActionButton
+        label={statusAction}
+        onClick={onStatusToggle}
+        disabled={loading}
+        className={cn(
+          'text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm',
+          loading && 'opacity-60',
+        )}
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

@@ -1,17 +1,23 @@
-import { Ban, Eye, Pencil } from 'lucide-react'
-import { cn } from '../../utils/cn'
-import { normalizeClassroomStatus } from '../../utils/classroomsStorage'
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
-
-export default function ClassroomTableActions({ row, onView, onEdit, onToggle, onDelete }) {
-  const status = normalizeClassroomStatus(row.status)
-  const isActive = status === 'Active'
-  const label = row.name || row.code || 'classroom'
+export default function ClassroomTableActions({ row, onView, onEdit, onToggle, onDelete: _onDelete }) {
+  const statusAction = recordStatusActionLabel(row.status)
 
   return (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      </div>
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label={statusAction}
+        onClick={onToggle}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

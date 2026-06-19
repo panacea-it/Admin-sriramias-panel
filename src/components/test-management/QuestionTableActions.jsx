@@ -1,8 +1,9 @@
-import { Ban, Copy, Eye, Pencil } from 'lucide-react'
+import { Copy, RefreshCw } from 'lucide-react'
 import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-semibold transition'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function QuestionTableActions({
   row,
@@ -10,13 +11,28 @@ export default function QuestionTableActions({
   onEdit,
   onDuplicate,
   onToggleStatus,
-  onDelete,
+  onDelete: _onDelete,
 }) {
-  const isActive = row.status === 'Active'
-  const rowLabel = row.id || 'question'
+  const statusAction = recordStatusActionLabel(row.status)
 
   return (
     <div className="flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
-      </div>
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label="Duplicate"
+        onClick={onDuplicate}
+        className="text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm"
+      >
+        <Copy className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label={statusAction}
+        onClick={onToggleStatus}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

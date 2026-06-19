@@ -1,28 +1,9 @@
-import { Ban, Eye, Pencil, Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition whitespace-nowrap sm:gap-1 sm:px-2 sm:text-xs'
-
-function ActionBtn({ label, onClick, disabled, className, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      className={cn(
-        actionButtonClass,
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        className,
-      )}
-    >
-      {children}
-      <span>{label}</span>
-    </button>
-  )
-}
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function FacultySubjectTableActions({
   row,
@@ -30,19 +11,35 @@ export default function FacultySubjectTableActions({
   onEdit,
   onManageContent,
   onStatusToggle,
-  onDelete,
+  onDelete: _onDelete,
   statusLoading = false,
 }) {
-  const isActive = row.status === 'Active'
-  const statusLabel = isActive ? 'Deactivate' : 'Activate'
+  const statusAction = recordStatusActionLabel(row.status)
   const rowLabel = row.subjectName || row.name || 'subject'
 
   return (
     <div
       role="group"
       aria-label={`Actions for ${rowLabel}`}
-      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 sm:gap-1"
+      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-1 sm:gap-1.5"
     >
-      </div>
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label="Manage Content"
+        onClick={onManageContent}
+        className="text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm"
+      >
+        <Plus className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label={statusAction}
+        onClick={onStatusToggle}
+        disabled={statusLoading}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

@@ -1,43 +1,35 @@
-import { Ban, Eye, Pencil } from 'lucide-react'
-import { cn } from '../../utils/cn'
-
-function ActionBtn({ label, onClick, disabled, className, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      className={cn(
-        'inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-md px-0.5 py-1 text-[11px] font-semibold transition sm:gap-1 sm:px-1 sm:text-xs',
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        className,
-      )}
-    >
-      {children}
-      <span className="truncate">{label}</span>
-    </button>
-  )
-}
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function CurrentAffairsTableActions({
   row,
   onView,
   onEdit,
   onStatusToggle,
-  onDelete,
+  onDelete: _onDelete,
   statusLoading = false,
 }) {
-  const isActive = row.status === 'Active'
-  const statusLabel = isActive ? 'Deactivate' : 'Activate'
+  const statusAction = recordStatusActionLabel(row.status)
 
   return (
     <div
       role="group"
       aria-label={`Actions for ${row.name}`}
-      className="grid w-full min-w-0 grid-cols-4 items-center gap-0.5"
+      className="flex w-full min-w-0 items-center justify-center gap-1"
     >
-      </div>
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label={statusAction}
+        onClick={onStatusToggle}
+        disabled={statusLoading}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

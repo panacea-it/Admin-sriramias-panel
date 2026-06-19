@@ -1,13 +1,23 @@
-import { Ban, Eye, Pencil } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
-const viewEditClassName =
-  'inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-[#246392]'
-
-export default function AdminTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
-  const isActive = row.status === 'Active'
+export default function AdminTableActions({ row, onView, onEdit, onStatusToggle, onDelete: _onDelete }) {
+  const statusAction = recordStatusActionLabel(row.status)
 
   return (
-    <div className="flex flex-nowrap items-center justify-center gap-4 whitespace-nowrap">
-      </div>
+    <div className="flex flex-nowrap items-center justify-center gap-1.5">
+      <ViewButton onClick={onView} />
+      <EditButton onClick={onEdit} />
+      <IconActionButton
+        label={statusAction}
+        onClick={onStatusToggle}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

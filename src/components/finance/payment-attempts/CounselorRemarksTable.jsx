@@ -1,26 +1,23 @@
 import { useMemo } from 'react'
-import { Eye } from 'lucide-react'
 import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
+import ViewButton from '../../common/ViewButton'
 import {
   REMARK_PREVIEW_MAX_LENGTH,
   SUBJECT_PREVIEW_MAX_LENGTH,
   truncateRemarkPreview,
 } from '../../../utils/paymentAttemptRemarks'
 import { formatLastAttemptDisplay } from '../../../utils/formatDateTime'
-import { cn } from '../../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
 
 export default function CounselorRemarksTable({
   remarks,
   onViewRemark,
-  onRequestDeleteRemark,
+  onRequestDeleteRemark: _onRequestDeleteRemark,
   resetDeps = [],
 }) {
   const renderActions = (row) => (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      </div>
+      <ViewButton onClick={() => onViewRemark?.(row)} />
+    </div>
   )
 
   const columns = useMemo(

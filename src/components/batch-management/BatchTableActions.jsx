@@ -1,30 +1,8 @@
-import { Ban, CheckCircle2, Copy, Eye, Pencil } from 'lucide-react'
-import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition whitespace-nowrap sm:gap-1 sm:px-2 sm:text-xs'
-
-const DISABLED_STATUSES = new Set(['Deactivated', 'In Active', 'Archived', 'Cancelled'])
-
-function ActionBtn({ label, onClick, disabled, className, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      className={cn(
-        actionButtonClass,
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        className,
-      )}
-    >
-      {children}
-      <span>{label}</span>
-    </button>
-  )
-}
+import { Copy, RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function BatchTableActions({
   batch,
@@ -32,19 +10,36 @@ export default function BatchTableActions({
   onEdit,
   onDuplicate,
   onStatusToggle,
-  onDelete,
+  onDelete: _onDelete,
   disabled = false,
 }) {
-  const isInactive = DISABLED_STATUSES.has(batch.status)
-  const statusLabel = isInactive ? 'Enable' : 'Disable'
+  const statusAction = recordStatusActionLabel(batch.status)
   const batchLabel = batch.batchName || batch.batchLabel || batch.displayName || 'batch'
 
   return (
     <div
       role="group"
       aria-label={`Actions for ${batchLabel}`}
-      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 sm:gap-1"
+      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-1 sm:gap-1.5"
     >
-      </div>
+      <ViewButton onClick={() => onView?.(batch)} disabled={disabled} />
+      <EditButton onClick={() => onEdit?.(batch)} disabled={disabled} />
+      <IconActionButton
+        label="Duplicate"
+        onClick={() => onDuplicate?.(batch)}
+        disabled={disabled}
+        className="text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-[#246392] hover:shadow-sm"
+      >
+        <Copy className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label={statusAction}
+        onClick={() => onStatusToggle?.(batch)}
+        disabled={disabled}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+    </div>
   )
 }

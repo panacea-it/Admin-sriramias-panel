@@ -3,7 +3,7 @@ import { GripVertical, Pencil, Plus } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { useContentLibrary } from '../../../contexts/ContentLibraryContext'
 import ContentEntityModal from '../../../components/content-library/ContentEntityModal'
-import { generateId, upsertContentTopic, deleteContentTopic } from '../../../api/contentLibraryAPI'
+import { generateId, upsertContentTopic } from '../../../api/contentLibraryAPI'
 import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
 
 export default function ContentTopicsPage() {
@@ -42,7 +42,10 @@ export default function ContentTopicsPage() {
       label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          </div>
+          <button type="button" onClick={() => { setEdit(row); setOpen(true) }} className="text-[#55ace7]" aria-label="Edit topic">
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
       ),
     },
   ]

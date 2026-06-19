@@ -1,9 +1,10 @@
-import { Ban, Eye, Pencil, Star } from 'lucide-react'
+import { RefreshCw, Star } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { isBlogActive } from '../../constants/blogManagementConstants'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
+import { recordStatusActionLabel } from '../../constants/recordStatus'
 
 export default function BlogRowActions({
   title = 'blog',
@@ -14,9 +15,9 @@ export default function BlogRowActions({
   onEdit,
   onStatusToggle,
   onToggleMainBlog,
-  onDelete,
+  onDelete: _onDelete,
 }) {
-  const isActive = isBlogActive(status)
+  const statusAction = recordStatusActionLabel(isBlogActive(status) ? 'Active' : 'In Active')
 
   return (
     <div
@@ -24,6 +25,33 @@ export default function BlogRowActions({
       aria-label={`Actions for ${title}`}
       className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5"
     >
-      </div>
+      <ViewButton onClick={() => onView?.()} />
+      <EditButton onClick={() => onEdit?.()} disabled={loading} />
+      <IconActionButton
+        label={statusAction}
+        onClick={() => onStatusToggle?.()}
+        disabled={loading}
+        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+      >
+        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label={isMainBlog ? 'Remove main blog' : 'Set as main blog'}
+        onClick={() => onToggleMainBlog?.()}
+        disabled={loading}
+        className={cn(
+          isMainBlog
+            ? 'text-amber-700 hover:border-amber-200 hover:bg-amber-50'
+            : 'text-[#555] hover:border-slate-200 hover:bg-slate-100 hover:text-amber-600',
+          loading && 'opacity-60',
+        )}
+      >
+        <Star
+          className={cn('h-[18px] w-[18px]', isMainBlog && 'fill-amber-500 text-amber-500')}
+          strokeWidth={2.25}
+          aria-hidden="true"
+        />
+      </IconActionButton>
+    </div>
   )
 }
