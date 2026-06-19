@@ -3,7 +3,7 @@ import { cn } from '../../utils/cn'
 
 function FilterSelect({ label, value, onChange, options }) {
   return (
-    <div className="relative w-full sm:w-auto sm:min-w-[150px]">
+    <div className="relative min-w-0 w-full">
       <select
         value={value}
         onChange={onChange}
@@ -29,6 +29,13 @@ const DEFAULT_STATUS_OPTIONS = [
   { value: 'In Active', label: 'Deactivated' },
 ]
 
+const LG_GRID_BY_FILTER_COUNT = {
+  1: 'lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]',
+  2: 'lg:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))]',
+  3: 'lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]',
+  4: 'lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]',
+}
+
 export default function CategoryFilterBar({
   search,
   onSearchChange,
@@ -46,20 +53,37 @@ export default function CategoryFilterBar({
   onSubjectFilterChange,
   subjectOptions,
 }) {
+  const showCategory = Boolean(categoryOptions)
+  const showSubject = Boolean(subjectOptions)
+  const showCenter = Boolean(centerOptions && onCenterFilterChange)
+  const showStatus = Boolean(onStatusChange)
+  const filterCount = [showCategory, showSubject, showCenter, showStatus].filter(Boolean).length
+
   return (
-    <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-xl bg-white/90 px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-4">
-      <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
-        <input
-          type="search"
-          value={search}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none transition placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] sm:pl-11 sm:text-base"
-        />
-      </div>
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-        {categoryOptions && (
+    <div className="rounded-xl bg-white/90 px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-4">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:items-center',
+          LG_GRID_BY_FILTER_COUNT[filterCount],
+        )}
+      >
+        <div
+          className={cn(
+            'relative min-w-0 w-full',
+            filterCount > 0 && 'sm:col-span-2 lg:col-span-1',
+          )}
+        >
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
+          <input
+            type="search"
+            value={search}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none transition placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] sm:pl-11 sm:text-base"
+          />
+        </div>
+
+        {showCategory && (
           <FilterSelect
             label="Category"
             value={categoryFilter}
@@ -67,7 +91,7 @@ export default function CategoryFilterBar({
             options={categoryOptions}
           />
         )}
-        {subjectOptions && (
+        {showSubject && (
           <FilterSelect
             label="Subject"
             value={subjectFilter}
@@ -75,7 +99,7 @@ export default function CategoryFilterBar({
             options={subjectOptions}
           />
         )}
-        {centerOptions && onCenterFilterChange && (
+        {showCenter && (
           <FilterSelect
             label="Center"
             value={centerFilter}
@@ -83,7 +107,7 @@ export default function CategoryFilterBar({
             options={centerOptions}
           />
         )}
-        {onStatusChange && (
+        {showStatus && (
           <FilterSelect
             label="Status"
             value={status}
