@@ -10,6 +10,8 @@ import { fetchMarkingRules, upsertMarkingRule } from '../../../api/testConfigura
 import ConfigFilterToolbar from '../ConfigFilterToolbar'
 import ConfigViewModal from '../ConfigViewModal'
 import MarkingRuleFormModal from './MarkingRuleFormModal'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
+import { testConfigStatusColumn, testConfigTableProps } from '../TestConfigTableActions'
 
 export default function MarkingRulesTab() {
   const modal = useEditModal()
@@ -75,10 +77,10 @@ export default function MarkingRulesTab() {
       label: 'Applicable Tests',
       render: (r) => (Array.isArray(r.applicableTests) ? r.applicableTests.join(', ') : '—'),
     },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
+    { ...testConfigStatusColumn, render: (r) => <StatusBadge status={r.status} /> },
+    createActionsColumn({
+      buttonCount: 1,
+      align: 'center',
       render: (row) => (
         <TableActionMenu
           triggerLabel="Marking rule actions"
@@ -88,7 +90,7 @@ export default function MarkingRulesTab() {
           ]}
         />
       ),
-    },
+    }),
   ]
 
   const viewFields = [
@@ -143,10 +145,10 @@ export default function MarkingRulesTab() {
         emptyMessage="No marking rules found."
         itemLabel="rules"
         resetDeps={[search, status]}
-        rowClassName="hover:bg-slate-50/90"
         stickyHeader
         stickyLastColumn
         zebraStriping
+        {...testConfigTableProps}
       />
 
       <MarkingRuleFormModal

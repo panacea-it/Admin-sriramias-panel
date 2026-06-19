@@ -4,19 +4,10 @@ import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
 import { cn } from '../../utils/cn'
-import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
-
-/** Matches Center Management `actionButtonClass` exactly. */
-export const testConfigActionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
-
-export const testConfigActionsColumn = {
-  align: 'right',
-  headerClassName: 'min-w-[280px] whitespace-nowrap pr-4 sm:pr-6',
-  cellClassName: 'min-w-[280px] whitespace-nowrap align-middle pr-4 sm:pr-6',
-}
-
-export const testConfigActionsColumnWide = testConfigActionsColumn
+import {
+  createActionsColumn,
+  TABLE_ACTIONS_WRAP_CENTER,
+} from '../../utils/tableColumnHelpers'
 
 export const testConfigTablePaginationClass = cn(
   '[&>div:last-child]:items-center',
@@ -26,15 +17,40 @@ export const testConfigTablePaginationClass = cn(
   '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
 )
 
+export const testConfigTableProps = {
+  density: 'compact',
+  tableLayoutFixed: true,
+  rowClassName: 'hover:bg-[#eef6fc]/70',
+  tableClassName: 'rounded-none border-0 shadow-none',
+  paginationClassName: testConfigTablePaginationClass,
+}
+
+export const testConfigStatusColumn = {
+  key: 'status',
+  label: 'Status',
+  width: 120,
+  align: 'center',
+  headerClassName: 'whitespace-nowrap text-center',
+  cellClassName: 'whitespace-nowrap align-middle text-center',
+}
+
+export function createTestConfigActionsColumn(render) {
+  return createActionsColumn({
+    buttonCount: 3,
+    align: 'center',
+    render,
+  })
+}
+
 function isRowActive(status) {
   return String(status || '').trim().toLowerCase() === 'active'
 }
 
-function TestConfigInlineActions({ label, isActive, onView, onEdit, onToggleStatus, onDelete: _onDelete }) {
+function TestConfigInlineActions({ isActive, onView, onEdit, onToggleStatus, onDelete: _onDelete }) {
   const statusAction = recordStatusActionLabel(isActive ? 'Active' : 'In Active')
 
   return (
-    <div className={TABLE_ACTIONS_WRAP}>
+    <div className={TABLE_ACTIONS_WRAP_CENTER}>
       <ViewButton onClick={onView} label="View" />
       <EditButton onClick={onEdit} label="Edit" />
       <IconActionButton
@@ -49,11 +65,8 @@ function TestConfigInlineActions({ label, isActive, onView, onEdit, onToggleStat
 }
 
 export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
-  const label = row.instructionId || row.id || 'instruction'
-
   return (
     <TestConfigInlineActions
-      label={label}
       isActive={isRowActive(row.status)}
       onView={onView}
       onEdit={onEdit}
@@ -64,11 +77,8 @@ export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, o
 }
 
 export function SectionManagementTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
-  const label = row.sectionName || row.configurationName || row.id || 'section'
-
   return (
     <TestConfigInlineActions
-      label={label}
       isActive={isRowActive(row.status)}
       onView={onView}
       onEdit={onEdit}
@@ -79,11 +89,8 @@ export function SectionManagementTableActions({ row, onView, onEdit, onToggleSta
 }
 
 export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
-  const label = row.languageName || row.id || 'language'
-
   return (
     <TestConfigInlineActions
-      label={label}
       isActive={isRowActive(row.status)}
       onView={onView}
       onEdit={onEdit}

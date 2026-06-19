@@ -6,8 +6,9 @@ import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
 import {
   ExamPatternTableActions,
-  testConfigActionsColumnWide,
-  testConfigTablePaginationClass,
+  createTestConfigActionsColumn,
+  testConfigStatusColumn,
+  testConfigTableProps,
 } from '../TestConfigTableActions'
 import { useExamPatternManagement } from '../../../hooks/useExamPatternManagement'
 import { getApiErrorMessage } from '../../../utils/apiError'
@@ -195,32 +196,32 @@ export default function ExamPatternTab() {
       {
         key: 'createdAt',
         label: 'Created On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => formatExamPatternDateTime(r.createdAt),
       },
       {
         key: 'updatedAt',
         label: 'Modified On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => formatExamPatternDateTime(r.updatedAt),
       },
       {
-        key: 'status',
-        label: 'Status',
+        ...testConfigStatusColumn,
         render: (r) => <StatusBadge status={r.status} />,
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        ...testConfigActionsColumnWide,
-        render: (row) => (
-          <ExamPatternTableActions
-            row={row}
-            onView={() => handleView(row)}
-            onEdit={() => handleEdit(row)}
-            onToggleStatus={() => setStatusTarget(row)}
-            onDelete={() => setDeleteTarget(row)}
-          />
-        ),
-      },
+      createTestConfigActionsColumn((row) => (
+        <ExamPatternTableActions
+          row={row}
+          onView={() => handleView(row)}
+          onEdit={() => handleEdit(row)}
+          onToggleStatus={() => setStatusTarget(row)}
+          onDelete={() => setDeleteTarget(row)}
+        />
+      )),
     ],
     [handleView, handleEdit],
   )
@@ -271,10 +272,7 @@ export default function ExamPatternTab() {
         itemLabel="instructions"
         controlledPagination={controlledPagination}
         resetDeps={[search, status, sortPreset]}
-        density="comfortable"
-        rowClassName="hover:bg-[#eef6fc]/70"
-        tableClassName="rounded-none border-0 shadow-none"
-        paginationClassName={testConfigTablePaginationClass}
+        {...testConfigTableProps}
       />
 
       <ExamPatternFormModal

@@ -6,8 +6,9 @@ import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
 import {
   SectionManagementTableActions,
-  testConfigActionsColumnWide,
-  testConfigTablePaginationClass,
+  createTestConfigActionsColumn,
+  testConfigStatusColumn,
+  testConfigTableProps,
 } from '../TestConfigTableActions'
 import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
 import { useEditModal } from '../../../hooks/useEditModal'
@@ -149,35 +150,35 @@ export default function SectionManagementTab() {
       {
         key: 'createdOn',
         label: 'Created On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => displayDate(r, 'createdOn'),
       },
       {
         key: 'modifiedOn',
         label: 'Modified On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => displayDate(r, 'modifiedOn'),
       },
       {
-        key: 'status',
-        label: 'Status',
+        ...testConfigStatusColumn,
         render: (r) => <StatusBadge status={r.status} />,
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        ...testConfigActionsColumnWide,
-        render: (row) => (
-          <SectionManagementTableActions
-            row={row}
-            onView={() => setViewRow(row)}
-            onEdit={() => modal.openEdit(row)}
-            onToggleStatus={() => setStatusTarget(row)}
-            onDelete={() => {
-              setDeleteRow(row)
-              setDeleteOpen(true)
-            }}
-          />
-        ),
-      },
+      createTestConfigActionsColumn((row) => (
+        <SectionManagementTableActions
+          row={row}
+          onView={() => setViewRow(row)}
+          onEdit={() => modal.openEdit(row)}
+          onToggleStatus={() => setStatusTarget(row)}
+          onDelete={() => {
+            setDeleteRow(row)
+            setDeleteOpen(true)
+          }}
+        />
+      )),
     ],
     [modal],
   )
@@ -217,11 +218,8 @@ export default function SectionManagementTab() {
         emptyMessage="No sections found."
         itemLabel="sections"
         resetDeps={[search, status, sort]}
-        density="comfortable"
-        rowClassName="hover:bg-[#eef6fc]/70"
-        tableClassName="rounded-none border-0 shadow-none"
         tableMinWidth={980}
-        paginationClassName={testConfigTablePaginationClass}
+        {...testConfigTableProps}
       />
 
       <SectionConfigFormModal

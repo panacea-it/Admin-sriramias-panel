@@ -6,8 +6,9 @@ import PageBanner from '../../figma/PageBanner'
 import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
 import {
   LanguageSettingsTableActions,
-  testConfigActionsColumnWide,
-  testConfigTablePaginationClass,
+  createTestConfigActionsColumn,
+  testConfigStatusColumn,
+  testConfigTableProps,
 } from '../TestConfigTableActions'
 import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
 import { useEditModal } from '../../../hooks/useEditModal'
@@ -116,34 +117,38 @@ export default function LanguageSettingsTab() {
         label: 'Language Name',
         render: (r) => <span className="font-medium text-[#1a3a5c]">{r.languageName}</span>,
       },
-      { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+      {
+        ...testConfigStatusColumn,
+        render: (r) => <StatusBadge status={r.status} />,
+      },
       {
         key: 'createdOn',
         label: 'Created On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => displayDate(r, 'createdOn'),
       },
       {
         key: 'modifiedOn',
         label: 'Modified On',
+        width: 168,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => displayDate(r, 'modifiedOn'),
       },
-      {
-        key: 'actions',
-        label: 'Actions',
-        ...testConfigActionsColumnWide,
-        render: (row) => (
-          <LanguageSettingsTableActions
-            row={row}
-            onView={() => setViewRow(row)}
-            onEdit={() => modal.openEdit(row)}
-            onToggleStatus={() => setStatusTarget(row)}
-            onDelete={() => {
-              setDeleteRow(row)
-              setDeleteOpen(true)
-            }}
-          />
-        ),
-      },
+      createTestConfigActionsColumn((row) => (
+        <LanguageSettingsTableActions
+          row={row}
+          onView={() => setViewRow(row)}
+          onEdit={() => modal.openEdit(row)}
+          onToggleStatus={() => setStatusTarget(row)}
+          onDelete={() => {
+            setDeleteRow(row)
+            setDeleteOpen(true)
+          }}
+        />
+      )),
     ],
     [modal],
   )
@@ -173,11 +178,8 @@ export default function LanguageSettingsTab() {
         emptyMessage="No languages found."
         itemLabel="languages"
         resetDeps={[search, status]}
-        density="comfortable"
-        rowClassName="hover:bg-[#eef6fc]/70"
-        tableClassName="rounded-none border-0 shadow-none"
         tableMinWidth={920}
-        paginationClassName={testConfigTablePaginationClass}
+        {...testConfigTableProps}
       />
 
       <LanguageFormModal
