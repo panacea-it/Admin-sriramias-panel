@@ -4,6 +4,29 @@ import BookstoreStatusBadge from './BookstoreStatusBadge'
 import { formatINR } from '../../utils/financeFilters'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
 
+function formatOrderAddress(order) {
+  const raw = order?.address ?? order?.shippingAddress
+  if (!raw) return ''
+
+  if (typeof raw === 'string') {
+    return raw.trim()
+  }
+
+  if (typeof raw === 'object') {
+    return [
+      raw.line1,
+      raw.line2,
+      [raw.city, raw.state].filter(Boolean).join(', '),
+      raw.pincode,
+      raw.country,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  return ''
+}
+
 export default function OrderDetailDrawer({
   order,
   onClose,
@@ -11,6 +34,8 @@ export default function OrderDetailDrawer({
   onOpenShipment,
   onOpenStatusDialog,
 }) {
+  const addressText = order ? formatOrderAddress(order) : ''
+
   return (
     <BookstoreModal
       open={Boolean(order)}
@@ -40,6 +65,12 @@ export default function OrderDetailDrawer({
             <p className={BOOKSTORE_LABEL_CLASS}>Customer</p>
             <p className="font-medium text-[#111]">{order.customerName}</p>
             <p className="text-sm text-[#686868]">{order.email}</p>
+            {addressText ? (
+              <>
+                <p className={`${BOOKSTORE_LABEL_CLASS} mt-3`}>Address</p>
+                <p className="whitespace-pre-line text-sm text-[#444]">{addressText}</p>
+              </>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-4">
             <div>

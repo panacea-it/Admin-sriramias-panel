@@ -284,6 +284,7 @@ export let MOCK_BOOKSTORE_ORDERS = [
     paymentStatus: 'Paid',
     paymentGateway: 'Razorpay',
     shipmentId: 'SHP-7781',
+    address: '42, MG Road, Bengaluru, Karnataka 560001',
     createdAt: iso(new Date(now - 86400000 * 2)),
   },
   {
@@ -298,6 +299,7 @@ export let MOCK_BOOKSTORE_ORDERS = [
     paymentStatus: 'Paid',
     paymentGateway: 'Cashfree',
     shipmentId: 'SHP-7782',
+    address: '15-2-48, KPHB Colony, Hyderabad, Telangana 500072',
     createdAt: iso(new Date(now - 86400000 * 1)),
   },
   {
@@ -310,6 +312,7 @@ export let MOCK_BOOKSTORE_ORDERS = [
     paymentStatus: 'Pending',
     paymentGateway: 'Razorpay',
     shipmentId: null,
+    address: 'Flat 302, Green Park Apartments, Noida, Uttar Pradesh 201301',
     createdAt: iso(now),
   },
 ]
