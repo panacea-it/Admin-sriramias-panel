@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Bell } from 'lucide-react'
 import SalesPageShell from '../../components/sales-analytics/SalesPageShell'
 import SalesStatCard from '../../components/sales-analytics/SalesStatCard'
 import SalesFilterToolbar from '../../components/sales-analytics/SalesFilterToolbar'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
+import IconActionButton from '../../components/common/IconActionButton'
+import { TABLE_ACTIONS_WRAP_CENTER } from '../../utils/tableColumnHelpers'
 import { fetchPaymentFailures } from '../../api/salesAnalyticsAPI'
 import { toast } from '../../utils/toast'
 
@@ -32,16 +34,21 @@ export default function PaymentFailureTrackingPage() {
     { key: 'counselorName', label: 'Counselor' },
     { key: 'lastAttempt', label: 'Last attempt' },
     {
-      key: 'action',
-      label: '',
-      render: () => (
-        <button
-          type="button"
-          onClick={() => toast.success('Reminder sent to counselor')}
-          className="text-sm font-semibold text-[#246392] hover:underline"
-        >
-          Notify
-        </button>
+      key: 'actions',
+      label: 'Actions',
+      align: 'center',
+      headerClassName: 'text-center whitespace-nowrap',
+      cellClassName: 'text-center align-middle',
+      render: (row) => (
+        <div className={TABLE_ACTIONS_WRAP_CENTER}>
+          <IconActionButton
+            label={`Notify counselor for ${row.studentName}`}
+            onClick={() => toast.success('Reminder sent to counselor')}
+            className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+          >
+            <Bell className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+          </IconActionButton>
+        </div>
       ),
     },
   ]

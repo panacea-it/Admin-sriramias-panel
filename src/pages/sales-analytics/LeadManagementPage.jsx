@@ -6,6 +6,8 @@ import SalesStatusBadge from '../../components/sales-analytics/SalesStatusBadge'
 import SalesTableSkeleton from '../../components/sales-analytics/SalesTableSkeleton'
 import LeadDetailDrawer from '../../components/sales-analytics/LeadDetailDrawer'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
+import ViewButton from '../../components/common/ViewButton'
+import { TABLE_ACTIONS_WRAP_CENTER } from '../../utils/tableColumnHelpers'
 import { fetchSalesLeads, fetchUserJourney } from '../../api/salesAnalyticsAPI'
 import { LEAD_SOURCES, LEAD_STATUSES } from '../../data/salesAnalyticsMockData'
 import { useSalesPermissions } from '../../hooks/useSalesPermissions'
@@ -83,15 +85,14 @@ export default function LeadManagementPage() {
     { key: 'createdAt', label: 'Created' },
     {
       key: 'actions',
-      label: '',
+      label: 'Actions',
+      align: 'center',
+      headerClassName: 'text-center whitespace-nowrap',
+      cellClassName: 'text-center align-middle',
       render: (r) => (
-        <button
-          type="button"
-          onClick={() => openLead(r)}
-          className="text-sm font-semibold text-[#246392] hover:underline"
-        >
-          View
-        </button>
+        <div className={TABLE_ACTIONS_WRAP_CENTER}>
+          <ViewButton onClick={() => openLead(r)} label={`View ${r.studentName}`} />
+        </div>
       ),
     },
   ]
