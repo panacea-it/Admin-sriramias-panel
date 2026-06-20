@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from '../../utils/toast'
 import Button from '../ui/Button'
-import { BOOKSTORE_EXAM_CATEGORIES, BOOKSTORE_LANGUAGES } from '../../data/bookstoreMockData'
+import { BOOKSTORE_EXAM_CATEGORIES } from '../../data/bookstoreMockData'
 import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
 import ProductFormSection from './product-form/ProductFormSection'
@@ -29,12 +29,9 @@ const EMPTY = {
   examCategory: '',
   authorName: '',
   isbn: '',
-  language: 'English',
   originalPrice: '',
   discountPrice: '',
   stockQuantity: '',
-  weight: '',
-  dimensions: '',
   status: 'active',
 }
 
@@ -128,11 +125,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     [initial],
   )
 
-  const languageOptions = useMemo(
-    () => withLegacyOption(BOOKSTORE_LANGUAGES, initial?.language),
-    [initial?.language],
-  )
-
   return (
     <BookstoreModal
       open={open}
@@ -193,16 +185,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>ISBN</span>
               <input className={BOOKSTORE_INPUT_CLASS} {...register('isbn')} placeholder="978-93-81234-00-0" />
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Language</span>
-              <select className={BOOKSTORE_INPUT_CLASS} {...register('language')}>
-                {languageOptions.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
             </label>
             <label className="sm:col-span-2">
               <span className={BOOKSTORE_LABEL_CLASS}>Book Summary</span>
@@ -292,14 +274,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Weight</span>
-              <input className={BOOKSTORE_INPUT_CLASS} {...register('weight')} placeholder="1.2 kg" />
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Dimensions</span>
-              <input className={BOOKSTORE_INPUT_CLASS} {...register('dimensions')} placeholder="24×18×3 cm" />
             </label>
           </div>
         </ProductFormSection>
