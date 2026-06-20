@@ -144,8 +144,11 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
   if (!String(values.mockTestTitle || '').trim()) {
     errors.mockTestTitle = 'Mock test title is required'
   }
-  if (!isEdit && !String(values.paperType || '').trim()) {
+  if (!String(values.paperType || '').trim()) {
     errors.paperType = 'Paper type is required'
+  }
+  if (isPyqPaperFieldRequired(values.paperType) && !String(values.paper || '').trim()) {
+    errors.paper = 'Select paper'
   }
   if (!String(values.duration || '').trim()) {
     errors.duration = 'Duration is required'

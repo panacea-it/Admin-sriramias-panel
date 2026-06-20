@@ -901,6 +901,7 @@ export function mapMockTestApiToForm(raw) {
     examCategory: item.examCategory || '',
     mockTestTitle: item.mockTestTitle || item.title || '',
     paperType: item.paperType || '',
+    paper: item.paper || '',
     subject: item.subject || '',
     topic: item.topic || '',
     duration: item.duration != null ? String(item.duration) : '',
@@ -927,6 +928,7 @@ export function mapMockTestApiToRow(raw) {
     name,
     category: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     status: mapFreeResourceStatusForList(item.status),
+    paper: item.paper || '',
     resourceCategory: 'FREE_MOCK_TEST',
     resourceCategoryLabel: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     formData: mapMockTestApiToForm(item),
@@ -964,6 +966,7 @@ export function buildMockTestCreatePayload(form) {
     examCategory: String(form.examCategory || '').trim(),
     mockTestTitle: String(form.mockTestTitle || '').trim(),
     paperType: String(form.paperType || '').trim(),
+    paper: String(form.paper || '').trim(),
     subject: String(form.subject || '').trim(),
     topic: String(form.topic || '').trim(),
     duration: parseNumericField(form.duration, 0),
@@ -981,6 +984,7 @@ export function buildMockTestUpdatePayload(form) {
     examCategory: String(form.examCategory || '').trim(),
     mockTestTitle: String(form.mockTestTitle || '').trim(),
     paperType: String(form.paperType || '').trim(),
+    paper: String(form.paper || '').trim(),
     subject: String(form.subject || '').trim(),
     topic: String(form.topic || '').trim(),
     duration: parseNumericField(form.duration, 0),
@@ -1016,6 +1020,7 @@ export function buildMockTestFormData(form, { isEdit = false } = {}) {
   if (!isEdit) {
     formData.append('examCategory', payload.examCategory)
     formData.append('paperType', payload.paperType)
+    formData.append('paper', payload.paper)
     formData.append('subject', payload.subject)
     formData.append('topic', payload.topic)
     if (payload.numberOfQuestions > 0) {
@@ -1024,6 +1029,7 @@ export function buildMockTestFormData(form, { isEdit = false } = {}) {
   } else {
     if (payload.examCategory) formData.append('examCategory', payload.examCategory)
     if (payload.paperType) formData.append('paperType', payload.paperType)
+    if (payload.paper !== undefined) formData.append('paper', payload.paper)
     if (payload.subject) formData.append('subject', payload.subject)
     if (payload.topic) formData.append('topic', payload.topic)
   }

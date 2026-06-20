@@ -262,8 +262,12 @@ export default function ResourceCategoryRenderer({
         error: null,
         retry: () => {},
       }
-      const paperOptions = dropdowns.paperTypeOptions
+      const paperTypeOptions = dropdowns.paperTypeOptions
       const dropdownsLoading = dropdowns.loading
+      const selectedPaperType = watch('paperType')
+      const selectedPaper = watch('paper')
+      const showPaperField = isPyqPaperFieldVisible(selectedPaperType)
+      const pyqPaperOptions = resolvePyqPaperOptions(selectedPaperType, selectedPaper)
 
       return (
         <Grid>
@@ -281,7 +285,7 @@ export default function ResourceCategoryRenderer({
                 <option value="">
                   {dropdownsLoading ? 'Loading paper types…' : 'Choose type'}
                 </option>
-                {paperOptions.map((option) => (
+                {paperTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -294,7 +298,7 @@ export default function ResourceCategoryRenderer({
                 />
               ) : null}
             </div>
-            {dropdowns.error && !dropdownsLoading && paperOptions.length === 0 ? (
+            {dropdowns.error && !dropdownsLoading && paperTypeOptions.length === 0 ? (
               <button
                 type="button"
                 onClick={dropdowns.retry}
@@ -305,6 +309,23 @@ export default function ResourceCategoryRenderer({
             ) : null}
             <FormFieldError message={errors.paperType?.message} />
           </CourseFormField>
+          {showPaperField ? (
+            <CourseFormField label="Paper" required={isPyqPaperFieldRequired(selectedPaperType)}>
+              <CourseSelect
+                {...register('paper')}
+                disabled={dropdownsLoading}
+                className={dropdownsLoading ? 'opacity-70' : undefined}
+              >
+                <option value="">Choose paper</option>
+                {pyqPaperOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </CourseSelect>
+              <FormFieldError message={errors.paper?.message} />
+            </CourseFormField>
+          ) : null}
           <CourseFormField label="Duration" required>
             <CourseInput {...register('duration')} placeholder="e.g. 120 mins" />
             <FormFieldError message={errors.duration?.message} />

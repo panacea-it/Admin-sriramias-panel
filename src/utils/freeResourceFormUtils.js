@@ -145,6 +145,9 @@ export function validateFreeResourceForm(values, { isEdit = false } = {}) {
       require('examCategory')
       require('mockTestTitle', 'Mock test title is required')
       require('paperType')
+      if (isPyqPaperFieldRequired(values.paperType)) {
+        require('paper', 'Select paper')
+      }
       require('subject')
       require('topic')
       require('duration')
