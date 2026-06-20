@@ -7,6 +7,7 @@ import {
   normalizeFreeResourceCategory,
   OPTION_LABELS,
 } from './freeResourceFormConstants'
+import { isPyqPaperFieldRequired } from './pyqPaperHelpers'
 
 export function parseQuestionCount(raw) {
   const digits = String(raw ?? '').replace(/\D/g, '')
@@ -133,6 +134,9 @@ export function validateFreeResourceForm(values, { isEdit = false } = {}) {
       break
     case FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR:
       require('paperType')
+      if (isPyqPaperFieldRequired(values.paperType)) {
+        require('paper', 'Select paper')
+      }
       require('year')
       require('paperName')
       require('questionPaperFileName', 'Upload question paper PDF')

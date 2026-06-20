@@ -117,6 +117,7 @@ export function createEmptyFreeResourceForm() {
     // Previous Year Question Papers
     examCategory: '',
     paperType: '',
+    paper: '',
     year: '',
     paperName: '',
     questionPaperFileName: '',

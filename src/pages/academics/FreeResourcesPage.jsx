@@ -92,6 +92,15 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'In Active', label: 'Deactivated' },
 ]
 
+function PaperCell({ value }) {
+  const label = String(value || '').trim()
+  return (
+    <span className="block truncate text-[13px] font-medium text-[#686868]" title={label || undefined}>
+      {label || '—'}
+    </span>
+  )
+}
+
 const CELL = 'min-w-0 align-middle'
 
 function FreeResourceNameCell({ name }) {
@@ -711,7 +720,7 @@ export default function FreeResourcesPage() {
       {
         key: 'category',
         label: 'Resource Category',
-        width: '24%',
+        width: '20%',
         headerClassName: CELL,
         cellClassName: CELL,
         render: (row) => (
@@ -719,9 +728,19 @@ export default function FreeResourcesPage() {
         ),
       },
       {
+        key: 'paper',
+        label: 'Paper',
+        width: '14%',
+        headerClassName: CELL,
+        cellClassName: CELL,
+        render: (row) => (
+          <PaperCell value={row.paper || row.formData?.paper} />
+        ),
+      },
+      {
         key: 'status',
         label: 'Status',
-        width: '14%',
+        width: '12%',
         align: 'center',
         headerClassName: cn(CELL, 'text-center whitespace-nowrap'),
         cellClassName: cn(CELL, 'text-center'),

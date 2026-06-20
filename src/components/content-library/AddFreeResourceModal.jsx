@@ -17,6 +17,7 @@ import { useInitOnModalOpen, getModalEditKey } from '../../hooks/modalFormSync'
 import { useFreeResourceFormDropdowns } from '../../hooks/useFreeResourceFormDropdowns'
 import { useMockTestDropdowns } from '../../hooks/useMockTestDropdowns'
 import { useStudyMaterialDropdowns } from '../../hooks/useStudyMaterialDropdowns'
+import { useNcertBookDropdowns } from '../../hooks/useNcertBookDropdowns'
 import { usePreviousYearPaperDropdowns } from '../../hooks/usePreviousYearPaperDropdowns'
 import {
   FREE_RESOURCE_CATEGORY,
@@ -48,6 +49,7 @@ import {
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
 } from '../../utils/freeResourceApiHelpers'
+import { isPyqPaperFieldRequired } from '../../utils/pyqPaperHelpers'
 import {
   clearDraftStorage,
   isFreeResourceQuestionComplete,
@@ -93,7 +95,7 @@ function withUploadFieldValues(values, getValues) {
 function validateNcertBookFields(values, { isEdit = false } = {}) {
   const errors = {}
   if (!String(values.subject || '').trim()) {
-    errors.subject = 'Subject is required'
+    errors.subject = 'Select subject'
   }
   if (!String(values.className || '').trim()) {
     errors.className = 'Class is required'
@@ -116,6 +118,9 @@ function validatePreviousYearPaperFields(values, { isEdit = false } = {}) {
   const errors = {}
   if (!String(values.paperType || '').trim()) {
     errors.paperType = 'Paper type is required'
+  }
+  if (isPyqPaperFieldRequired(values.paperType) && !String(values.paper || '').trim()) {
+    errors.paper = 'Select paper'
   }
   if (!String(values.year || '').trim()) {
     errors.year = 'Year is required'
@@ -251,13 +256,16 @@ export default function AddFreeResourceModal({
 
   const category = watch('category')
   const status = watch('status')
+  const paperType = watch('paperType')
   const prevCategoryRef = useRef('')
+  const prevPaperTypeRef = useRef('')
   const rendererCategory = useMemo(
     () => resolveFreeResourceRendererCategory(category, categoryOptions),
     [category, categoryOptions],
   )
   const itemResourceCategory = String(item?.resourceCategory || '').toUpperCase()
   const isNcertCreate = !isEditMode && isNcertBooksCategory(category, categoryOptions)
+  const isNcertSelected = isNcertBooksCategory(category, categoryOptions)
   const isNcertEdit =
     isEditMode &&
     (item?.isApiNcertBook ||
@@ -291,6 +299,7 @@ export default function AddFreeResourceModal({
   )
   const mockTestDropdowns = useMockTestDropdowns(open, isMockTestSelected)
   const studyMaterialDropdowns = useStudyMaterialDropdowns(open, isStudyMaterialSelected)
+  const ncertBookDropdowns = useNcertBookDropdowns(open, isNcertSelected || isNcertEdit)
   const resolvedStatusOptions =
     statusOptions.length > 0 ? statusOptions : DEFAULT_STATUS_OPTIONS
 
@@ -524,6 +533,7 @@ export default function AddFreeResourceModal({
       setValue('questionPaperFileName', '')
       setValue('examCategory', '')
       setValue('paperType', '')
+      setValue('paper', '')
       setValue('year', '')
       setValue('paperName', '')
       setValue('mockTestTitle', '')
@@ -543,6 +553,20 @@ export default function AddFreeResourceModal({
     }
     prevCategoryRef.current = category
   }, [category, setValue, isEditMode])
+
+  useEffect(() => {
+    if (!open) {
+      prevPaperTypeRef.current = ''
+      return
+    }
+
+    const current = String(paperType || '').trim()
+    if (prevPaperTypeRef.current && prevPaperTypeRef.current !== current) {
+      setValue('paper', '', { shouldDirty: true })
+      clearErrors('paper')
+    }
+    prevPaperTypeRef.current = current
+  }, [paperType, open, setValue, clearErrors])
 
   const handleClose = () => {
     onClose()
@@ -712,6 +736,7 @@ export default function AddFreeResourceModal({
         const response = await createPreviousYearPaper({
           examCategory: values.examCategory,
           paperType: values.paperType,
+          paper: values.paper,
           year: values.year,
           paperName: values.paperName,
           status: values.status,
@@ -742,6 +767,7 @@ export default function AddFreeResourceModal({
         await updatePreviousYearPaper(previousYearPaperId, {
           examCategory: values.examCategory,
           paperType: values.paperType,
+          paper: values.paper,
           year: values.year,
           paperName: values.paperName,
           status: values.status,
@@ -1032,6 +1058,11 @@ export default function AddFreeResourceModal({
                       ? studyMaterialDropdowns
                       : null
                   }
+                  ncertBookDropdowns={
+                    rendererCategory === FREE_RESOURCE_CATEGORY.NCERT
+                      ? ncertBookDropdowns
+                      : null
+                  }
                   studyMaterialFileRequired={!isStudyMaterialEdit}
                   ncertBookFileRequired={!isNcertEdit}
                   previousYearFileRequired={!isPreviousYearEdit}
@@ -1064,7 +1095,8 @@ export default function AddFreeResourceModal({
                 detailLoading ||
                 previousYearPaperDropdowns.loading ||
                 mockTestDropdowns.loading ||
-                studyMaterialDropdowns.loading
+                studyMaterialDropdowns.loading ||
+                ncertBookDropdowns.loading
               }
               createLabel="Save"
               updateLabel="Update"

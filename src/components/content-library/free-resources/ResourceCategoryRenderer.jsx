@@ -10,6 +10,11 @@ import {
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
 } from '../../../utils/freeResourceApiHelpers'
+import {
+  isPyqPaperFieldRequired,
+  isPyqPaperFieldVisible,
+  resolvePyqPaperOptions,
+} from '../../../utils/pyqPaperHelpers'
 import FormFieldError from './FormFieldError'
 import UploadField from './UploadField'
 
@@ -27,6 +32,7 @@ export default function ResourceCategoryRenderer({
   previousYearDropdowns = null,
   mockTestDropdowns: mockTestDropdownsProp = null,
   studyMaterialDropdowns = null,
+  ncertBookDropdowns = null,
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
@@ -40,11 +46,57 @@ export default function ResourceCategoryRenderer({
   }
 
   switch (category) {
-    case FREE_RESOURCE_CATEGORY.NCERT:
+    case FREE_RESOURCE_CATEGORY.NCERT: {
+      const dropdowns = ncertBookDropdowns ?? {
+        subjectOptions: [],
+        loading: false,
+        error: null,
+        retry: () => {},
+      }
+      const currentSubject = watch('subject')
+      let subjectOptions = dropdowns.subjectOptions
+      if (
+        currentSubject &&
+        !subjectOptions.some((option) => option.value === currentSubject)
+      ) {
+        subjectOptions = [{ value: currentSubject, label: currentSubject }, ...subjectOptions]
+      }
+      const dropdownsLoading = dropdowns.loading
+
       return (
         <Grid>
           <CourseFormField label="Subject" required>
-            <CourseInput {...register('subject')} placeholder="Subject" />
+            <div className="relative">
+              <CourseSelect
+                {...register('subject')}
+                disabled={dropdownsLoading}
+                className={dropdownsLoading ? 'opacity-70' : undefined}
+              >
+                <option value="">
+                  {dropdownsLoading ? 'Loading subjects…' : 'Choose subject'}
+                </option>
+                {subjectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </CourseSelect>
+              {dropdownsLoading ? (
+                <Loader2
+                  className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+            {dropdowns.error && !dropdownsLoading && subjectOptions.length === 0 ? (
+              <button
+                type="button"
+                onClick={dropdowns.retry}
+                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
+              >
+                Retry loading subjects
+              </button>
+            ) : null}
             <FormFieldError message={errors.subject?.message} />
           </CourseFormField>
           <CourseFormField label="Class" required>
@@ -80,6 +132,7 @@ export default function ResourceCategoryRenderer({
           />
         </Grid>
       )
+    }
 
     case FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR: {
       const dropdowns = previousYearDropdowns ?? {
@@ -89,9 +142,13 @@ export default function ResourceCategoryRenderer({
         error: null,
         retry: () => {},
       }
-      const paperOptions = dropdowns.paperTypeOptions
+      const paperTypeOptions = dropdowns.paperTypeOptions
       const yearOpts = dropdowns.yearOptions
       const dropdownsLoading = dropdowns.loading
+      const selectedPaperType = watch('paperType')
+      const selectedPaper = watch('paper')
+      const showPaperField = isPyqPaperFieldVisible(selectedPaperType)
+      const pyqPaperOptions = resolvePyqPaperOptions(selectedPaperType, selectedPaper)
 
       return (
         <Grid>
@@ -105,7 +162,7 @@ export default function ResourceCategoryRenderer({
                 <option value="">
                   {dropdownsLoading ? 'Loading paper types…' : 'Choose type'}
                 </option>
-                {paperOptions.map((option) => (
+                {paperTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -120,6 +177,23 @@ export default function ResourceCategoryRenderer({
             </div>
             <FormFieldError message={errors.paperType?.message} />
           </CourseFormField>
+          {showPaperField ? (
+            <CourseFormField label="Paper" required={isPyqPaperFieldRequired(selectedPaperType)}>
+              <CourseSelect
+                {...register('paper')}
+                disabled={dropdownsLoading}
+                className={dropdownsLoading ? 'opacity-70' : undefined}
+              >
+                <option value="">Choose paper</option>
+                {pyqPaperOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </CourseSelect>
+              <FormFieldError message={errors.paper?.message} />
+            </CourseFormField>
+          ) : null}
           <CourseFormField label="Year" required>
             <div className="relative">
               <CourseSelect

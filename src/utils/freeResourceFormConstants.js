@@ -34,10 +34,11 @@ export const EXAM_CATEGORY_OPTIONS = [
   'State PSC',
 ]
 
-/** Prelims / Mains / Interview — used for Paper Type and Mains Category dropdowns */
+/** Prelims / Mains / Interview — used for Study Material main category dropdown */
 export const MAINS_CATEGORY_OPTIONS = ['Prelims', 'Mains', 'Interview']
 
-export const PAPER_TYPE_OPTIONS = MAINS_CATEGORY_OPTIONS
+/** Previous Year / Mock Test paper type dropdown (Interview excluded) */
+export const PAPER_TYPE_OPTIONS = ['Prelims', 'Mains']
 
 export const MONTH_OPTIONS = [
   'January',

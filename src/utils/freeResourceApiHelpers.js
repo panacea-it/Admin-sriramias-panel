@@ -9,6 +9,7 @@ import {
   YEAR_OPTIONS,
   normalizeFreeResourceCategory,
 } from './freeResourceFormConstants'
+import { isInterviewPaperType } from './pyqPaperHelpers'
 import {
   createEmptyFreeResourceQuestion,
   createEmptyOption,
@@ -138,6 +139,7 @@ export function mapUnifiedFreeResourceApiToRow(raw) {
     return {
       ...base,
       isApiPreviousYearPaper: true,
+      paper: item.paper || '',
       formData: mapPreviousYearPaperApiToForm(item),
     }
   }
@@ -427,7 +429,12 @@ export function normalizePaperTypeDropdownOptions(data) {
     'items',
     'results',
   ])
-  if (fromApi.length) return fromApi
+  if (fromApi.length) {
+    return fromApi.filter(
+      (option) =>
+        !isInterviewPaperType(option.value) && !isInterviewPaperType(option.label),
+    )
+  }
   return PAPER_TYPE_OPTIONS.map((value) => ({ value, label: value }))
 }
 
@@ -669,6 +676,7 @@ export function validatePreviousYearPaperPdf(file) {
 export function buildPreviousYearPaperFormData({
   examCategory,
   paperType,
+  paper,
   year,
   paperName,
   status,
@@ -677,6 +685,7 @@ export function buildPreviousYearPaperFormData({
   const formData = new FormData()
   formData.append('examCategory', String(examCategory || '').trim())
   formData.append('paperType', String(paperType || '').trim())
+  formData.append('paper', String(paper || '').trim())
   formData.append('year', String(year || '').trim())
   formData.append('paperName', String(paperName || '').trim())
   formData.append('status', String(status || 'ACTIVE').trim().toUpperCase())
@@ -707,6 +716,7 @@ export function mapPreviousYearPaperApiToForm(raw, categoryOptions = []) {
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
     examCategory: item.examCategory || '',
     paperType: item.paperType || '',
+    paper: item.paper || '',
     year: item.year != null ? String(item.year) : '',
     paperName: item.paperName || item.resourceName || '',
     questionPaperFileName: item.fileName || fileMeta.fileName || '',
@@ -741,6 +751,7 @@ export function mapPreviousYearPaperApiToRow(raw, categoryOptions = []) {
     category: FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR,
     status: mapFreeResourceStatusForList(item.status),
     apiResourceId: id,
+    paper: item.paper || '',
     resourceCategory: 'PREVIOUS_YEAR_QUESTIONS',
     resourceCategoryLabel: item.resourceCategoryLabel || FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR,
     formData: mapPreviousYearPaperApiToForm(item, categoryOptions),

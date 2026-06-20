@@ -17,6 +17,7 @@ export default function DynamicFormRenderer({
   questionsLoading = false,
   onQuestionsRefresh,
   studyMaterialDropdowns = null,
+  ncertBookDropdowns = null,
   studyMaterialFileRequired = true,
   ncertBookFileRequired = true,
   previousYearFileRequired = true,
@@ -44,6 +45,7 @@ export default function DynamicFormRenderer({
             previousYearDropdowns={previousYearDropdowns}
             mockTestDropdowns={mockTestDropdowns}
             studyMaterialDropdowns={studyMaterialDropdowns}
+            ncertBookDropdowns={ncertBookDropdowns}
             studyMaterialFileRequired={studyMaterialFileRequired}
             ncertBookFileRequired={ncertBookFileRequired}
             previousYearFileRequired={previousYearFileRequired}
