@@ -11,7 +11,6 @@ import {
   validateStudyMaterialFile,
 } from '../../../utils/freeResourceApiHelpers'
 import {
-  isPyqPaperFieldRequired,
   isPyqPaperFieldVisible,
   resolvePyqPaperOptions,
 } from '../../../utils/pyqPaperHelpers'
@@ -147,8 +146,9 @@ export default function ResourceCategoryRenderer({
       const dropdownsLoading = dropdowns.loading
       const selectedPaperType = watch('paperType')
       const selectedPaper = watch('paper')
-      const showPaperField = isPyqPaperFieldVisible(selectedPaperType)
+      const paperFieldEnabled = isPyqPaperFieldVisible(selectedPaperType)
       const pyqPaperOptions = resolvePyqPaperOptions(selectedPaperType, selectedPaper)
+      const paperSelectDisabled = dropdownsLoading || !paperFieldEnabled
 
       return (
         <Grid>
@@ -177,23 +177,23 @@ export default function ResourceCategoryRenderer({
             </div>
             <FormFieldError message={errors.paperType?.message} />
           </CourseFormField>
-          {showPaperField ? (
-            <CourseFormField label="Paper" required={isPyqPaperFieldRequired(selectedPaperType)}>
-              <CourseSelect
-                {...register('paper')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
-              >
-                <option value="">Choose paper</option>
-                {pyqPaperOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CourseSelect>
-              <FormFieldError message={errors.paper?.message} />
-            </CourseFormField>
-          ) : null}
+          <CourseFormField label="Paper" required={paperFieldEnabled}>
+            <CourseSelect
+              {...register('paper')}
+              disabled={paperSelectDisabled}
+              className={paperSelectDisabled ? 'opacity-70' : undefined}
+            >
+              <option value="">
+                {paperFieldEnabled ? 'Choose paper' : 'Select paper type first'}
+              </option>
+              {pyqPaperOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CourseSelect>
+            <FormFieldError message={errors.paper?.message} />
+          </CourseFormField>
           <CourseFormField label="Year" required>
             <div className="relative">
               <CourseSelect
@@ -266,8 +266,9 @@ export default function ResourceCategoryRenderer({
       const dropdownsLoading = dropdowns.loading
       const selectedPaperType = watch('paperType')
       const selectedPaper = watch('paper')
-      const showPaperField = isPyqPaperFieldVisible(selectedPaperType)
+      const paperFieldEnabled = isPyqPaperFieldVisible(selectedPaperType)
       const pyqPaperOptions = resolvePyqPaperOptions(selectedPaperType, selectedPaper)
+      const paperSelectDisabled = dropdownsLoading || !paperFieldEnabled
 
       return (
         <Grid>
@@ -309,23 +310,23 @@ export default function ResourceCategoryRenderer({
             ) : null}
             <FormFieldError message={errors.paperType?.message} />
           </CourseFormField>
-          {showPaperField ? (
-            <CourseFormField label="Paper" required={isPyqPaperFieldRequired(selectedPaperType)}>
-              <CourseSelect
-                {...register('paper')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
-              >
-                <option value="">Choose paper</option>
-                {pyqPaperOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CourseSelect>
-              <FormFieldError message={errors.paper?.message} />
-            </CourseFormField>
-          ) : null}
+          <CourseFormField label="Paper" required={paperFieldEnabled}>
+            <CourseSelect
+              {...register('paper')}
+              disabled={paperSelectDisabled}
+              className={paperSelectDisabled ? 'opacity-70' : undefined}
+            >
+              <option value="">
+                {paperFieldEnabled ? 'Choose paper' : 'Select paper type first'}
+              </option>
+              {pyqPaperOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CourseSelect>
+            <FormFieldError message={errors.paper?.message} />
+          </CourseFormField>
           <CourseFormField label="Duration" required>
             <CourseInput {...register('duration')} placeholder="e.g. 120 mins" />
             <FormFieldError message={errors.duration?.message} />
