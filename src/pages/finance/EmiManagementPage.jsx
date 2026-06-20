@@ -10,6 +10,7 @@ import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
 import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
+import IconActionButton from '../../components/common/IconActionButton'
 import EmiEditModal from '../../components/finance/EmiEditModal'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import Modal from '../../components/ui/Modal'
@@ -264,15 +265,14 @@ function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabe
       key: 'actions',
       label: 'Actions',
       render: (r) => (
-        <button
-          type="button"
-          disabled={sendingId === r.id}
+        <IconActionButton
+          label={sendingId === r.id ? 'Sending reminder…' : 'Send reminder'}
           onClick={() => onSendReminder(r)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#246392] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1a4d73] disabled:opacity-60"
+          disabled={sendingId === r.id}
+          className="text-white hover:border-[#1a4d73] hover:bg-[#1a4d73] hover:shadow-sm bg-[#246392]"
         >
-          <Bell className="h-3.5 w-3.5" />
-          {sendingId === r.id ? 'Sending…' : 'Send Reminder'}
-        </button>
+          <Bell className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+        </IconActionButton>
       ),
     },
   ]

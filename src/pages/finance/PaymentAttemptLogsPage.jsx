@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Eye, History, MessageSquarePlus, UserPlus } from 'lucide-react'
+import { History } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageBanner from '../../components/figma/PageBanner'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import PaymentAttemptFilters from '../../components/finance/payment-attempts/PaymentAttemptFilters'
 import PaymentAttemptTable from '../../components/finance/payment-attempts/PaymentAttemptTable'
+import PaymentAttemptTableActions from '../../components/finance/payment-attempts/PaymentAttemptTableActions'
 import CounselorRemarksTable from '../../components/finance/payment-attempts/CounselorRemarksTable'
 import PaymentAttemptViewModal from '../../components/finance/payment-attempts/PaymentAttemptViewModal'
 import PaymentAttemptCounselorModal from '../../components/finance/payment-attempts/PaymentAttemptCounselorModal'
@@ -15,66 +16,9 @@ import {
   filterAttemptsByFinanceCenters,
   sortAttemptLogs,
 } from '../../utils/paymentAttemptAnalytics'
-import { isCounselorAssigned } from '../../utils/paymentAttemptRemarks'
 import { usePaymentAttemptLogs } from '../../contexts/PaymentAttemptLogsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { FINANCE_ROUTES } from '../../constants/financeNav'
-import { cn } from '../../utils/cn'
-
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
-
-function PaymentAttemptTableActions({ row, hasRemark, onView, onAssignCounselor, onAddRemark }) {
-  const assigned = isCounselorAssigned(row)
-
-  return (
-    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onView}
-        title="View"
-        aria-label={`View attempt ${row.attemptId || row.id}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View</span>
-      </button>
-      {assigned && !hasRemark ? (
-        <button
-          type="button"
-          onClick={onAddRemark}
-          title="Counselor Remark"
-          aria-label={`Add counselor remark for ${row.student}`}
-          className={cn(
-            actionButtonClass,
-            'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-          )}
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5 shrink-0" />
-          <span className="hidden sm:inline">Counselor Remark</span>
-        </button>
-      ) : null}
-      {!assigned ? (
-        <button
-          type="button"
-          onClick={onAssignCounselor}
-          title="Assign Counselor"
-          aria-label={`Assign counselor for ${row.student}`}
-          className={cn(
-            actionButtonClass,
-            'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-          )}
-        >
-          <UserPlus className="h-3.5 w-3.5 shrink-0" />
-          <span className="hidden sm:inline">Assign Counselor</span>
-        </button>
-      ) : null}
-    </div>
-  )
-}
 
 export default function PaymentAttemptLogsPage() {
   const financeCenterFilter = useFinanceCenterFilter()

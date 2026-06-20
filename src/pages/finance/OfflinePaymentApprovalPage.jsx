@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Banknote, ChevronDown, Eye, FileText, Search } from 'lucide-react'
+import { Banknote, ChevronDown, Search } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
 import ConfirmOfflineDisableModal from '../../components/finance/offline-approval/ConfirmOfflineDisableModal'
+import OfflineTableActions from '../../components/finance/offline-approval/OfflineTableActions'
 import ProofViewerModal, { ProofThumbnail } from '../../components/finance/ProofViewerModal'
 import { disableOfflinePayment, fetchOfflineApprovals } from '../../api/financeAPI'
 import { FINANCE_PAYMENT_MODES } from '../../constants/financeConstants'
@@ -17,60 +18,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
-const actionButtonClass =
-  'inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition sm:min-w-0 sm:px-2.5'
-
 const MODE_OPTIONS = [
   { value: 'all', label: 'All Modes' },
   ...FINANCE_PAYMENT_MODES.map((mode) => ({ value: mode, label: mode })),
 ]
-
-function OfflineTableActions({ row, onPreview, onViewVerification, onDisable }) {
-  const isDisabled = row.disabled || row.status === 'Disabled' || row.workflowStatus === 'Disabled'
-
-  return (
-    <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
-      <button
-        type="button"
-        onClick={onPreview}
-        title="Preview"
-        aria-label={`Preview proof for ${row.id}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">Preview</span>
-      </button>
-      <button
-        type="button"
-        onClick={onViewVerification}
-        title="View Verification"
-        aria-label={`View verification for ${row.id}`}
-        className={cn(
-          actionButtonClass,
-          'text-slate-500 hover:bg-slate-100 hover:text-[#246392]',
-        )}
-      >
-        <FileText className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden sm:inline">View Verification</span>
-      </button>
-      {!isDisabled ? (
-        <button
-          type="button"
-          onClick={onDisable}
-          title="Disable"
-          aria-label={`Disable ${row.id}`}
-          className={cn(actionButtonClass, 'text-amber-700 hover:bg-amber-50')}
-        >
-          <Ban className="h-3.5 w-3.5 shrink-0" />
-          <span className="hidden sm:inline">Disable</span>
-        </button>
-      ) : null}
-    </div>
-  )
-}
 
 function adminDisplayName(user) {
   return user?.name || user?.email || 'Finance Admin'

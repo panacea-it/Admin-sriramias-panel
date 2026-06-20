@@ -7,6 +7,7 @@ import {
   truncateRemarkPreview,
 } from '../../../utils/paymentAttemptRemarks'
 import { formatLastAttemptDisplay } from '../../../utils/formatDateTime'
+import { cn } from '../../../utils/cn'
 
 export default function CounselorRemarksTable({
   remarks,
@@ -102,7 +103,7 @@ export default function CounselorRemarksTable({
         render: (row) => renderActions(row),
       },
     ],
-    [onRequestDeleteRemark],
+    [onViewRemark],
   )
 
   const emptyState = (

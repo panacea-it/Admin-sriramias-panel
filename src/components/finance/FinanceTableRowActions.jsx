@@ -7,7 +7,7 @@ const TONE_CLASS = {
 }
 
 const BTN_BASE =
-  'inline-flex h-8 w-8 items-center justify-center rounded-lg transition sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1.5 sm:text-[12px] sm:font-semibold'
+  'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition'
 
 /** Inline row actions — matches Center Management table action styling */
 export default function FinanceTableRowActions({ actions = [], className }) {
@@ -32,8 +32,7 @@ export default function FinanceTableRowActions({ actions = [], className }) {
               action.disabled && 'pointer-events-none opacity-50',
             )}
           >
-            {Icon ? <Icon className="h-3.5 w-3.5" strokeWidth={2.5} /> : null}
-            <span className="hidden sm:inline">{action.label}</span>
+            {Icon ? <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden /> : null}
           </button>
         )
       })}

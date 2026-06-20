@@ -177,11 +177,11 @@ export default function ReceiptCenterTable({
                       <button
                         type="button"
                         title="Send receipt"
+                        aria-label="Send receipt"
                         onClick={() => onSendReceipt(row)}
-                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] px-2.5 text-[10px] font-bold text-white"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-white hover:opacity-90"
                       >
-                        <Send className="h-3 w-3" />
-                        Send
+                        <Send className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>

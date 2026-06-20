@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { FinanceOperationsProvider } from '../contexts/FinanceOperationsContext'
 import { PaymentAttemptLogsProvider } from '../contexts/PaymentAttemptLogsContext'
 import FinanceErrorBoundary from '../components/finance/FinanceErrorBoundary'
@@ -15,12 +15,14 @@ import GstInvoiceSettingsPage from '../pages/finance/GstInvoiceSettingsPage'
 import NestedRouteRedirect from '../components/feedback/NestedRouteRedirect'
 
 export default function FinanceLayout() {
+  const location = useLocation()
+
   return (
     <FinanceOperationsProvider>
       <PaymentAttemptLogsProvider>
         <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
           <section className="mx-auto max-w-screen-2xl">
-            <FinanceErrorBoundary>
+            <FinanceErrorBoundary key={location.pathname}>
               <Routes>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<PaymentDashboardPage />} />

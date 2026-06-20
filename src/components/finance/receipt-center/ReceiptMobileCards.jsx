@@ -65,19 +65,21 @@ export default function ReceiptMobileCards({
               <button
                 type="button"
                 onClick={() => onPreview?.(row)}
-                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-[#444]"
+                title="Preview receipt"
+                aria-label="Preview receipt"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-[#444] hover:bg-slate-50"
               >
                 <Eye className="h-3.5 w-3.5" />
-                Preview
               </button>
               {canSend && (
                 <button
                   type="button"
                   onClick={() => onSendReceipt?.(row)}
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-xs font-bold text-white"
+                  title="Send receipt"
+                  aria-label="Send receipt"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-white hover:opacity-90"
                 >
                   <Send className="h-3.5 w-3.5" />
-                  Send
                 </button>
               )}
               <button
@@ -92,11 +94,11 @@ export default function ReceiptMobileCards({
                 <button
                   type="button"
                   title="Edit receipt"
+                  aria-label="Edit receipt"
                   onClick={() => onEditReceipt(row)}
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#55ace7]/30 text-xs font-semibold text-[#246392] hover:bg-[#eef6fc]"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#55ace7]/30 text-[#246392] hover:bg-[#eef6fc]"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                  Edit
                 </button>
               )}
             </div>
