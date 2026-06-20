@@ -16,6 +16,11 @@ import {
 
 import { validateCurrentAffairsForm } from '../../utils/currentAffairsValidation'
 
+import {
+  clampDayForMonth,
+  getDaysInMonth,
+} from '../../utils/currentAffairsDateHelpers'
+
 import { getApiErrorMessage } from '../../utils/apiError'
 
 import {
@@ -255,10 +260,23 @@ export default function AddCurrentAffairsModal({ open, onClose, item, onSuccess 
 
 
   const onFieldChange = (key) => (e) => {
-
     const value = e.target.value
 
-    setForm((f) => ({ ...f, [key]: value }))
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+
+      if (key === 'month' || key === 'year') {
+        const maxDay = getDaysInMonth(next.month, next.year)
+        const dayNum = parseInt(next.date, 10)
+        if (!Number.isFinite(dayNum) || dayNum > maxDay) {
+          next.date = ''
+        } else {
+          next.date = clampDayForMonth(next.date, next.month, next.year)
+        }
+      }
+
+      return next
+    })
 
     setErrors((prev) => {
 

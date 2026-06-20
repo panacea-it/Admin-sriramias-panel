@@ -7,7 +7,8 @@ import {
 } from '../../constants/currentAffairsForm'
 import { MONTH_OPTIONS } from '../../data/currentAffairsData'
 import { getCurrentAffairsYearOptions } from '../../utils/currentAffairsYearOptions'
-import { CourseDateInput, CourseFormField, CourseInput, CourseSelect } from '../courses/CourseFormField'
+import { CourseFormField, CourseInput, CourseSelect } from '../courses/CourseFormField'
+import { getDaySelectOptions } from '../../utils/currentAffairsDateHelpers'
 import CurrentAffairsFileField from './CurrentAffairsFileField'
 import CurrentAffairsSampleFileField from './CurrentAffairsSampleFileField'
 
@@ -135,9 +136,25 @@ export default function CurrentAffairsFormFields({
     }
 
     if (key === 'date') {
+      const dayOptions = getDaySelectOptions(form.month, form.year)
+      const dayDisabled = !form.month || !form.year
+
       return (
         <CourseFormField key={key} label={label} required>
-          <CourseDateInput value={form.date} onChange={onFieldChange('date')} />
+          <CourseSelect
+            value={form.date}
+            onChange={onFieldChange('date')}
+            disabled={dayDisabled}
+          >
+            <option value="">
+              {dayDisabled ? 'Select year and month first' : 'Select day'}
+            </option>
+            {dayOptions.map((day) => (
+              <option key={day} value={day}>
+                {day}
+              </option>
+            ))}
+          </CourseSelect>
           <FieldError message={error} />
         </CourseFormField>
       )

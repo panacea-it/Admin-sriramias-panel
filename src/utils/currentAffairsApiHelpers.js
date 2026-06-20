@@ -1,3 +1,5 @@
+import { composeCurrentAffairsDate, extractDayFromDateValue } from './currentAffairsDateHelpers'
+
 /** UI display label → API enum */
 export const UI_CATEGORY_TO_API = {
   'Current Affairs': 'CURRENT_AFFAIRS',
@@ -151,7 +153,7 @@ export function mapApiCurrentAffairToForm(data) {
     name: String(data.title || '').trim(),
     year: data.year != null ? String(data.year) : '',
     month: data.month || '',
-    date: data.date || '',
+    date: extractDayFromDateValue(data.date),
     mainsCategory: mapApiMainsCategoryToUi(data.mainsCategory),
     paperName: data.paperName || data.title || '',
     duration: data.duration != null ? String(data.duration) : '',
@@ -222,12 +224,13 @@ export function buildCurrentAffairFormData(form, { isEdit = false } = {}) {
 }
 
 export function buildDailyPracticePayload(form, { isEdit = false } = {}) {
+  const composedDate = composeCurrentAffairsDate(form.year, form.month, form.date)
   const payload = {
     mainsCategory: mapUiMainsCategoryToApi(form.mainsCategory),
     paperName: String(form.paperName || '').trim(),
     year: parseInt(String(form.year), 10) || String(form.year || ''),
     month: String(form.month || '').trim(),
-    date: String(form.date || '').trim(),
+    date: composedDate || String(form.date || '').trim(),
     duration: parseInt(String(form.duration), 10) || 0,
     totalMarks: parseInt(String(form.totalMarks), 10) || 0,
     sectionFrom: parseInt(String(form.sectionFrom), 10) || 0,
@@ -243,12 +246,13 @@ export function buildDailyPracticePayload(form, { isEdit = false } = {}) {
 }
 
 export function buildDailyPracticeBulkFormData(form, file) {
+  const composedDate = composeCurrentAffairsDate(form.year, form.month, form.date)
   const formData = new FormData()
   formData.append('mainsCategory', mapUiMainsCategoryToApi(form.mainsCategory))
   formData.append('paperName', String(form.paperName || '').trim())
   formData.append('year', String(form.year || ''))
   formData.append('month', String(form.month || ''))
-  formData.append('date', String(form.date || ''))
+  formData.append('date', composedDate || String(form.date || ''))
   formData.append('duration', String(form.duration || ''))
   formData.append('totalMarks', String(form.totalMarks || ''))
   formData.append('file', file)

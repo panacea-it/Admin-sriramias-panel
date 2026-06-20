@@ -1,4 +1,9 @@
 import { CURRENT_AFFAIRS_FIELD_LAYOUT, isDailyPracticeCategory } from '../constants/currentAffairsForm'
+import {
+  clampDayForMonth,
+  composeCurrentAffairsDate,
+  getDaysInMonth,
+} from './currentAffairsDateHelpers'
 import { validateUploadFileSync } from './uploadValidation'
 import { getFileExtension } from './batchQuestionBulkUpload'
 import {
@@ -85,7 +90,19 @@ function validateRowFields(form, rowKeys, errors, options = {}) {
       continue
     }
     if (key === 'date') {
-      requireField(errors, 'date', form.date)
+      const day = String(form.date ?? '').trim()
+      if (!day) {
+        errors.date = 'Date is required'
+        continue
+      }
+      if (!form.month || !form.year) {
+        errors.date = 'Select year and month first'
+        continue
+      }
+      const composed = composeCurrentAffairsDate(form.year, form.month, day)
+      if (!composed) {
+        errors.date = `Select a valid day for ${form.month}`
+      }
       continue
     }
     if (key === 'mainsCategory') {
