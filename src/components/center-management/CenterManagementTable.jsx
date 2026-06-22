@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { UserCheck } from 'lucide-react';
 import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
 import { cn } from "../../utils/cn";
 
@@ -112,30 +111,6 @@ export default function CenterManagementTable({
         render: (row) => <StatusPill status={row.status} />,
       },
       {
-        key: "assignedAdmins",
-        label: "Assigned Admins",
-        headerClassName: "min-w-[170px]",
-        cellClassName: "min-w-[170px] align-middle",
-        render: (row) => {
-          const admins =
-            row.assignedAdminsDisplay ||
-            (Array.isArray(row.assignedAdmins)
-              ? row.assignedAdmins.join(", ")
-              : "") ||
-            "None assigned";
-
-          return (
-            <span
-              className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-800 ring-1 ring-violet-500/15"
-              title={admins}
-            >
-              <UserCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-              <span className="truncate">{admins}</span>
-            </span>
-          );
-        },
-      },
-      {
         key: "createdAt",
         label: "Created",
         headerClassName: "min-w-[110px] whitespace-nowrap",
@@ -180,7 +155,7 @@ export default function CenterManagementTable({
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"
       tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={880}
+      tableMinWidth={710}
       paginationClassName={cn(
         "[&>div:last-child]:items-center",
         "[&_nav]:items-center",
