@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import PageBanner from '../../components/figma/PageBanner'
-import { BannerButton } from '../../components/academics/AcademicsUi'
+import AdminDataPanel from '../../components/admin/AdminDataPanel'
+import { ADMIN_CREATE_BTN, ADMIN_PAGE_SECTION, ADMIN_PAGE_INNER } from '../../utils/adminUiStandards'
 import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
 import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsersBulkActionsBar'
 import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
@@ -584,9 +585,9 @@ export default function ManageUsersPage() {
     {
       key: "actions",
       label: "Actions",
-      align: "center",
-      headerClassName: "min-w-[200px] text-center",
-      cellClassName: "text-center",
+      align: "right",
+      headerClassName: "min-w-[200px] whitespace-nowrap pr-4 sm:pr-6 text-right",
+      cellClassName: "min-w-[200px] whitespace-nowrap pr-4 sm:pr-6 text-right",
       render: (row) => (
         <ManageUsersTableActions
           row={row}
@@ -601,8 +602,8 @@ export default function ManageUsersPage() {
   ];
 
   return (
-    <div className="figma-admin-section min-h-screen bg-[#F5F7FB] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-screen-2xl space-y-6">
+    <div className={ADMIN_PAGE_SECTION}>
+      <section className={ADMIN_PAGE_INNER}>
         <PageBanner
           icon={Users}
           iconClassName="text-[#246392]"
@@ -610,57 +611,66 @@ export default function ManageUsersPage() {
           subtitle="Manage users, permissions and assigned centers."
           className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
         >
-          <BannerButton onClick={openCreate}>Add User</BannerButton>
+          <button type="button" onClick={openCreate} className={ADMIN_CREATE_BTN}>
+            Add User
+          </button>
         </PageBanner>
 
-        <div className="rounded-2xl border border-[#E7ECF5] bg-white p-5 shadow-[0_8px_24px_rgba(7,19,63,0.05)] sm:p-6">
-          <ManageUsersFilterToolbar
-            search={search}
-            onSearchChange={(e) => setSearch(e.target.value)}
-            roleFilter={roleFilter}
-            onRoleFilterChange={(e) => setRoleFilter(e.target.value)}
-            centerFilter={centerFilter}
-            onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
-            statusFilter={statusFilter}
-            onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
-            roleOptions={roleOptions}
-            centerOptions={centerOptions}
-          />
-        </div>
-
-        {selectedIds.length > 0 && (
-          <ManageUsersBulkActionsBar
-            count={selectedIds.length}
-            disableCount={selectedActiveCount}
-            onDisable={handleBulkDisable}
-            onDelete={handleBulkDelete}
-          />
-        )}
-
-        {loading ? (
-          <div className="rounded-2xl border border-[#E7ECF5] bg-white p-6 text-sm text-[#667085] shadow-[0_8px_24px_rgba(7,19,63,0.05)]">
-            Loading users…
-          </div>
-        ) : (
-          <ManageUsersTable
-            columns={columns}
-            data={filtered}
-            emptyMessage="No users match your search or filters."
-            itemLabel="users"
-            resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-            selection={selection}
-            serverPagination
-            totalItems={totalItems}
-            totalPages={totalPages}
-            page={page}
-            pageSize={pageSize}
-            onPageChange={(next) => setPage(Number(next) || 1)}
-            onPageSizeChange={(nextSize) => {
-              setPageSize(Number(nextSize) || 10);
-              setPage(1);
-            }}
-          />
-        )}
+        <AdminDataPanel
+          noTableWrap
+          toolbar={
+            <ManageUsersFilterToolbar
+              search={search}
+              onSearchChange={(e) => setSearch(e.target.value)}
+              roleFilter={roleFilter}
+              onRoleFilterChange={(e) => setRoleFilter(e.target.value)}
+              centerFilter={centerFilter}
+              onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+              statusFilter={statusFilter}
+              onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+              roleOptions={roleOptions}
+              centerOptions={centerOptions}
+            />
+          }
+          bulkActions={
+            selectedIds.length > 0 ? (
+              <ManageUsersBulkActionsBar
+                className="mt-4"
+                count={selectedIds.length}
+                disableCount={selectedActiveCount}
+                onDisable={handleBulkDisable}
+                onDelete={handleBulkDelete}
+              />
+            ) : null
+          }
+        >
+          {loading ? (
+            <div className="mt-5 rounded-xl border border-slate-100 bg-white p-6 text-sm text-slate-500">
+              Loading users…
+            </div>
+          ) : (
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+              <ManageUsersTable
+                columns={columns}
+                data={filtered}
+                emptyMessage="No users match your search or filters."
+                itemLabel="users"
+                resetDeps={[search, roleFilter, centerFilter, statusFilter]}
+                selection={selection}
+                serverPagination
+                totalItems={totalItems}
+                totalPages={totalPages}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={(next) => setPage(Number(next) || 1)}
+                onPageSizeChange={(nextSize) => {
+                  setPageSize(Number(nextSize) || 10);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
+        </AdminDataPanel>
       </section>
 
       <UserFormModal

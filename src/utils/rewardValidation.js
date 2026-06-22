@@ -4,6 +4,12 @@ export function validateRewardRuleForm(form) {
   if (!form.eventType) errors.eventType = 'Event type is required'
   const reward = Number(form.rewardValue)
   if (!Number.isFinite(reward) || reward < 0) errors.rewardValue = 'Enter a valid reward value'
+  const dailyLimit = Number(form.dailyLimit)
+  if (!Number.isFinite(dailyLimit) || dailyLimit < 0) errors.dailyLimit = 'Enter a valid daily limit'
+  const monthlyLimit = Number(form.monthlyLimit)
+  if (!Number.isFinite(monthlyLimit) || monthlyLimit < 0) errors.monthlyLimit = 'Enter a valid monthly limit'
+  const expiryDays = Number(form.expiryDays)
+  if (!Number.isFinite(expiryDays) || expiryDays < 0) errors.expiryDays = 'Enter a valid expiry period in days'
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

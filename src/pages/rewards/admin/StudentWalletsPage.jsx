@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Wallet, Eye, Plus, Minus } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
 import CourseFilterToolbar from '../../../components/courses/CourseFilterToolbar'
+import TableActionMenu from '../../../components/common/TableActionMenu'
 import WalletViewDrawer from '../../../components/rewards/WalletViewDrawer'
 import WalletAdjustModal from '../../../components/rewards/WalletAdjustModal'
 import ConfirmRewardActionModal from '../../../components/rewards/ConfirmRewardActionModal'
@@ -11,6 +13,7 @@ import { useStudentWalletsManagement } from '../../../hooks/useStudentWalletsMan
 import { formatCoins } from '../../../utils/rewardApiHelpers'
 import { adjustWallet } from '../../../services/rewardService'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 import { toast } from '@/utils/toast'
 
 export default function StudentWalletsPage() {
@@ -26,30 +29,38 @@ export default function StudentWalletsPage() {
     { key: 'lifetimeEarned', label: 'Lifetime Earned', render: (r) => formatCoins(r.lifetimeEarned) },
     { key: 'lifetimeRedeemed', label: 'Lifetime Redeemed', render: (r) => formatCoins(r.lifetimeRedeemed) },
     { key: 'expiredCoins', label: 'Expired Coins', render: (r) => formatCoins(r.expiredCoins) },
-    {
-      key: 'actions',
-      label: 'Actions',
+    createActionsColumn({
+      buttonCount: 1,
       render: (r) => (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-[#246392]" onClick={() => setViewWallet(r)}>
-            <Eye className="h-3.5 w-3.5" /> View
-          </button>
-          <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700" onClick={() => setAdjustMode('credit')}>
-            <Plus className="h-3.5 w-3.5" /> Credit
-          </button>
-          <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600" onClick={() => setAdjustMode('debit')}>
-            <Minus className="h-3.5 w-3.5" /> Debit
-          </button>
-        </div>
+        <TableActionMenu
+          triggerLabel={`Actions for ${r.studentName}`}
+          items={[
+            { label: 'View', icon: Eye, onClick: () => setViewWallet(r) },
+            { label: 'Credit', icon: Plus, onClick: () => setAdjustMode('credit') },
+            { label: 'Debit', icon: Minus, onClick: () => setAdjustMode('debit'), danger: true },
+          ]}
+        />
       ),
-    },
+    }),
   ]
 
   return (
     <RewardsPageShell icon={Wallet} title="Student Wallets">
-      <CourseFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Student name, ID, mobile…" />
-      {loadError ? <RewardsErrorState message={loadError} onRetry={refresh} /> : (
-        <PaginatedFigmaTable columns={columns} data={wallets} loading={loading} stickyHeader />
+      {loadError ? (
+        <RewardsErrorState message={loadError} onRetry={refresh} />
+      ) : (
+        <AdminDataPanel
+          toolbar={
+            <CourseFilterToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Student name, ID, mobile…"
+              disabled={loading && wallets.length === 0}
+            />
+          }
+        >
+          <AdminStandardTable columns={columns} data={wallets} loading={loading} stickyHeader itemLabel="wallets" />
+        </AdminDataPanel>
       )}
       <WalletViewDrawer open={Boolean(viewWallet)} wallet={viewWallet} onClose={() => setViewWallet(null)} />
       <WalletAdjustModal

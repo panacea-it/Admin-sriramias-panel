@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FileSpreadsheet, Download, Loader2, Upload } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
 import UploadResultSheetModal from '../../../components/rewards/UploadResultSheetModal'
 import { exportRewardReport, getExportHistory } from '../../../services/rewardService'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { ADMIN_CARD, ADMIN_PRIMARY_BTN, ADMIN_SECONDARY_BTN } from '../../../utils/adminUiStandards'
+import { courseFieldShell } from '../../../components/courses/CourseFormField'
+import { cn } from '../../../utils/cn'
 import { toast } from '@/utils/toast'
 
 const REPORT_TYPES = [
@@ -73,41 +77,38 @@ export default function RewardReportsPage() {
       icon={FileSpreadsheet}
       title="Reward Reports"
       actions={
-        <button
-          type="button"
-          onClick={() => setUploadOpen(true)}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-        >
+        <button type="button" onClick={() => setUploadOpen(true)} className={ADMIN_SECONDARY_BTN}>
           <Upload className="h-4 w-4" />
           Upload Result Sheet
         </button>
       }
     >
-      <div className="rounded-xl bg-white p-5 shadow-md">
+      <div className={ADMIN_CARD}>
         <div className="grid gap-4 sm:grid-cols-3">
-          <select value={report} onChange={(e) => setReport(e.target.value)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm">
+          <select value={report} onChange={(e) => setReport(e.target.value)} className={courseFieldShell}>
             {REPORT_TYPES.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
-          <select value={format} onChange={(e) => setFormat(e.target.value)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm">
+          <select value={format} onChange={(e) => setFormat(e.target.value)} className={courseFieldShell}>
             {FORMATS.map((f) => (
               <option key={f} value={f}>{f}</option>
             ))}
           </select>
-          <button type="button" onClick={handleExport} disabled={exporting} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] py-2.5 text-sm font-semibold text-white">
+          <button type="button" onClick={handleExport} disabled={exporting} className={cn(ADMIN_PRIMARY_BTN, 'justify-center')}>
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Export
           </button>
         </div>
         {exporting && (
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full bg-[#246392] transition-all" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-[#55ace7] transition-all" style={{ width: `${progress}%` }} />
           </div>
         )}
       </div>
-      <h3 className="mt-6 text-sm font-bold text-slate-800">Export history</h3>
-      <PaginatedFigmaTable columns={columns} data={history} itemLabel="exports" />
+      <AdminDataPanel tableClassName="mt-4">
+        <AdminStandardTable columns={columns} data={history} itemLabel="exports" />
+      </AdminDataPanel>
       <UploadResultSheetModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Medal } from 'lucide-react'
 import { RULE_STATUS } from '../../constants/rewards'
 import { validateBadgeForm } from '../../utils/rewardValidation'
 import Switch from '../admin-management/ui/Switch'
 import RewardsModalShell, {
-  RewardsModalCancelButton,
   RewardsModalField,
-  RewardsModalPrimaryButton,
+  RewardsFormModalFooter,
 } from './RewardsModalShell'
 import { REWARDS_MODAL_FIELD_GAP, rewardsModalInputClass, rewardsModalTextareaClass } from './rewardsModalUi'
 
@@ -41,6 +41,21 @@ export default function BadgeFormModal({ open, onClose, initial, onSubmit, loadi
     }
   }, [open, initial])
 
+  const handleReset = () => {
+    if (initial) {
+      setForm({
+        name: initial.name ?? '',
+        description: initial.description ?? '',
+        criteria: initial.criteria ?? '',
+        rewardCoins: String(initial.rewardCoins ?? ''),
+        status: initial.status ?? RULE_STATUS.ACTIVE,
+      })
+    } else {
+      setForm(EMPTY)
+    }
+    setErrors({})
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     const { valid, errors: nextErrors } = validateBadgeForm(form)
@@ -54,13 +69,16 @@ export default function BadgeFormModal({ open, onClose, initial, onSubmit, loadi
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit Badge' : 'Create Badge'}
+      icon={Medal}
       footer={
-        <>
-          <RewardsModalCancelButton onClick={onClose} disabled={loading} />
-          <RewardsModalPrimaryButton type="submit" form="badge-form" loading={loading}>
-            {isEdit ? 'Update' : 'Save Badge'}
-          </RewardsModalPrimaryButton>
-        </>
+        <RewardsFormModalFooter
+          isEditMode={isEdit}
+          onReset={handleReset}
+          isSubmitting={loading}
+          createLabel="Save Badge"
+          updateLabel="Update Badge"
+          form="badge-form"
+        />
       }
     >
       <form id="badge-form" onSubmit={handleSubmit} className={REWARDS_MODAL_FIELD_GAP}>
@@ -71,7 +89,7 @@ export default function BadgeFormModal({ open, onClose, initial, onSubmit, loadi
             className="block w-full cursor-pointer text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#eef2fc] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#246392]"
           />
         </RewardsModalField>
-        <RewardsModalField label="Badge Name" error={errors.name}>
+        <RewardsModalField label="Badge Name" error={errors.name} required>
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -88,7 +106,7 @@ export default function BadgeFormModal({ open, onClose, initial, onSubmit, loadi
             className={rewardsModalTextareaClass(false)}
           />
         </RewardsModalField>
-        <RewardsModalField label="Criteria" error={errors.criteria}>
+        <RewardsModalField label="Criteria" error={errors.criteria} required>
           <textarea
             rows={2}
             value={form.criteria}
@@ -97,7 +115,7 @@ export default function BadgeFormModal({ open, onClose, initial, onSubmit, loadi
             className={rewardsModalTextareaClass(errors.criteria)}
           />
         </RewardsModalField>
-        <RewardsModalField label="Reward Coins" error={errors.rewardCoins}>
+        <RewardsModalField label="Reward Coins" error={errors.rewardCoins} required>
           <input
             type="number"
             min="0"

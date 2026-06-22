@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Gift } from 'lucide-react'
 import { validateRedemptionSettingsForm } from '../../utils/rewardValidation'
 import RewardsModalShell, {
-  RewardsModalCancelButton,
   RewardsModalField,
-  RewardsModalPrimaryButton,
+  RewardsFormModalFooter,
 } from './RewardsModalShell'
 import { REWARDS_MODAL_FIELD_GAP, rewardsModalInputClass, rewardsModalTextareaClass } from './rewardsModalUi'
 
@@ -36,6 +36,22 @@ export default function RedemptionSettingsModal({ open, onClose, initial, onSave
     }
   }, [open, initial])
 
+  const handleReset = () => {
+    if (initial) {
+      setForm({
+        maxWalletUsagePercent: String(initial.maxWalletUsagePercent ?? ''),
+        minRedemptionCoins: String(initial.minRedemptionCoins ?? ''),
+        otpVerificationThreshold: String(initial.otpVerificationThreshold ?? ''),
+        restrictedCategories: Array.isArray(initial.restrictedCategories)
+          ? initial.restrictedCategories.join(', ')
+          : '',
+      })
+    } else {
+      setForm(EMPTY)
+    }
+    setErrors({})
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     const { valid, errors: nextErrors } = validateRedemptionSettingsForm(form)
@@ -58,17 +74,20 @@ export default function RedemptionSettingsModal({ open, onClose, initial, onSave
       onClose={onClose}
       title="Redemption Settings"
       description="Configure wallet usage limits and verification rules."
+      icon={Gift}
       footer={
-        <>
-          <RewardsModalCancelButton onClick={onClose} disabled={loading} />
-          <RewardsModalPrimaryButton type="submit" form="redemption-settings-form" loading={loading}>
-            Save
-          </RewardsModalPrimaryButton>
-        </>
+        <RewardsFormModalFooter
+          isEditMode
+          onReset={handleReset}
+          isSubmitting={loading}
+          updateLabel="Save Settings"
+          resetLabel="Reset"
+          form="redemption-settings-form"
+        />
       }
     >
       <form id="redemption-settings-form" onSubmit={handleSubmit} className={REWARDS_MODAL_FIELD_GAP}>
-        <RewardsModalField label="Maximum Wallet Usage %" error={errors.maxWalletUsagePercent}>
+        <RewardsModalField label="Maximum Wallet Usage %" error={errors.maxWalletUsagePercent} required>
           <input
             type="number"
             min="0"
@@ -79,7 +98,7 @@ export default function RedemptionSettingsModal({ open, onClose, initial, onSave
             className={rewardsModalInputClass(errors.maxWalletUsagePercent)}
           />
         </RewardsModalField>
-        <RewardsModalField label="Minimum Redemption Coins" error={errors.minRedemptionCoins}>
+        <RewardsModalField label="Minimum Redemption Coins" error={errors.minRedemptionCoins} required>
           <input
             type="number"
             min="0"
@@ -89,7 +108,7 @@ export default function RedemptionSettingsModal({ open, onClose, initial, onSave
             className={rewardsModalInputClass(errors.minRedemptionCoins)}
           />
         </RewardsModalField>
-        <RewardsModalField label="OTP Verification Threshold" error={errors.otpVerificationThreshold}>
+        <RewardsModalField label="OTP Verification Threshold" error={errors.otpVerificationThreshold} required>
           <input
             type="number"
             min="0"

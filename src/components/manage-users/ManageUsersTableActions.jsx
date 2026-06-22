@@ -1,28 +1,11 @@
-import { Eye, Pencil, RefreshCw } from 'lucide-react'
-import AdminTooltip from '../subjects/AdminTooltip'
+import { RefreshCw } from 'lucide-react'
+import ViewButton from '../common/ViewButton'
+import EditButton from '../common/EditButton'
+import IconActionButton from '../common/IconActionButton'
 import { isStudentRow } from '../../services/manageUsersService'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
 import { cn } from '../../utils/cn'
-
-function ActionButton({ title, onClick, disabled, className, children }) {
-  return (
-    <AdminTooltip label={title}>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={title}
-        className={cn(
-          'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition',
-          'disabled:cursor-not-allowed disabled:opacity-40',
-          className,
-        )}
-      >
-        {children}
-      </button>
-    </AdminTooltip>
-  )
-}
+import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
 
 export default function ManageUsersTableActions({
   row,
@@ -41,45 +24,26 @@ export default function ManageUsersTableActions({
   const editTitle = showEdit ? 'Edit' : row.editDisabledReason || 'Edit not allowed'
 
   return (
-    <div className="flex items-center justify-center gap-1.5">
+    <div className={TABLE_ACTIONS_WRAP}>
       {showView ? (
-        <ActionButton
-          title="View"
-          onClick={onView}
-          disabled={disabled}
-          className="bg-[#EEF5FF] text-[#1D72B8] hover:bg-[#4CA6E8]/20 hover:text-[#07133F]"
-        >
-          <Eye className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
+        <ViewButton onClick={onView} label="View" disabled={disabled} />
       ) : null}
       {showEdit ? (
-        <ActionButton
-          title={editTitle}
-          onClick={onEdit}
-          disabled={disabled}
-          className="bg-[#1D72B8]/10 text-[#1D72B8] hover:bg-[#1D72B8] hover:text-white"
-        >
-          <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
+        <EditButton onClick={onEdit} label={editTitle} disabled={disabled} />
       ) : (
-        <ActionButton
-          title={editTitle}
-          onClick={() => {}}
-          disabled
-          className="bg-[#1D72B8]/10 text-[#1D72B8]"
-        >
-          <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
+        <EditButton onClick={() => {}} label={editTitle} disabled />
       )}
       {showStatusToggle ? (
-        <ActionButton
-          title={statusAction}
+        <IconActionButton
+          label={statusAction}
           onClick={onStatusToggle}
           disabled={disabled}
-          className="bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-700"
+          className={cn(
+            'text-orange-600 hover:border-orange-100 hover:bg-orange-50 hover:text-orange-700',
+          )}
         >
-          <RefreshCw className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
+          <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+        </IconActionButton>
       ) : null}
     </div>
   )

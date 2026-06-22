@@ -1,12 +1,39 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
 import { getRewardRules } from '../services/rewardService'
-import { mapApiRuleToRow } from '../utils/rewardApiHelpers'
+import { getEventTypeLabel, mapApiRuleToRow } from '../utils/rewardApiHelpers'
 import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '@/utils/toast'
 
+function filterRulesClientSide(rows, search, statusFilter) {
+  let result = rows
+  const q = search.trim().toLowerCase()
+
+  if (q) {
+    result = result.filter((row) => {
+      const haystack = [
+        row.name,
+        getEventTypeLabel(row.eventType),
+        row.eventType,
+        row.status,
+        row.rewardValue,
+        row.dailyLimit,
+        row.monthlyLimit,
+        row.expiryDays,
+      ]
+      return haystack.some((v) => String(v ?? '').toLowerCase().includes(q))
+    })
+  }
+
+  if (statusFilter && statusFilter !== 'all') {
+    result = result.filter((row) => row.status === statusFilter)
+  }
+
+  return result
+}
+
 export function useRewardRulesManagement() {
-  const [rules, setRules] = useState([])
+  const [allRules, setAllRules] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [search, setSearch] = useState('')
@@ -22,12 +49,12 @@ export function useRewardRulesManagement() {
         status: statusFilter === 'all' ? undefined : statusFilter,
       })
       const rows = (Array.isArray(data) ? data : data?.items || []).map(mapApiRuleToRow).filter(Boolean)
-      setRules(rows)
+      setAllRules(rows)
     } catch (error) {
       const msg = getApiErrorMessage(error, 'Failed to load reward rules')
       setLoadError(msg)
       toast.error(msg)
-      setRules([])
+      setAllRules([])
     } finally {
       setLoading(false)
     }
@@ -36,6 +63,11 @@ export function useRewardRulesManagement() {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  const rules = useMemo(
+    () => filterRulesClientSide(allRules, debouncedSearch, statusFilter),
+    [allRules, debouncedSearch, statusFilter],
+  )
 
   return {
     rules,
@@ -47,7 +79,7 @@ export function useRewardRulesManagement() {
     setStatusFilter,
     refresh,
     patchRuleLocally: (id, patch) =>
-      setRules((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r))),
-    removeRuleLocally: (id) => setRules((prev) => prev.filter((r) => r.id !== id)),
+      setAllRules((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r))),
+    removeRuleLocally: (id) => setAllRules((prev) => prev.filter((r) => r.id !== id)),
   }
 }

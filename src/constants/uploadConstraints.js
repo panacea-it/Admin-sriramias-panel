@@ -107,6 +107,21 @@ export const UPLOAD_PROFILES = {
     accept: 'video/mp4,video/quicktime,video/x-matroska,video/avi,.mp4,.mov,.mkv,.avi',
     maxBytes: 100 * 1024 * 1024,
   },
+  BATCH_DEMO_VIDEO: {
+    id: 'BATCH_DEMO_VIDEO',
+    labelFormats: ['MP4', 'MOV', 'AVI', 'WEBM', 'MKV'],
+    extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv'],
+    mimeTypes: [
+      'video/mp4',
+      'video/quicktime',
+      'video/x-msvideo',
+      'video/webm',
+      'video/x-matroska',
+    ],
+    accept:
+      '.mp4,.mov,.avi,.webm,.mkv,video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska',
+    maxBytes: 100 * 1024 * 1024,
+  },
   AUDIO_STANDARD: {
     id: 'AUDIO_STANDARD',
     labelFormats: ['MP3', 'WAV', 'M4A'],

@@ -51,6 +51,7 @@ export default function AddCourseModal({
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [brochureUploading, setBrochureUploading] = useState(false)
+  const [demoVideoUploading, setDemoVideoUploading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
 
   const excludeId = isEditMode ? item?.id : null
@@ -59,6 +60,7 @@ export default function AddCourseModal({
     if (open) {
       setErrors({})
       setBrochureUploading(false)
+      setDemoVideoUploading(false)
     }
   }, [open])
 
@@ -147,6 +149,10 @@ export default function AddCourseModal({
       toast.error('Please wait for the brochure upload to finish')
       return
     }
+    if (demoVideoUploading) {
+      toast.error('Please wait for the demo video upload to finish')
+      return
+    }
     if (!validateBatch()) {
       toast.error('Please fix the highlighted fields')
       return
@@ -222,7 +228,7 @@ export default function AddCourseModal({
               step={1}
               icon={BookOpen}
               title="Batch Details"
-              description="Name, course, schedule dates, banner image, and brochure for this batch."
+              description="Name, course, schedule dates, banner image, brochure, and demo video for this batch."
             >
               <BatchDetailsSection
                 form={form}
@@ -230,6 +236,7 @@ export default function AddCourseModal({
                 errors={errors}
                 setErrors={setErrors}
                 onBrochureUploadingChange={setBrochureUploading}
+                onDemoVideoUploadingChange={setDemoVideoUploading}
                 excludeCourseIds={[]}
                 isEditMode={isEditMode}
               />
@@ -263,7 +270,7 @@ export default function AddCourseModal({
 
         <BatchFormStickyFooter
           isEditMode={isEditMode}
-          saving={submitting || brochureUploading || detailLoading}
+          saving={submitting || brochureUploading || demoVideoUploading || detailLoading}
           onReset={() => {
             reset()
             setErrors({})

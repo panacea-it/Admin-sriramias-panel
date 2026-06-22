@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Gift, Settings2 } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
 import CourseFilterToolbar from '../../../components/courses/CourseFilterToolbar'
 import RedemptionSettingsModal from '../../../components/rewards/RedemptionSettingsModal'
 import { StatusBadge } from '../../../components/academics/AcademicsUi'
@@ -9,6 +10,7 @@ import { getRedemptions, getRedemptionSettings, updateRedemptionSettings } from 
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { formatCoins } from '../../../utils/rewardApiHelpers'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { ADMIN_SECONDARY_BTN } from '../../../utils/adminUiStandards'
 import { toast } from '@/utils/toast'
 
 export default function RedemptionsPage() {
@@ -64,18 +66,24 @@ export default function RedemptionsPage() {
       icon={Gift}
       title="Redemption Management"
       actions={
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-        >
+        <button type="button" onClick={() => setSettingsOpen(true)} className={ADMIN_SECONDARY_BTN}>
           <Settings2 className="h-4 w-4" />
           Settings
         </button>
       }
     >
-      <CourseFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Search student or order…" />
-      <PaginatedFigmaTable columns={columns} data={rows} loading={loading} stickyHeader />
+      <AdminDataPanel
+        toolbar={
+          <CourseFilterToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search student or order…"
+            disabled={loading && rows.length === 0}
+          />
+        }
+      >
+        <AdminStandardTable columns={columns} data={rows} loading={loading} stickyHeader itemLabel="redemptions" />
+      </AdminDataPanel>
       <RedemptionSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

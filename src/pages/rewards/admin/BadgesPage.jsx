@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Medal, PlusCircle } from 'lucide-react'
+import { Medal, PlusCircle, Ban } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
-import EditButton from '../../../components/common/EditButton'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
+import TableActionMenu from '../../../components/common/TableActionMenu'
 import { StatusBadge } from '../../../components/academics/AcademicsUi'
 import BadgeFormModal from '../../../components/rewards/BadgeFormModal'
 import { getBadges, saveBadge } from '../../../services/rewardService'
 import { formatCoins } from '../../../utils/rewardApiHelpers'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast } from '@/utils/toast'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
+import { ADMIN_CREATE_BTN } from '../../../utils/adminUiStandards'
 import { RULE_STATUS } from '../../../constants/rewards'
+import { toast } from '@/utils/toast'
 
 export default function BadgesPage() {
   const [badges, setBadges] = useState([])
@@ -39,27 +42,34 @@ export default function BadgesPage() {
     { key: 'criteria', label: 'Criteria' },
     { key: 'rewardCoins', label: 'Reward Coins', render: (r) => formatCoins(r.rewardCoins) },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
+    createActionsColumn({
+      buttonCount: 1,
       render: (r) => (
-        <div className="flex gap-2">
-          <EditButton onClick={() => { setEditing(r); setOpen(true) }} />
-          <button
-            type="button"
-            className="text-xs font-semibold text-amber-700"
-            onClick={async () => {
-              const next = r.status === RULE_STATUS.ACTIVE ? RULE_STATUS.INACTIVE : RULE_STATUS.ACTIVE
-              await saveBadge({ status: next }, r.id)
-              toast.success('Badge status updated')
-              refresh()
-            }}
-          >
-            Disable
-          </button>
-        </div>
+        <TableActionMenu
+          triggerLabel={`Actions for ${r.name}`}
+          items={[
+            {
+              label: 'Edit',
+              icon: Medal,
+              onClick: () => {
+                setEditing(r)
+                setOpen(true)
+              },
+            },
+            {
+              label: r.status === RULE_STATUS.ACTIVE ? 'Disable' : 'Enable',
+              icon: Ban,
+              onClick: async () => {
+                const next = r.status === RULE_STATUS.ACTIVE ? RULE_STATUS.INACTIVE : RULE_STATUS.ACTIVE
+                await saveBadge({ status: next }, r.id)
+                toast.success('Badge status updated')
+                refresh()
+              },
+            },
+          ]}
+        />
       ),
-    },
+    }),
   ]
 
   return (
@@ -67,16 +77,28 @@ export default function BadgesPage() {
       icon={Medal}
       title="Badge Management"
       actions={
-        <button type="button" onClick={() => { setEditing(null); setOpen(true) }} className={addBtn}>
-          <PlusCircle className="h-4 w-4" />
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(null)
+            setOpen(true)
+          }}
+          className={ADMIN_CREATE_BTN}
+        >
+          <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.5} />
           Create Badge
         </button>
       }
     >
-      <PaginatedFigmaTable columns={columns} data={badges} loading={loading} stickyHeader />
+      <AdminDataPanel>
+        <AdminStandardTable columns={columns} data={badges} loading={loading} stickyHeader itemLabel="badges" />
+      </AdminDataPanel>
       <BadgeFormModal
         open={open}
-        onClose={() => { setOpen(false); setEditing(null) }}
+        onClose={() => {
+          setOpen(false)
+          setEditing(null)
+        }}
         initial={editing}
         loading={submitting}
         onSubmit={async (form) => {
@@ -96,6 +118,3 @@ export default function BadgesPage() {
     </RewardsPageShell>
   )
 }
-
-const addBtn =
-  'inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white'

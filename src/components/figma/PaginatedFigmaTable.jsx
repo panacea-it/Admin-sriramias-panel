@@ -4,6 +4,12 @@ import { usePagination } from '../../hooks/usePagination'
 import FigmaTable from './FigmaTable'
 import TablePagination from './TablePagination'
 import TableSelectionCheckbox from './TableSelectionCheckbox'
+import {
+  ADMIN_TABLE_DENSITY,
+  ADMIN_TABLE_INNER_CLASS,
+  ADMIN_TABLE_PAGINATION_CLASS,
+  ADMIN_TABLE_ROW_CLASS,
+} from '../../utils/adminUiStandards'
 
 export default function PaginatedFigmaTable({
   columns,
@@ -37,7 +43,24 @@ export default function PaginatedFigmaTable({
   controlledPagination,
   paginationClassName,
   gradientActivePage = false,
+  /** When 'admin', applies Center Management table styling */
+  variant,
 }) {
+  const isAdminVariant = variant === 'admin'
+  const resolvedDensity = isAdminVariant ? ADMIN_TABLE_DENSITY : density
+  const resolvedRowClassName = isAdminVariant && !rowClassName ? ADMIN_TABLE_ROW_CLASS : rowClassName
+  const resolvedTableClassName = cn(
+    isAdminVariant && ADMIN_TABLE_INNER_CLASS,
+    tableClassName,
+  )
+  const resolvedClassName = cn(
+    isAdminVariant && ADMIN_TABLE_INNER_CLASS,
+    className,
+  )
+  const resolvedPaginationClassName = cn(
+    isAdminVariant && ADMIN_TABLE_PAGINATION_CLASS,
+    paginationClassName,
+  )
   const internalRef = useRef(null)
   const tableRef = externalRef ?? internalRef
 
@@ -115,7 +138,7 @@ export default function PaginatedFigmaTable({
       className={cn(
         'w-full min-w-0 max-w-full rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
         bodyMaxHeight && 'flex flex-col',
-        className,
+        resolvedClassName,
         'overflow-x-auto',
       )}
     >
@@ -124,13 +147,13 @@ export default function PaginatedFigmaTable({
         data={tableRows}
         emptyMessage={emptyMessage}
         emptyState={emptyState}
-        rowClassName={rowClassName}
+        rowClassName={resolvedRowClassName}
         getRowClassName={getRowClassName}
-        density={density}
+        density={resolvedDensity}
         className={cn(
           'min-h-0 shrink-0 rounded-none shadow-none',
           bodyMaxHeight && 'flex-1',
-          tableClassName,
+          resolvedTableClassName,
         )}
         zebraStriping={zebraStriping}
         loading={loading}
@@ -156,7 +179,7 @@ export default function PaginatedFigmaTable({
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
-          className={cn('shrink-0 border-t border-[#E5E7EB] bg-white', paginationClassName)}
+          className={cn('shrink-0 border-t border-[#E5E7EB] bg-white', resolvedPaginationClassName)}
           gradientActivePage={gradientActivePage}
         />
       )}

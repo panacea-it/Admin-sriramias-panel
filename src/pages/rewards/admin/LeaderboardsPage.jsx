@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
 import LeaderboardTabs from '../../../components/rewards/LeaderboardTabs'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
 import RankBadge from '../../../components/rewards/RankBadge'
 import { getLeaderboard } from '../../../services/rewardService'
 import { formatCoins } from '../../../utils/rewardApiHelpers'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast } from '@/utils/toast'
 import { cn } from '../../../utils/cn'
+import { toast } from '@/utils/toast'
 
 export default function LeaderboardsPage() {
   const [period, setPeriod] = useState('weekly')
@@ -45,8 +46,12 @@ export default function LeaderboardsPage() {
 
   return (
     <RewardsPageShell icon={Trophy} title="Leaderboard Management">
-      <LeaderboardTabs value={period} onChange={setPeriod} />
-      <PaginatedFigmaTable columns={columns} data={rows} loading={loading} stickyHeader />
+      <AdminDataPanel
+        toolbar={<LeaderboardTabs value={period} onChange={setPeriod} />}
+        tableClassName="mt-4"
+      >
+        <AdminStandardTable columns={columns} data={rows} loading={loading} stickyHeader itemLabel="students" />
+      </AdminDataPanel>
     </RewardsPageShell>
   )
 }

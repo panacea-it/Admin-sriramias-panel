@@ -1,15 +1,16 @@
 import { cn } from '../../utils/cn'
+import { courseFieldShell } from '../courses/CourseFormField'
 
 export const REWARDS_MODAL_FIELD_GAP = 'space-y-5'
 
+/** @deprecated Use CourseFormField label styling */
 export const rewardsModalLabelClass =
-  'mb-2 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500'
+  'mb-2 block text-sm font-semibold text-gray-700'
 
 export function rewardsModalInputClass(hasError) {
   return cn(
-    'w-full min-h-[44px] rounded-xl border bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition',
-    'focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/15',
-    hasError ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-500/15' : 'border-slate-200/80',
+    courseFieldShell,
+    hasError && 'border-red-300 focus:border-red-400 focus:ring-red-500/15',
   )
 }
 
@@ -17,18 +18,18 @@ export function rewardsModalTextareaClass(hasError) {
   return cn(rewardsModalInputClass(hasError), 'min-h-[88px] resize-y py-3')
 }
 
-export const rewardsModalErrorClass = 'mt-1.5 text-xs font-medium text-rose-600'
+export const rewardsModalErrorClass = 'text-xs font-medium text-red-600'
 
-export const rewardsModalHintClass = 'mt-1.5 text-xs text-slate-500'
+export const rewardsModalHintClass = 'text-xs text-[#686868]'
 
 export const rewardsModalPrimaryBtnClass =
-  'inline-flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex min-h-[44px] min-w-[148px] items-center justify-center rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-10 py-3.5 text-base font-bold text-white shadow-[0_6px_18px_rgba(5,25,45,0.4)] transition hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:scale-100 disabled:hover:brightness-100'
 
 export const rewardsModalSecondaryBtnClass =
-  'inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200/80 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex min-h-[44px] min-w-[148px] items-center justify-center rounded-full bg-gradient-to-r from-[#5eb8f5] to-[#2b78a5] px-10 py-3.5 text-base font-bold text-white shadow-[0_6px_18px_rgba(43,120,165,0.35)] transition hover:scale-[1.02] hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:scale-100 disabled:hover:brightness-100'
 
 export const rewardsModalDangerBtnClass =
-  'inline-flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-rose-500 to-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex min-h-[44px] min-w-[148px] items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-red-600 px-10 py-3.5 text-base font-bold text-white shadow-[0_6px_18px_rgba(220,38,38,0.35)] transition hover:scale-[1.02] hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:scale-100'
 
 /** Compact module tab styles (Rewards admin + student portal) */
 export function rewardsTabClass(isActive) {

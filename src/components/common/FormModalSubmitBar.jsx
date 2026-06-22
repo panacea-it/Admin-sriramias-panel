@@ -11,6 +11,7 @@ export default function FormModalSubmitBar({
   updateLabel = 'Update',
   resetLabel = 'Reset',
   loadingLabel = 'Saving...',
+  form,
   className,
 }) {
   const submitDisabled = isSubmitting || disableSubmit
@@ -33,6 +34,7 @@ export default function FormModalSubmitBar({
       </button>
       <button
         type="submit"
+        form={form}
         disabled={submitDisabled}
         aria-busy={isSubmitting}
         className="inline-flex min-w-[148px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-10 py-3.5 text-base font-bold text-white shadow-[0_6px_18px_rgba(5,25,45,0.4)] transition hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:scale-100 disabled:hover:brightness-100"

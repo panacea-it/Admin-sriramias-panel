@@ -121,19 +121,17 @@ export default function ManageUsersTable({
   return (
     <div
       ref={tableRef}
-      className="min-w-0 overflow-x-auto rounded-2xl border border-[#E7ECF5] bg-white shadow-[0_8px_24px_rgba(7,19,63,0.06)]"
+      className="min-w-0 overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-none"
     >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] border-collapse">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-[#1D72B8]">
-              {resolvedColumns.map((col, index) => (
+            <tr className="bg-[#55ace7]">
+              {resolvedColumns.map((col) => (
                 <th
                   key={col.key}
                   className={cn(
-                    "whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-white first:pl-6 last:pr-6",
-                    index === 0 && "rounded-tl-2xl",
-                    index === resolvedColumns.length - 1 && "rounded-tr-2xl",
+                    "h-11 min-h-[44px] whitespace-nowrap px-4 py-2.5 text-left text-sm font-semibold text-white first:pl-5 sm:first:pl-6 last:pr-5 sm:last:pr-6",
                     col.align === "center" && "text-center",
                     col.align === "right" && "text-right",
                     col.headerClassName,
@@ -148,13 +146,13 @@ export default function ManageUsersTable({
             {paginatedItems.map((row, idx) => (
               <tr
                 key={row.id ?? idx}
-                className="cursor-pointer border-b border-[#E7ECF5] transition-colors duration-200 last:border-0 hover:bg-[#EEF5FF]"
+                className="min-h-[52px] cursor-pointer border-b border-[#E5E7EB] transition-colors duration-200 last:border-0 hover:bg-[#eef6fc]/70"
               >
                 {resolvedColumns.map((col) => (
                   <td
                     key={col.key}
                     className={cn(
-                      "px-4 py-5 align-middle first:pl-6 last:pr-6",
+                      "px-4 py-2.5 align-middle text-sm font-medium first:pl-5 sm:first:pl-6 last:pr-5 sm:last:pr-6",
                       col.align === "center" && "text-center",
                       col.align === "right" && "text-right",
                       col.cellClassName,

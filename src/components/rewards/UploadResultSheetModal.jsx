@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Upload } from 'lucide-react'
 import RewardsModalShell, {
-  RewardsModalCancelButton,
   RewardsModalField,
-  RewardsModalPrimaryButton,
+  RewardsFormModalFooter,
 } from './RewardsModalShell'
 import { REWARDS_MODAL_FIELD_GAP } from './rewardsModalUi'
 
@@ -31,6 +31,11 @@ export default function UploadResultSheetModal({ open, onClose, onUpload, loadin
     setFile(next)
   }
 
+  const handleReset = () => {
+    setFile(null)
+    setError('')
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!file) {
@@ -46,13 +51,16 @@ export default function UploadResultSheetModal({ open, onClose, onUpload, loadin
       onClose={onClose}
       title="Upload Result Sheet"
       description="Import OMR or result sheet data for reward reconciliation."
+      icon={Upload}
       footer={
-        <>
-          <RewardsModalCancelButton onClick={onClose} disabled={loading} />
-          <RewardsModalPrimaryButton type="submit" form="upload-result-sheet-form" loading={loading}>
-            Upload File
-          </RewardsModalPrimaryButton>
-        </>
+        <RewardsFormModalFooter
+          isEditMode={false}
+          onReset={handleReset}
+          isSubmitting={loading}
+          createLabel="Upload File"
+          resetLabel="Reset"
+          form="upload-result-sheet-form"
+        />
       }
     >
       <form id="upload-result-sheet-form" onSubmit={handleSubmit} className={REWARDS_MODAL_FIELD_GAP}>
@@ -60,6 +68,7 @@ export default function UploadResultSheetModal({ open, onClose, onUpload, loadin
           label="Select File"
           error={error}
           hint={`Supported: CSV, Excel, PDF · Max ${MAX_SIZE_MB} MB`}
+          required
         >
           <input
             type="file"

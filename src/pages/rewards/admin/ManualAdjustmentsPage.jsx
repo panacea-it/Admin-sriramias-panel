@@ -6,6 +6,7 @@ import ConfirmRewardActionModal from '../../../components/rewards/ConfirmRewardA
 import { useStudentWalletsManagement } from '../../../hooks/useStudentWalletsManagement'
 import { adjustWallet } from '../../../services/rewardService'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { ADMIN_CARD } from '../../../utils/adminUiStandards'
 import { toast } from '@/utils/toast'
 
 export default function ManualAdjustmentsPage() {
@@ -30,7 +31,7 @@ export default function ManualAdjustmentsPage() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="rounded-xl border border-slate-100 bg-white p-6 shadow-md lg:col-span-2">
+        <section className={`${ADMIN_CARD} lg:col-span-2`}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-bold text-slate-900">Recent activity (dummy)</h2>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Preview</span>
@@ -71,7 +72,7 @@ export default function ManualAdjustmentsPage() {
           </ul>
         </section>
 
-        <aside className="rounded-xl border border-slate-100 bg-white p-6 shadow-md">
+        <aside className={ADMIN_CARD}>
           <h2 className="text-base font-bold text-slate-900">Notes (dummy)</h2>
           <p className="mt-2 text-sm text-slate-600">
             Use manual adjustments sparingly. Every change should include an audit-friendly reason and be reviewed when needed.
@@ -113,5 +114,4 @@ export default function ManualAdjustmentsPage() {
   )
 }
 
-const cardBtn =
-  'flex flex-col items-start gap-2 rounded-xl border border-slate-100 bg-white p-6 text-left shadow-md transition hover:shadow-lg'
+const cardBtn = `${ADMIN_CARD} flex flex-col items-start gap-2 text-left transition hover:shadow-[0_12px_32px_rgba(15,23,42,0.1)]`

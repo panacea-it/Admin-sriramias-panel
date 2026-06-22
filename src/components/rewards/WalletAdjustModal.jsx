@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Wallet } from 'lucide-react'
 import { validateWalletAdjustForm } from '../../utils/rewardValidation'
 import RewardsModalShell, {
-  RewardsModalCancelButton,
   RewardsModalField,
-  RewardsModalPrimaryButton,
+  RewardsFormModalFooter,
 } from './RewardsModalShell'
 import { REWARDS_MODAL_FIELD_GAP, rewardsModalInputClass, rewardsModalTextareaClass } from './rewardsModalUi'
 
@@ -26,6 +26,11 @@ export default function WalletAdjustModal({
     }
   }, [open])
 
+  const handleReset = () => {
+    setForm({ studentId: '', amount: '', reason: '' })
+    setErrors({})
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     const { valid, errors: nextErrors } = validateWalletAdjustForm(form)
@@ -35,7 +40,6 @@ export default function WalletAdjustModal({
   }
 
   const title = isCredit ? 'Manual Credit' : 'Manual Debit'
-  const submitLabel = isCredit ? 'Credit Coins' : 'Debit Coins'
 
   return (
     <RewardsModalShell
@@ -43,17 +47,20 @@ export default function WalletAdjustModal({
       onClose={onClose}
       title={title}
       description={isCredit ? 'Add coins to a student wallet with an audit reason.' : 'Remove coins from a student wallet with confirmation.'}
+      icon={Wallet}
       footer={
-        <>
-          <RewardsModalCancelButton onClick={onClose} disabled={loading} />
-          <RewardsModalPrimaryButton type="submit" form="wallet-adjust-form" loading={loading}>
-            {submitLabel}
-          </RewardsModalPrimaryButton>
-        </>
+        <RewardsFormModalFooter
+          isEditMode={false}
+          onReset={handleReset}
+          isSubmitting={loading}
+          createLabel={isCredit ? 'Credit Coins' : 'Debit Coins'}
+          resetLabel="Reset"
+          form="wallet-adjust-form"
+        />
       }
     >
       <form id="wallet-adjust-form" onSubmit={handleSubmit} className={REWARDS_MODAL_FIELD_GAP}>
-        <RewardsModalField label="Student" error={errors.studentId}>
+        <RewardsModalField label="Student" error={errors.studentId} required>
           <select
             value={form.studentId}
             onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
@@ -67,7 +74,7 @@ export default function WalletAdjustModal({
             ))}
           </select>
         </RewardsModalField>
-        <RewardsModalField label="Coin Amount (1S)" error={errors.amount}>
+        <RewardsModalField label="Coin Amount (1S)" error={errors.amount} required>
           <input
             type="number"
             min="1"
@@ -77,7 +84,7 @@ export default function WalletAdjustModal({
             className={rewardsModalInputClass(errors.amount)}
           />
         </RewardsModalField>
-        <RewardsModalField label="Reason" error={errors.reason}>
+        <RewardsModalField label="Reason" error={errors.reason} required>
           <textarea
             rows={3}
             value={form.reason}

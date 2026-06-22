@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
+import { ShieldAlert, CheckCircle2, PauseCircle, RotateCcw, Clock } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
+import TableActionMenu from '../../../components/common/TableActionMenu'
 import FraudTimelineDrawer from '../../../components/rewards/FraudTimelineDrawer'
 import { FRAUD_STATUS } from '../../../constants/rewards'
 import { getFraudCases, updateFraudStatus } from '../../../services/rewardService'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast } from '@/utils/toast'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 import { cn } from '../../../utils/cn'
+import { toast } from '@/utils/toast'
 
 const statusColors = {
   [FRAUD_STATUS.OPEN]: 'bg-amber-100 text-amber-800',
@@ -68,23 +71,27 @@ export default function FraudMonitoringPage() {
         </span>
       ),
     },
-    {
-      key: 'actions',
-      label: 'Action',
+    createActionsColumn({
+      buttonCount: 1,
       render: (r) => (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="text-xs font-semibold text-emerald-700" onClick={() => setStatus(r.id, FRAUD_STATUS.APPROVED)}>Approve</button>
-          <button type="button" className="text-xs font-semibold text-amber-700" onClick={() => setStatus(r.id, FRAUD_STATUS.HOLD)}>Hold</button>
-          <button type="button" className="text-xs font-semibold text-rose-600" onClick={() => setStatus(r.id, FRAUD_STATUS.REVERSED)}>Reverse</button>
-          <button type="button" className="text-xs font-semibold text-[#246392]" onClick={() => setTimelineCase(r)}>Timeline</button>
-        </div>
+        <TableActionMenu
+          triggerLabel={`Actions for ${r.studentName}`}
+          items={[
+            { label: 'Approve', icon: CheckCircle2, onClick: () => setStatus(r.id, FRAUD_STATUS.APPROVED) },
+            { label: 'Hold', icon: PauseCircle, onClick: () => setStatus(r.id, FRAUD_STATUS.HOLD) },
+            { label: 'Reverse', icon: RotateCcw, onClick: () => setStatus(r.id, FRAUD_STATUS.REVERSED), danger: true },
+            { label: 'Timeline', icon: Clock, onClick: () => setTimelineCase(r) },
+          ]}
+        />
       ),
-    },
+    }),
   ]
 
   return (
     <RewardsPageShell icon={ShieldAlert} title="Fraud Monitoring">
-      <PaginatedFigmaTable columns={columns} data={cases} loading={loading} stickyHeader />
+      <AdminDataPanel>
+        <AdminStandardTable columns={columns} data={cases} loading={loading} stickyHeader itemLabel="cases" />
+      </AdminDataPanel>
       <FraudTimelineDrawer open={Boolean(timelineCase)} caseRow={timelineCase} onClose={() => setTimelineCase(null)} />
     </RewardsPageShell>
   )

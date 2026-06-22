@@ -4,6 +4,8 @@ import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
 import { PAID_STUDENT_REWARDS, FREE_STUDENT_REWARDS } from '../../../constants/rewards'
 import { getRewardSettings, updateRewardSettings } from '../../../services/rewardService'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { ADMIN_CARD, ADMIN_PRIMARY_BTN } from '../../../utils/adminUiStandards'
+import { CourseFormField, CourseInput } from '../../../components/courses/CourseFormField'
 import { toast } from '@/utils/toast'
 
 export default function RewardSettingsPage() {
@@ -42,7 +44,7 @@ export default function RewardSettingsPage() {
       icon={Settings2}
       title="Reward Settings"
       actions={
-        <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 py-2.5 text-sm font-semibold text-white">
+        <button type="button" onClick={save} disabled={saving} className={ADMIN_PRIMARY_BTN}>
           <Save className="h-4 w-4" />
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -69,7 +71,7 @@ export default function RewardSettingsPage() {
           ))}
         </SettingsCard>
       </div>
-      <details className="mt-4 rounded-xl bg-white p-5 shadow-md">
+      <details className={`mt-4 ${ADMIN_CARD}`}>
         <summary className="cursor-pointer text-sm font-bold text-slate-900">Reward engine catalog (reference)</summary>
         <pre className="mt-3 max-h-64 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
           {JSON.stringify({ paid: PAID_STUDENT_REWARDS, free: FREE_STUDENT_REWARDS }, null, 2)}
@@ -81,7 +83,7 @@ export default function RewardSettingsPage() {
 
 function SettingsCard({ title, children }) {
   return (
-    <section className="rounded-xl bg-white p-5 shadow-md">
+    <section className={ADMIN_CARD}>
       <h3 className="text-base font-bold text-slate-900">{title}</h3>
       <div className="mt-4 space-y-3">{children}</div>
     </section>
@@ -90,14 +92,12 @@ function SettingsCard({ title, children }) {
 
 function NumberField({ label, value, onChange }) {
   return (
-    <label className="block">
-      <span className="text-xs font-bold uppercase text-slate-500">{label}</span>
-      <input
+    <CourseFormField label={label}>
+      <CourseInput
         type="number"
         value={value ?? ''}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
       />
-    </label>
+    </CourseFormField>
   )
 }

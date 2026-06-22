@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { PlusCircle, ScrollText } from 'lucide-react'
+import { PlusCircle, ScrollText, Ban, CheckCircle2, Trash2, Eye, Pencil } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import AdminDataPanel from '../../../components/admin/AdminDataPanel'
+import AdminStandardTable from '../../../components/admin/AdminStandardTable'
 import CourseFilterToolbar from '../../../components/courses/CourseFilterToolbar'
-import EditButton from '../../../components/common/EditButton'
+import TableActionMenu from '../../../components/common/TableActionMenu'
 import { StatusBadge } from '../../../components/academics/AcademicsUi'
 import RewardRuleFormModal from '../../../components/rewards/RewardRuleFormModal'
+import ViewRewardRuleModal from '../../../components/rewards/ViewRewardRuleModal'
 import ConfirmRewardActionModal from '../../../components/rewards/ConfirmRewardActionModal'
 import RewardsErrorState from '../../../components/rewards/RewardsErrorState'
 import { useRewardRulesManagement } from '../../../hooks/useRewardRulesManagement'
@@ -13,40 +15,112 @@ import { getEventTypeLabel, formatCoins } from '../../../utils/rewardApiHelpers'
 import { createRewardRule, deleteRewardRule, updateRewardRule } from '../../../services/rewardService'
 import { RULE_STATUS } from '../../../constants/rewards'
 import { getApiErrorMessage } from '../../../utils/apiError'
+import { createActionsColumn } from '../../../utils/tableColumnHelpers'
+import { ADMIN_CREATE_BTN } from '../../../utils/adminUiStandards'
 import { toast } from '@/utils/toast'
+
+function formatLimit(value) {
+  if (value == null || value === '') return '—'
+  return Number(value).toLocaleString()
+}
 
 export default function RewardRulesPage() {
   const { rules, loading, loadError, search, setSearch, statusFilter, setStatusFilter, refresh, patchRuleLocally, removeRuleLocally } =
     useRewardRulesManagement()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [viewing, setViewing] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
 
   const columns = [
-    { key: 'name', label: 'Rule Name', render: (r) => <span className="font-medium">{r.name}</span> },
-    { key: 'eventType', label: 'Event Type', render: (r) => getEventTypeLabel(r.eventType) },
-    { key: 'rewardValue', label: 'Reward Value', render: (r) => formatCoins(r.rewardValue) },
-    { key: 'dailyLimit', label: 'Daily Limit' },
-    { key: 'monthlyLimit', label: 'Monthly Limit' },
-    { key: 'expiryDays', label: 'Expiry Days' },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     {
-      key: 'actions',
-      label: 'Actions',
-      render: (r) => (
-        <div className="flex flex-wrap gap-2">
-          <EditButton onClick={() => { setEditing(r); setModalOpen(true) }} />
-          <button type="button" className="text-xs font-semibold text-amber-700" onClick={() => setStatusTarget(r)}>
-            {r.status === RULE_STATUS.ACTIVE ? 'Disable' : 'Enable'}
-          </button>
-          <button type="button" className="text-xs font-semibold text-rose-600" onClick={() => setDeleteTarget(r)}>
-            Deactivate
-          </button>
-        </div>
-      ),
+      key: 'name',
+      label: 'Rule Name',
+      headerClassName: 'min-w-[160px]',
+      cellClassName: 'min-w-[160px] align-middle',
+      render: (r) => <span className="font-semibold text-slate-900">{r.name}</span>,
     },
+    {
+      key: 'eventType',
+      label: 'Event Type',
+      headerClassName: 'min-w-[140px] whitespace-nowrap',
+      cellClassName: 'min-w-[140px] whitespace-nowrap align-middle',
+      render: (r) => <span className="font-medium text-[#111]">{getEventTypeLabel(r.eventType)}</span>,
+    },
+    {
+      key: 'rewardValue',
+      label: 'Reward Value',
+      headerClassName: 'min-w-[120px] whitespace-nowrap',
+      cellClassName: 'min-w-[120px] whitespace-nowrap align-middle',
+      render: (r) => formatCoins(r.rewardValue),
+    },
+    {
+      key: 'dailyLimit',
+      label: 'Daily Limit',
+      headerClassName: 'min-w-[100px] whitespace-nowrap',
+      cellClassName: 'min-w-[100px] whitespace-nowrap align-middle',
+      render: (r) => formatLimit(r.dailyLimit),
+    },
+    {
+      key: 'monthlyLimit',
+      label: 'Monthly Limit',
+      headerClassName: 'min-w-[110px] whitespace-nowrap',
+      cellClassName: 'min-w-[110px] whitespace-nowrap align-middle',
+      render: (r) => formatLimit(r.monthlyLimit),
+    },
+    {
+      key: 'expiryDays',
+      label: 'Expiry Days',
+      headerClassName: 'min-w-[100px] whitespace-nowrap',
+      cellClassName: 'min-w-[100px] whitespace-nowrap align-middle',
+      render: (r) => formatLimit(r.expiryDays),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      headerClassName: 'min-w-[110px] whitespace-nowrap',
+      cellClassName: 'min-w-[110px] align-middle',
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    createActionsColumn({
+      buttonCount: 1,
+      render: (r) => {
+        const isActive = r.status === RULE_STATUS.ACTIVE
+        return (
+          <TableActionMenu
+            triggerLabel={`Actions for ${r.name}`}
+            items={[
+              {
+                label: 'View',
+                icon: Eye,
+                onClick: () => setViewing(r),
+              },
+              {
+                label: 'Edit',
+                icon: Pencil,
+                onClick: () => {
+                  setEditing(r)
+                  setModalOpen(true)
+                },
+              },
+              {
+                label: isActive ? 'Disable' : 'Enable',
+                icon: isActive ? Ban : CheckCircle2,
+                onClick: () => setStatusTarget(r),
+              },
+              {
+                label: 'Deactivate',
+                icon: Trash2,
+                onClick: () => setDeleteTarget(r),
+                danger: true,
+              },
+            ]}
+          />
+        )
+      },
+    }),
   ]
 
   const handleSubmit = async (form) => {
@@ -75,34 +149,61 @@ export default function RewardRulesPage() {
       icon={ScrollText}
       title="Reward Rules"
       actions={
-        <button type="button" onClick={() => { setEditing(null); setModalOpen(true) }} className={addBtn}>
-          <PlusCircle className="h-4 w-4" />
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(null)
+            setModalOpen(true)
+          }}
+          className={ADMIN_CREATE_BTN}
+        >
+          <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.5} />
           Add Rule
         </button>
       }
     >
-      <CourseFilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search rules…"
-        filters={[
-          {
-            value: statusFilter,
-            onChange: setStatusFilter,
-            options: [
-              { value: 'all', label: 'All Status' },
-              { value: RULE_STATUS.ACTIVE, label: 'Active' },
-              { value: RULE_STATUS.INACTIVE, label: 'Deactivated' },
-            ],
-          },
-        ]}
-      />
       {loadError ? (
         <RewardsErrorState message={loadError} onRetry={refresh} />
       ) : (
-        <PaginatedFigmaTable columns={columns} data={rules} loading={loading} stickyHeader />
+        <AdminDataPanel
+          toolbar={
+            <CourseFilterToolbar
+              search={search}
+              onSearchChange={(e) => setSearch(e.target.value)}
+              searchPlaceholder="Search rules by name, event type…"
+              status={statusFilter}
+              onStatusChange={(e) => setStatusFilter(e.target.value)}
+              statusOptions={[
+                { value: 'all', label: 'All Status' },
+                { value: RULE_STATUS.ACTIVE, label: 'Active' },
+                { value: RULE_STATUS.INACTIVE, label: 'Deactivated' },
+              ]}
+              disabled={loading && rules.length === 0}
+            />
+          }
+        >
+          <AdminStandardTable
+            columns={columns}
+            data={rules}
+            loading={loading}
+            stickyHeader
+            itemLabel="rules"
+            resetDeps={[search, statusFilter]}
+            tableMinWidth={960}
+          />
+        </AdminDataPanel>
       )}
-      <RewardRuleFormModal open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null) }} initial={editing} onSubmit={handleSubmit} loading={submitting} />
+      <ViewRewardRuleModal open={Boolean(viewing)} rule={viewing} onClose={() => setViewing(null)} />
+      <RewardRuleFormModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setEditing(null)
+        }}
+        initial={editing}
+        onSubmit={handleSubmit}
+        loading={submitting}
+      />
       <ConfirmRewardActionModal
         open={Boolean(deleteTarget)}
         title="Deactivate"
@@ -150,6 +251,3 @@ export default function RewardRulesPage() {
     </RewardsPageShell>
   )
 }
-
-const addBtn =
-  'inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-4 text-sm font-semibold text-white shadow-md'
