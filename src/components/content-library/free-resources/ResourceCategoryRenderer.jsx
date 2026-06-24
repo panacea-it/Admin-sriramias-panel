@@ -3,9 +3,9 @@ import { toast } from '@/utils/toast'
 import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import {
   FREE_RESOURCE_CATEGORY,
-  MAINS_CATEGORY_OPTIONS,
 } from '../../../utils/freeResourceFormConstants'
 import {
+  DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS,
   validateNcertBookPdf,
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
@@ -361,22 +361,51 @@ export default function ResourceCategoryRenderer({
     }
 
     case FREE_RESOURCE_CATEGORY.STUDY_MATERIAL: {
-      const categoryOpts = MAINS_CATEGORY_OPTIONS.map((option) => ({
-        value: option,
-        label: option,
-      }))
+      const dropdowns = studyMaterialDropdowns ?? {
+        categoryOptions: DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS,
+        loading: false,
+        error: null,
+        retry: () => {},
+      }
+      const categoryOpts = dropdowns.categoryOptions?.length
+        ? dropdowns.categoryOptions
+        : DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS
+      const dropdownsLoading = dropdowns.loading
 
       return (
         <Grid>
           <CourseFormField label="Main Category" required>
-            <CourseSelect {...register('mainsCategory')}>
-              <option value="">Choose category</option>
-              {categoryOpts.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+            <div className="relative">
+              <CourseSelect
+                {...register('mainsCategory')}
+                disabled={dropdownsLoading}
+                className={dropdownsLoading ? 'opacity-70' : undefined}
+              >
+                <option value="">
+                  {dropdownsLoading ? 'Loading categories…' : 'Choose category'}
                 </option>
-              ))}
-            </CourseSelect>
+                {categoryOpts.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </CourseSelect>
+              {dropdownsLoading ? (
+                <Loader2
+                  className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+            {dropdowns.error && !dropdownsLoading && categoryOpts.length === 0 ? (
+              <button
+                type="button"
+                onClick={dropdowns.retry}
+                className="text-left text-xs font-medium text-[#246392] underline-offset-2 hover:underline"
+              >
+                Retry loading categories
+              </button>
+            ) : null}
             <FormFieldError message={errors.mainsCategory?.message} />
           </CourseFormField>
           <CourseFormField label="Study Material Name" required className="sm:col-span-2">
@@ -386,7 +415,7 @@ export default function ResourceCategoryRenderer({
           <UploadField
             label="Upload Study Material"
             required={studyMaterialFileRequired}
-            profile="PDF_STANDARD"
+            profile="STUDY_MATERIAL"
             accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             bypassValidation
             fileName={watch('studyMaterialFileName')}

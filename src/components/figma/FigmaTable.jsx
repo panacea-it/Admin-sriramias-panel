@@ -36,6 +36,7 @@ const ALIGN_CLASS = {
 }
 
 const PREMIUM_HEADER_BG = 'bg-gradient-to-r from-[#58A8DF] to-[#1F5E99]'
+const ADMIN_HEADER_BG = 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB]'
 const DEFAULT_HEADER_BG = 'bg-[#55ace7]'
 
 function resolveColumnWidthPx(width) {
@@ -106,7 +107,12 @@ export default function FigmaTable({
   const d = DENSITY[density] ?? DENSITY.default
   const lastColKey = columns[columns.length - 1]?.key
   const isPremium = headerVariant === 'premium'
-  const headerBg = isPremium ? PREMIUM_HEADER_BG : DEFAULT_HEADER_BG
+  const isAdmin = headerVariant === 'admin'
+  const headerBg = isPremium
+    ? PREMIUM_HEADER_BG
+    : isAdmin
+      ? ADMIN_HEADER_BG
+      : DEFAULT_HEADER_BG
   const containedScroll = stickyHeader && bodyMaxHeight
   const resolvedHeaderAlign = headerAlign || (isPremium ? 'center' : undefined)
 

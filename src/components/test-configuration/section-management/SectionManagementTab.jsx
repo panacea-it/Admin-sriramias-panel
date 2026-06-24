@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Layers } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import PageBanner from '../../figma/PageBanner'
-import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
+import TestManagementPageShell from '../../test-management/TestManagementPageShell'
+import AdminDataPanel from '../../admin/AdminDataPanel'
+import TestConfigDataTable from '../TestConfigDataTable'
+import TestConfigStatusBadge from '../TestConfigStatusBadge'
+import { BannerButton } from '../../academics/AcademicsUi'
 import {
   SectionManagementTableActions,
   createTestConfigActionsColumn,
   testConfigStatusColumn,
-  testConfigTableProps,
 } from '../TestConfigTableActions'
 import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
 import { useEditModal } from '../../../hooks/useEditModal'
@@ -165,7 +166,7 @@ export default function SectionManagementTab() {
       },
       {
         ...testConfigStatusColumn,
-        render: (r) => <StatusBadge status={r.status} />,
+        render: (r) => <TestConfigStatusBadge status={r.status} />,
       },
       createTestConfigActionsColumn((row) => (
         <SectionManagementTableActions
@@ -184,43 +185,42 @@ export default function SectionManagementTab() {
   )
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <PageBanner
-        icon={Layers}
-        title="Section Management"
-        className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
-      >
-        <BannerButton onClick={modal.openCreate}>Add Section</BannerButton>
-      </PageBanner>
-
-      <ConfigFilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search by section name…"
-        status={status}
-        onStatusChange={setStatus}
-        extraFilters={
-          <FilterSelect
-            value={sort}
-            onChange={setSort}
-            label="Sort By"
-            includeAll={false}
-            options={SORT_OPTIONS.map((o) => o.value)}
-            optionLabels={Object.fromEntries(SORT_OPTIONS.map((o) => [o.value, o.label]))}
+    <TestManagementPageShell
+      icon={Layers}
+      title="Section Management"
+      actions={<BannerButton onClick={modal.openCreate}>Add Section</BannerButton>}
+    >
+      <AdminDataPanel
+        toolbar={
+          <ConfigFilterToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search by section name…"
+            status={status}
+            onStatusChange={setStatus}
+            extraFilters={
+              <FilterSelect
+                value={sort}
+                onChange={setSort}
+                label="Sort By"
+                includeAll={false}
+                options={SORT_OPTIONS.map((o) => o.value)}
+                optionLabels={Object.fromEntries(SORT_OPTIONS.map((o) => [o.value, o.label]))}
+              />
+            }
           />
         }
-      />
-
-      <PaginatedFigmaTable
-        columns={columns}
-        data={rows}
-        loading={loading}
-        emptyMessage="No sections found."
-        itemLabel="sections"
-        resetDeps={[search, status, sort]}
-        tableMinWidth={980}
-        {...testConfigTableProps}
-      />
+      >
+        <TestConfigDataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          emptyMessage="No sections found."
+          itemLabel="sections"
+          resetDeps={[search, status, sort]}
+          tableMinWidth={980}
+        />
+      </AdminDataPanel>
 
       <SectionConfigFormModal
         open={modal.isOpen}
@@ -244,6 +244,6 @@ export default function SectionManagementTab() {
         }}
         onConfirm={confirmStatusChange}
       />
-    </div>
+    </TestManagementPageShell>
   )
 }

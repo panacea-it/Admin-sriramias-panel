@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClipboardList } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import PageBanner from '../../figma/PageBanner'
-import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
+import TestManagementPageShell from '../../test-management/TestManagementPageShell'
+import AdminDataPanel from '../../admin/AdminDataPanel'
+import TestConfigDataTable from '../TestConfigDataTable'
+import TestConfigStatusBadge from '../TestConfigStatusBadge'
+import { BannerButton } from '../../academics/AcademicsUi'
 import {
   ExamPatternTableActions,
   createTestConfigActionsColumn,
   testConfigStatusColumn,
-  testConfigTableProps,
 } from '../TestConfigTableActions'
 import { useExamPatternManagement } from '../../../hooks/useExamPatternManagement'
 import { getApiErrorMessage } from '../../../utils/apiError'
@@ -211,7 +212,7 @@ export default function ExamPatternTab() {
       },
       {
         ...testConfigStatusColumn,
-        render: (r) => <StatusBadge status={r.status} />,
+        render: (r) => <TestConfigStatusBadge status={r.status} />,
       },
       createTestConfigActionsColumn((row) => (
         <ExamPatternTableActions
@@ -229,12 +230,10 @@ export default function ExamPatternTab() {
   const saving = createLoading || updateLoading
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <PageBanner
-        icon={ClipboardList}
-        title="Exam Pattern"
-        className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
-      >
+    <TestManagementPageShell
+      icon={ClipboardList}
+      title="Exam Pattern"
+      actions={
         <BannerButton
           onClick={() => {
             setEditRow(null)
@@ -244,36 +243,40 @@ export default function ExamPatternTab() {
         >
           Add Instruction
         </BannerButton>
-      </PageBanner>
-
-      <ConfigFilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search instructions…"
-        status={status}
-        onStatusChange={setStatus}
-        extraFilters={
-          <FilterSelect
-            value={sortPreset}
-            onChange={setSortPreset}
-            label="Sort By"
-            includeAll={false}
-            options={EXAM_PATTERN_SORT_OPTIONS.map((o) => o.value)}
-            optionLabels={Object.fromEntries(EXAM_PATTERN_SORT_OPTIONS.map((o) => [o.value, o.label]))}
+      }
+    >
+      <AdminDataPanel
+        toolbar={
+          <ConfigFilterToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search instructions…"
+            status={status}
+            onStatusChange={setStatus}
+            extraFilters={
+              <FilterSelect
+                value={sortPreset}
+                onChange={setSortPreset}
+                label="Sort By"
+                includeAll={false}
+                options={EXAM_PATTERN_SORT_OPTIONS.map((o) => o.value)}
+                optionLabels={Object.fromEntries(EXAM_PATTERN_SORT_OPTIONS.map((o) => [o.value, o.label]))}
+              />
+            }
           />
         }
-      />
-
-      <PaginatedFigmaTable
-        columns={columns}
-        data={rows}
-        loading={tableLoading}
-        emptyMessage="No instructions found."
-        itemLabel="instructions"
-        controlledPagination={controlledPagination}
-        resetDeps={[search, status, sortPreset]}
-        {...testConfigTableProps}
-      />
+      >
+        <TestConfigDataTable
+          columns={columns}
+          data={rows}
+          loading={tableLoading}
+          emptyMessage="No instructions found."
+          itemLabel="instructions"
+          controlledPagination={controlledPagination}
+          resetDeps={[search, status, sortPreset]}
+          tableMinWidth={980}
+        />
+      </AdminDataPanel>
 
       <ExamPatternFormModal
         open={modalOpen}
@@ -302,8 +305,6 @@ export default function ExamPatternTab() {
         onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
       />
-
-      
-    </div>
+    </TestManagementPageShell>
   )
 }

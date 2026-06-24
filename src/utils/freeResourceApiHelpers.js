@@ -1126,22 +1126,46 @@ export const STUDY_MATERIAL_MAX_FILE_BYTES = 25 * 1024 * 1024
 
 export const STUDY_MATERIAL_ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx']
 
-export const DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS = [
-  'POLITY',
-  'HISTORY',
-  'GEOGRAPHY',
-  'ECONOMY',
-  'SCIENCE',
-  'ENVIRONMENT',
-  'ART_AND_CULTURE',
-  'ETHICS',
-].map((value) => ({
-  value,
-  label: value
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' '),
-}))
+/** Backend `category` / `studyMaterialCategory` enum (validated by Joi). */
+export const STUDY_MATERIAL_CATEGORY_API_VALUES = ['PRELIMS', 'MAINS', 'INTERVIEW']
+
+const STUDY_MATERIAL_CATEGORY_LABELS = {
+  PRELIMS: 'Prelims',
+  MAINS: 'Mains',
+  INTERVIEW: 'Interview',
+}
+
+/** Map form label or mixed-case value to API enum for multipart `category` field. */
+export function mapStudyMaterialCategoryToApi(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  const upper = raw.toUpperCase().replace(/\s+/g, '_')
+  if (STUDY_MATERIAL_CATEGORY_API_VALUES.includes(upper)) return upper
+
+  if (/^prelims?$/i.test(raw)) return 'PRELIMS'
+  if (/^mains?$/i.test(raw)) return 'MAINS'
+  if (/^interview$/i.test(raw)) return 'INTERVIEW'
+
+  return upper
+}
+
+/** Map API enum to form select value (always uppercase enum). */
+export function mapStudyMaterialCategoryToForm(value) {
+  return mapStudyMaterialCategoryToApi(value)
+}
+
+export function getStudyMaterialCategoryLabel(apiValue) {
+  const key = mapStudyMaterialCategoryToApi(apiValue)
+  return STUDY_MATERIAL_CATEGORY_LABELS[key] || apiValue
+}
+
+export const DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS = STUDY_MATERIAL_CATEGORY_API_VALUES.map(
+  (value) => ({
+    value,
+    label: STUDY_MATERIAL_CATEGORY_LABELS[value],
+  }),
+)
 
 export function normalizeStudyMaterialCategoryDropdownOptions(data) {
   const fromApi = normalizeFreeResourceDropdownOptions(data, [
@@ -1151,7 +1175,21 @@ export function normalizeStudyMaterialCategoryDropdownOptions(data) {
     'items',
     'results',
   ])
-  return fromApi.length ? fromApi : DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS
+
+  if (fromApi.length) {
+    return fromApi.map((option) => {
+      const apiValue = mapStudyMaterialCategoryToApi(option.value || option.label)
+      if (!STUDY_MATERIAL_CATEGORY_API_VALUES.includes(apiValue)) {
+        return option
+      }
+      return {
+        value: apiValue,
+        label: option.label || STUDY_MATERIAL_CATEGORY_LABELS[apiValue] || apiValue,
+      }
+    })
+  }
+
+  return DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS
 }
 
 export function validateStudyMaterialFile(file) {
@@ -1176,9 +1214,13 @@ export function buildStudyMaterialFormData(
   { isEdit = false } = {},
 ) {
   const formData = new FormData()
-  const categoryValue = String(mainsCategory || '').trim()
+  const categoryValue = mapStudyMaterialCategoryToApi(mainsCategory)
   const nameValue = String(studyMaterialName || '').trim()
   const statusValue = String(status || 'ACTIVE').trim().toUpperCase()
+
+  if (!categoryValue) {
+    throw new Error('Study material category is required.')
+  }
 
   formData.append('category', categoryValue)
   formData.append('studyMaterialName', nameValue)
@@ -1225,7 +1267,7 @@ export function mapStudyMaterialApiToForm(raw) {
   return {
     category: FREE_RESOURCE_CATEGORY.STUDY_MATERIAL,
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-    mainsCategory: categoryValue,
+    mainsCategory: mapStudyMaterialCategoryToForm(categoryValue),
     studyMaterialName: item.studyMaterialName || item.resourceName || item.name || '',
     studyMaterialFileName: item.fileName || fileMeta.fileName || item.originalFileName || '',
     studyMaterialFile: null,

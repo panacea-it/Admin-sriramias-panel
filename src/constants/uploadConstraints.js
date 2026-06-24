@@ -71,6 +71,21 @@ export const UPLOAD_PROFILES = {
     accept: '.pdf,.epub,.doc,.docx,application/pdf',
     maxBytes: 25 * 1024 * 1024,
   },
+  STUDY_MATERIAL: {
+    id: 'STUDY_MATERIAL',
+    labelFormats: ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX'],
+    extensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+    mimeTypes: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ],
+    accept:
+      '.pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    maxBytes: 25 * 1024 * 1024,
+  },
   EXCEL_BULK: {
     id: 'EXCEL_BULK',
     labelFormats: ['XLSX', 'CSV'],

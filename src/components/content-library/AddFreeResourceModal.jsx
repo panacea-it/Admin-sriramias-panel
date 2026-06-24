@@ -44,7 +44,9 @@ import {
   mapNcertBookStatusForList,
   mapPreviousYearPaperApiToForm,
   mapStudyMaterialApiToForm,
+  mapStudyMaterialCategoryToApi,
   resolveFreeResourceRendererCategory,
+  STUDY_MATERIAL_CATEGORY_API_VALUES,
   validateNcertBookPdf,
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
@@ -173,8 +175,9 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
 
 function validateStudyMaterialFields(values, { isEdit = false } = {}) {
   const errors = {}
-  if (!String(values.mainsCategory || '').trim()) {
-    errors.mainsCategory = 'Main category is required'
+  const categoryApi = mapStudyMaterialCategoryToApi(values.mainsCategory)
+  if (!categoryApi || !STUDY_MATERIAL_CATEGORY_API_VALUES.includes(categoryApi)) {
+    errors.mainsCategory = 'Select a valid main category'
   }
   if (!String(values.studyMaterialName || '').trim()) {
     errors.studyMaterialName = 'Study material name is required'
