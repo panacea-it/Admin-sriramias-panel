@@ -1,33 +1,40 @@
-import { useCallback, useMemo, useState } from 'react'
-import { getCentreDropdownDisplayName } from '../../../utils/centreDropdownDisplay'
-import { motion } from 'framer-motion'
-import { Loader2, PlusCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
 import ProgramsFilterBar from '../../../components/categories/ProgramsFilterBar'
-import ProgramsTable from '../../../components/categories/ProgramsTable'
 import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
-import { useCenters } from '../../../contexts/CentersContext'
 import CategoryStatusBadge from '../../../components/categories/CategoryStatusBadge'
-import ExamCategoryTableActions from '../../../components/categories/ExamCategoryTableActions'
+import CourseTableActions from '../../../components/categories/CourseTableActions'
+import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import CategoryTableLoadingShell from '../../../components/categories/CategoryTableLoadingShell'
+import CategoryStandardTable from '../../../components/categories/CategoryStandardTable'
 import CourseFormModal from '../../../components/categories/CourseFormModal'
 import ViewCourseManagementModal from '../../../components/categories/ViewCourseManagementModal'
-import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
-import {
-  loadAcademicCourses,
-  saveAcademicCourses,
-} from '../../../utils/academicCoursesStorage'
+import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
+import ConfirmExamCategoryStatusModal from '../../../components/categories/ConfirmExamCategoryStatusModal'
+import ErrorState from '../../../components/feedback/ErrorState'
 import { CATEGORY_HUB_SECTIONS } from '../../../constants/categoryHubSections'
 import { useEditModal } from '../../../hooks/useEditModal'
 import { useCourseManagement } from '../../../hooks/useCourseManagement'
 import { useInitialRouteFilterSearch } from '../../../hooks/useInitialRouteSearch'
+import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
+import { useProgramsByCenter } from '../../../hooks/useProgramsByCenter'
+import { useCreateCourse } from '../../../hooks/course/useCreateCourse'
+import { useUpdateCourse } from '../../../hooks/course/useUpdateCourse'
+import { useDeleteCourse } from '../../../hooks/course/useDeleteCourse'
+import { useUpdateCourseStatus } from '../../../hooks/course/useUpdateCourseStatus'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
-import { CATEGORY_COL } from '../../../utils/categoryUiStandards'
-import { syncAcademicCoursesCatalog } from '../../../api/academicCoursesAPI'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { buildCreateCourseFormData } from '../../../utils/courseApiHelpers'
-import { createCourse } from '../../../services/courseService'
+import {
+  buildCourseFormData,
+  extractCourseMutationWarnings,
+  formatCourseWarningsToast,
+  mapApiCourseToLocal,
+  mapUiCourseStatusToApi,
+} from '../../../utils/courseApiHelpers'
+import { getCourse } from '../../../services/courseService'
 import { toast, TOAST_DURATION } from '../../../utils/toast'
 import {
   MASTER_BULK_TOAST,
@@ -36,6 +43,9 @@ import {
   filterDisableableIds,
   filterEnableableIds,
 } from '../../../utils/masterBulkActions'
+import { CATEGORY_COL } from '../../../utils/categoryUiStandards'
+import { useAuth } from '../../../contexts/AuthContext'
+
 const section = CATEGORY_HUB_SECTIONS.courses
 
 function AddCourseButton({ onClick, disabled }) {
@@ -52,81 +62,78 @@ function AddCourseButton({ onClick, disabled }) {
   )
 }
 
-function NoMatchesState({ onClear }) {
-  return (
-    <CategoryEmptyState
-      title="No matching records"
-      description="Try adjusting your search or filters."
-      ctaLabel="Clear filters"
-      onCta={onClear}
-    />
-  )
+function hasCourseFormFields(row) {
+  return Boolean(row?.centerId && row?.programId && row?.examCategoryId && row?.examSubCategoryId)
 }
 
 export default function CategoryCoursesSection() {
-  const { activeCenters } = useCenters()
+  const { isSuperAdmin } = useAuth()
+
   const {
     courses,
+    totalCourses,
     loading,
+    listError,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    centerFilter,
+    setCenterFilter,
+    programFilter,
+    setProgramFilter,
+    debouncedSearch,
+    controlledPagination,
     refreshCourses,
     patchCourseLocally,
     removeCourseLocally,
   } = useCourseManagement()
-  const [filters, setFilters] = useState({ search: '', status: 'all', centre: 'all', program: 'all' })
-  useInitialRouteFilterSearch(setFilters)
-  const [selectedIds, setSelectedIds] = useState([])
-  const [createLoading, setCreateLoading] = useState(false)
-  const modal = useEditModal()
+
+  useInitialRouteFilterSearch(setSearch)
+
+  const { mutateAsync: createCourse, isPending: createPending } = useCreateCourse()
+  const { mutateAsync: updateCourse, isPending: updatePending } = useUpdateCourse()
+  const { mutateAsync: deleteCourse, isPending: deleteMutationPending } = useDeleteCourse()
+  const { mutateAsync: updateCourseStatus, isPending: statusMutationPending } =
+    useUpdateCourseStatus()
+
+  const { options: centreDropdownOptions } = useCentersDropdownOptions()
+  const { programOptions: centerProgramOptions } = useProgramsByCenter(
+    centerFilter !== 'all' ? centerFilter : null,
+  )
+
+  const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
+  const [viewDetailLoading, setViewDetailLoading] = useState(false)
+  const [editDetail, setEditDetail] = useState(null)
+  const [editDetailLoading, setEditDetailLoading] = useState(false)
+  const [formSubmitting, setFormSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreFilterOptions = useMemo(
-    () => [
-      { value: 'all', label: 'Centre Wise' },
-      ...activeCenters.map((c) => ({
-        value: String(c.centerId),
-        label: getCentreDropdownDisplayName(c),
-      })),
-    ],
-    [activeCenters],
+    () => [{ value: 'all', label: 'Centre Wise' }, ...centreDropdownOptions],
+    [centreDropdownOptions],
   )
 
   const programFilterOptions = useMemo(() => {
-    const scoped =
-      filters.centre === 'all'
-        ? courses
-        : courses.filter((c) => String(c.centerId) === filters.centre)
-    const programs = [...new Set(scoped.map((c) => c.program).filter(Boolean))].sort()
-    return [
-      { value: 'all', label: 'Program' },
-      ...programs.map((p) => ({ value: p, label: p })),
-    ]
-  }, [courses, filters.centre])
+    if (centerFilter === 'all') {
+      return [{ value: 'all', label: 'Program' }]
+    }
+    return [{ value: 'all', label: 'Program' }, ...centerProgramOptions]
+  }, [centerFilter, centerProgramOptions])
 
-  const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase()
-    return courses.filter((row) => {
-      const matchSearch =
-        !q ||
-        row.name?.toLowerCase().includes(q) ||
-        row.courseId?.toLowerCase().includes(q) ||
-        row.program?.toLowerCase().includes(q) ||
-        row.examCategory?.toLowerCase().includes(q) ||
-        row.examSubCategory?.toLowerCase().includes(q) ||
-        row.centerName?.toLowerCase().includes(q)
-      const matchStatus = filters.status === 'all' || row.status === filters.status
-      const matchCentre =
-        filters.centre === 'all' || String(row.centerId) === filters.centre
-      const matchProgram = filters.program === 'all' || row.program === filters.program
-      return matchSearch && matchStatus && matchCentre && matchProgram
-    })
-  }, [courses, filters])
+  const formSubmittingBusy = formSubmitting || createPending || updatePending
 
   const coursesById = useMemo(
-    () => new Map(filtered.map((row) => [String(row.id), row])),
-    [filtered],
+    () => new Map(courses.map((row) => [String(row.id), row])),
+    [courses],
   )
 
   const disableableCount = useMemo(
@@ -138,162 +145,6 @@ export default function CategoryCoursesSection() {
     () => countEnableableSelected(selectedIds, coursesById),
     [selectedIds, coursesById],
   )
-
-  const handleSave = useCallback(
-    async (form, { isEdit, id }) => {
-      if (!isEdit) {
-        setCreateLoading(true)
-        try {
-          const formData = buildCreateCourseFormData(form)
-          await createCourse(formData)
-          toast.success('Course created successfully')
-          modal.close()
-          await refreshCourses()
-        } catch (error) {
-          toast.error(getApiErrorMessage(error, 'Failed to create course'))
-          throw error
-        } finally {
-          setCreateLoading(false)
-        }
-        return
-      }
-
-      const now = new Date().toISOString()
-      const payload = {
-        name: form.name,
-        centerId: form.centerId,
-        centerName: form.centerName,
-        programId: form.programId,
-        program: form.program,
-        examCategoryId: form.examCategoryId,
-        examCategory: form.examCategory,
-        examSubCategoryId: form.examSubCategoryId,
-        examSubCategory: form.examSubCategory,
-        status: form.status || 'Active',
-        subjects: form.subjects || [],
-        overview: form.overview || form.courseOverview || '',
-        courseOverview: form.courseOverview || form.overview || '',
-        keyFeatures: form.keyFeatures || [],
-        whyChooseFeatures: form.whyChooseFeatures || [],
-        howWill: form.howWill || [],
-        whyChooseCourse: form.whyChooseCourse || '',
-        howCourseHelps: form.howCourseHelps || '',
-        courseFormData: form.courseFormData || null,
-        whyChooseTitle: form.whyChooseTitle || '',
-        whyChooseSubtitle: form.whyChooseSubtitle || '',
-        sectionTitleOverview: form.sectionTitleOverview || '',
-        sectionTitleKeyFeatures: form.sectionTitleKeyFeatures || '',
-        sectionTitleWhyChoose: form.sectionTitleWhyChoose || form.whyChooseTitle || '',
-        sectionTitleHowHelps: form.sectionTitleHowHelps || '',
-        sectionTitles: form.sectionTitles || null,
-        modifiedAt: now,
-      }
-
-      patchCourseLocally(id, payload)
-
-      const stored = loadAcademicCourses()
-      const next = stored.map((row) => (row.id === id ? { ...row, ...payload } : row))
-      saveAcademicCourses(next)
-      syncAcademicCoursesCatalog(next)
-      toast.success('Course updated')
-    },
-    [modal, patchCourseLocally, refreshCourses],
-  )
-
-  const confirmDelete = useCallback(() => {
-    if (!deleteTarget) return
-
-    const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
-    if (!ids.length) return
-
-    ids.forEach((id) => removeCourseLocally(id))
-    const stored = loadAcademicCourses()
-    const next = stored.filter((c) => !ids.includes(c.id))
-    saveAcademicCourses(next)
-    setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)))
-    setDeleteTarget(null)
-    toast.success(ids.length > 1 ? `${ids.length} courses deleted` : 'Course deleted')
-  }, [deleteTarget, removeCourseLocally])
-
-  const handleToggleStatus = useCallback(
-    (row) => {
-      const nextStatus = row.status === 'Active' ? 'In Active' : 'Active'
-      const now = new Date().toISOString()
-      patchCourseLocally(row.id, { status: nextStatus, modifiedAt: now })
-      const stored = loadAcademicCourses()
-      const next = stored.map((c) =>
-        c.id === row.id ? { ...c, status: nextStatus, modifiedAt: now } : c,
-      )
-      saveAcademicCourses(next)
-      toast.success(nextStatus === 'Active' ? 'Course enabled' : 'Course disabled')
-    },
-    [patchCourseLocally],
-  )
-
-  const handleBulkEnableRequest = useCallback(() => {
-    if (!enableableCount) return
-    setBulkConfirm({ type: 'enable' })
-  }, [enableableCount])
-
-  const handleBulkDisableRequest = useCallback(() => {
-    if (!disableableCount) return
-    setBulkConfirm({ type: 'disable' })
-  }, [disableableCount])
-
-  const handleBulkDeleteRequest = useCallback(() => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }, [selectedIds.length])
-
-  const confirmBulkAction = useCallback(async () => {
-    if (!bulkConfirm) return
-    setBulkActionLoading(true)
-
-    try {
-      const now = new Date().toISOString()
-
-      if (bulkConfirm.type === 'enable') {
-        const ids = filterEnableableIds(selectedIds, coursesById)
-        ids.forEach((id) => {
-          patchCourseLocally(id, { status: 'Active', modifiedAt: now })
-        })
-        const stored = loadAcademicCourses()
-        const next = stored.map((c) =>
-          ids.includes(c.id) ? { ...c, status: 'Active', modifiedAt: now } : c,
-        )
-        saveAcademicCourses(next)
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
-      } else if (bulkConfirm.type === 'disable') {
-        const ids = filterDisableableIds(selectedIds, coursesById)
-        ids.forEach((id) => {
-          patchCourseLocally(id, { status: 'In Active', modifiedAt: now })
-        })
-        const stored = loadAcademicCourses()
-        const next = stored.map((c) =>
-          ids.includes(c.id) ? { ...c, status: 'In Active', modifiedAt: now } : c,
-        )
-        saveAcademicCourses(next)
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        ids.forEach((id) => removeCourseLocally(id))
-        const stored = loadAcademicCourses()
-        const next = stored.filter((c) => !ids.includes(c.id))
-        saveAcademicCourses(next)
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-      }
-      setBulkConfirm(null)
-    } finally {
-      setBulkActionLoading(false)
-    }
-  }, [bulkConfirm, selectedIds, coursesById, patchCourseLocally, removeCourseLocally])
-
-  const handleDelete = useCallback((row) => {
-    setDeleteTarget({ ids: [row.id], name: row.name })
-  }, [])
 
   const toggleSelect = useCallback((id) => {
     setSelectedIds((prev) =>
@@ -308,6 +159,197 @@ export default function CategoryCoursesSection() {
       return [...merged]
     })
   }, [])
+
+  const filters = useMemo(
+    () => ({
+      search: debouncedSearch,
+      status: statusFilter,
+      center: centerFilter,
+      program: programFilter,
+    }),
+    [debouncedSearch, statusFilter, centerFilter, programFilter],
+  )
+
+  const loadCourseDetail = useCallback(async (row) => {
+    const data = await getCourse(row.id)
+    return mapApiCourseToLocal(data) || row
+  }, [])
+
+  const handleView = useCallback(
+    async (row) => {
+      setViewItem(row)
+      setViewDetail(row)
+      setViewDetailLoading(!hasCourseFormFields(row))
+
+      if (hasCourseFormFields(row)) return
+
+      try {
+        const detail = await loadCourseDetail(row)
+        setViewDetail(detail || row)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to load course details'))
+      } finally {
+        setViewDetailLoading(false)
+      }
+    },
+    [loadCourseDetail],
+  )
+
+  const handleEditOpen = useCallback(
+    async (row) => {
+      openEdit(row)
+      setEditDetail(row)
+      setEditDetailLoading(true)
+
+      try {
+        const detail = await loadCourseDetail(row)
+        setEditDetail(detail || row)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to load course for edit'))
+        close()
+      } finally {
+        setEditDetailLoading(false)
+      }
+    },
+    [loadCourseDetail, openEdit, close],
+  )
+
+  useEffect(() => {
+    if (!isOpen) {
+      setEditDetail(null)
+      setEditDetailLoading(false)
+    }
+  }, [isOpen])
+
+  const showMutationWarnings = useCallback((response) => {
+    const warnings = extractCourseMutationWarnings(response)
+    const warningText = formatCourseWarningsToast(warnings)
+    if (warningText) {
+      toast.warning(warningText)
+    }
+  }, [])
+
+  const handleSave = useCallback(
+    async (form, { isEdit, id }) => {
+      setFormSubmitting(true)
+      try {
+        const originalCourse = isEdit ? editDetail ?? selectedItem : null
+        const formData = await buildCourseFormData(form, {
+          isEdit,
+          originalCourse,
+        })
+
+        if (isEdit && id != null) {
+          const response = await updateCourse({ id, formData })
+          toast.success('Course updated successfully')
+          showMutationWarnings(response)
+        } else {
+          const response = await createCourse(formData)
+          toast.success('Course created successfully')
+          showMutationWarnings(response)
+        }
+
+        await refreshCourses()
+      } catch (error) {
+        toast.error(
+          getApiErrorMessage(
+            error,
+            isEdit ? 'Failed to update course' : 'Failed to create course',
+          ),
+        )
+        throw error
+      } finally {
+        setFormSubmitting(false)
+      }
+    },
+    [createCourse, updateCourse, refreshCourses, editDetail, selectedItem, showMutationWarnings],
+  )
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      await deleteCourse(deleteTarget.id)
+      removeCourseLocally(deleteTarget.id)
+      toast.success(
+        'Course deleted successfully (soft delete — enrollments remain linked)',
+      )
+      setDeleteTarget(null)
+      await refreshCourses()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete course'))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }, [deleteTarget, deleteCourse, removeCourseLocally, refreshCourses])
+
+  const confirmStatusChange = useCallback(async () => {
+    if (!statusTarget) return
+    const enabling = statusTarget.status !== 'Active'
+    const nextUi = enabling ? 'Active' : 'In Active'
+    const nextApi = mapUiCourseStatusToApi(nextUi)
+    const previousStatus = statusTarget.status
+
+    patchCourseLocally(statusTarget.id, { status: nextUi })
+    setStatusLoading(true)
+
+    try {
+      await updateCourseStatus({ id: statusTarget.id, status: nextApi })
+      toast.success(enabling ? 'Course enabled' : 'Course disabled')
+      setStatusTarget(null)
+    } catch (error) {
+      patchCourseLocally(statusTarget.id, { status: previousStatus })
+      toast.error(getApiErrorMessage(error, 'Failed to update course status'))
+    } finally {
+      setStatusLoading(false)
+    }
+  }, [statusTarget, patchCourseLocally, updateCourseStatus])
+
+  const handleBulkEnableRequest = useCallback(() => {
+    if (!enableableCount) return
+    setBulkConfirm({ type: 'enable' })
+  }, [enableableCount])
+
+  const handleBulkDisableRequest = useCallback(() => {
+    if (!disableableCount) return
+    setBulkConfirm({ type: 'disable' })
+  }, [disableableCount])
+
+  const confirmBulkAction = useCallback(async () => {
+    if (!bulkConfirm) return
+    setBulkActionLoading(true)
+
+    try {
+      if (bulkConfirm.type === 'enable') {
+        const ids = filterEnableableIds(selectedIds, coursesById)
+        const apiStatus = mapUiCourseStatusToApi('Active')
+        await Promise.all(ids.map((id) => updateCourseStatus({ id, status: apiStatus })))
+        ids.forEach((id) => patchCourseLocally(id, { status: 'Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
+      } else if (bulkConfirm.type === 'disable') {
+        const ids = filterDisableableIds(selectedIds, coursesById)
+        const apiStatus = mapUiCourseStatusToApi('In Active')
+        await Promise.all(ids.map((id) => updateCourseStatus({ id, status: apiStatus })))
+        ids.forEach((id) => patchCourseLocally(id, { status: 'In Active' }))
+        setSelectedIds([])
+        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
+      }
+      setBulkConfirm(null)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to update course status'))
+      await refreshCourses()
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [
+    bulkConfirm,
+    selectedIds,
+    coursesById,
+    updateCourseStatus,
+    patchCourseLocally,
+    refreshCourses,
+  ])
 
   const columns = useMemo(
     () => [
@@ -405,123 +447,158 @@ export default function CategoryCoursesSection() {
         headerClassName: CATEGORY_COL.actionsHeader,
         cellClassName: CATEGORY_COL.actionsCell,
         render: (row) => (
-          <ExamCategoryTableActions
+          <CourseTableActions
             row={row}
-            onView={() => setViewItem(row)}
-            onEdit={() => modal.openEdit(row)}
-            onDelete={() => handleDelete(row)}
-            onStatusToggle={() => handleToggleStatus(row)}
+            onView={() => handleView(row)}
+            onEdit={() => handleEditOpen(row)}
+            onDelete={isSuperAdmin ? () => setDeleteTarget(row) : undefined}
+            onToggleStatus={() => setStatusTarget(row)}
           />
         ),
       },
     ],
-    [handleDelete, handleToggleStatus, modal],
+    [handleView, handleEditOpen, isSuperAdmin],
   )
 
-  const showEmpty = !loading && courses.length === 0
-  const showNoResults = !loading && !showEmpty && filtered.length === 0
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    statusFilter !== 'all' ||
+    centerFilter !== 'all' ||
+    programFilter !== 'all'
+  const showEmpty = !loading && !listError && totalCourses === 0 && !hasActiveFilters
+  const showNoResults = !loading && !listError && courses.length === 0 && !showEmpty
 
-  const deleteMessage =
-    deleteTarget?.ids?.length > 1
-      ? `Delete ${deleteTarget.ids.length} selected courses? This cannot be undone.`
-      : `Are you sure you want to delete "${deleteTarget?.name || 'this course'}"? This action cannot be undone.`
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setCenterFilter('all')
+    setProgramFilter('all')
+  }
+
+  const deleteMessage = `Are you sure you want to delete "${deleteTarget?.name || 'this course'}"? This is a soft delete — enrollments will remain linked.`
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-5 sm:space-y-6"
-    >
-      <CategoryPageHeader title="Courses">
-        <AddCourseButton onClick={modal.openCreate} disabled={loading} />
-      </CategoryPageHeader>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key="courses"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.22 }}
+        className="space-y-5 sm:space-y-6"
+      >
+        <CategoryPageHeader title="Courses">
+          <AddCourseButton onClick={openCreate} disabled={loading} />
+        </CategoryPageHeader>
 
-      <ProgramsFilterBar
-        search={filters.search}
-        onSearchChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-        searchPlaceholder={section.searchPlaceholder}
-        centre={filters.centre}
-        onCentreChange={(e) =>
-          setFilters((f) => ({ ...f, centre: e.target.value, program: 'all' }))
-        }
-        centreOptions={centreFilterOptions}
-        program={filters.program}
-        onProgramChange={(e) => setFilters((f) => ({ ...f, program: e.target.value }))}
-        programOptions={programFilterOptions}
-        status={filters.status}
-        onStatusChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-      />
-
-      <ProgramsBulkActionsBar
-        count={selectedIds.length}
-        enableCount={enableableCount}
-        disableCount={disableableCount}
-        onClearSelection={() => setSelectedIds([])}
-        onEnable={handleBulkEnableRequest}
-        onDisable={handleBulkDisableRequest}
-      />
-
-      {loading && (
-        <div className="flex items-center gap-2 rounded-xl border border-slate-100/80 bg-white/70 px-4 py-2.5 text-sm text-[#686868]">
-          <Loader2 className="h-4 w-4 animate-spin text-[#246392]" />
-          Loading courses…
-        </div>
-      )}
-
-      {loading ? (
-        <CategoryTableLoadingShell />
-      ) : showEmpty ? (
-        <CategoryEmptyState
-          title={section.emptyTitle}
-          description={section.emptyDescription}
-          ctaLabel="Add Course"
-          onCta={modal.openCreate}
+        <ProgramsFilterBar
+          search={search}
+          onSearchChange={(e) => setSearch(e.target.value)}
+          searchPlaceholder={section.searchPlaceholder}
+          centre={centerFilter}
+          onCentreChange={(e) => setCenterFilter(e.target.value)}
+          centreOptions={centreFilterOptions}
+          program={programFilter}
+          onProgramChange={(e) => setProgramFilter(e.target.value)}
+          programOptions={programFilterOptions}
+          status={statusFilter}
+          onStatusChange={(e) => setStatusFilter(e.target.value)}
         />
-      ) : showNoResults ? (
-        <NoMatchesState
-          onClear={() =>
-            setFilters({ search: '', status: 'all', centre: 'all', program: 'all' })
-          }
+
+        <ProgramsBulkActionsBar
+          count={selectedIds.length}
+          enableCount={enableableCount}
+          disableCount={disableableCount}
+          onClearSelection={() => setSelectedIds([])}
+          onEnable={handleBulkEnableRequest}
+          onDisable={handleBulkDisableRequest}
         />
-      ) : (
-        <ProgramsTable
-          columns={columns}
-          data={filtered}
-          loading={loading || bulkActionLoading}
-          resetDeps={[filters]}
-          tableMinWidth={1180}
-          emptyMessage="No courses match your filters."
-          selection={{
-            selectedIds,
-            onToggle: toggleSelect,
-            onTogglePage: toggleSelectPage,
+
+        {listError && !loading ? (
+          <ErrorState
+            title="Unable to load courses"
+            message={listError}
+            onRetry={refreshCourses}
+          />
+        ) : loading ? (
+          <CategoryTableLoadingShell />
+        ) : showEmpty ? (
+          <CategoryEmptyState
+            title={section.emptyTitle}
+            description={section.emptyDescription}
+            ctaLabel="Add Course"
+            onCta={openCreate}
+          />
+        ) : showNoResults ? (
+          <CategoryEmptyState
+            title="No matching records"
+            description="Try adjusting your search or filters."
+            ctaLabel="Clear filters"
+            onCta={clearFilters}
+          />
+        ) : (
+          <CategoryStandardTable
+            columns={columns}
+            data={courses}
+            itemLabel="courses"
+            controlledPagination={controlledPagination}
+            resetDeps={[filters]}
+            loading={deleteMutationPending || statusMutationPending || bulkActionLoading}
+            selection={{
+              selectedIds,
+              onToggle: toggleSelect,
+              onTogglePage: toggleSelectPage,
+            }}
+          />
+        )}
+
+        <CourseFormModal
+          open={isOpen}
+          onClose={close}
+          item={editDetail ?? selectedItem}
+          onSubmit={handleSave}
+          submitting={formSubmittingBusy}
+          detailLoading={editDetailLoading}
+        />
+
+        <ViewCourseManagementModal
+          open={Boolean(viewItem)}
+          onClose={() => {
+            setViewItem(null)
+            setViewDetail(null)
           }}
+          item={viewDetail ?? viewItem}
+          loading={viewDetailLoading}
         />
-      )}
 
-      <CourseFormModal
-        open={modal.isOpen}
-        onClose={modal.close}
-        item={modal.selectedItem}
-        onSubmit={handleSave}
-        submitting={createLoading}
-      />
+        {isSuperAdmin && (
+          <ConfirmDeleteDialog
+            open={Boolean(deleteTarget)}
+            title="Delete course?"
+            message={deleteMessage}
+            loading={deleteLoading}
+            onCancel={() => !deleteLoading && setDeleteTarget(null)}
+            onConfirm={confirmDelete}
+          />
+        )}
 
-      <ViewCourseManagementModal
-        open={Boolean(viewItem)}
-        onClose={() => setViewItem(null)}
-        item={viewItem}
-      />
+        <ConfirmExamCategoryStatusModal
+          open={Boolean(statusTarget)}
+          categoryName={statusTarget?.name || 'this course'}
+          enabling={statusTarget?.status !== 'Active'}
+          loading={statusLoading}
+          onCancel={() => setStatusTarget(null)}
+          onConfirm={confirmStatusChange}
+        />
 
-      
-
-      <MasterBulkConfirmModal
-        open={Boolean(bulkConfirm)}
-        type={bulkConfirm?.type}
-        loading={bulkActionLoading}
-        onConfirm={confirmBulkAction}
-        onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
-      />
-    </motion.div>
+        <MasterBulkConfirmModal
+          open={Boolean(bulkConfirm)}
+          type={bulkConfirm?.type}
+          loading={bulkActionLoading}
+          onConfirm={confirmBulkAction}
+          onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
+        />
+      </motion.div>
+    </AnimatePresence>
   )
 }

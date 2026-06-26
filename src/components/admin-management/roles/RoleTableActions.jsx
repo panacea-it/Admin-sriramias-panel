@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Trash2 } from 'lucide-react'
 import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 import { cn } from '../../../utils/cn'
 import ViewButton from '../../common/ViewButton'
@@ -11,9 +11,7 @@ export default function RoleTableActions({
   onView,
   onEdit,
   onStatusToggle,
-  onDelete: _onDelete,
-  canToggle = true,
-  canDelete: _canDelete = true,
+  onDelete,
 }) {
   const statusAction = recordStatusActionLabel(row.status)
 
@@ -24,13 +22,18 @@ export default function RoleTableActions({
       <IconActionButton
         label={statusAction}
         onClick={onStatusToggle}
-        disabled={!canToggle}
         className={cn(
           'text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm',
-          !canToggle && 'cursor-not-allowed opacity-40',
         )}
       >
         <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+      </IconActionButton>
+      <IconActionButton
+        label="Delete role"
+        onClick={onDelete}
+        className="text-rose-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 hover:shadow-sm"
+      >
+        <Trash2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
       </IconActionButton>
     </div>
   )

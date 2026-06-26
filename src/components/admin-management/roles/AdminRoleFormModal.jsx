@@ -7,21 +7,28 @@ import { toast } from '@/utils/toast'
 import FloatingInput from '../ui/FloatingInput'
 import { cn } from '../../../utils/cn'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import {
-  createRole as createRoleApi,
-  updateRole as updateRoleApi,
-} from '../../../services/roleService'
+import { useCreateRoleAccess } from '../../../hooks/roleAccess/useCreateRoleAccess'
+import { useUpdateRoleAccess } from '../../../hooks/roleAccess/useUpdateRoleAccess'
+import { mapJoiErrorsToRoleForm } from '../../../utils/roleAccessHelpers'
 import { normalizeRoleCodeInput, validateRoleForm } from '../../../utils/roleValidation'
 
 const fieldLabelClass = cn('mb-1.5 block text-[13px] font-medium text-slate-700')
 
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'INACTIVE', label: 'Inactive' },
+]
+
 export default function AdminRoleFormModal({ open, onClose, initialRole, onSuccess }) {
   const isEdit = !!initialRole
-  const isSystemRole = !!(initialRole?.fullAccess || initialRole?.systemProtected)
 
-  const [loading, setLoading] = useState(false)
+  const createMutation = useCreateRoleAccess()
+  const updateMutation = useUpdateRoleAccess()
+  const loading = createMutation.isPending || updateMutation.isPending
+
   const [label, setLabel] = useState('')
   const [roleCode, setRoleCode] = useState('')
+  const [status, setStatus] = useState('ACTIVE')
   const [errors, setErrors] = useState({})
   const initialRoleRef = useRef(initialRole)
   initialRoleRef.current = initialRole
@@ -32,11 +39,13 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
     const role = initialRoleRef.current
     setErrors({})
     if (role) {
-      setLabel(role.label || '')
-      setRoleCode(role.roleCode || '')
+      setLabel(role.label || role.title || '')
+      setRoleCode(role.roleCode || role.code || '')
+      setStatus(role.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE')
     } else {
       setLabel('')
       setRoleCode('')
+      setStatus('ACTIVE')
     }
   })
 
@@ -60,17 +69,13 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (savingRef.current) return
+    if (savingRef.current || loading) return
 
     const role = initialRoleRef.current
-    if (isEdit && role && isSystemRole) {
-      toast.error('This system role cannot be edited')
-      return
-    }
-
     const { isValid, errors: nextErrors, payload } = validateRoleForm({
       roleTitle: label,
       roleCode,
+      status,
       isEdit,
     })
 
@@ -78,17 +83,13 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
     if (!isValid) return
 
     savingRef.current = true
-    setLoading(true)
 
     try {
       if (isEdit && role) {
-        await updateRoleApi(role.id, {
-          roleTitle: payload.roleTitle,
-          roleCode: role.roleCode || roleCode.trim(),
-        })
+        await updateMutation.mutateAsync({ id: role.id, payload })
         toast.success('Role access updated')
       } else {
-        await createRoleApi(payload)
+        await createMutation.mutateAsync(payload)
         toast.success('Role access created')
       }
       await onSuccess?.()
@@ -97,16 +98,19 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
       if (import.meta.env.DEV) {
         console.error(error)
       }
+      const fieldErrors = mapJoiErrorsToRoleForm(error)
+      if (Object.keys(fieldErrors).length) {
+        setErrors(fieldErrors)
+      }
       toast.error(getApiErrorMessage(error, 'Could not save role'))
     } finally {
       savingRef.current = false
-      setLoading(false)
     }
   }
 
   const modalTitle = isEdit ? 'Edit Role Access' : 'Create Role Access'
   const modalDescription = isEdit
-    ? 'Update the display title for this role. Role code cannot be changed.'
+    ? 'Update role title, code, or status. Changes are saved to the server.'
     : 'Define a new role with a display title and unique code for permission assignment.'
 
   if (typeof document === 'undefined') return null
@@ -183,36 +187,47 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
                         setLabel(e.target.value)
                         setErrors((prev) => ({ ...prev, roleTitle: undefined }))
                       }}
-                      disabled={isSystemRole && isEdit}
                       error={errors.roleTitle}
                     />
 
-                    {isEdit ? (
-                      <div>
-                        <label className={fieldLabelClass}>Role Code</label>
-                        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-sm font-semibold tracking-wide text-slate-700">
-                          {roleCode}
-                        </p>
-                        <p className="mt-1.5 text-[12px] text-slate-500">
-                          Role codes are permanent identifiers and cannot be edited.
-                        </p>
-                      </div>
-                    ) : (
-                      <FloatingInput
-                        id="role-access-code"
-                        label="Role Code"
-                        labelVariant="static"
-                        required
-                        value={roleCode}
+                    <FloatingInput
+                      id="role-access-code"
+                      label="Role Code"
+                      labelVariant="static"
+                      required
+                      value={roleCode}
+                      onChange={(e) => {
+                        setRoleCode(normalizeRoleCodeInput(e.target.value))
+                        setErrors((prev) => ({ ...prev, roleCode: undefined }))
+                      }}
+                      placeholder="e.g. CONTENT_ADMIN"
+                      error={errors.roleCode}
+                      helper="Uppercase letters, numbers, and underscores only"
+                    />
+
+                    <div>
+                      <label htmlFor="role-access-status" className={fieldLabelClass}>
+                        Status
+                      </label>
+                      <select
+                        id="role-access-status"
+                        value={status}
                         onChange={(e) => {
-                          setRoleCode(normalizeRoleCodeInput(e.target.value))
-                          setErrors((prev) => ({ ...prev, roleCode: undefined }))
+                          setStatus(e.target.value)
+                          setErrors((prev) => ({ ...prev, status: undefined }))
                         }}
-                        placeholder="e.g. SUPER_ADMIN"
-                        error={errors.roleCode}
-                        helper="Uppercase letters, numbers, and underscores only"
-                      />
-                    )}
+                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-[14px] font-medium text-slate-900 shadow-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
+                      >
+                        {STATUS_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.status ? (
+                        <p className="mt-1 text-[12px] text-red-600">{errors.status}</p>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
               </div>
@@ -233,7 +248,7 @@ export default function AdminRoleFormModal({ open, onClose, initialRole, onSucce
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || (isSystemRole && isEdit) || !label.trim()}
+                  disabled={loading || !label.trim()}
                   className="inline-flex w-full min-w-[8.5rem] items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#246392] px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-60 sm:w-auto"
                 >
                   {loading ? (

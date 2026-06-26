@@ -9,7 +9,7 @@ export default function ConfirmAdminDeleteModal({
   onConfirm,
 }) {
   const isBulk = bulkCount > 0
-  const title = isBulk ? 'Delete Selected Admin Access?' : 'Delete user access?'
+  const title = isBulk ? 'Delete Selected Admin Accounts?' : 'Permanently delete admin account?'
 
   return (
     <Modal open={open} onClose={onCancel} title={title} size="md">
@@ -18,7 +18,7 @@ export default function ConfirmAdminDeleteModal({
           <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           {isBulk ? (
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-              This action cannot be undone.
+              This action is permanent and cannot be undone.
               <br />
               Delete{' '}
               <span className="font-semibold text-slate-900">
@@ -28,9 +28,9 @@ export default function ConfirmAdminDeleteModal({
             </p>
           ) : (
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-              This removes access for{' '}
+              This permanently removes access for{' '}
               <span className="font-semibold text-slate-900">{employeeName}</span>. The account will
-              be soft-deleted and can no longer sign in.
+              be hard-deleted from the system with no recovery option.
             </p>
           )}
         </div>
@@ -49,7 +49,7 @@ export default function ConfirmAdminDeleteModal({
             disabled={loading}
             className="rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60"
           >
-            {loading ? 'Deleting…' : isBulk ? 'Delete' : 'Delete user'}
+            {loading ? 'Deleting…' : isBulk ? 'Delete permanently' : 'Delete permanently'}
           </button>
         </div>
       </div>

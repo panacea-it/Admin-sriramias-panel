@@ -1,22 +1,23 @@
-import { getCentreDropdownDisplayName } from "../../utils/centreDropdownDisplay";
-import { cn } from "../../utils/cn";
-import CrmDateFilterPicker from "../crm/CrmDateFilterPicker";
+import { Search, ChevronDown } from 'lucide-react'
+import { cn } from '../../utils/cn'
+import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
 import {
   formatLeadStatusLabel,
+  LEAD_CENTERS,
   LEAD_STATUS_OPTIONS,
-} from "../../data/leadsData";
+} from '../../data/leadsData'
 
 function FilterSelect({ label, value, onChange, options, className }) {
   return (
     <div
-      className={cn("relative w-full sm:w-auto sm:min-w-[150px]", className)}
+      className={cn('relative w-full sm:w-auto sm:min-w-[150px]', className)}
     >
       <select
         value={value}
         onChange={onChange}
         aria-label={label}
         className={cn(
-          "h-10 w-full min-h-[38px] cursor-pointer appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none transition hover:bg-[#4a9fd8] focus:ring-2 focus:ring-[#246392]/50 sm:text-base",
+          'h-10 w-full min-h-[38px] cursor-pointer appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none transition hover:bg-[#4a9fd8] focus:ring-2 focus:ring-[#246392]/50 sm:text-base',
         )}
       >
         {options.map((opt) => (
@@ -31,16 +32,16 @@ function FilterSelect({ label, value, onChange, options, className }) {
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
     </div>
-  );
+  )
 }
 
 const statusFilterOptions = [
-  { value: "all", label: "Status" },
+  { value: 'all', label: 'Status' },
   ...LEAD_STATUS_OPTIONS.map((status) => ({
     value: status,
     label: formatLeadStatusLabel(status),
   })),
-];
+]
 
 export default function LeadFilterToolbar({
   search,
@@ -51,7 +52,6 @@ export default function LeadFilterToolbar({
   onDateChange,
   status,
   onStatusChange,
-  availableCenters = [], // NEW: Accept availableCenters prop!
 }) {
   return (
     <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
@@ -70,12 +70,11 @@ export default function LeadFilterToolbar({
           label="Center"
           value={center}
           onChange={onCenterChange}
-          // THE FIX: Dynamically map database centers instead of hardcoding them
           options={[
-            { value: "all", label: "All Centers" },
-            ...availableCenters.map((c) => ({
-              value: c._id,
-              label: getCentreDropdownDisplayName(c),
+            { value: 'all', label: 'All Centers' },
+            ...LEAD_CENTERS.map((centerName) => ({
+              value: centerName,
+              label: centerName,
             })),
           ]}
         />
@@ -93,5 +92,5 @@ export default function LeadFilterToolbar({
         />
       </div>
     </div>
-  );
+  )
 }

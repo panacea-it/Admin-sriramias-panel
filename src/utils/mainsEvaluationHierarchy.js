@@ -130,10 +130,61 @@ export function buildLatestMainsEvaluationCards(limit = 3) {
 
 export function enrichMainsTestRow(test, faculty) {
   const stats = deriveEvaluationStats(test.id)
+  const uploaded = stats.studentsUploaded ?? 0
+  const evaluated = stats.studentsEvaluated ?? 0
   return {
-    ...test,
-    ...stats,
+    id: test.id,
+    mainsAnswerWritingId: test.id,
+    title: test.title,
+    uploadedDate: test.uploadedDate || '—',
+    studentsAssigned: stats.studentsAssigned ?? 0,
+    studentsDownloaded: stats.pdfDownloads ?? 0,
+    studentsUploaded: uploaded,
+    studentsEvaluated: evaluated,
+    pendingEvaluations: stats.pendingEvaluations ?? 0,
+    evaluationStatusLabel: test.evaluationStatus || 'Not Started',
+    evaluationPct: uploaded > 0 ? Math.round((evaluated / uploaded) * 100) : 0,
     facultyLabel: faculty ? `${faculty.subjectName} — ${faculty.facultyName}` : '',
-    evaluationStatusLabel: test.evaluationStatus,
   }
+}
+
+export function findMainsTopicContext(topicId) {
+  if (!topicId) return { faculty: null, topic: null }
+  for (const faculty of buildMainsFacultyRows()) {
+    const topic = getMainsTopic(faculty, topicId)
+    if (topic) return { faculty, topic }
+  }
+  return { faculty: null, topic: null }
+}
+
+export function getMainsTestsForTopic(topicId) {
+  const { faculty, topic } = findMainsTopicContext(topicId)
+  if (!topic) {
+    return { topic: null, tests: [] }
+  }
+
+  const tests = (topic.tests || []).map((test) => enrichMainsTestRow(test, faculty))
+
+  return {
+    topic: {
+      id: topic.id,
+      title: topic.title,
+      facultyLabel: faculty
+        ? `${faculty.subjectName} — ${faculty.facultyName}`
+        : '',
+    },
+    tests,
+  }
+}
+
+export function mapMainsFacultySubjectsForTable() {
+  return buildMainsFacultyRows().map((row) => ({
+    subjectId: row.subjectId,
+    facultySubjectCode: row.subjectId,
+    subjectName: row.subjectName,
+    facultyName: row.facultyName,
+    totalTopics: row.totalTopics,
+    totalTests: row.totalTests,
+    lastUpdated: row.lastUpdated,
+  }))
 }

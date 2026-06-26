@@ -6,55 +6,20 @@ import { Building2, Loader2, X } from 'lucide-react';
 import { toast } from "@/utils/toast";
 import {
   buildCreateCenterPayload,
-  buildUpdateCenterPayload,
-  createCenter as createCenterApi,
+  buildPartialUpdatePayload,
   getCreateCenterErrorMessage,
   mapApiCenterToLocal,
 } from "../../services/centerService";
+import {
+  mapCenterApiErrorsToForm,
+  validateCenterForm,
+} from "../../utils/centerHelpers";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { cn } from "../../utils/cn";
 import SearchableSelect from "../categories/SearchableSelect";
-
-const INDIAN_STATES_AND_UTS = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-  "Andaman and Nicobar Islands",
-  "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Jammu and Kashmir",
-  "Ladakh",
-  "Lakshadweep",
-  "Puducherry",
-];
-
-const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { useIndianStates } from "../../hooks/center/useIndianStates";
+import { useCreateCenter } from "../../hooks/center/useCreateCenter";
+import { useUpdateCenter } from "../../hooks/center/useUpdateCenter";
 
 const selectClassName = cn(
   "w-full min-h-[3rem] rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-[14px] font-medium text-slate-900 shadow-sm outline-none transition",
@@ -107,13 +72,6 @@ function FormField({ id, label, error, children, className }) {
   );
 }
 
-function parseAdmins(raw) {
-  return String(raw || "")
-    .split(/[,;\n]/g)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 const emptyForm = {
   centerName: "",
   centerCode: "",
@@ -123,7 +81,6 @@ const emptyForm = {
   contactNumber: "",
   email: "",
   status: "active",
-  assignedAdminsText: "",
 };
 
 export default function CenterFormDrawer({
@@ -136,10 +93,14 @@ export default function CenterFormDrawer({
 }) {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
   const initialRef = useRef(initial);
   initialRef.current = initial;
   const editKey = mode === "edit" ? getModalEditKey(initial) : "__create__";
+
+  const { data: stateOptions = [], isLoading: statesLoading } = useIndianStates(open);
+  const createMutation = useCreateCenter();
+  const updateMutation = useUpdateCenter(initial?.centerId || "");
+  const loading = createMutation.isPending || updateMutation.isPending;
 
   useInitOnModalOpen(open, editKey, () => {
     const row = initialRef.current;
@@ -153,13 +114,11 @@ export default function CenterFormDrawer({
         contactNumber: row.contactNumber || "",
         email: row.email || "",
         status: row.status === "disabled" ? "disabled" : "active",
-        assignedAdminsText: (row.assignedAdmins || []).join(", "),
       });
     } else {
       setForm(emptyForm);
     }
     setErrors({});
-    setLoading(false);
   });
 
   useEffect(() => {
@@ -185,17 +144,14 @@ export default function CenterFormDrawer({
     [mode],
   );
 
-  const stateOptions = useMemo(() => {
-    const options = INDIAN_STATES_AND_UTS.map((name) => ({
-      value: name,
-      label: name,
-    }));
+  const resolvedStateOptions = useMemo(() => {
+    const options = Array.isArray(stateOptions) ? stateOptions : [];
     const current = form.state.trim();
-    if (current && !INDIAN_STATES_AND_UTS.includes(current)) {
+    if (current && !options.some((opt) => opt.value === current)) {
       return [{ value: current, label: current }, ...options];
     }
     return options;
-  }, [form.state]);
+  }, [stateOptions, form.state]);
 
   const set = (key) => (e) => {
     const value = e?.target ? e.target.value : e;
@@ -203,96 +159,59 @@ export default function CenterFormDrawer({
     setErrors((err) => ({ ...err, [key]: undefined }));
   };
 
-  const validate = () => {
-    const next = {};
-    const centerName = form.centerName.trim();
-    if (!centerName) {
-      next.centerName = "Center name is required";
-    } else if (!/^[A-Za-z][A-Za-z\s]*$/.test(centerName)) {
-      next.centerName = "Center name can only contain letters and spaces";
+  const applyApiErrors = (error) => {
+    const fieldErrors = mapCenterApiErrorsToForm(error);
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...fieldErrors }));
     }
-
-    if (!form.centerCode.trim()) next.centerCode = "Center code is required";
-
-    const address = form.address.trim();
-    if (!address) {
-      next.address = "Address is required";
-    } else if (address.length < 5) {
-      next.address = "Address must be at least 5 characters";
-    } else if (address.length > 200) {
-      next.address = "Address must not exceed 200 characters";
-    }
-
-    if (!form.city.trim()) next.city = "City is required";
-    if (!form.state.trim()) next.state = "State is required";
-
-    const email = form.email.trim();
-    if (!email) {
-      next.email = "Email is required";
-    } else if (!emailRe.test(email)) {
-      next.email = "Enter a valid email";
-    }
-
-    const digits = String(form.contactNumber || "").replace(/\D/g, "");
-    if (!digits) {
-      next.contactNumber = "Contact number is required";
-    } else if (digits.length !== 10) {
-      next.contactNumber = "Contact number must be exactly 10 digits";
-    }
-
-    setErrors(next);
-    return Object.keys(next).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) {
+    const validationErrors = validateCenterForm(form, { mode });
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
     if (mode === "edit" && initial?.centerId) {
-      const payload = buildUpdateCenterPayload(form);
+      const payload = buildPartialUpdatePayload(initial, form);
+      if (Object.keys(payload).length === 0) {
+        toast.info("No changes to save");
+        onClose();
+        return;
+      }
 
       try {
-        setLoading(true);
-        await onUpdate?.(initial.centerId, payload);
+        const response = await updateMutation.mutateAsync(payload);
+        await onUpdate?.(initial.centerId, response);
+        toast.success(response?.message || "Center updated successfully");
         onClose();
       } catch (error) {
         if (import.meta.env.DEV) {
           console.error(error);
         }
+        applyApiErrors(error);
         toast.error(getApiErrorMessage(error, "Failed to update center"));
-      } finally {
-        setLoading(false);
       }
       return;
     }
 
     try {
-      setLoading(true);
       const apiPayload = buildCreateCenterPayload(form);
-      const response = await createCenterApi(apiPayload);
-      const mapped = mapApiCenterToLocal(response?.data ?? response) || {
-        centerName: apiPayload.centerName,
-        centerCode: apiPayload.centerCode,
-        address: apiPayload.address,
-        state: apiPayload.state,
-        city: apiPayload.city,
-        contactNumber: apiPayload.contactNumber,
-        email: apiPayload.email,
-        status: form.status,
-        assignedAdmins: parseAdmins(form.assignedAdminsText),
-      };
-      onCreate?.(mapped);
-      toast.success("Center created successfully");
+      const response = await createMutation.mutateAsync(apiPayload);
+      const mapped = mapApiCenterToLocal(response?.data ?? response);
+      if (mapped) {
+        onCreate?.(mapped);
+      }
+      toast.success(response?.message || "Center created successfully");
       onClose();
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error);
       }
+      applyApiErrors(error);
       toast.error(getCreateCenterErrorMessage(error));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -341,8 +260,8 @@ export default function CenterFormDrawer({
                   </h2>
                   <p className="mt-1 max-w-xl text-[13px] leading-snug text-slate-500 sm:text-[14px]">
                     {mode === "edit"
-                      ? "Configure center profile, regional details, and assigned administrators."
-                      : "Configure center profile and regional details."}
+                      ? "Update centre profile and regional details."
+                      : "Configure centre profile and regional details."}
                   </p>
                 </div>
               </div>
@@ -370,7 +289,7 @@ export default function CenterFormDrawer({
                     <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-4">
                       <FormField
                         id="cf-name"
-                        label="Center Name"
+                        label="Centre Name"
                         error={errors.centerName}
                       >
                         <input
@@ -381,25 +300,16 @@ export default function CenterFormDrawer({
                               "border-rose-400 focus:border-rose-400 focus:ring-rose-500/15",
                           )}
                           value={form.centerName}
-                          onChange={(e) => {
-                            const cleaned = e.target.value.replace(
-                              /[^A-Za-z\s]/g,
-                              "",
-                            );
-                            setForm((f) => ({ ...f, centerName: cleaned }));
-                            setErrors((err) => ({
-                              ...err,
-                              centerName: undefined,
-                            }));
-                          }}
-                          placeholder="e.g. Hyderabad Center"
+                          onChange={set("centerName")}
+                          placeholder="e.g. Hyderabad Main Center"
                           autoComplete="organization"
+                          maxLength={150}
                         />
                       </FormField>
 
                       <FormField
                         id="cf-code"
-                        label="Center Code"
+                        label="Centre Code"
                         error={errors.centerCode}
                       >
                         <input
@@ -411,8 +321,15 @@ export default function CenterFormDrawer({
                           )}
                           value={form.centerCode}
                           onChange={set("centerCode")}
-                          placeholder="e.g. HYD"
+                          onBlur={() => {
+                            const code = String(form.centerCode || "").trim().toUpperCase();
+                            if (code !== form.centerCode) {
+                              setForm((f) => ({ ...f, centerCode: code }));
+                            }
+                          }}
+                          placeholder="e.g. HYD01"
                           autoCapitalize="characters"
+                          maxLength={20}
                         />
                       </FormField>
 
@@ -431,7 +348,7 @@ export default function CenterFormDrawer({
                           <option value="disabled">Disabled</option>
                         </select>
                         <p className="mt-2 text-[12px] font-medium text-slate-500">
-                          Disabled centers are excluded from operational
+                          Disabled centres are excluded from operational
                           dropdown menus until they are re-enabled.
                         </p>
                       </FormField>
@@ -452,8 +369,7 @@ export default function CenterFormDrawer({
                         <textarea
                           id="cf-address"
                           rows={2}
-                          minLength={5}
-                          maxLength={200}
+                          maxLength={500}
                           className={cn(
                             inputClass,
                             "min-h-[5rem] resize-y py-3",
@@ -462,7 +378,7 @@ export default function CenterFormDrawer({
                           )}
                           value={form.address}
                           onChange={set("address")}
-                          placeholder="Street, area, landmark"
+                          placeholder="Street, area, landmark (optional)"
                         />
                       </FormField>
 
@@ -478,6 +394,7 @@ export default function CenterFormDrawer({
                           onChange={set("city")}
                           placeholder="City"
                           autoComplete="address-level2"
+                          maxLength={100}
                         />
                       </FormField>
 
@@ -487,14 +404,15 @@ export default function CenterFormDrawer({
                         error={errors.state}
                       >
                         <SearchableSelect
-                          options={stateOptions}
+                          options={resolvedStateOptions}
                           value={form.state}
                           onChange={(val) => {
                             setForm((f) => ({ ...f, state: val }));
                             setErrors((err) => ({ ...err, state: undefined }));
                           }}
-                          placeholder="Select state"
+                          placeholder={statesLoading ? "Loading states…" : "Select state"}
                           emptyMessage="No matching state"
+                          disabled={statesLoading}
                           triggerClassName={cn(
                             selectClassName,
                             "flex items-center justify-between text-left",
@@ -537,7 +455,7 @@ export default function CenterFormDrawer({
                               contactNumber: undefined,
                             }));
                           }}
-                          placeholder="10-digit mobile number"
+                          placeholder="10-digit mobile (optional)"
                           autoComplete="tel"
                         />
                       </FormField>
@@ -557,7 +475,7 @@ export default function CenterFormDrawer({
                           )}
                           value={form.email}
                           onChange={set("email")}
-                          placeholder="center@sriram.com"
+                          placeholder="center@sriramias.com (optional)"
                           autoComplete="email"
                         />
                       </FormField>

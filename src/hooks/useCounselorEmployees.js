@@ -7,6 +7,7 @@ import {
   normalizeAdminUsersListResponse,
 } from '../services/adminAccessService'
 import { getRolesDropdown, normalizeRolesDropdown } from '../services/roleService'
+import { isRecordStatusActive } from '../constants/recordStatus'
 
 const FALLBACK_COUNSELORS = [
   { value: 'fallback-1', label: 'Rahul Sharma' },
@@ -29,11 +30,10 @@ async function fetchAllActiveAdminsByRole(roleId) {
     const data = await getAdminUsers({
       page,
       limit,
-      status: 'ACTIVE',
       roleId,
     })
     const normalized = normalizeAdminUsersListResponse(data, { page, limit })
-    items.push(...normalized.items)
+    items.push(...normalized.items.filter((row) => isRecordStatusActive(row.status)))
     totalPages = normalized.totalPages || 1
     page += 1
   } while (page <= totalPages)

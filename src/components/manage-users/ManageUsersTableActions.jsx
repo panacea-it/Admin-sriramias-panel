@@ -1,5 +1,4 @@
 import { Ban, Circle, Eye, Pencil, Trash2 } from 'lucide-react'
-import { isStudentRow } from '../../services/manageUsersService'
 import { cn } from '../../utils/cn'
 
 function ActionButton({ title, ariaLabel, onClick, disabled, className, children }) {
@@ -30,15 +29,18 @@ export default function ManageUsersTableActions({
   disabled = false,
 }) {
   const isActive = row.status === 'Active'
-  const isStudent = isStudentRow(row)
 
   const showView = row.permissions?.canView !== false
-  const showEdit = isStudent ? row.permissions?.canEdit : true
-  const showDelete = isStudent ? row.permissions?.canDelete : true
+  const showEdit = Boolean(row.permissions?.canEdit)
+  const showDelete = Boolean(row.permissions?.canDelete)
   const showStatusToggle = true
 
-  const editTitle = showEdit ? 'Edit' : row.editDisabledReason || 'Edit not allowed'
-  const deleteTitle = showDelete ? 'Delete' : row.deleteDisabledReason || 'Delete not allowed'
+  const editTitle = showEdit
+    ? 'Edit'
+    : row.permissions?.editDisabledReason || row.editDisabledReason || 'Edit not allowed'
+  const deleteTitle = showDelete
+    ? 'Delete'
+    : row.permissions?.deleteDisabledReason || row.deleteDisabledReason || 'Delete not allowed'
 
   return (
     <div className="flex items-center justify-center gap-1.5">

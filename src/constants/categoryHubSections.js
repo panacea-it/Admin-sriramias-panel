@@ -1,4 +1,4 @@
-import { Layers, GraduationCap, BookOpen, Users, FolderTree, LayoutGrid, DoorOpen, MapPin } from 'lucide-react'
+import { Layers, GraduationCap, BookOpen, Users, FolderTree, LayoutGrid, DoorOpen, MapPin, School } from 'lucide-react'
 
 /** Tab order: Programs first, then full academic hierarchy */
 export const CATEGORY_HUB_TABS = [
@@ -13,6 +13,7 @@ export const CATEGORY_HUB_TABS = [
   { id: 'courses', label: 'Courses', path: '/academics/categories/courses', icon: BookOpen },
   { id: 'subject', label: 'Subject', path: '/academics/categories/subject', icon: GraduationCap },
   { id: 'topic', label: 'Topic', path: '/academics/categories/topic', icon: Layers },
+  { id: 'classes', label: 'Classes', path: '/academics/categories/classes', icon: School },
   { id: 'teachers', label: 'Faculty', path: '/academics/categories/faculty', icon: Users },
   { id: 'city', label: 'City', path: '/academics/categories/city', icon: MapPin },
   { id: 'class-rooms', label: 'Class Rooms', path: '/academics/categories/class-rooms', icon: DoorOpen },
@@ -112,6 +113,20 @@ export const CATEGORY_HUB_SECTIONS = {
     emptyCta: 'Create Topic',
     filters: ['subject', 'status'],
     formFields: ['subject', 'name', 'description', 'status'],
+  },
+  classes: {
+    id: 'classes',
+    icon: School,
+    bannerTitle: 'Classes',
+    bannerSubtitle: 'Manage all classes available under each subject.',
+    addLabel: 'Add Class',
+    searchPlaceholder: 'Search by Class Name',
+    primaryColumn: 'Class Name',
+    emptyTitle: 'No Classes Found',
+    emptyDescription: 'Add your first class and link it to a subject.',
+    emptyCta: 'Add Class',
+    filters: ['subject', 'status'],
+    formFields: ['subject', 'name', 'status'],
   },
   teachers: {
     id: 'teachers',

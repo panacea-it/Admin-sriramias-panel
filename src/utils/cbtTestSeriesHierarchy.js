@@ -278,3 +278,49 @@ export function enrichCbtTestRow(testNode, faculty) {
     facultyLabel: faculty ? `${faculty.subjectName} — ${faculty.facultyName}` : '',
   }
 }
+
+export function findCbtTopicContext(topicId) {
+  if (!topicId) return { faculty: null, topic: null }
+  for (const faculty of buildCbtMappingRows()) {
+    const topic = getCbtTopic(faculty, topicId)
+    if (topic) return { faculty, topic }
+  }
+  return { faculty: null, topic: null }
+}
+
+export function getCbtTestsForTopic(topicId) {
+  const { faculty, topic } = findCbtTopicContext(topicId)
+  if (!topic) {
+    return { topic: null, tests: [] }
+  }
+
+  const tests = (topic.children || [])
+    .filter((node) => node.type === 'testSeries')
+    .map((node) => enrichCbtTestRow(node, faculty))
+
+  return {
+    topic: {
+      topicId: topic.id,
+      topicName: topic.title,
+      folderId: topic.id,
+      facultySubjectName: faculty
+        ? `${faculty.subjectName} — ${faculty.facultyName}`
+        : '',
+    },
+    tests,
+  }
+}
+
+export function mapCbtFacultySubjectsForTable() {
+  return buildCbtMappingRows().map((row) => ({
+    subjectId: row.subjectId,
+    subjectName: row.subjectName,
+    facultyName: row.facultyName,
+    facultySubjectLabel: `${row.subjectName} — ${row.facultyName}`,
+    totalTopics: row.totalTopics,
+    totalTestSeries: row.totalTestSeries,
+    studentsAttempted: row.studentsAttempted,
+    averageScorePct: row.averageScorePct,
+    lastUpdated: row.lastUpdated,
+  }))
+}

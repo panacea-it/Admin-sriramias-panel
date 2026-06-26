@@ -15,7 +15,8 @@ export default function CategoryHubShell({ children }) {
     activeTab === 'city' ||
     activeTab === 'exam-category' ||
     activeTab === 'exam-sub-category' ||
-    activeTab === 'class-rooms'
+    activeTab === 'class-rooms' ||
+    activeTab === 'classes'
 
   return (
     <div className="figma-admin-section min-h-full bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">

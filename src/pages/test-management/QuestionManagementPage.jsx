@@ -17,7 +17,7 @@ import {
   getQuestionFilterOptions,
   updateQuestionStatus,
   upsertQuestion,
-} from '../../api/questionBankAPI'
+} from '../../api/testManagementAPI'
 import {
   QUESTION_BANK_TYPES,
   QUESTION_DIFFICULTIES,

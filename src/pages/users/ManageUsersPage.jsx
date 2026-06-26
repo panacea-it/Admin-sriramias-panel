@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { toast } from '@/utils/toast'
@@ -6,95 +6,76 @@ import PageBanner from '../../components/figma/PageBanner'
 import AdminDataPanel from '../../components/admin/AdminDataPanel'
 import { ADMIN_CREATE_BTN, ADMIN_PAGE_SECTION, ADMIN_PAGE_INNER } from '../../utils/adminUiStandards'
 import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
-import ManageUsersBulkActionsBar from '../../components/manage-users/ManageUsersBulkActionsBar'
 import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
 import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
 import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
 import UserFormModal from '../../components/manage-users/UserFormModal'
-import CreateAdminModal from '../../components/admin-management/CreateAdminModal'
 import ViewUserModal from '../../components/manage-users/ViewUserModal'
+import { useUserManagement } from '../../hooks/user/useUserManagement'
+import { useCreateUser } from '../../hooks/user/useCreateUser'
+import { useUpdateUser } from '../../hooks/user/useUpdateUser'
+import { useDeleteUser } from '../../hooks/user/useDeleteUser'
+import { useUpdateUserStatus } from '../../hooks/user/useUpdateUserStatus'
+import { useUser } from '../../hooks/user/useUser'
 import {
-  MANAGE_USERS_STATIC_CENTERS,
   formatManageUserJoinDate,
-} from "../../components/manage-users/manageUsersStaticData";
-import { useTableRowSelection } from "../../hooks/useTableRowSelection";
-import { roleLabel } from "../../data/manageUsersConfig";
-import { cn } from "../../utils/cn";
-import {
-  createStudentUser,
-  deleteUser,
-  getUnifiedUsers,
-  getUserById,
-  normalizeUnifiedUsersResponse,
-  updateUser,
-  updateUserStatus,
-} from "../../services/userManagementService";
-import {
-  getUserCentersDropdown,
-  getUserRolesDropdown,
+  getRecordTypeQuery,
   isStudentRow,
-  normalizeUserCentersDropdown,
-  normalizeUserRolesDropdown,
-} from "../../services/manageUsersService";
-
-const ROLE_BADGE_STYLES = {
-  student: "bg-[#EEF5FF] text-[#1D72B8] ring-[#4CA6E8]/30",
-  admin: "bg-violet-50 text-violet-700 ring-violet-200/60",
-  mentor_admin: "bg-violet-50 text-violet-700 ring-violet-200/60",
-  faculty: "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
-  counselor: "bg-orange-50 text-orange-700 ring-orange-200/60",
-  employee: "bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]",
-  support_staff: "bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]",
-};
-
-function roleDisplayLabel(role) {
-  const normalized = String(role || "")
-    .trim()
-    .toLowerCase();
-
-  if (normalized === "faculty") return "Faculty";
-  if (normalized === "counselor") return "Parent";
-  if (normalized === "mentor_admin" || normalized === "mentor-admin")
-    return "Mentor Admin";
-  return roleLabel(normalized);
-}
+  mapApiErrorsToForm,
+  roleBadgeClassName,
+} from '../../utils/userHelpers'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { cn } from '../../utils/cn'
 
 function UserStatusBadge({ status }) {
-  const isActive = status === "Active";
+  const isActive = status === 'Active'
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
         isActive
-          ? "bg-emerald-50 text-emerald-700 ring-emerald-200/70"
-          : "bg-red-50 text-[#D64B5F] ring-red-200/70",
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/70'
+          : 'bg-[#F5F7FB] text-[#667085] ring-[#E7ECF5]',
       )}
     >
       <span
         className={cn(
-          "h-1.5 w-1.5 shrink-0 rounded-full",
-          isActive ? "bg-emerald-500" : "bg-[#D64B5F]",
+          'h-1.5 w-1.5 shrink-0 rounded-full',
+          isActive ? 'bg-emerald-500' : 'bg-[#667085]',
         )}
         aria-hidden
       />
-      {isActive ? "Active" : "Deactivated"}
+      {isActive ? 'Active' : 'Inactive'}
     </span>
-  );
+  )
 }
 
-function UserRoleBadge({ role }) {
-  const style = ROLE_BADGE_STYLES[role] || ROLE_BADGE_STYLES.employee;
+function UserRoleBadge({ role, roleType }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
-        style,
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+        roleBadgeClassName(roleType || role),
       )}
     >
-      {roleDisplayLabel(role)}
+      {role || '—'}
     </span>
-  );
+  )
+}
+
+function RecordTypeBadge({ recordType }) {
+  const labels = {
+    USER: 'Portal',
+    STUDENT: 'Batch',
+    ADMIN: 'Admin',
+  }
+  const label = labels[recordType] || recordType || '—'
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#F5F7FB] px-2 py-0.5 text-xs font-medium text-[#667085] ring-1 ring-inset ring-[#E7ECF5]">
+      {label}
+    </span>
+  )
 }
 
 function CenterPill({ label }) {
@@ -102,422 +83,185 @@ function CenterPill({ label }) {
     <span className="inline-flex max-w-[180px] truncate rounded-md bg-[#F5F7FB] px-2.5 py-1 text-xs font-medium text-[#667085] ring-1 ring-inset ring-[#E7ECF5]">
       {label}
     </span>
-  );
+  )
 }
 
 export default function ManageUsersPage() {
-  const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [centerFilter, setCenterFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [adminEditOpen, setAdminEditOpen] = useState(false);
-  const [editingAdminId, setEditingAdminId] = useState(null);
-  const [viewingUser, setViewingUser] = useState(null);
-  const [statusTarget, setStatusTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [actionUserId, setActionUserId] = useState(null);
-  const [roleDropdownOptions, setRoleDropdownOptions] = useState([]);
-  const [centerDropdownOptions, setCenterDropdownOptions] = useState([]);
+  const navigate = useNavigate()
+  const {
+    users,
+    loading,
+    fetching,
+    search,
+    setSearch,
+    roleFilter,
+    setRoleFilter,
+    centerFilter,
+    setCenterFilter,
+    statusFilter,
+    setStatusFilter,
+    recordTypeFilter,
+    setRecordTypeFilter,
+    roleOptions,
+    centerOptions,
+    moduleConfig,
+    pagination,
+    refreshUsers,
+  } = useUserManagement()
 
-  const { selectedIds, selection, clearSelection } = useTableRowSelection(
-    (row) => row.id,
-  );
+  const createUserMutation = useCreateUser()
+  const updateUserMutation = useUpdateUser()
+  const deleteUserMutation = useDeleteUser()
+  const updateStatusMutation = useUpdateUserStatus()
 
-  useEffect(() => {
-    let active = true;
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [viewingUser, setViewingUser] = useState(null)
+  const [viewUserId, setViewUserId] = useState(null)
+  const [viewUserType, setViewUserType] = useState(null)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [actionUserId, setActionUserId] = useState(null)
 
-    const loadFilterOptions = async () => {
-      try {
-        const [rolesData, centersData] = await Promise.all([
-          getUserRolesDropdown(),
-          getUserCentersDropdown(),
-        ]);
+  const viewUserQuery = useUser(viewUserId, viewUserType, Boolean(viewUserId))
 
-        if (!active) return;
+  const pageTitle = moduleConfig?.listUsersLabel || 'List Users'
+  const createLabel = moduleConfig?.createFormLabel || 'Create Student'
 
-        setRoleDropdownOptions(normalizeUserRolesDropdown(rolesData));
-        setCenterDropdownOptions(normalizeUserCentersDropdown(centersData));
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.error(error);
-        }
-        if (active) {
-          toast.error("Failed to load user filter options from the API");
-        }
-      }
-    };
+  const openCreate = () => {
+    setEditingUser(null)
+    setFormOpen(true)
+  }
 
-    loadFilterOptions();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const normalizedRoleDropdownOptions = useMemo(() => {
-    const seen = new Set();
-
-    return (roleDropdownOptions || [])
-      .map((opt) => {
-        const rawLabel = String(
-          opt?.label || opt?.roleTitle || opt?.name || "",
-        ).trim();
-        const rawValue = String(
-          opt?.value || opt?._id || opt?.id || opt?.roleId || "",
-        ).trim();
-
-        return {
-          value: rawValue,
-          label: rawLabel || "Role",
-          rawValue,
-        };
-      })
-      .filter((opt) => {
-        if (!opt.label || !opt.value) return false;
-        if (
-          opt.label.toLowerCase() === "all roles" ||
-          opt.value.toLowerCase() === "all"
-        ) {
-          return false;
-        }
-
-        const key = `${opt.label.toLowerCase()}::${opt.value.toLowerCase()}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-  }, [roleDropdownOptions]);
-
-  const roleOptions = useMemo(
-    () => [
-      { value: "all", label: "All roles" },
-      ...normalizedRoleDropdownOptions,
-    ],
-    [normalizedRoleDropdownOptions],
-  );
-
-  const centerOptions = useMemo(
-    () => [
-      { value: "all", label: "All centers" },
-      ...(centerDropdownOptions.length
-        ? centerDropdownOptions.map((opt) => ({
-            value: String(opt.value || "").trim(),
-            label: String(opt.label || opt.centerName || "").trim() || "Center",
-          }))
-        : MANAGE_USERS_STATIC_CENTERS.map((name) => ({
-            value: name,
-            label: name,
-          }))),
-    ],
-    [centerDropdownOptions],
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, roleFilter, centerFilter, statusFilter]);
-
-  const loadUsers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await getUnifiedUsers({
-        page,
-        limit: pageSize,
-        search,
-        role: roleFilter === "all" ? "ALL" : roleFilter,
-        center: centerFilter === "all" ? "ALL" : centerFilter,
-        status: statusFilter === "all" ? "" : statusFilter.toUpperCase(),
-        userType: "ALL",
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-
-      const normalized = normalizeUnifiedUsersResponse(response, {
-        page,
-        limit: pageSize,
-      });
-      setUsers(normalized.items);
-      setTotalItems(normalized.total || 0);
-      setTotalPages(normalized.totalPages || 1);
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
-      }
-      toast.error("Failed to load users from the API");
-      setUsers([]);
-      setTotalItems(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
+  const openEdit = (user) => {
+    if (!user.permissions?.canEdit) {
+      toast.error(user.permissions?.editDisabledReason || 'Edit not allowed for this account')
+      return
     }
-  }, [centerFilter, page, pageSize, roleFilter, search, statusFilter]);
+    setEditingUser(user)
+    setFormOpen(true)
+  }
 
-  useEffect(() => {
-    let active = true;
+  const openStudent360 = (user) => {
+    navigate(`/users/manage/students/${user.id}`)
+  }
 
-    const runLoad = async () => {
-      if (!active) return;
-      await loadUsers();
-    };
-
-    runLoad();
-
-    return () => {
-      active = false;
-    };
-  }, [loadUsers]);
-
-  const filtered = useMemo(() => users, [users]);
-
-  const selectedActiveCount = useMemo(
-    () =>
-      users.filter((u) => selectedIds.includes(u.id) && u.status === "Active")
-        .length,
-    [users, selectedIds],
-  );
-
-  const handleBulkDisable = () => {
-    const targets = users.filter(
-      (user) => selectedIds.includes(user.id) && user.status === "Active",
-    );
-    if (!targets.length) return;
-
-    setUsers((prev) =>
-      prev.map((user) =>
-        selectedIds.includes(user.id) && user.status === "Active"
-          ? { ...user, status: "In Active" }
-          : user,
-      ),
-    );
-    toast.success(
-      targets.length === 1
-        ? "User disabled"
-        : `${targets.length} users disabled`,
-    );
-    clearSelection();
-  };
-
-  const handleBulkDelete = () => {
-    if (!selectedIds.length) return;
-    if (
-      !window.confirm(
-        `Delete ${selectedIds.length} selected user(s)? This cannot be undone.`,
-      )
-    ) {
-      return;
+  const handleView = async (row) => {
+    if (isStudentRow(row)) {
+      openStudent360(row)
+      return
     }
 
-    setUsers((prev) => prev.filter((user) => !selectedIds.includes(user.id)));
-    toast.success(
-      selectedIds.length === 1
-        ? "User deleted"
-        : `${selectedIds.length} users deleted`,
-    );
-    clearSelection();
-  };
+    setViewUserId(row.id)
+    setViewUserType(getRecordTypeQuery(row))
+    setViewingUser(row)
+  }
 
   const handleCreateUser = async (formData) => {
     try {
-      setLoading(true);
-      await createStudentUser({
-        ...formData,
-        status: Boolean(
-          formData.status === true ||
-          formData.status === "Active" ||
-          formData.status === "ACTIVE",
-        ),
-        userType: String(formData.userType || "STUDENT")
-          .trim()
-          .toUpperCase(),
-      });
-
-      toast.success("User created successfully");
-      await loadUsers();
-      return true;
+      const response = await createUserMutation.mutateAsync(formData)
+      toast.success(response?.message || 'Student created successfully')
+      await refreshUsers()
+      return true
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
+      const fieldErrors = mapApiErrorsToForm(error?.errors || error?.error?.errors)
+      if (Object.keys(fieldErrors).length > 0) {
+        return { fieldErrors }
       }
-      toast.error("Failed to create user from the API");
-      return false;
-    } finally {
-      setLoading(false);
+      toast.error(getApiErrorMessage(error, 'Failed to create student'))
+      return false
     }
-  };
+  }
 
-  const handleUpdateUser = async (id, patch) => {
+  const handleUpdateUser = async (id, patch, row) => {
     try {
-      setLoading(true);
-
-      const centerId = String(patch.centerId || "").trim();
-      const payload = {
-        fullName: String(patch.fullName || "").trim(),
-        isActive:
-          patch.isActive === true ||
-          patch.status === true ||
-          String(patch.status || "").toUpperCase() === "ACTIVE" ||
-          String(patch.status || "").toLowerCase() === "active",
-        parentName: String(patch.parentName || "").trim(),
-        parentMobile: String(patch.parentMobile || "").trim(),
-        centerId,
-      };
-
-      if (!payload.fullName) {
-        toast.error("Full name is required to update the user");
-        return false;
-      }
-
-      await updateUser(id, payload, "USER");
-      toast.success("User updated successfully");
-      await loadUsers();
-      return true;
+      const recordType = getRecordTypeQuery(row || editingUser)
+      const response = await updateUserMutation.mutateAsync({
+        id,
+        payload: patch,
+        type: recordType,
+      })
+      toast.success(response?.message || 'Student updated successfully')
+      await refreshUsers()
+      return true
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
-      }
-      toast.error("Failed to update user from the API");
-      return false;
-    } finally {
-      setLoading(false);
+      toast.error(getApiErrorMessage(error, 'Failed to update student'))
+      return false
     }
-  };
-
-  const openCreate = () => {
-    setEditingUser(null);
-    setFormOpen(true);
-  };
-
-  const openEdit = (user) => {
-    if (isStudentRow(user)) {
-      setEditingUser(user);
-      setFormOpen(true);
-      return;
-    }
-
-    setEditingAdminId(user.id);
-    setAdminEditOpen(true);
-  };
-
-  const openStudent360 = (user) => {
-    navigate(`/users/manage/students/${user.id}`);
-  };
-
-  const isStudent = isStudentRow;
-
-  const handleView = async (row) => {
-    try {
-      if (isStudent(row)) {
-        openStudent360(row);
-        return;
-      }
-
-      const userId = row.studentRecordId || row.id;
-      if (!userId) {
-        setViewingUser(row);
-        return;
-      }
-
-      const detailResponse = await getUserById(userId);
-      const normalized = normalizeUnifiedUsersResponse(detailResponse, {
-        page: 1,
-        limit: 10,
-      });
-      setViewingUser(normalized.items[0] || row);
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
-      }
-      setViewingUser(row);
-      toast.error("Unable to load user details from the API");
-    }
-  };
-
-  const handleStatusToggleRequest = (row) => {
-    setStatusTarget(row);
-  };
+  }
 
   const confirmStatusChange = async () => {
-    if (!statusTarget || statusLoading) return;
+    if (!statusTarget || updateStatusMutation.isPending) return
 
     try {
-      const enabling = statusTarget.status !== "Active";
-      setStatusLoading(true);
-      setActionUserId(statusTarget.id);
+      const enabling = statusTarget.status !== 'Active'
+      setActionUserId(statusTarget.id)
 
-      await updateUserStatus(
-        statusTarget.studentRecordId || statusTarget.id,
-        enabling,
-      );
+      const recordType = getRecordTypeQuery(statusTarget)
+      const targetId = statusTarget.id
 
-      await loadUsers();
-      toast.success(
-        enabling ? "User enabled successfully" : "User disabled successfully",
-      );
+      const response = await updateStatusMutation.mutateAsync({
+        id: targetId,
+        status: enabling,
+        type: recordType,
+        recordType,
+      })
+
+      await refreshUsers()
+      toast.success(response?.message || (enabling ? 'User enabled successfully' : 'User disabled successfully'))
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
-      }
-      toast.error("Failed to update user status from the API");
+      toast.error(getApiErrorMessage(error, 'Failed to update user status'))
     } finally {
-      setStatusTarget(null);
-      setStatusLoading(false);
-      setActionUserId(null);
+      setStatusTarget(null)
+      setActionUserId(null)
     }
-  };
+  }
 
   const confirmDelete = async () => {
-    if (!deleteTarget || deleteLoading) return;
+    if (!deleteTarget || deleteUserMutation.isPending) return
 
     try {
-      setDeleteLoading(true);
-      setActionUserId(deleteTarget.id);
+      setActionUserId(deleteTarget.id)
+      const recordType = getRecordTypeQuery(deleteTarget)
+      const targetId = deleteTarget.id
 
-      await deleteUser(deleteTarget.studentRecordId || deleteTarget.id);
+      const response = await deleteUserMutation.mutateAsync({
+        id: targetId,
+        type: recordType,
+      })
 
-      await loadUsers();
-      toast.success("User deleted successfully");
+      await refreshUsers()
+      toast.success(response?.message || 'Student permanently deleted')
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error);
-      }
-      toast.error("Failed to delete user from the API");
+      toast.error(getApiErrorMessage(error, 'Failed to delete user'))
     } finally {
-      setDeleteTarget(null);
-      setDeleteLoading(false);
-      setActionUserId(null);
+      setDeleteTarget(null)
+      setActionUserId(null)
     }
-  };
+  }
+
+  const resolvedViewUser = viewUserQuery.data?.summary || viewingUser
 
   const columns = [
     {
-      key: "fullName",
-      label: "Full Name",
-      headerClassName: "min-w-[220px]",
-      cellClassName: "min-w-[220px]",
+      key: 'fullName',
+      label: 'Full Name',
+      headerClassName: 'min-w-[220px]',
+      cellClassName: 'min-w-[220px]',
       render: (row) => {
         const inner = (
           <div className="min-w-0">
             <p className="truncate text-base font-semibold leading-snug text-[#14213D]">
               {row.fullName}
             </p>
-            {row.userId ? (
+            {row.studentId ? (
               <p className="mt-1 truncate text-xs font-medium text-[#667085]">
-                {row.userId}
+                {row.studentId}
               </p>
             ) : null}
           </div>
-        );
-        if (isStudent(row)) {
+        )
+        if (isStudentRow(row)) {
           return (
             <button
               type="button"
@@ -526,91 +270,99 @@ export default function ManageUsersPage() {
             >
               {inner}
             </button>
-          );
+          )
         }
-        return inner;
+        return inner
       },
     },
     {
-      key: "email",
-      label: "Email",
-      headerClassName: "min-w-[240px]",
-      cellClassName: "min-w-[240px]",
+      key: 'email',
+      label: 'Email',
+      headerClassName: 'min-w-[240px]',
+      cellClassName: 'min-w-[240px]',
       render: (row) => (
-        <span
-          className="block truncate text-sm text-[#667085]"
-          title={row.email}
-        >
+        <span className="block truncate text-sm text-[#667085]" title={row.email}>
           {row.email}
         </span>
       ),
     },
     {
-      key: "phone",
-      label: "Phone",
-      align: "center",
-      headerClassName: "min-w-[130px] text-center",
-      cellClassName: "text-center",
+      key: 'phoneNumber',
+      label: 'Phone',
+      align: 'center',
+      headerClassName: 'min-w-[130px] text-center',
+      cellClassName: 'text-center',
       render: (row) => (
         <span className="whitespace-nowrap text-sm font-medium text-[#14213D]">
-          {row.phone}
+          {row.phoneNumber || row.phone || '—'}
         </span>
       ),
     },
     {
-      key: "role",
-      label: "Role",
-      align: "center",
-      headerClassName: "min-w-[110px] text-center",
-      cellClassName: "text-center",
-      render: (row) => <UserRoleBadge role={row.role} />,
+      key: 'role',
+      label: 'Role',
+      align: 'center',
+      headerClassName: 'min-w-[110px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <UserRoleBadge role={row.role} roleType={row.roleType || row.roleKey} />,
     },
     {
-      key: "assignedCenter",
-      label: "Center",
-      align: "center",
-      headerClassName: "min-w-[140px] text-center",
-      cellClassName: "text-center",
-      render: (row) => <CenterPill label={row.assignedCenter} />,
+      key: 'center',
+      label: 'Center',
+      align: 'center',
+      headerClassName: 'min-w-[140px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <CenterPill label={row.center || row.assignedCenter} />,
     },
     {
-      key: "status",
-      label: "Status",
-      align: "center",
-      headerClassName: "min-w-[110px] text-center",
-      cellClassName: "text-center",
+      key: 'status',
+      label: 'Status',
+      align: 'center',
+      headerClassName: 'min-w-[110px] text-center',
+      cellClassName: 'text-center',
       render: (row) => <UserStatusBadge status={row.status} />,
     },
     {
-      key: "joinedAt",
-      label: "Joined",
-      align: "center",
-      headerClassName: "min-w-[120px] text-center",
-      cellClassName: "text-center",
+      key: 'recordType',
+      label: 'Type',
+      align: 'center',
+      headerClassName: 'min-w-[90px] text-center',
+      cellClassName: 'text-center',
+      render: (row) => <RecordTypeBadge recordType={row.recordType} />,
+    },
+    {
+      key: 'joinedDate',
+      label: 'Joined',
+      align: 'center',
+      headerClassName: 'min-w-[120px] text-center',
+      cellClassName: 'text-center',
       render: (row) => (
         <span className="whitespace-nowrap text-sm font-medium text-[#667085]">
-          {formatManageUserJoinDate(row.joinedAt)}
+          {formatManageUserJoinDate(row.joinedDate || row.joinedAt)}
         </span>
       ),
     },
     {
-      key: "actions",
-      label: "Actions",
-      align: "center",
-      headerClassName: "min-w-[200px] text-center",
-      cellClassName: "text-center",
+      key: 'actions',
+      label: 'Actions',
+      align: 'center',
+      headerClassName: 'min-w-[200px] text-center',
+      cellClassName: 'text-center',
       render: (row) => (
         <ManageUsersTableActions
           row={row}
-          disabled={actionUserId === row.id && (statusLoading || deleteLoading)}
+          disabled={
+            actionUserId === row.id &&
+            (updateStatusMutation.isPending || deleteUserMutation.isPending)
+          }
           onView={() => handleView(row)}
           onEdit={() => openEdit(row)}
-          onStatusToggle={() => handleStatusToggleRequest(row)}
+          onStatusToggle={() => setStatusTarget(row)}
           onDelete={() => setDeleteTarget(row)}
         />
       ),
     },
-  ];
+  ]
 
   return (
     <div className={ADMIN_PAGE_SECTION}>
@@ -618,12 +370,12 @@ export default function ManageUsersPage() {
         <PageBanner
           icon={Users}
           iconClassName="text-[#246392]"
-          title="Users Management"
-          subtitle="Manage users, permissions and assigned centers."
+          title={pageTitle}
+          subtitle="Manage students and staff accounts across centers."
           className="from-[#55ace7] via-[#8b98bb] to-[#b8887a]"
         >
           <button type="button" onClick={openCreate} className={ADMIN_CREATE_BTN}>
-            Add User
+            {createLabel}
           </button>
         </PageBanner>
 
@@ -639,45 +391,35 @@ export default function ManageUsersPage() {
               onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
               statusFilter={statusFilter}
               onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+              recordTypeFilter={recordTypeFilter}
+              onRecordTypeFilterChange={(e) => setRecordTypeFilter(e.target.value)}
               roleOptions={roleOptions}
               centerOptions={centerOptions}
             />
           }
-          bulkActions={
-            selectedIds.length > 0 ? (
-              <ManageUsersBulkActionsBar
-                className="mt-4"
-                count={selectedIds.length}
-                disableCount={selectedActiveCount}
-                onDisable={handleBulkDisable}
-                onDelete={handleBulkDelete}
-              />
-            ) : null
-          }
         >
-          {loading ? (
+          {loading && !users.length ? (
             <div className="mt-5 rounded-xl border border-slate-100 bg-white p-6 text-sm text-slate-500">
               Loading users…
             </div>
           ) : (
-            <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <div className="relative mt-5 overflow-hidden rounded-xl border border-slate-100">
+              {fetching && users.length > 0 ? (
+                <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-[#1D72B8]/40" />
+              ) : null}
               <ManageUsersTable
                 columns={columns}
-                data={filtered}
+                data={users}
                 emptyMessage="No users match your search or filters."
                 itemLabel="users"
-                resetDeps={[search, roleFilter, centerFilter, statusFilter]}
-                selection={selection}
+                resetDeps={[search, roleFilter, centerFilter, statusFilter, recordTypeFilter]}
                 serverPagination
-                totalItems={totalItems}
-                totalPages={totalPages}
-                page={page}
-                pageSize={pageSize}
-                onPageChange={(next) => setPage(Number(next) || 1)}
-                onPageSizeChange={(nextSize) => {
-                  setPageSize(Number(nextSize) || 10);
-                  setPage(1);
-                }}
+                totalItems={pagination.totalItems}
+                totalPages={pagination.totalPages}
+                page={pagination.page}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.onPageChange}
+                onPageSizeChange={pagination.onPageSizeChange}
               />
             </div>
           )}
@@ -687,37 +429,33 @@ export default function ManageUsersPage() {
       <UserFormModal
         open={formOpen}
         onClose={() => {
-          setFormOpen(false);
-          setEditingUser(null);
+          setFormOpen(false)
+          setEditingUser(null)
         }}
         onCreate={handleCreateUser}
-        onUpdate={handleUpdateUser}
+        onUpdate={(id, patch) => handleUpdateUser(id, patch, editingUser)}
         editingUser={editingUser}
-        centerOptions={centerOptions}
-      />
-
-      <CreateAdminModal
-        open={adminEditOpen}
-        onClose={() => {
-          setAdminEditOpen(false);
-          setEditingAdminId(null);
-        }}
-        onSuccess={loadUsers}
-        editingId={editingAdminId}
+        createLabel={createLabel}
+        createPending={createUserMutation.isPending}
+        updatePending={updateUserMutation.isPending}
       />
 
       <ViewUserModal
         open={Boolean(viewingUser)}
-        onClose={() => setViewingUser(null)}
-        user={viewingUser}
+        onClose={() => {
+          setViewingUser(null)
+          setViewUserId(null)
+          setViewUserType(null)
+        }}
+        user={resolvedViewUser}
       />
 
       <ConfirmManageUserStatusModal
         open={Boolean(statusTarget)}
-        enabling={statusTarget?.status !== "Active"}
-        loading={statusLoading}
+        enabling={statusTarget?.status !== 'Active'}
+        loading={updateStatusMutation.isPending}
         onCancel={() => {
-          if (!statusLoading) setStatusTarget(null);
+          if (!updateStatusMutation.isPending) setStatusTarget(null)
         }}
         onConfirm={confirmStatusChange}
       />
@@ -725,12 +463,12 @@ export default function ManageUsersPage() {
       <ConfirmManageUserDeleteModal
         open={Boolean(deleteTarget)}
         user={deleteTarget}
-        loading={deleteLoading}
+        loading={deleteUserMutation.isPending}
         onCancel={() => {
-          if (!deleteLoading) setDeleteTarget(null);
+          if (!deleteUserMutation.isPending) setDeleteTarget(null)
         }}
         onConfirm={confirmDelete}
       />
     </div>
-  );
+  )
 }

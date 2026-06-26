@@ -1,4 +1,3 @@
-import { isFrontendOnly } from '../config/appMode'
 import {
   SEED_QUESTIONS,
   SEED_TEST_CONFIGS,
@@ -183,33 +182,83 @@ async function deleteQuestionLocal(id) {
 }
 
 export async function fetchQuestions(params = {}) {
-  if (isFrontendOnly) return fetchQuestionsLocal(params)
-  try {
-    const { fetchQuestions: fetchFromQuestionBank } = await import('./questionBankAPI')
-    return await fetchFromQuestionBank(params)
-  } catch {
-    return fetchQuestionsLocal(params)
-  }
+  return fetchQuestionsLocal(params)
 }
 
 export async function upsertQuestion(payload, meta) {
-  if (isFrontendOnly) return upsertQuestionLocal(payload, meta)
-  try {
-    const { upsertQuestion: upsertInBank } = await import('./questionBankAPI')
-    return await upsertInBank(payload, meta)
-  } catch {
-    return upsertQuestionLocal(payload, meta)
-  }
+  return upsertQuestionLocal(payload, meta)
 }
 
 export async function deleteQuestion(id) {
-  if (isFrontendOnly) return deleteQuestionLocal(id)
-  try {
-    const { deleteQuestion: deleteFromBank } = await import('./questionBankAPI')
-    return await deleteFromBank(id)
-  } catch {
-    return deleteQuestionLocal(id)
+  return deleteQuestionLocal(id)
+}
+
+export async function getQuestionAnalytics(params = {}) {
+  await delay()
+  const rows = await fetchQuestionsLocal(params)
+  const easyCount = rows.filter((row) => row.difficulty === 'Easy').length
+  const mediumHardCount = rows.filter(
+    (row) => row.difficulty === 'Medium' || row.difficulty === 'Hard',
+  ).length
+  return {
+    totalQuestions: rows.length,
+    easyCount,
+    mediumHardCount,
   }
+}
+
+export async function getQuestionFilterOptions({ subject } = {}) {
+  await delay()
+  const rows = await fetchQuestionsLocal({})
+  const subjects = Array.from(new Set(rows.map((row) => row.subject).filter(Boolean))).sort()
+  const topics = Array.from(
+    new Set(
+      rows
+        .filter((row) => !subject || subject === 'all' || row.subject === subject)
+        .map((row) => row.topic)
+        .filter(Boolean),
+    ),
+  ).sort()
+  const tags = Array.from(new Set(rows.flatMap((row) => row.tags || []))).sort()
+  return { subjects, topics, tags }
+}
+
+export async function updateQuestionStatus(id, status) {
+  await delay()
+  const list = loadQuestionsStore()
+  const next = list.map((row) =>
+    String(row.id) === String(id) ? { ...row, status: normalizeStatus(status) } : row,
+  )
+  saveStore(KEYS.questions, next)
+  return next.find((row) => String(row.id) === String(id))
+}
+
+export async function duplicateQuestion(id) {
+  await delay()
+  const source = loadQuestionsStore().find((row) => String(row.id) === String(id))
+  if (!source) throw new Error('Question not found')
+  const copy = {
+    ...source,
+    id: `Q-${Math.floor(1000 + Math.random() * 9000)}`,
+    status: 'Active',
+  }
+  saveStore(KEYS.questions, [copy, ...loadQuestionsStore()])
+  return copy
+}
+
+export async function downloadQuestionTemplate() {
+  await delay()
+  return new Blob(['Question Bank Template'], { type: 'application/vnd.ms-excel' })
+}
+
+export async function validateBulkQuestions() {
+  await delay()
+  return { valid: true, rows: [] }
+}
+
+export async function importBulkQuestions() {
+  await delay()
+  return { success: true, imported: 0 }
 }
 
 // ------------------ Configs (tagging only) ------------------
@@ -244,17 +293,14 @@ async function deleteConfigLocal(id) {
 }
 
 export async function fetchTestConfigs(params = {}) {
-  if (isFrontendOnly) return fetchConfigsLocal(params)
   return fetchConfigsLocal(params)
 }
 
 export async function upsertTestConfig(payload, meta) {
-  if (isFrontendOnly) return upsertConfigLocal(payload, meta)
   return upsertConfigLocal(payload, meta)
 }
 
 export async function deleteTestConfig(id) {
-  if (isFrontendOnly) return deleteConfigLocal(id)
   return deleteConfigLocal(id)
 }
 
@@ -289,17 +335,14 @@ async function deleteIntegrationLocal(id) {
 }
 
 export async function fetchTestIntegrations(params = {}) {
-  if (isFrontendOnly) return fetchIntegrationsLocal(params)
   return fetchIntegrationsLocal(params)
 }
 
 export async function upsertTestIntegration(payload, meta) {
-  if (isFrontendOnly) return upsertIntegrationLocal(payload, meta)
   return upsertIntegrationLocal(payload, meta)
 }
 
 export async function deleteTestIntegration(id) {
-  if (isFrontendOnly) return deleteIntegrationLocal(id)
   return deleteIntegrationLocal(id)
 }
 
@@ -313,7 +356,6 @@ async function fetchResultsLocal(params = {}) {
 }
 
 export async function fetchResults(params = {}) {
-  if (isFrontendOnly) return fetchResultsLocal(params)
   return fetchResultsLocal(params)
 }
 

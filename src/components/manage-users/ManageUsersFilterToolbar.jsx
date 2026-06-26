@@ -40,6 +40,8 @@ export default function ManageUsersFilterToolbar({
   onCenterFilterChange,
   statusFilter,
   onStatusFilterChange,
+  recordTypeFilter = 'all',
+  onRecordTypeFilterChange,
   roleOptions = [],
   centerOptions = [],
 }) {
@@ -71,7 +73,7 @@ export default function ManageUsersFilterToolbar({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:shrink-0 lg:gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:shrink-0 lg:flex-wrap lg:gap-3">
         <FilterSelect
           label="Role"
           value={roleFilter}
@@ -91,9 +93,22 @@ export default function ManageUsersFilterToolbar({
           options={[
             { value: "all", label: "All status" },
             { value: "Active", label: "Active" },
-            { value: "In Active", label: "Deactivated" },
+            { value: "In Active", label: "Inactive" },
           ]}
         />
+        {onRecordTypeFilterChange ? (
+          <FilterSelect
+            label="Record type"
+            value={recordTypeFilter}
+            onChange={onRecordTypeFilterChange}
+            options={[
+              { value: "all", label: "All types" },
+              { value: "USER", label: "Portal users" },
+              { value: "STUDENT", label: "Batch students" },
+              { value: "ADMIN", label: "Admins" },
+            ]}
+          />
+        ) : null}
       </div>
     </div>
   );

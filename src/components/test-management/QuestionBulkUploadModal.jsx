@@ -10,7 +10,7 @@ import {
   downloadQuestionTemplate,
   importBulkQuestions,
   validateBulkQuestions,
-} from '../../api/questionBankAPI'
+} from '../../api/testManagementAPI'
 import {
   downloadErrorReportXlsx,
   isSupportedBulkFile,

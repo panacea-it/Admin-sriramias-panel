@@ -6,6 +6,7 @@ import ModalPanelHeader from '../courses/ModalPanelHeader'
 import SectionBar from '../courses/SectionBar'
 import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
+import DemoVideoUpload from '../courses/DemoVideoUpload'
 import SearchableSelect from './SearchableSelect'
 import CourseMarketingSections from './CourseMarketingSections'
 import { useCourseFormDropdowns } from '../../hooks/useCourseFormDropdowns'
@@ -16,6 +17,7 @@ import {
   serializeAcademicCourseContent,
 } from '../../utils/academicCourseForm'
 import { validateCreateCourseContent } from '../../utils/courseApiHelpers'
+import { mapDemoVideoFromCourse } from '../../utils/courseMediaPrefill'
 import { toast } from '../../utils/toast'
 
 function buildHierarchyForm(item) {
@@ -39,24 +41,51 @@ function buildHierarchyForm(item) {
   }
 }
 
-function buildFullForm(item) {
+function buildDemoVideoFields(item) {
+  const mapped = mapDemoVideoFromCourse(item)
   return {
-    ...buildHierarchyForm(item),
-    ...academicCourseItemToContent(item),
+    demoVideoFile: null,
+    demoVideoUrl: mapped.demoVideoUrl || '',
+    demoVideoFileName: mapped.demoVideoFileName || '',
+    demoVideoFileSize: mapped.demoVideoFileSize ?? null,
   }
 }
 
-export default function CourseFormModal({ open, onClose, item, onSubmit, submitting = false }) {
+function buildFullForm(item) {
+  const row = item && typeof item === 'object' ? item : null
+  return {
+    ...buildHierarchyForm(row),
+    ...academicCourseItemToContent(row),
+    ...buildDemoVideoFields(row),
+  }
+}
+
+function getCourseFormInitKey(item, isEdit, detailLoading) {
+  if (!isEdit) return '__create__'
+  const id = getModalEditKey(item)
+  return detailLoading ? `${id}:loading` : `${id}:ready`
+}
+
+export default function CourseFormModal({
+  open,
+  onClose,
+  item,
+  onSubmit,
+  submitting = false,
+  detailLoading = false,
+}) {
   const isEdit = Boolean(item)
   const [form, setForm] = useState(() => ({
     ...buildHierarchyForm(null),
     ...createEmptyAcademicCourseContent(),
+    ...buildDemoVideoFields(null),
   }))
   const [errors, setErrors] = useState({})
+  const [demoVideoUploading, setDemoVideoUploading] = useState(false)
   const closingRef = useRef(false)
   const itemRef = useRef(item)
   itemRef.current = item
-  const editKey = getModalEditKey(item)
+  const editKey = getCourseFormInitKey(item, isEdit, detailLoading)
 
   const {
     centerOptions,
@@ -79,6 +108,7 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
     closingRef.current = false
     setForm(buildFullForm(itemRef.current))
     setErrors({})
+    setDemoVideoUploading(false)
   })
 
   const centreSelectOptions = useMemo(
@@ -151,10 +181,16 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (demoVideoUploading) {
+      toast.error('Please wait for the demo video upload to finish')
+      return
+    }
     const hierarchyOk = validateHierarchy()
-    const contentErrs = isEdit ? {} : validateCreateCourseContent(form)
-    if (!hierarchyOk || Object.keys(contentErrs).length) {
-      if (Object.keys(contentErrs).length) setErrors((prev) => ({ ...prev, ...contentErrs }))
+    const hierarchyErrs = validateCreateCourseContent(form)
+    if (!hierarchyOk || Object.keys(hierarchyErrs).length) {
+      if (Object.keys(hierarchyErrs).length) {
+        setErrors((prev) => ({ ...prev, ...hierarchyErrs }))
+      }
       toast.error('Please fix the highlighted fields')
       return
     }
@@ -187,6 +223,13 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
           howWill: form.howWill,
           whyChooseTitle: form.whyChooseTitle,
           whyChooseSubtitle: form.whyChooseSubtitle,
+          demoVideoFile: form.demoVideoFile,
+          demoVideoUrl: form.demoVideoUrl,
+          demoVideoFileName: form.demoVideoFileName,
+          demoVideoFileSize: form.demoVideoFileSize,
+          newDelhiUi: form.newDelhiUi,
+          hyderabadUi: form.hyderabadUi,
+          puneUi: form.puneUi,
           ...serializeAcademicCourseContent(form, {
             examCategory: category?.label || '',
             courseName: form.name.trim(),
@@ -201,6 +244,16 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
   }
 
   if (!open) return null
+
+  if (detailLoading) {
+    return (
+      <Modal open={open} onClose={handleClose} size="full" title="Loading course…">
+        <div className="flex min-h-[200px] items-center justify-center p-8 text-sm text-[#686868]">
+          Loading course details…
+        </div>
+      </Modal>
+    )
+  }
 
   const title = isEdit ? 'Edit Course' : 'Add Course'
 
@@ -317,6 +370,38 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
             </div>
           </div>
 
+          <div className="space-y-6">
+            <SectionBar title="Demo Video" />
+            <div className="grid gap-4 rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:grid-cols-2 sm:px-6 sm:py-6">
+              <CourseFormField label="Add Your Demo Video" className="sm:col-span-2">
+                <DemoVideoUpload
+                  videoUrl={form.demoVideoUrl}
+                  fileName={form.demoVideoFileName}
+                  fileSize={form.demoVideoFileSize}
+                  error={errors.demoVideoUrl}
+                  onUploadingChange={setDemoVideoUploading}
+                  onChange={({ file, videoUrl, fileName, fileSize }) => {
+                    setForm((f) => {
+                      if (f.demoVideoUrl?.startsWith('blob:') && f.demoVideoUrl !== videoUrl) {
+                        URL.revokeObjectURL(f.demoVideoUrl)
+                      }
+                      return {
+                        ...f,
+                        demoVideoFile: file || null,
+                        demoVideoUrl: videoUrl,
+                        demoVideoFileName: fileName,
+                        demoVideoFileSize: fileSize,
+                      }
+                    })
+                    if (errors.demoVideoUrl) {
+                      setErrors((err) => ({ ...err, demoVideoUrl: undefined }))
+                    }
+                  }}
+                />
+              </CourseFormField>
+            </div>
+          </div>
+
           {form.centerId ? (
             <CourseMarketingSections
               form={form}
@@ -331,12 +416,12 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
           <FormModalSubmitBar
             isEditMode={isEdit}
             onReset={handleReset}
-            isSubmitting={submitting}
-            disableSubmit={submitting}
+            isSubmitting={submitting || demoVideoUploading}
+            disableSubmit={submitting || demoVideoUploading}
             disableReset={submitting}
             createLabel="Create"
             updateLabel="Update"
-            loadingLabel="Creating…"
+            loadingLabel={isEdit ? 'Updating…' : 'Creating…'}
             className="border-t-0 pt-2"
           />
         </div>

@@ -5,23 +5,29 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Loader2, Mail, Phone, User, Hash, X } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
-import { useRolesDropdown } from '../../hooks/useRolesDropdown'
-import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
+import { useQuery } from '@tanstack/react-query'
 import { useRolePreview } from '../../hooks/useRolePreview'
+import { useCreateAdmin } from '../../hooks/admin/useCreateAdmin'
+import { useUpdateAdmin } from '../../hooks/admin/useUpdateAdmin'
+import { useAdmin } from '../../hooks/admin/useAdmin'
+import { useAdminRolesDropdown } from '../../hooks/admin/useAdminRoles'
+import adminManagementService from '../../services/adminManagementService'
+import { adminKeys } from '../../hooks/admin/adminKeys'
 import FloatingInput from './ui/FloatingInput'
 import PasswordField from './ui/PasswordField'
 import RoleOverviewCard from './RoleOverviewCard'
 import ErrorState from '../feedback/ErrorState'
-import { getApiErrorMessage } from '../../utils/apiError'
+import { handleApiError } from '../../utils/errorHandler'
 import { validateAdminAccessForm } from '../../utils/adminAccessValidation'
 import { mapManageUserRowToAdminForm } from '../manage-users/mapManageUserToAdminForm'
 import {
-  buildAdminAccessPayload,
-  createAdminUser,
-  getAdminUserById,
+  buildCreateAdminPayload,
+  buildUpdateAdminPayload,
   mapAdminUserToForm,
-  updateAdminUser,
-} from '../../services/adminAccessService'
+  mapCentersDropdownResponse,
+  mapRolesDropdownResponse,
+  mapJoiErrorsToForm,
+} from '../../utils/adminManagementHelpers'
 
 const INITIAL = {
   fullName: '',
@@ -32,10 +38,6 @@ const INITIAL = {
   centerId: '',
   password: '',
   confirmPassword: '',
-  active: true,
-  twoFactor: false,
-  sessionTimeout: '60',
-  loginAlert: true,
 }
 
 const selectClassName = cn(
@@ -109,34 +111,41 @@ export default function CreateAdminModal({
   prefillRow = null,
   frontendOnly = false,
 }) {
-  const {
-    options: roleOptions = [],
-    loading: rolesLoading,
-    error: rolesError,
-    refresh: refreshRoles,
-  } = useRolesDropdown({ enabled: open, adminManagement: true })
-  const {
-    options: centerOptions = [],
-    loading: centersLoading,
-    error: centersError,
-    refresh: refreshCenters,
-  } = useCentersDropdownOptions({ enabled: open, adminManagement: true })
+  const { data: rolesData, isLoading: rolesLoading, error: rolesError, refetch: refreshRoles } =
+    useAdminRolesDropdown({ enabled: open })
 
-  const safeRoleOptions = Array.isArray(roleOptions) ? roleOptions : []
-  const safeCenterOptions = Array.isArray(centerOptions) ? centerOptions : []
+  const {
+    data: centersData,
+    isLoading: centersLoading,
+    error: centersError,
+    refetch: refreshCenters,
+  } = useQuery({
+    queryKey: adminKeys.centersDropdown(),
+    queryFn: () => adminManagementService.getCentersDropdown(),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const safeRoleOptions = useMemo(() => mapRolesDropdownResponse(rolesData), [rolesData])
+  const safeCenterOptions = useMemo(() => mapCentersDropdownResponse(centersData), [centersData])
+
+  const createMutation = useCreateAdmin()
+  const updateMutation = useUpdateAdmin()
 
   const [form, setForm] = useState(INITIAL)
   const [errors, setErrors] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailLoadError, setDetailLoadError] = useState(null)
-  const [detailReloadKey, setDetailReloadKey] = useState(0)
   const editingIdRef = useRef(editingId)
   editingIdRef.current = editingId
   const isUserListEdit = Boolean(prefillRow && frontendOnly)
   const editKey = getModalEditKey(isUserListEdit ? prefillRow?.id : editingId)
-
   const isEdit = Boolean(editingId) || isUserListEdit
+
+  const {
+    data: adminDetail,
+    isLoading: detailLoading,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useAdmin(editingId, { enabled: open && Boolean(editingId) && !isUserListEdit })
 
   const selectedRoleLabel = useMemo(
     () => safeRoleOptions.find((r) => r.value === form.roleId)?.label || '',
@@ -170,52 +179,19 @@ export default function CreateAdminModal({
       }),
     )
     setErrors({})
-    setDetailLoadError(null)
-    setDetailLoading(false)
   }, [open, prefillRow, editingId, safeRoleOptions, safeCenterOptions])
 
   useEffect(() => {
-    if (!open || !editingId || isUserListEdit) {
-      if (!open || isUserListEdit) setDetailLoadError(null)
-      return
-    }
+    if (!open || !editingId || isUserListEdit || !adminDetail) return
 
-    let cancelled = false
-
-    async function loadDetail() {
-      setDetailLoading(true)
-      setDetailLoadError(null)
-      try {
-        const data = await getAdminUserById(editingId)
-        if (cancelled) return
-        setForm(
-          mapAdminUserToForm(data, {
-            roleId: safeRoleOptions[0]?.value || '',
-            centerId: safeCenterOptions[0]?.value || '',
-          }),
-        )
-        setErrors({})
-      } catch (error) {
-        if (!cancelled) {
-          if (import.meta.env.DEV) {
-            console.error(error)
-          }
-          const message = getApiErrorMessage(error, 'Failed to load user access')
-          setDetailLoadError(message)
-          toast.error(message)
-        }
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false)
-        }
-      }
-    }
-
-    loadDetail()
-    return () => {
-      cancelled = true
-    }
-  }, [open, editingId, isUserListEdit, safeRoleOptions, safeCenterOptions, detailReloadKey])
+    setForm(
+      mapAdminUserToForm(adminDetail, {
+        roleId: safeRoleOptions[0]?.value || '',
+        centerId: safeCenterOptions[0]?.value || '',
+      }),
+    )
+    setErrors({})
+  }, [open, editingId, isUserListEdit, adminDetail, safeRoleOptions, safeCenterOptions])
 
   useEffect(() => {
     if (!open || isEdit) return
@@ -270,20 +246,18 @@ export default function CreateAdminModal({
       return
     }
 
-    setLoading(true)
     try {
-      const payload = buildAdminAccessPayload(form, {
-        isEdit,
-        includePassword: !isEdit || Boolean(form.password),
-      })
-
       if (isEdit) {
-        await updateAdminUser(editingId, payload)
-        toast.success('User access updated successfully', {
+        const payload = buildUpdateAdminPayload(form, {
+          includePassword: Boolean(form.password),
+        })
+        await updateMutation.mutateAsync({ id: editingId, payload })
+        toast.success('Admin access updated successfully', {
           description: `${form.fullName} has been updated.`,
         })
       } else {
-        await createAdminUser(payload)
+        const payload = buildCreateAdminPayload(form)
+        await createMutation.mutateAsync(payload)
         toast.success('Admin access created successfully', {
           description: `${form.fullName} can now sign in as ${selectedRoleLabel || 'admin'}.`,
         })
@@ -293,14 +267,13 @@ export default function CreateAdminModal({
       resetAll()
       onClose()
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
+      const joiErrors = mapJoiErrorsToForm(error?.response?.data || error)
+      if (Object.keys(joiErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...joiErrors }))
       }
-      toast.error(
-        getApiErrorMessage(error, isEdit ? 'Failed to update user access' : 'Failed to create user access'),
-      )
-    } finally {
-      setLoading(false)
+      handleApiError(error, {
+        fallback: isEdit ? 'Failed to update admin access' : 'Failed to create admin access',
+      })
     }
   }
 
@@ -309,10 +282,14 @@ export default function CreateAdminModal({
     onClose()
   }
 
-  const formDisabled = loading || detailLoading || rolesLoading || centersLoading
+  const mutationLoading = createMutation.isPending || updateMutation.isPending
+  const formDisabled = mutationLoading || detailLoading || rolesLoading || centersLoading
   const dropdownsReady = safeRoleOptions.length > 0 && safeCenterOptions.length > 0
   const dropdownLoadError = rolesError || centersError
   const dropdownsLoading = rolesLoading || centersLoading
+  const detailLoadError = detailError
+    ? handleApiError(detailError, { silent: true, fallback: 'Failed to load admin details' }).message
+    : null
 
   const retryDropdowns = () => {
     refreshRoles()
@@ -377,7 +354,7 @@ export default function CreateAdminModal({
                 <ErrorState
                   title="Unable to load user details"
                   message={detailLoadError}
-                  onRetry={() => setDetailReloadKey((key) => key + 1)}
+                  onRetry={refetchDetail}
                 />
                 <div className="mt-6 flex justify-center">
                   <button
@@ -397,7 +374,10 @@ export default function CreateAdminModal({
               <div className="px-6 py-8 sm:px-8">
                 <ErrorState
                   title="Unable to load form options"
-                  message={dropdownLoadError}
+                  message={handleApiError(dropdownLoadError, {
+                    silent: true,
+                    fallback: 'Failed to load dropdown options',
+                  }).message}
                   onRetry={retryDropdowns}
                 />
               </div>
@@ -435,7 +415,7 @@ export default function CreateAdminModal({
                         />
                         <FloatingInput
                           id="modal-mobile"
-                          label="Mobile Number"
+                          label="Contact Number"
                           labelVariant="static"
                           required
                           value={form.mobile}
@@ -446,7 +426,7 @@ export default function CreateAdminModal({
                         />
                         <FloatingInput
                           id="modal-employeeId"
-                          label="Employee ID / Admin ID"
+                          label="Employee ID"
                           labelVariant="static"
                           required
                           value={form.employeeId}
@@ -465,7 +445,7 @@ export default function CreateAdminModal({
                       <div className={formGridClass}>
                         <SelectField
                           id="modal-roleId"
-                          label="Admin Access"
+                          label="Role"
                           required
                           value={form.roleId}
                           onChange={set('roleId')}
@@ -485,7 +465,7 @@ export default function CreateAdminModal({
 
                         <SelectField
                           id="modal-centerId"
-                          label="Assigned Center"
+                          label="Center"
                           required
                           value={form.centerId}
                           onChange={set('centerId')}
@@ -519,7 +499,7 @@ export default function CreateAdminModal({
                       ) : (
                         <div className="flex min-h-[7rem] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-6 text-center">
                           <p className="text-[13px] text-slate-500">
-                            Select an admin access role to preview permissions.
+                            Select a role to preview permissions.
                           </p>
                         </div>
                       )}
@@ -576,7 +556,7 @@ export default function CreateAdminModal({
                       'w-full rounded-lg bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg disabled:opacity-70 sm:w-auto sm:min-w-[10.5rem]',
                     )}
                   >
-                    {loading ? (
+                    {mutationLoading ? (
                       <span className="inline-flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {isEdit ? 'Saving…' : 'Creating…'}

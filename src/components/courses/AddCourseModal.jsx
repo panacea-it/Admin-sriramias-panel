@@ -51,7 +51,6 @@ export default function AddCourseModal({
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [brochureUploading, setBrochureUploading] = useState(false)
-  const [demoVideoUploading, setDemoVideoUploading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
 
   const excludeId = isEditMode ? item?.id : null
@@ -60,7 +59,6 @@ export default function AddCourseModal({
     if (open) {
       setErrors({})
       setBrochureUploading(false)
-      setDemoVideoUploading(false)
     }
   }, [open])
 
@@ -149,10 +147,6 @@ export default function AddCourseModal({
       toast.error('Please wait for the brochure upload to finish')
       return
     }
-    if (demoVideoUploading) {
-      toast.error('Please wait for the demo video upload to finish')
-      return
-    }
     if (!validateBatch()) {
       toast.error('Please fix the highlighted fields')
       return
@@ -196,17 +190,20 @@ export default function AddCourseModal({
       size="full"
       title={modalTitle}
       showCloseButton={false}
+      className="flex max-h-[min(92vh,860px)] flex-col overflow-hidden"
     >
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[min(92vh,860px)] flex-col overflow-hidden rounded-2xl bg-[#eef2f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-[#eef2f7] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
-        <ModalPanelHeader title={modalTitle} onClose={handleClose} closeVariant="icon" />
+        <div className="shrink-0">
+          <ModalPanelHeader title={modalTitle} onClose={handleClose} closeVariant="icon" />
+        </div>
 
         {isDuplicateMode && (
           <div
             className={cn(
-              'mx-4 mt-4 flex items-start gap-3 rounded-xl border border-[#55ace7]/25 bg-[#eef6fc] px-4 py-3 sm:mx-8',
+              'mx-4 mt-4 flex shrink-0 items-start gap-3 rounded-xl border border-[#55ace7]/25 bg-[#eef6fc] px-4 py-3 sm:mx-8',
             )}
           >
             <Copy className="mt-0.5 h-4 w-4 shrink-0 text-[#246392]" />
@@ -228,7 +225,7 @@ export default function AddCourseModal({
               step={1}
               icon={BookOpen}
               title="Batch Details"
-              description="Name, course, schedule dates, banner image, brochure, and demo video for this batch."
+              description="Name, course, schedule dates, banner image, and brochure for this batch."
             >
               <BatchDetailsSection
                 form={form}
@@ -236,7 +233,6 @@ export default function AddCourseModal({
                 errors={errors}
                 setErrors={setErrors}
                 onBrochureUploadingChange={setBrochureUploading}
-                onDemoVideoUploadingChange={setDemoVideoUploading}
                 excludeCourseIds={[]}
                 isEditMode={isEditMode}
               />
@@ -270,7 +266,7 @@ export default function AddCourseModal({
 
         <BatchFormStickyFooter
           isEditMode={isEditMode}
-          saving={submitting || brochureUploading || demoVideoUploading || detailLoading}
+          saving={submitting || brochureUploading || detailLoading}
           onReset={() => {
             reset()
             setErrors({})

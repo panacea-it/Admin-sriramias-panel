@@ -1,4 +1,5 @@
 import { CRM_LEAD_STATUS_OPTIONS } from '../constants/crmLeadStatus'
+import { getMonthRange, getWeekRange, isSameCalendarDay, startOfDay } from '../utils/dailyCollectionUtils'
 
 export const LEAD_CENTERS = ['New Delhi', 'Hyderabad', 'Bangalore', 'Pune', 'Chennai']
 
@@ -17,7 +18,39 @@ export function parseLeadDisplayDate(dateStr) {
   if (!dateStr) return null
   const parsed = new Date(dateStr)
   if (Number.isNaN(parsed.getTime())) return null
-  return parsed
+  return startOfDay(parsed)
+}
+
+export function leadMatchesSelectedDate(row, selectedDate) {
+  if (!selectedDate) return true
+
+  const selected = startOfDay(selectedDate)
+  const displayParsed = parseLeadDisplayDate(row.date)
+  if (displayParsed) {
+    return isSameCalendarDay(displayParsed, selected)
+  }
+
+  const now = startOfDay(new Date())
+  const bucket = String(row.dateBucket || '').trim()
+
+  if (bucket === 'Today') {
+    return isSameCalendarDay(selected, now)
+  }
+  if (bucket === 'This Week') {
+    const { start, end } = getWeekRange(now)
+    return selected.getTime() >= start.getTime() && selected.getTime() <= end.getTime()
+  }
+  if (bucket === 'This Month') {
+    const { start, end } = getMonthRange(now)
+    return selected.getTime() >= start.getTime() && selected.getTime() <= end.getTime()
+  }
+
+  const parsed = parseLeadFilterInput(row.date)
+  if (parsed.valid) {
+    return isSameCalendarDay(startOfDay(parsed.date), selected)
+  }
+
+  return false
 }
 
 export function formatLeadFilterDate(date) {

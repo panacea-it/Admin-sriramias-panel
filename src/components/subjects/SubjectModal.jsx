@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { useForm } from 'react-hook-form'
 import { BookOpen } from 'lucide-react'
@@ -10,7 +10,16 @@ import SubjectContentFields from './SubjectContentFields'
 import { FormFooter } from './subjectFormUi'
 import { useAuth } from '../../contexts/AuthContext'
 import { useBatchesData } from '../../hooks/useBatchesData'
-import { useFacultySubjectFormOptions } from '../../hooks/useFacultySubjectFormOptions'
+import {
+  CATEGORY_OPTIONS,
+  SUBJECT_DROPDOWN_OPTIONS,
+  TEACHER_DROPDOWN_OPTIONS,
+  TOPIC_DROPDOWN_OPTIONS,
+} from '../../data/academicsSubjectsSeed'
+import {
+  SUBJECT_FORM_TEACHER_OPTIONS,
+  SUBJECT_FORM_TOPIC_OPTIONS,
+} from '../../data/subjectFormOptions'
 import {
   createRecurrenceFromSubjectForm,
   flattenSubjectsLiveClassesForConflicts,
@@ -21,6 +30,34 @@ import {
   subjectToForm,
   validateSubjectForm,
 } from './subjectFormUtils'
+
+function toNameOptions(items = []) {
+  return items.map((item) => ({ value: item, label: item }))
+}
+
+function topicsForSubject(subjectKey) {
+  const key = String(subjectKey || '').trim()
+  if (!key) return []
+  const fromHub = SUBJECT_FORM_TOPIC_OPTIONS.filter((t) => t.subject === key)
+  if (fromHub.length) return fromHub.map((t) => ({ value: t.name, label: t.name }))
+  return toNameOptions(TOPIC_DROPDOWN_OPTIONS)
+}
+
+function teachersForSubject(subjectKey) {
+  const key = String(subjectKey || '').trim()
+  if (!key) return []
+  const fromHub = SUBJECT_FORM_TEACHER_OPTIONS.filter((t) => t.subject === key)
+  if (fromHub.length) return fromHub.map((t) => ({ value: t.name, label: t.name }))
+  return toNameOptions(TEACHER_DROPDOWN_OPTIONS)
+}
+
+function mergeSelectOptions(current = [], incoming = []) {
+  const map = new Map(current.map((o) => [o.value, o]))
+  incoming.forEach((o) => {
+    if (o?.value) map.set(o.value, o)
+  })
+  return [...map.values()]
+}
 
 export default function SubjectModal({
   open,
@@ -43,17 +80,29 @@ export default function SubjectModal({
   const [recordingUploadError, setRecordingUploadError] = useState(null)
   const [testSeriesErrors, setTestSeriesErrors] = useState({})
 
-  const {
-    subjectOptions,
-    topicOptions,
-    teacherOptions,
-    categoryOptions,
-    loadingSubjects,
-    loadingCategories,
-    loadingFormOptions,
-    loadCreateFormOptions,
-    seedFormOptions,
-  } = useFacultySubjectFormOptions({ open, enabled: subjectOnly })
+  const subjectOptions = useMemo(
+    () => SUBJECT_DROPDOWN_OPTIONS.map((name) => ({ value: name, label: name })),
+    [],
+  )
+  const categoryOptions = CATEGORY_OPTIONS
+  const [topicOptions, setTopicOptions] = useState([])
+  const [teacherOptions, setTeacherOptions] = useState([])
+
+  const applySubjectFormOptions = useCallback((subjectKey, { merge = false } = {}) => {
+    const topics = topicsForSubject(subjectKey)
+    const teachers = teachersForSubject(subjectKey)
+    setTopicOptions((prev) => (merge ? mergeSelectOptions(prev, topics) : topics))
+    setTeacherOptions((prev) => (merge ? mergeSelectOptions(prev, teachers) : teachers))
+  }, [])
+
+  const seedFormOptions = useCallback(({ topics = [], teachers = [] } = {}) => {
+    if (topics.length) {
+      setTopicOptions((prev) => mergeSelectOptions(prev, topics))
+    }
+    if (teachers.length) {
+      setTeacherOptions((prev) => mergeSelectOptions(prev, teachers))
+    }
+  }, [])
 
   const [recurring, setRecurring] = useState(false)
   const [recurrence, setRecurrence] = useState(null)
@@ -76,9 +125,7 @@ export default function SubjectModal({
   subjectRef.current = subject
   const liveClassRef = useRef(liveClass)
   liveClassRef.current = liveClass
-  const seedKey = `${mode}:${context}:${getModalEditKey(subject ?? liveClass)}:${
-    subject?._hydrated ? 'ready' : 'pending'
-  }`
+  const seedKey = `${mode}:${context}:${getModalEditKey(subject ?? liveClass)}`
   const lastSubjectRef = useRef('')
 
   const syncRecurrenceState = (formValues) => {
@@ -97,16 +144,20 @@ export default function SubjectModal({
     clearErrors()
     setTestSeriesErrors({})
     setRecordingUploadError(null)
-    if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
-      seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
-    }
-    if (seeded.subject) {
-      loadCreateFormOptions(seeded.subject, { merge: isEdit }).then((formOptions) => {
-        const label = formOptions?.selectedSubject?.label
-        if (label && !seeded.subjectName?.trim()) {
-          setValue('subjectName', label)
-        }
-      })
+    if (subjectOnly) {
+      applySubjectFormOptions(seeded.subject, { merge: isEdit })
+      const existingTopics = Array.isArray(raw?.topics)
+        ? raw.topics.map((name) => ({ value: name, label: name }))
+        : raw?.topic
+          ? [{ value: raw.topic, label: raw.topic }]
+          : []
+      const existingTeacher = raw?.teacher
+        ? [{ value: raw.teacher, label: raw.teacher }]
+        : []
+      seedFormOptions({ topics: existingTopics, teachers: existingTeacher })
+      if (seeded.subject && !seeded.subjectName?.trim()) {
+        setValue('subjectName', seeded.subject)
+      }
     }
   })
 
@@ -114,22 +165,15 @@ export default function SubjectModal({
   const watchedSubjectId = watch('subject')
   const isRecurringEdit = isEdit && Boolean(liveClass?.recurrenceSeriesId)
 
-  const handleSubjectChange = async (subjectId) => {
+  const handleSubjectChange = (subjectId) => {
     const id = String(subjectId || '')
     if (id === lastSubjectRef.current) return
     lastSubjectRef.current = id
     setValue('teacher', '')
     setValue('topics', [])
-    if (!id) {
-      await loadCreateFormOptions('')
-      return
-    }
-    const selected = subjectOptions.find((o) => o.value === id)
-    const formOptions = await loadCreateFormOptions(id, { force: true })
-    const subjectLabel =
-      formOptions?.selectedSubject?.label || selected?.label || ''
-    if (subjectLabel && !watch('subjectName')?.trim()) {
-      setValue('subjectName', subjectLabel)
+    applySubjectFormOptions(id)
+    if (id && !watch('subjectName')?.trim()) {
+      setValue('subjectName', id)
     }
   }
 
@@ -179,7 +223,7 @@ export default function SubjectModal({
     setTestSeriesErrors({})
 
     if (subjectOnly && isEdit && detailLoading) {
-      toast.error('Subject details are still loading. Please wait.')
+      toast.error('Subject is still saving. Please wait.')
       return
     }
 
@@ -231,9 +275,6 @@ export default function SubjectModal({
                 topicOptions={topicOptions}
                 teacherOptions={teacherOptions}
                 categoryOptions={categoryOptions}
-                loadingSubjects={loadingSubjects || detailLoading}
-                loadingFormOptions={loadingFormOptions || detailLoading}
-                loadingCategories={loadingCategories}
                 onSubjectChange={handleSubjectChange}
                 disabledTopicsTeachers={!watchedSubjectId}
               />
@@ -284,10 +325,9 @@ export default function SubjectModal({
             lastSubjectRef.current = seeded.subject ? String(seeded.subject) : ''
             reset(seeded)
             syncRecurrenceState(seeded)
-            if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
-              seedFormOptions({ topics: raw.topicMeta || [], teachers: raw.teacherMeta || [] })
+            if (subjectOnly) {
+              applySubjectFormOptions(seeded.subject, { merge: isEdit })
             }
-            if (seeded.subject) loadCreateFormOptions(seeded.subject, { merge: isEdit })
           }}
         />
       </form>

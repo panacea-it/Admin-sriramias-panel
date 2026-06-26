@@ -135,7 +135,11 @@ export default function HelpSectionMediaUpload({
             </div>
           </div>
         ) : (
-          <label className="flex min-h-[118px] w-full cursor-pointer flex-col items-center justify-center gap-2 px-3 py-5 text-center transition hover:bg-[#f0f7fc] focus-within:ring-2 focus-within:ring-[#55ace7]/35">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="flex min-h-[118px] w-full cursor-pointer flex-col items-center justify-center gap-2 px-3 py-5 text-center transition hover:bg-[#f0f7fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/35"
+          >
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef6fc]">
               <Upload className="h-5 w-5 text-[#55ace7]" aria-hidden />
             </span>
@@ -146,7 +150,7 @@ export default function HelpSectionMediaUpload({
             <span className="max-w-[220px] text-xs text-gray-500">
               Drag & drop or click to browse
             </span>
-          </label>
+          </button>
         )}
 
         <input
