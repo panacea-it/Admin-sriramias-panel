@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { ImageIcon, RefreshCw, Upload, Video, X } from 'lucide-react'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
+import { resolveCourseMediaUrl } from '../../utils/courseMediaPrefill'
 
 export function revokeBlobUrl(url) {
   if (typeof url === 'string' && url.startsWith('blob:')) {
@@ -24,7 +25,8 @@ export default function HelpSectionMediaUpload({
   const [dragOver, setDragOver] = useState(false)
   const [validationError, setValidationError] = useState(null)
   const profile = variant === 'video' ? 'VIDEO_STANDARD' : 'IMAGE_BANNER'
-  const hasPreview = Boolean(preview || fileName)
+  const displayPreview = useMemo(() => resolveCourseMediaUrl(preview), [preview])
+  const hasPreview = Boolean(displayPreview || fileName)
 
   const applyFile = useCallback(
     async (nextFile) => {
@@ -82,10 +84,12 @@ export default function HelpSectionMediaUpload({
           <div className="p-3">
             {variant === 'video' ? (
               <div className="overflow-hidden rounded-lg bg-black/5">
-                {preview ? (
+                {displayPreview ? (
                   <video
-                    src={preview}
+                    src={displayPreview}
                     controls
+                    playsInline
+                    preload="metadata"
                     className="max-h-32 w-full rounded-lg bg-black object-contain"
                     aria-label="Video preview"
                   />
@@ -97,9 +101,9 @@ export default function HelpSectionMediaUpload({
               </div>
             ) : (
               <div className="flex min-h-[100px] items-center justify-center rounded-lg bg-white p-2">
-                {preview ? (
+                {displayPreview ? (
                   <img
-                    src={preview}
+                    src={displayPreview}
                     alt=""
                     className="max-h-28 max-w-full rounded-md object-contain shadow-sm"
                   />

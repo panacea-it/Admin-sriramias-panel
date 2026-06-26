@@ -5,6 +5,7 @@
 /** @typedef {import('../types/city.types').CityListParams} CityListParams */
 /** @typedef {import('../types/classroom.types').ClassroomListParams} ClassroomListParams */
 /** @typedef {import('../types/classroom.types').ClassroomDropdownParams} ClassroomDropdownParams */
+/** @typedef {import('../types/classSection.types').ClassSectionListParams} ClassSectionListParams */
 
 export const subjectKeys = {
   all: ['subjects'],
@@ -56,6 +57,17 @@ export const classroomKeys = {
   detail: (id) => [...classroomKeys.details(), id],
   /** @param {ClassroomDropdownParams} [params] */
   dropdown: (params) => [...classroomKeys.all, 'dropdown', params ?? {}],
+}
+
+export const classSectionKeys = {
+  all: ['classSections'],
+  lists: () => [...classSectionKeys.all, 'list'],
+  /** @param {ClassSectionListParams} [params] */
+  list: (params) => [...classSectionKeys.lists(), params ?? {}],
+  details: () => [...classSectionKeys.all, 'detail'],
+  detail: (id) => [...classSectionKeys.details(), id],
+  /** @param {string} subjectId */
+  dropdown: (subjectId) => [...classSectionKeys.all, 'dropdown', subjectId ?? ''],
 }
 
 export const freeResourceKeys = {

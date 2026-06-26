@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, Controller } from 'react-hook-form'
 import { ChevronDown, ChevronUp, ImageIcon, Sparkles, Upload, X } from 'lucide-react'
 import { CourseAddMoreLink, CourseFormField, CourseInput, CourseTextarea } from './CourseFormField'
 import { emptyWhyChooseFeature, normalizeWhyChooseFeatures } from '../../utils/whyChooseFeatures'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
+import { resolveCourseMediaUrl } from '../../utils/courseMediaPrefill'
 import { cn } from '../../utils/cn'
 
 const ICON_ACCEPT = 'image/jpeg,image/png,image/webp,image/svg+xml'
@@ -35,17 +36,18 @@ function HighlightSwitch({ checked, onChange, id }) {
 function FeatureIconUpload({ value, fileName, onFile }) {
   const inputRef = useRef(null)
   const [uploadError, setUploadError] = useState(null)
+  const displayValue = useMemo(() => resolveCourseMediaUrl(value), [value])
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div
         className={cn(
           'flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-[#fafcff]',
-          value && 'border-[#55ace7]/40 bg-white',
+          displayValue && 'border-[#55ace7]/40 bg-white',
         )}
       >
-        {value ? (
-          <img src={value} alt="" className="h-full w-full object-contain p-1.5" />
+        {displayValue ? (
+          <img src={displayValue} alt="" className="h-full w-full object-contain p-1.5" />
         ) : (
           <ImageIcon className="h-8 w-8 text-[#93c5fd]" strokeWidth={1.8} />
         )}

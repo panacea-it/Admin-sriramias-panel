@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
+import { isMongoObjectId } from '../../../utils/facultySubjectHelpers'
 import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import {
   FREE_RESOURCE_CATEGORY,
@@ -48,7 +49,10 @@ export default function ResourceCategoryRenderer({
     case FREE_RESOURCE_CATEGORY.NCERT: {
       const dropdowns = ncertBookDropdowns ?? {
         subjectOptions: [],
+        classOptions: [],
         loading: false,
+        loadingClasses: false,
+        classesError: false,
         error: null,
         retry: () => {},
       }
@@ -60,7 +64,31 @@ export default function ResourceCategoryRenderer({
       ) {
         subjectOptions = [{ value: currentSubject, label: currentSubject }, ...subjectOptions]
       }
-      const dropdownsLoading = dropdowns.loading
+      const subjectsLoading = dropdowns.loading
+      const classesLoading = dropdowns.loadingClasses
+      const currentClass = watch('className')
+      let classOptions = dropdowns.classOptions || []
+      if (
+        currentClass &&
+        !classOptions.some((option) => option.value === currentClass)
+      ) {
+        classOptions = [{ value: currentClass, label: currentClass }, ...classOptions]
+      }
+      const hasSubject = isMongoObjectId(currentSubject)
+      const classSelectDisabled =
+        !hasSubject ||
+        classesLoading ||
+        dropdowns.classesError ||
+        (!classesLoading && hasSubject && classOptions.length === 0)
+
+      let classPlaceholder = 'Choose class'
+      if (!hasSubject) {
+        classPlaceholder = 'Select Subject First'
+      } else if (classesLoading) {
+        classPlaceholder = 'Loading Classes...'
+      } else if (classOptions.length === 0) {
+        classPlaceholder = 'No Classes Available'
+      }
 
       return (
         <Grid>
@@ -68,11 +96,11 @@ export default function ResourceCategoryRenderer({
             <div className="relative">
               <CourseSelect
                 {...register('subject')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
+                disabled={subjectsLoading}
+                className={subjectsLoading ? 'opacity-70' : undefined}
               >
                 <option value="">
-                  {dropdownsLoading ? 'Loading subjects…' : 'Choose subject'}
+                  {subjectsLoading ? 'Loading subjects…' : 'Choose subject'}
                 </option>
                 {subjectOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -80,14 +108,14 @@ export default function ResourceCategoryRenderer({
                   </option>
                 ))}
               </CourseSelect>
-              {dropdownsLoading ? (
+              {subjectsLoading ? (
                 <Loader2
                   className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
                   aria-hidden
                 />
               ) : null}
             </div>
-            {dropdowns.error && !dropdownsLoading && subjectOptions.length === 0 ? (
+            {dropdowns.error && !subjectsLoading && subjectOptions.length === 0 ? (
               <button
                 type="button"
                 onClick={dropdowns.retry}
@@ -102,19 +130,17 @@ export default function ResourceCategoryRenderer({
             <div className="relative">
               <CourseSelect
                 {...register('className')}
-                disabled={dropdownsLoading}
-                className={dropdownsLoading ? 'opacity-70' : undefined}
+                disabled={classSelectDisabled}
+                className={classSelectDisabled ? 'opacity-70' : undefined}
               >
-                <option value="">
-                  {dropdownsLoading ? 'Loading classes…' : 'Choose class'}
-                </option>
-                {(dropdowns.classOptions || []).map((option) => (
+                <option value="">{classPlaceholder}</option>
+                {classOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </CourseSelect>
-              {dropdownsLoading ? (
+              {classesLoading ? (
                 <Loader2
                   className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#246392]"
                   aria-hidden

@@ -69,6 +69,7 @@ export default function ClassTable({
   onToggleStatus,
   resetDeps = [],
   selection,
+  controlledPagination,
 }) {
   const columns = useMemo(() => {
     return [
@@ -129,6 +130,7 @@ export default function ClassTable({
       itemLabel="classes"
       resetDeps={resetDeps}
       selection={selection}
+      controlledPagination={controlledPagination}
       tableMinWidth={960}
     />
   )

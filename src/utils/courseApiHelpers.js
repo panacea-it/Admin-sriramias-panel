@@ -337,6 +337,19 @@ export async function buildCourseFormData(form, { isEdit = false, originalCourse
     }
   }
 
+  if (form.demoVideoFile instanceof File) {
+    formData.append('demoVideo', form.demoVideoFile)
+  } else if (
+    isEdit &&
+    (originalCourse?.demoVideo ||
+      originalCourse?.demoVideoUrl ||
+      originalCourse?.introVideo ||
+      originalCourse?.videoUrl) &&
+    !isExistingMediaUrl(form.demoVideoUrl)
+  ) {
+    formData.append('demoVideoRemoveVideo', 'true')
+  }
+
   return formData
 }
 
@@ -592,11 +605,25 @@ export function mapApiCourseToLocal(data) {
   const category = row.academicCategory ?? row.category
   const subCategory = row.academicSubCategory ?? row.subCategory
 
-  const keyFeatureImageUrl = resolveCourseMediaUrl(row.keyFeatureImage)
-  const whyChooseImages = normalizeCourseMediaList(row.whyChooseImages)
-  const whyChooseVideoUrl = resolveCourseMediaUrl(row.whyChooseVideo)
-  const helpSectionImages = normalizeCourseMediaList(row.helpSectionImages)
-  const helpSectionVideoUrl = resolveCourseMediaUrl(row.helpSectionVideo)
+  const keyFeatureImageUrl = resolveCourseMediaUrl(
+    row.keyFeatureImage ??
+      row.featuredImage ??
+      row.thumbnail ??
+      row.bannerImage ??
+      row.courseImage,
+  )
+  const whyChooseImages = normalizeCourseMediaList(
+    row.whyChooseImages ?? row.gallery ?? row.media?.images,
+  )
+  const whyChooseVideoUrl = resolveCourseMediaUrl(
+    row.whyChooseVideo ?? row.media?.whyChooseVideo,
+  )
+  const helpSectionImages = normalizeCourseMediaList(
+    row.helpSectionImages ?? row.media?.helpSectionImages,
+  )
+  const helpSectionVideoUrl = resolveCourseMediaUrl(
+    row.helpSectionVideo ?? row.media?.helpSectionVideo,
+  )
   const demoVideoFields = mapDemoVideoFromCourse(row)
 
   let mapped = {

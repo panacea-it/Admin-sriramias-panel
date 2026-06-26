@@ -1,20 +1,25 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { School } from 'lucide-react'
 import Modal from '../../../../components/ui/Modal'
 import ModalPanelHeader from '../../../../components/courses/ModalPanelHeader'
 import { getModalEditKey, useInitOnModalOpen } from '../../../../hooks/modalFormSync'
+import { getApiErrorMessage } from '../../../../utils/apiError'
 import { toast } from '../../../../utils/toast'
-import { SUBJECT_OPTIONS } from './classesData'
+import { mapClassSectionApiErrors } from './classApiHelpers'
 
 function buildForm(item) {
   if (item) {
     return {
-      subject: item.subject || '',
+      subjectId: item.subjectId || '',
       name: item.name || '',
-      status: item.status === 'Inactive' || item.status === 'In Active' ? 'Inactive' : 'Active',
+      status: item.status || 'Active',
     }
   }
-  return { subject: '', name: '', status: 'Active' }
+  return {
+    subjectId: '',
+    name: '',
+    status: 'Active',
+  }
 }
 
 function Field({ label, required, children, error }) {
@@ -33,7 +38,16 @@ function Field({ label, required, children, error }) {
 const inputClass =
   'h-11 w-full rounded-lg bg-[#e8f4fc] px-4 text-sm font-medium text-[#222] outline-none transition focus:ring-2 focus:ring-[#55ace7]'
 
-export default function AddEditClassModal({ open, onClose, item, onSubmit, submitting = false }) {
+export default function AddEditClassModal({
+  open,
+  onClose,
+  item,
+  loading = false,
+  onSubmit,
+  submitting = false,
+  subjectOptions = [],
+  subjectsLoading = false,
+}) {
   const isEdit = Boolean(item)
   const [form, setForm] = useState(buildForm(null))
   const [errors, setErrors] = useState({})
@@ -48,6 +62,11 @@ export default function AddEditClassModal({ open, onClose, item, onSubmit, submi
     setErrors({})
   })
 
+  useEffect(() => {
+    if (!open || !item || loading) return
+    setForm(buildForm(item))
+  }, [open, item, loading])
+
   const title = isEdit ? 'Edit Class' : 'Add Class'
 
   const handleClose = () => {
@@ -59,9 +78,12 @@ export default function AddEditClassModal({ open, onClose, item, onSubmit, submi
 
   const validate = () => {
     const next = {}
-    if (!form.subject) next.subject = 'Select a subject'
-    if (!form.name.trim()) next.name = 'This field is required'
+    if (!form.subjectId) next.subjectId = 'Select a subject'
+    const className = form.name.trim()
+    if (!className) next.name = 'This field is required'
+    else if (className.length > 100) next.name = 'Class name must be at most 100 characters'
     if (!form.status) next.status = 'Status is required'
+
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -76,12 +98,21 @@ export default function AddEditClassModal({ open, onClose, item, onSubmit, submi
     try {
       await onSubmit?.(form, { isEdit, id: item?.id })
       handleClose()
-    } catch {
-      // Parent shows toast; keep modal open
+    } catch (error) {
+      const fieldErrors = mapClassSectionApiErrors(error)
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }))
+      }
+      const message = getApiErrorMessage(error, 'Failed to save class')
+      if (Object.keys(fieldErrors).length === 0) {
+        toast.error(message)
+      }
     }
   }
 
   if (!open) return null
+
+  const formDisabled = submitting || loading
 
   return (
     <Modal open={open} onClose={handleClose} size="lg" title={title} showCloseButton={false}>
@@ -103,64 +134,73 @@ export default function AddEditClassModal({ open, onClose, item, onSubmit, submi
         </div>
 
         <div className="space-y-4 px-5 py-6 sm:px-6 sm:py-7">
-          <Field label="Subject" required error={errors.subject}>
-            <select
-              value={form.subject}
-              disabled={submitting}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, subject: e.target.value }))
-                if (errors.subject) setErrors((p) => ({ ...p, subject: undefined }))
-              }}
-              className={inputClass}
-            >
-              <option value="">Select Subject</option>
-              {SUBJECT_OPTIONS.map((subject) => (
-                <option key={subject} value={subject}>
-                  {subject}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {loading ? (
+            <p className="text-center text-sm text-[#686868]">Loading class details…</p>
+          ) : (
+            <>
+              <Field label="Subject" required error={errors.subjectId}>
+                <select
+                  value={form.subjectId}
+                  disabled={formDisabled || subjectsLoading}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, subjectId: e.target.value }))
+                    if (errors.subjectId) setErrors((p) => ({ ...p, subjectId: undefined }))
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">
+                    {subjectsLoading ? 'Loading subjects…' : 'Select Subject'}
+                  </option>
+                  {subjectOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-          <Field label="Class Name" required error={errors.name}>
-            <input
-              type="text"
-              value={form.name}
-              disabled={submitting}
-              placeholder="Enter Class Name"
-              onChange={(e) => {
-                setForm((f) => ({ ...f, name: e.target.value }))
-                if (errors.name) setErrors((p) => ({ ...p, name: undefined }))
-              }}
-              className={inputClass}
-            />
-          </Field>
+              <Field label="Class Name" required error={errors.name}>
+                <input
+                  type="text"
+                  value={form.name}
+                  disabled={formDisabled}
+                  placeholder="Enter Class Name"
+                  maxLength={100}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                    if (errors.name) setErrors((p) => ({ ...p, name: undefined }))
+                  }}
+                  className={inputClass}
+                />
+              </Field>
 
-          <Field label="Status" required error={errors.status}>
-            <select
-              value={form.status}
-              disabled={submitting}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              className={inputClass}
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </Field>
+              <Field label="Status" required error={errors.status}>
+                <select
+                  value={form.status}
+                  disabled={formDisabled}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="Active">Active</option>
+                  <option value="In Active">Inactive</option>
+                </select>
+              </Field>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 px-5 py-5 sm:gap-4">
           <button
             type="button"
             onClick={handleClose}
-            disabled={submitting}
+            disabled={formDisabled}
             className="min-w-[120px] rounded-lg border border-slate-200 bg-white px-8 py-2.5 text-sm font-semibold text-[#444] shadow-sm transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={formDisabled || loading}
             className="min-w-[120px] rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-8 py-2.5 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(3,4,94,0.35)] transition hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
           >
             {submitting ? 'Saving…' : isEdit ? 'Update Class' : 'Save Class'}

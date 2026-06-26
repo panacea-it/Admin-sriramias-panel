@@ -550,12 +550,12 @@ export function validateNcertBookPdf(file) {
 }
 
 export function buildNcertBookFormData(
-  { subject, className, bookName, status, bookFile },
+  { subjectId, classId, bookName, status, bookFile },
   { isEdit = false } = {},
 ) {
   const formData = new FormData()
-  formData.append('subject', String(subject || '').trim())
-  formData.append('class', normalizeNcertBookClassValue(className))
+  formData.append('subjectId', String(subjectId || '').trim())
+  formData.append('classId', String(classId || '').trim())
   formData.append('bookName', String(bookName || '').trim())
   formData.append('status', String(status || 'ACTIVE').trim().toUpperCase())
 
@@ -574,6 +574,40 @@ function unwrapNcertBookRecord(data) {
   return data?.data ?? data?.ncertBook ?? data
 }
 
+function resolveNcertBookMongoId(...candidates) {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim()
+    if (/^[a-f0-9]{24}$/i.test(value)) return value
+  }
+  return ''
+}
+
+function resolveNcertBookSubjectValue(item) {
+  if (item?.subject && typeof item.subject === 'object') {
+    const fromSubject = resolveNcertBookMongoId(item.subject._id, item.subject.id)
+    if (fromSubject) return fromSubject
+  }
+
+  return resolveNcertBookMongoId(item.subjectId, item.subject)
+}
+
+function resolveNcertBookClassValue(item) {
+  if (item?.classSection && typeof item.classSection === 'object') {
+    const fromClassSection = resolveNcertBookMongoId(
+      item.classSection._id,
+      item.classSection.id,
+    )
+    if (fromClassSection) return fromClassSection
+  }
+
+  if (item?.class && typeof item.class === 'object') {
+    const fromClass = resolveNcertBookMongoId(item.class._id, item.class.id)
+    if (fromClass) return fromClass
+  }
+
+  return resolveNcertBookMongoId(item.classId, item.class)
+}
+
 export function mapNcertBookApiToForm(raw, categoryOptions = []) {
   const item = unwrapNcertBookRecord(raw) || {}
   const status = String(item.status || 'ACTIVE').toUpperCase()
@@ -589,8 +623,8 @@ export function mapNcertBookApiToForm(raw, categoryOptions = []) {
       FREE_RESOURCE_CATEGORY.NCERT,
     ),
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-    subject: item.subject || '',
-    className: item.class || item.className || '',
+    subject: resolveNcertBookSubjectValue(item),
+    className: resolveNcertBookClassValue(item),
     bookName: item.bookName || item.resourceName || '',
     bookFileName: item.fileName || fileMeta.fileName || '',
     bookFile: null,

@@ -100,7 +100,9 @@ function validateNcertBookFields(values, { isEdit = false } = {}) {
     errors.subject = 'Select subject'
   }
   if (!String(values.className || '').trim()) {
-    errors.className = 'Class is required'
+    errors.className = String(values.subject || '').trim()
+      ? 'Please select Class.'
+      : 'Class is required'
   }
   if (!String(values.bookName || '').trim()) {
     errors.bookName = 'Book name is required'
@@ -263,8 +265,10 @@ export default function AddFreeResourceModal({
   const category = watch('category')
   const status = watch('status')
   const paperType = watch('paperType')
+  const selectedSubject = watch('subject')
   const prevCategoryRef = useRef('')
   const prevPaperTypeRef = useRef('')
+  const prevNcertSubjectRef = useRef('')
   const rendererCategory = useMemo(
     () => resolveFreeResourceRendererCategory(category, categoryOptions),
     [category, categoryOptions],
@@ -305,7 +309,11 @@ export default function AddFreeResourceModal({
   )
   const mockTestDropdowns = useMockTestDropdowns(open, isMockTestSelected)
   const studyMaterialDropdowns = useStudyMaterialDropdowns(open, isStudyMaterialSelected)
-  const ncertBookDropdowns = useNcertBookDropdowns(open, isNcertSelected || isNcertEdit)
+  const ncertBookDropdowns = useNcertBookDropdowns(
+    open,
+    isNcertSelected || isNcertEdit,
+    selectedSubject,
+  )
   const resolvedStatusOptions =
     statusOptions.length > 0 ? statusOptions : DEFAULT_STATUS_OPTIONS
 
@@ -316,6 +324,34 @@ export default function AddFreeResourceModal({
       setValue('status', normalizedStatus, { shouldDirty: false })
     }
   }, [open, isEditMode, status, setValue])
+
+  useEffect(() => {
+    if (!open) {
+      prevNcertSubjectRef.current = ''
+      return
+    }
+
+    if (!isNcertSelected && !isNcertEdit) return
+    if (detailLoading) return
+
+    const currentSubject = String(selectedSubject || '').trim()
+    const previousSubject = prevNcertSubjectRef.current
+
+    if (previousSubject && previousSubject !== currentSubject) {
+      setValue('className', '', { shouldDirty: true })
+      clearErrors('className')
+    }
+
+    prevNcertSubjectRef.current = currentSubject
+  }, [
+    open,
+    isNcertSelected,
+    isNcertEdit,
+    selectedSubject,
+    detailLoading,
+    setValue,
+    clearErrors,
+  ])
 
   useInitOnModalOpen(open, editKey, () => {
     const seeded = freeResourceRowToForm(itemRef.current)
@@ -454,6 +490,7 @@ export default function AddFreeResourceModal({
         if (canceled) return
         const formValues = mapNcertBookApiToForm(data, categoryOptions)
         prevCategoryRef.current = formValues.category || ''
+        prevNcertSubjectRef.current = String(formValues.subject || '').trim()
         reset((current) => ({
           ...current,
           ...formValues,
@@ -685,8 +722,8 @@ export default function AddFreeResourceModal({
     try {
       if (isNcertCreate) {
         const response = await freeResourceService.createNcertBook({
-          subject: values.subject,
-          className: values.className,
+          subjectId: values.subject,
+          classId: values.className,
           bookName: values.bookName,
           status: values.status,
           bookFile: values.bookFile,
@@ -714,8 +751,8 @@ export default function AddFreeResourceModal({
 
       if (isNcertEdit && ncertBookId) {
         await freeResourceService.updateNcertBook(ncertBookId, {
-          subject: values.subject,
-          className: values.className,
+          subjectId: values.subject,
+          classId: values.className,
           bookName: values.bookName,
           status: values.status,
           bookFile: values.bookFile,

@@ -13,15 +13,21 @@ function DetailItem({ label, children }) {
   )
 }
 
-export default function ViewClassModal({ open, onClose, item }) {
-  if (!open || !item) return null
+export default function ViewClassModal({ open, onClose, item, loading = false }) {
+  if (!open) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title={`View ${item.name}`} showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title={item ? `View ${item.name}` : 'View Class'}
+      showCloseButton={false}
+    >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <ModalPanelHeader
-          title={item.name}
-          subtitle={item.subject}
+          title={item?.name || 'Class'}
+          subtitle={item?.subject}
           onClose={onClose}
           icon={School}
           iconClassName="text-[#246392]"
@@ -33,15 +39,23 @@ export default function ViewClassModal({ open, onClose, item }) {
           <h3 className="border-b border-[#eef2fc] pb-2 text-sm font-bold uppercase tracking-wide text-[#246392]">
             Class Details
           </h3>
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <DetailItem label="Subject">{item.subject || '—'}</DetailItem>
-            <DetailItem label="Class Name">{item.name || '—'}</DetailItem>
-            <DetailItem label="Status">
-              <CategoryStatusBadge status={item.status} />
-            </DetailItem>
-            <DetailItem label="Created On">{formatCategoryDateTime(item.createdAt)}</DetailItem>
-            <DetailItem label="Last Updated">{formatCategoryDateTime(item.modifiedAt)}</DetailItem>
-          </dl>
+
+          {loading ? (
+            <p className="text-sm text-[#686868]">Loading class details…</p>
+          ) : !item ? (
+            <p className="text-sm text-[#686868]">Class not found.</p>
+          ) : (
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <DetailItem label="Class ID">{item.classSectionId || '—'}</DetailItem>
+              <DetailItem label="Subject">{item.subject || '—'}</DetailItem>
+              <DetailItem label="Class Name">{item.name || '—'}</DetailItem>
+              <DetailItem label="Status">
+                <CategoryStatusBadge status={item.status} />
+              </DetailItem>
+              <DetailItem label="Created On">{formatCategoryDateTime(item.createdAt)}</DetailItem>
+              <DetailItem label="Last Updated">{formatCategoryDateTime(item.modifiedAt)}</DetailItem>
+            </dl>
+          )}
         </div>
 
         <footer className="border-t border-[#eef2fc] bg-[#fafafa] px-5 py-4 text-right sm:px-6">

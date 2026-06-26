@@ -1,58 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { freeResourceService } from '../services/freeResourceService'
+import { toast } from '@/utils/toast'
+import { classSectionService } from '../services/classSectionService'
+import { getSubjectsDropdown } from '../services/subjectService'
 import { createCachedRequest } from '../utils/apiRequestCache'
+import { isMongoObjectId } from '../utils/facultySubjectHelpers'
+import { normalizeClassSectionsDropdownResponse } from '../pages/academics/categories/classes/classApiHelpers'
+import { normalizeSubjectsDropdownResponse } from '../pages/academics/categories/subject/subjectHelpers'
 
 const SUBJECT_CACHE_KEY = 'free-resource-ncert-subjects'
-const CLASS_CACHE_KEY = 'free-resource-ncert-classes'
 
 const subjectCache = createCachedRequest({ ttlMs: 5 * 60_000 })
-const classCache = createCachedRequest({ ttlMs: 5 * 60_000 })
 
-function mapStringArrayToOptions(data) {
-  const items = Array.isArray(data) ? data : []
-  return items.map((value) => ({
-    value: String(value),
-    label: String(value),
-  }))
-}
-
-export function useNcertBookDropdowns(open, enabled) {
+export function useNcertBookDropdowns(open, enabled, selectedSubjectId) {
   const [subjectOptions, setSubjectOptions] = useState([])
   const [classOptions, setClassOptions] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadingClasses, setLoadingClasses] = useState(false)
   const [error, setError] = useState(null)
-  const abortRef = useRef(null)
+  const [classesError, setClassesError] = useState(false)
+  const subjectAbortRef = useRef(null)
+  const classesAbortRef = useRef(null)
 
-  const loadDropdowns = useCallback(async ({ bypassCache = false } = {}) => {
-    abortRef.current?.abort()
+  const loadSubjects = useCallback(async ({ bypassCache = false } = {}) => {
+    subjectAbortRef.current?.abort()
     const controller = new AbortController()
-    abortRef.current = controller
+    subjectAbortRef.current = controller
 
     setLoading(true)
     setError(null)
 
     try {
-      const [subjectsData, classesData] = await Promise.all([
-        subjectCache.fetch(
-          SUBJECT_CACHE_KEY,
-          () => freeResourceService.getNcertSubjectsDropdown({ signal: controller.signal }),
-          { bypass: bypassCache },
-        ),
-        classCache.fetch(
-          CLASS_CACHE_KEY,
-          () => freeResourceService.getNcertClassesDropdown({ signal: controller.signal }),
-          { bypass: bypassCache },
-        ),
-      ])
+      const subjectsData = await subjectCache.fetch(
+        SUBJECT_CACHE_KEY,
+        () => getSubjectsDropdown(),
+        { bypass: bypassCache },
+      )
 
       if (controller.signal.aborted) return
 
-      setSubjectOptions(mapStringArrayToOptions(subjectsData))
-      setClassOptions(mapStringArrayToOptions(classesData))
+      setSubjectOptions(normalizeSubjectsDropdownResponse(subjectsData))
     } catch (err) {
       if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
       setSubjectOptions([])
-      setClassOptions([])
       setError(err)
     } finally {
       if (!controller.signal.aborted) {
@@ -61,29 +50,82 @@ export function useNcertBookDropdowns(open, enabled) {
     }
   }, [])
 
+  const fetchClassesBySubject = useCallback(async (subjectId) => {
+    classesAbortRef.current?.abort()
+
+    const id = String(subjectId || '').trim()
+    if (!id || !isMongoObjectId(id)) {
+      setClassOptions([])
+      setLoadingClasses(false)
+      setClassesError(false)
+      return
+    }
+
+    const controller = new AbortController()
+    classesAbortRef.current = controller
+
+    setLoadingClasses(true)
+    setClassesError(false)
+    setClassOptions([])
+
+    try {
+      const data = await classSectionService.getClassSectionsDropdown(id)
+      if (controller.signal.aborted) return
+      setClassOptions(normalizeClassSectionsDropdownResponse(data))
+    } catch (err) {
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+      setClassOptions([])
+      setClassesError(true)
+      toast.error('Unable to load classes. Please try again.')
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoadingClasses(false)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     if (!open || !enabled) {
-      abortRef.current?.abort()
+      subjectAbortRef.current?.abort()
+      classesAbortRef.current?.abort()
       setLoading(false)
+      setLoadingClasses(false)
+      setClassOptions([])
+      setClassesError(false)
       return undefined
     }
 
-    loadDropdowns()
+    loadSubjects()
 
     return () => {
-      abortRef.current?.abort()
+      subjectAbortRef.current?.abort()
     }
-  }, [open, enabled, loadDropdowns])
+  }, [open, enabled, loadSubjects])
+
+  useEffect(() => {
+    if (!open || !enabled) {
+      return undefined
+    }
+
+    fetchClassesBySubject(selectedSubjectId)
+
+    return () => {
+      classesAbortRef.current?.abort()
+    }
+  }, [open, enabled, selectedSubjectId, fetchClassesBySubject])
 
   const retry = useCallback(() => {
-    loadDropdowns({ bypassCache: true })
-  }, [loadDropdowns])
+    loadSubjects({ bypassCache: true })
+  }, [loadSubjects])
 
   return {
     subjectOptions,
     classOptions,
     loading,
+    loadingClasses,
     error,
+    classesError,
     retry,
+    fetchClassesBySubject,
   }
 }

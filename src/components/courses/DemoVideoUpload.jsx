@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Film, Loader2, RefreshCw, Upload, X } from 'lucide-react'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { UPLOAD_PROFILES } from '../../constants/uploadConstraints'
 import { formatBytesLabel, validateUploadFile } from '../../utils/uploadValidation'
+import { resolveCourseMediaUrl } from '../../utils/courseMediaPrefill'
 
 const PROFILE = 'BATCH_DEMO_VIDEO'
 const ACCEPT = UPLOAD_PROFILES.BATCH_DEMO_VIDEO.accept
@@ -23,7 +24,8 @@ export default function DemoVideoUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState('')
 
-  const hasVideo = Boolean(videoUrl)
+  const displayVideoUrl = useMemo(() => resolveCourseMediaUrl(videoUrl), [videoUrl])
+  const hasVideo = Boolean(displayVideoUrl)
   const displayName = fileName || (hasVideo ? 'Demo video' : '')
 
   const applyFile = async (file) => {
@@ -67,6 +69,9 @@ export default function DemoVideoUpload({
 
   const handleRemove = () => {
     if (disabled || uploading) return
+    if (videoUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(videoUrl)
+    }
     setValidationError(null)
     setUploadStatus('')
     onChange?.({
@@ -99,7 +104,7 @@ export default function DemoVideoUpload({
         >
           <div className="border-b border-[#55ace7]/10 bg-[#1a3a5c] p-2 sm:p-3">
             <video
-              src={videoUrl}
+              src={displayVideoUrl}
               controls
               playsInline
               preload="metadata"

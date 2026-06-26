@@ -62,10 +62,6 @@ function AddCourseButton({ onClick, disabled }) {
   )
 }
 
-function hasCourseFormFields(row) {
-  return Boolean(row?.centerId && row?.programId && row?.examCategoryId && row?.examSubCategoryId)
-}
-
 export default function CategoryCoursesSection() {
   const { isSuperAdmin } = useAuth()
 
@@ -179,9 +175,7 @@ export default function CategoryCoursesSection() {
     async (row) => {
       setViewItem(row)
       setViewDetail(row)
-      setViewDetailLoading(!hasCourseFormFields(row))
-
-      if (hasCourseFormFields(row)) return
+      setViewDetailLoading(true)
 
       try {
         const detail = await loadCourseDetail(row)

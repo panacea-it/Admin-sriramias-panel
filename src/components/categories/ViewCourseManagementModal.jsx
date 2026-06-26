@@ -3,6 +3,10 @@ import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import CategoryStatusBadge from './CategoryStatusBadge'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import {
+  normalizeCourseMediaList,
+  resolveCourseMediaUrl,
+} from '../../utils/courseMediaPrefill'
 
 function DetailItem({ label, children }) {
   return (
@@ -13,8 +17,76 @@ function DetailItem({ label, children }) {
   )
 }
 
+function MediaImage({ src, label }) {
+  const url = resolveCourseMediaUrl(src)
+  if (!url) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">{label}</p>
+      <div className="overflow-hidden rounded-xl border border-[#eef2fc] bg-white p-2">
+        <img src={url} alt={label} className="mx-auto max-h-48 w-full object-contain" />
+      </div>
+    </div>
+  )
+}
+
+function MediaVideo({ src, label }) {
+  const url = resolveCourseMediaUrl(src)
+  if (!url) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">{label}</p>
+      <div className="overflow-hidden rounded-xl border border-[#eef2fc] bg-[#1a3a5c] p-2">
+        <video
+          src={url}
+          controls
+          playsInline
+          preload="metadata"
+          className="mx-auto max-h-52 w-full rounded-lg object-contain"
+        >
+          Your browser does not support video playback.
+        </video>
+      </div>
+    </div>
+  )
+}
+
+function MediaGallery({ images = [], label }) {
+  const urls = normalizeCourseMediaList(images)
+  if (!urls.length) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">{label}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {urls.map((url) => (
+          <div
+            key={url}
+            className="overflow-hidden rounded-xl border border-[#eef2fc] bg-white p-2"
+          >
+            <img src={url} alt="" className="mx-auto max-h-40 w-full object-contain" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ViewCourseManagementModal({ open, onClose, item, loading = false }) {
   if (!open || !item) return null
+
+  const keyFeatureImage = item.keyFeatureImage || item.keyFeatures?.[0]?.preview
+  const demoVideo =
+    item.demoVideoUrl || item.demoVideo || item.introVideo || item.videoUrl || item.previewVideo
+  const whyChooseVideo = item.whyChooseVideo
+  const helpSectionVideo = item.helpSectionVideo || item.howWill?.[0]?.preview
+
+  const hasMedia =
+    keyFeatureImage ||
+    demoVideo ||
+    whyChooseVideo ||
+    helpSectionVideo ||
+    item.whyChooseImages?.length ||
+    item.helpSectionImages?.length
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title={`View ${item.name}`} showCloseButton={false}>
@@ -68,6 +140,22 @@ export default function ViewCourseManagementModal({ open, onClose, item, loading
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#333]">
                     {item.overview}
                   </p>
+                </div>
+              ) : null}
+
+              {hasMedia ? (
+                <div className="space-y-4 rounded-xl bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:p-6">
+                  <h3 className="border-b border-[#eef2fc] pb-2 text-sm font-bold uppercase tracking-wide text-[#246392]">
+                    Media
+                  </h3>
+                  <div className="grid gap-5">
+                    <MediaImage src={keyFeatureImage} label="Key Feature Image" />
+                    <MediaVideo src={demoVideo} label="Demo Video" />
+                    <MediaGallery images={item.whyChooseImages} label="Why Choose Images" />
+                    <MediaVideo src={whyChooseVideo} label="Why Choose Video" />
+                    <MediaGallery images={item.helpSectionImages} label="Help Section Images" />
+                    <MediaVideo src={helpSectionVideo} label="Help Section Video" />
+                  </div>
                 </div>
               ) : null}
             </div>
