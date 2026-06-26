@@ -16,6 +16,8 @@ import {
   validateBatchFee,
 } from '../../utils/batchFormMappers'
 import { normalizeLinkedSubjects } from '../../utils/batchHelpers'
+import { resolveBatchCourseId } from '../../utils/batchApiHelpers'
+import { isFrontendOnly } from '../../config/appMode'
 import {
   isBatchCodeTaken,
   isBatchIdTaken,
@@ -102,6 +104,8 @@ export default function AddCourseModal({
     }
     if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
       next.courseId = 'Please select a course'
+    } else if (!isFrontendOnly && !resolveBatchCourseId(form)) {
+      next.courseId = 'Selected course is invalid. Reload the course list and try again.'
     }
     if (!form.commencement) next.commencement = 'Date of commencement is required'
     if (!form.durationLabel?.trim()) next.durationLabel = 'Duration is required'

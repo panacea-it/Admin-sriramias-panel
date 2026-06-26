@@ -41,6 +41,14 @@ function assertMongoBatchId(batchId) {
   return id
 }
 
+function assertBatchTransferId(batchId) {
+  const id = String(batchId || '').trim()
+  if (!id) {
+    throw new Error('Invalid batch id')
+  }
+  return id
+}
+
 function assertEnrollmentMongoId(enrollmentId) {
   const id = String(enrollmentId || '').trim()
   if (!id || !isMongoObjectId(id)) {
@@ -261,7 +269,9 @@ export async function moveEnrollment(enrollmentId, payload, { signal } = {}) {
   }
 
   const resolvedEnrollmentId = assertEnrollmentMongoId(enrollmentId)
-  const targetBatchId = assertMongoBatchId(payload.batchId || payload.targetBatchId || payload.toBatchId)
+  const targetBatchId = assertBatchTransferId(
+    payload.batchId || payload.targetBatchId || payload.toBatchId,
+  )
   const body = {
     toBatchId: targetBatchId,
     transferReason: String(

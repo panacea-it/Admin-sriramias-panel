@@ -11,5 +11,6 @@ export {
   BatchField,
   BatchModalFooter,
   BatchCheckboxCard,
+  BatchTransferOptionCheckbox,
   BatchModal,
 } from './batchModalUi.jsx'

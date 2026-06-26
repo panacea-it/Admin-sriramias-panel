@@ -83,6 +83,34 @@ export function normalizeSubCategoryDropdownOptions(data) {
     .filter((opt) => opt.value && opt.label)
 }
 
+function formatCourseCatalogLabel(courseName, courseId) {
+  const name = String(courseName || '').trim()
+  const code = String(courseId || '').trim()
+  return code ? `${name} - ${code}` : name
+}
+
+/** Batch form course picker — requires Mongo _id for POST /api/batches `courseId`. */
+export function normalizeCourseCatalogDropdownOptions(data) {
+  return unwrapList(data, ['courses', 'items', 'results'])
+    .map((row) => {
+      const mongoId =
+        row._id ??
+        row.academicCourseId ??
+        (isMongoObjectId(row.id) ? row.id : '')
+      const courseId = String(row.courseId || '').trim()
+      const courseName = String(row.courseName ?? row.title ?? row.name ?? '').trim()
+      if (!isMongoObjectId(mongoId) || !courseName) return null
+      return {
+        _id: String(mongoId),
+        courseId,
+        courseName,
+        label: formatCourseCatalogLabel(courseName, courseId),
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.courseName.localeCompare(b.courseName))
+}
+
 export function withCurrentSelectOption(options, value, label) {
   if (!value) return options
   const normalizedValue = String(value)

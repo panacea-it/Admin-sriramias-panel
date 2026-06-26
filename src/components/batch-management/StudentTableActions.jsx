@@ -1,11 +1,19 @@
-import { Eye, Pencil, RefreshCw, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Ban, Eye, Pencil, RefreshCw, UserCheck } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { isStudentEnrollmentActive } from './studentStatusDisplay'
 
-const actionButtonClass =
-  'inline-flex h-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition whitespace-nowrap sm:gap-1 sm:px-2 sm:text-xs'
+const actionBase =
+  'inline-flex h-[34px] min-w-[72px] shrink-0 items-center justify-center gap-1.5 rounded-[10px] px-2.5 text-[11px] font-semibold transition-all duration-200 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none sm:min-w-[76px] sm:px-3 sm:text-xs'
 
-function ActionBtn({ label, onClick, disabled, className, children }) {
+const ACTION_STYLES = {
+  view: 'bg-[#eef6fc] text-[#246392] hover:bg-[#dbeef9] ring-1 ring-[#55ace7]/12',
+  edit: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 ring-1 ring-indigo-200/60',
+  disable: 'bg-orange-50 text-orange-700 hover:bg-orange-100 ring-1 ring-orange-200/60',
+  enable: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 ring-1 ring-emerald-200/60',
+  move: 'bg-sky-50 text-[#1a5276] hover:bg-sky-100 ring-1 ring-sky-200/60',
+}
+
+function ActionBtn({ label, onClick, disabled, tone, children }) {
   return (
     <button
       type="button"
@@ -13,14 +21,10 @@ function ActionBtn({ label, onClick, disabled, className, children }) {
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={cn(
-        actionButtonClass,
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        className,
-      )}
+      className={cn(actionBase, ACTION_STYLES[tone])}
     >
       {children}
-      <span>{label}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   )
 }
@@ -30,9 +34,9 @@ export default function StudentTableActions({
   status,
   onView,
   onEdit,
-  onDelete,
+  onDisable,
+  onEnable,
   onMove,
-  onToggleStatus,
   canMove = true,
   disabled = false,
 }) {
@@ -42,30 +46,30 @@ export default function StudentTableActions({
     <div
       role="group"
       aria-label={`Actions for ${studentName}`}
-      className="flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 sm:gap-1"
+      className="inline-flex max-w-full flex-nowrap items-center justify-end gap-1.5"
     >
-      {canMove && onMove && (
-        <ActionBtn
-          label="Move"
-          onClick={onMove}
-          disabled={disabled}
-          className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
-        >
-          <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+      {onView && (
+        <ActionBtn label="View" onClick={onView} disabled={disabled} tone="view">
+          <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
         </ActionBtn>
       )}
-      {onToggleStatus && (
-        <ActionBtn
-          label={isActive ? 'Deactivate' : 'Activate'}
-          onClick={onToggleStatus}
-          disabled={disabled}
-          className="text-slate-500 hover:bg-slate-100 hover:text-[#246392]"
-        >
-          {isActive ? (
-            <ToggleRight className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <ToggleLeft className="h-3.5 w-3.5 shrink-0" />
-          )}
+      {onEdit && (
+        <ActionBtn label="Edit" onClick={onEdit} disabled={disabled} tone="edit">
+          <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+        </ActionBtn>
+      )}
+      {isActive && onDisable ? (
+        <ActionBtn label="Disable" onClick={onDisable} disabled={disabled} tone="disable">
+          <Ban className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+        </ActionBtn>
+      ) : !isActive && onEnable ? (
+        <ActionBtn label="Enable" onClick={onEnable} disabled={disabled} tone="enable">
+          <UserCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+        </ActionBtn>
+      ) : null}
+      {canMove && onMove && (
+        <ActionBtn label="Move" onClick={onMove} disabled={disabled} tone="move">
+          <RefreshCw className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
         </ActionBtn>
       )}
     </div>

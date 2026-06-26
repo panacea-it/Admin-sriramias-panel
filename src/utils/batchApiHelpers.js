@@ -167,7 +167,12 @@ function mapApiFeesToUi(fees = {}) {
 }
 
 export function resolveBatchCourseId(form) {
-  return String(form.academicCourseId || form.courseId || '').trim()
+  const candidates = [form?.academicCourseId, form?.courseId]
+  for (const raw of candidates) {
+    const id = String(raw || '').trim()
+    if (isMongoObjectId(id)) return id
+  }
+  return ''
 }
 
 function resolveCourseId(form) {

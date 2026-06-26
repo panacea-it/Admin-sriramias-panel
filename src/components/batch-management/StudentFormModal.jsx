@@ -21,6 +21,17 @@ const EMPTY = {
   progress: '',
 }
 
+function FormSection({ title, children }) {
+  return (
+    <div className="space-y-4">
+      <h3 className="border-b border-slate-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#246392]">
+        {title}
+      </h3>
+      {children}
+    </div>
+  )
+}
+
 export default function StudentFormModal({
   open,
   onClose,
@@ -72,78 +83,90 @@ export default function StudentFormModal({
         />
       }
     >
-      <form id="batch-student-form" onSubmit={handleSubmit}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BatchField label="Full Name" required className="sm:col-span-2">
-            <input
-              required
-              value={form.name}
-              onChange={handleChange('name')}
-              className={batchInputClass}
-              placeholder="Student full name"
-            />
-          </BatchField>
-          <BatchField label="Email" required>
-            <input
-              required
-              type="email"
-              value={form.email}
-              onChange={handleChange('email')}
-              className={batchInputClass}
-              placeholder="email@example.com"
-            />
-          </BatchField>
-          <BatchField label="Phone Number" required>
-            <input
-              required
-              value={form.phone}
-              onChange={handleChange('phone')}
-              className={batchInputClass}
-              placeholder="+91 98765 43210"
-            />
-          </BatchField>
-          <BatchField label="Course">
-            <input readOnly value={form.course} className={batchInputReadonlyClass} />
-          </BatchField>
-          <BatchField label="Batch">
-            <input readOnly value={form.batch} className={batchInputReadonlyClass} />
-          </BatchField>
-          <BatchField label="Payment Status">
-            <select
-              value={form.paymentStatus}
-              onChange={handleChange('paymentStatus')}
-              className={batchSelectClass}
-            >
-              {PAYMENT_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </BatchField>
-          <BatchField label="Attendance (%)">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={form.attendance}
-              onChange={handleChange('attendance')}
-              className={batchInputClass}
-              placeholder="0–100"
-            />
-          </BatchField>
-          <BatchField label="Course Progress (%)" className="sm:col-span-2">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={form.progress}
-              onChange={handleChange('progress')}
-              className={batchInputClass}
-              placeholder="0–100"
-            />
-          </BatchField>
-        </div>
+      <form id="batch-student-form" onSubmit={handleSubmit} className="space-y-8">
+        <FormSection title="Student Information">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <BatchField label="Full Name" required className="sm:col-span-2">
+              <input
+                required
+                value={form.name}
+                onChange={handleChange('name')}
+                className={batchInputClass}
+                placeholder="Student full name"
+              />
+            </BatchField>
+            <BatchField label="Email" required>
+              <input
+                required
+                type="email"
+                value={form.email}
+                onChange={handleChange('email')}
+                className={batchInputClass}
+                placeholder="email@example.com"
+              />
+            </BatchField>
+            <BatchField label="Phone Number" required>
+              <input
+                required
+                value={form.phone}
+                onChange={handleChange('phone')}
+                className={batchInputClass}
+                placeholder="+91 98765 43210"
+              />
+            </BatchField>
+          </div>
+        </FormSection>
+
+        <FormSection title="Enrollment Context">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <BatchField label="Course">
+              <input readOnly value={form.course} className={batchInputReadonlyClass} />
+            </BatchField>
+            <BatchField label="Batch">
+              <input readOnly value={form.batch} className={batchInputReadonlyClass} />
+            </BatchField>
+          </div>
+        </FormSection>
+
+        <FormSection title="Payment & Progress">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <BatchField label="Payment Status">
+              <select
+                value={form.paymentStatus}
+                onChange={handleChange('paymentStatus')}
+                className={batchSelectClass}
+              >
+                {PAYMENT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </BatchField>
+            <BatchField label="Attendance (%)">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.attendance}
+                onChange={handleChange('attendance')}
+                className={batchInputClass}
+                placeholder="0–100"
+              />
+            </BatchField>
+            <BatchField label="Course Progress (%)" className="sm:col-span-2">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.progress}
+                onChange={handleChange('progress')}
+                className={batchInputClass}
+                placeholder="0–100"
+              />
+            </BatchField>
+          </div>
+        </FormSection>
       </form>
     </BatchFormModalShell>
   )

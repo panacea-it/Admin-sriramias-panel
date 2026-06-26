@@ -1,5 +1,6 @@
 import { isFrontendOnly } from '../config/appMode'
 import { loadAcademicCourses } from '../utils/academicCoursesStorage'
+import { normalizeCourseCatalogDropdownOptions } from '../utils/courseDropdownApiHelpers'
 
 const DELAY = 120
 
@@ -19,23 +20,6 @@ function mapLocalToOptions(rows) {
     .sort((a, b) => a.courseName.localeCompare(b.courseName))
 }
 
-function formatCourseOptionLabel(courseName, courseId) {
-  const name = String(courseName || '').trim()
-  const code = String(courseId || '').trim()
-  return code ? `${name} - ${code}` : name
-}
-
-function mapApiToOptions(rows) {
-  return (rows || [])
-    .map((r) => ({
-      _id: r._id,
-      courseId: r.courseId || '',
-      courseName: r.courseName,
-      label: formatCourseOptionLabel(r.courseName, r.courseId),
-    }))
-    .sort((a, b) => a.courseName.localeCompare(b.courseName))
-}
-
 /** Active courses from Categories → Courses for batch creation dropdown */
 export async function fetchAcademicCourseOptions({ signal } = {}) {
   if (isFrontendOnly) {
@@ -46,29 +30,29 @@ export async function fetchAcademicCourseOptions({ signal } = {}) {
 
   try {
     const { default: api } = await import('./axiosInstance')
-    const res = await api.get('/courses/dropdown', { signal })
-    const body = res.data
-    const list = Array.isArray(body) ? body : body?.data ?? []
-    if (list.length) return mapApiToOptions(list)
+    const res = await api.get('/courses/dropdown', {
+      params: { status: 'ACTIVE', limit: 200 },
+      signal,
+    })
+    const options = normalizeCourseCatalogDropdownOptions(res.data)
+    if (options.length) return options
   } catch {
-    /* fallback to catalog */
+    /* try catalog list */
   }
 
   try {
     const { default: api } = await import('./axiosInstance')
     const res = await api.get('/courses', {
-      params: { purpose: 'catalog' },
+      params: { purpose: 'catalog', status: 'ACTIVE', limit: 200 },
       signal,
     })
-    const body = res.data
-    const list = Array.isArray(body) ? body : body?.data ?? []
-    if (list.length) return mapApiToOptions(list)
+    const options = normalizeCourseCatalogDropdownOptions(res.data)
+    if (options.length) return options
   } catch {
-    /* fallback */
+    /* no local fallback in API mode — avoids invalid local ids like CRS001 */
   }
 
-  await delay(80)
-  return mapLocalToOptions(loadAcademicCourses())
+  return []
 }
 
 /** Push local catalog to backend after Categories → Courses changes */

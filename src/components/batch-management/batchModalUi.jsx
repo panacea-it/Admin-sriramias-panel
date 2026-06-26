@@ -91,3 +91,22 @@ export function BatchCheckboxCard({ label, checked, onChange }) {
     </label>
   )
 }
+
+export function BatchTransferOptionCheckbox({ label, description, checked, onChange }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-sm transition hover:border-[#55ace7]/25 hover:bg-[#fafcff]">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#246392] focus:ring-[#55ace7]/40"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-[#222]">{label}</span>
+        {description ? (
+          <span className="mt-0.5 block text-xs leading-relaxed text-[#686868]">{description}</span>
+        ) : null}
+      </span>
+    </label>
+  )
+}
