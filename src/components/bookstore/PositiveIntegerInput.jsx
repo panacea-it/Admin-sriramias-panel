@@ -15,6 +15,7 @@ const PositiveIntegerInput = forwardRef(function PositiveIntegerInput(
     id,
     name,
     autoFocus = false,
+    disabled = false,
     'aria-label': ariaLabel,
   },
   ref,
@@ -30,6 +31,7 @@ const PositiveIntegerInput = forwardRef(function PositiveIntegerInput(
       id={id}
       name={name}
       aria-label={ariaLabel}
+      disabled={disabled}
       placeholder={placeholder}
       className={cn(BOOKSTORE_INPUT_CLASS, className)}
       value={value}

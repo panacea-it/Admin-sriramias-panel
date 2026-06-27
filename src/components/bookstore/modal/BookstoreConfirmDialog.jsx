@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react'
 import Button from '../../ui/Button'
 import BookstoreModal, { BookstoreModalFooter } from './BookstoreModal'
 
@@ -9,6 +10,7 @@ export default function BookstoreConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  loadingLabel,
   variant = 'danger',
   loading = false,
 }) {
@@ -30,7 +32,14 @@ export default function BookstoreConfirmDialog({
             onClick={onConfirm}
             disabled={loading}
           >
-            {confirmLabel}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {loadingLabel || confirmLabel}
+              </span>
+            ) : (
+              confirmLabel
+            )}
           </Button>
         </BookstoreModalFooter>
       }

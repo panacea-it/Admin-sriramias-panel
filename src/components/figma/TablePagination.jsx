@@ -38,6 +38,8 @@ export default function TablePagination({
   itemLabel = 'records',
   className,
   gradientActivePage = false,
+  hasNextPage,
+  hasPrevPage,
 }) {
   const [jumpValue, setJumpValue] = useState('')
   const pages = getPaginationPages(page, totalPages)
@@ -54,6 +56,9 @@ export default function TablePagination({
     onPageChange(target)
     setJumpValue('')
   }
+
+  const canGoPrev = hasPrevPage != null ? hasPrevPage : page > 1
+  const canGoNext = hasNextPage != null ? hasNextPage : page < totalPages
 
   return (
     <div
@@ -87,7 +92,7 @@ export default function TablePagination({
           aria-label="Table pagination"
         >
           <PageButton
-            disabled={page <= 1}
+            disabled={!canGoPrev}
             onClick={() => onPageChange(page - 1)}
             ariaLabel="Previous page"
             gradientActive={gradientActivePage}
@@ -117,7 +122,7 @@ export default function TablePagination({
           )}
 
           <PageButton
-            disabled={page >= totalPages}
+            disabled={!canGoNext}
             onClick={() => onPageChange(page + 1)}
             ariaLabel="Next page"
             gradientActive={gradientActivePage}

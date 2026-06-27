@@ -23,8 +23,27 @@ import {
   recordInitialStock,
   recordProductStockAdjustment,
 } from '../utils/bookstoreInventory'
+import { getApiErrorMessage } from '../utils/apiError'
+import {
+  buildBookstoreListParams,
+  buildProductFormData,
+  buildProductUpdateFormData,
+  isBookstoreApiSuccess,
+  isBookstoreListSuccess,
+  mapApiProductViewToRow,
+  normalizeBookstoreListResponse,
+  normalizeBookstoreInventoryListResponse,
+  buildBookstoreInventoryListParams,
+  normalizeBookstoreInventoryLogsResponse,
+  buildBookstoreInventoryLogsParams,
+  normalizeBookstoreAdjustStockResponse,
+  normalizeBookstoreStatusChangeResponse,
+  normalizeBookstoreDeleteResponse,
+} from '../utils/bookstoreApiHelpers'
 
-const USE_MOCK = isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK !== 'false'
+const USE_MOCK = isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK === 'true'
+const PRODUCTS_BASE = '/admin/bookstore/products'
+const INVENTORY_BASE = '/admin/bookstore/inventory'
 
 async function tryApi(fn, fallback) {
   if (USE_MOCK) return fallback()
@@ -37,6 +56,12 @@ async function tryApi(fn, fallback) {
   }
 }
 
+function toProductError(error, fallback) {
+  const err = new Error(getApiErrorMessage(error, fallback))
+  err.cause = error
+  return err
+}
+
 export async function fetchBookstoreDashboard(params = {}) {
   return tryApi(
     () => api.get('/bookstore/dashboard', { params }),
@@ -44,57 +69,391 @@ export async function fetchBookstoreDashboard(params = {}) {
   )
 }
 
+export async function fetchBookstoreExamCategories() {
+  if (USE_MOCK) {
+    return []
+  }
+
+  try {
+    const response = await api.get(`${PRODUCTS_BASE}/exam-categories`)
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch exam categories. Please try again.')
+    }
+
+    const items = body?.data?.items ?? body?.items ?? []
+    return Array.isArray(items) ? items : []
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch exam categories. Please try again.')
+  }
+}
+
+export async function fetchBookstoreProductsPage(params = {}) {
+  if (USE_MOCK) {
+    const items = [...MOCK_BOOKSTORE_PRODUCTS]
+    return {
+      items,
+      count: items.length,
+      total: items.length,
+      totalPages: 1,
+      page: 1,
+      limit: params.limit || 10,
+      hasNextPage: false,
+      hasPrevPage: false,
+    }
+  }
+
+  try {
+    const response = await api.post(`${PRODUCTS_BASE}/list`, buildBookstoreListParams(params))
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch products. Please try again.')
+    }
+
+    return normalizeBookstoreListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 10,
+      categoryLookup: params.categoryLookup || {},
+    })
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch products. Please try again.')
+  }
+}
+
 export async function fetchBookstoreProducts(params = {}) {
-  return tryApi(
-    () => api.get('/bookstore/products', { params }),
-    () => ({ items: [...MOCK_BOOKSTORE_PRODUCTS], total: MOCK_BOOKSTORE_PRODUCTS.length }),
-  )
+  const result = await fetchBookstoreProductsPage({
+    ...params,
+    page: params.page || 1,
+    limit: params.limit || 100,
+  })
+  return { items: result.items, total: result.total }
 }
 
-export async function createBookstoreProduct(payload) {
-  return tryApi(
-    () => api.post('/bookstore/products', payload),
-    () => {
-      const row = { id: nextProductId(), status: 'active', createdAt: new Date().toISOString(), ...payload }
-      MOCK_BOOKSTORE_PRODUCTS.unshift(row)
-      recordInitialStock(row.id, Number(payload.stockQuantity) || 0)
-      return row
-    },
-  )
+export async function fetchBookstoreProductById(productId) {
+  if (USE_MOCK) {
+    return MOCK_BOOKSTORE_PRODUCTS.find((product) => product.id === productId) ?? null
+  }
+
+  try {
+    const response = await api.post(`${PRODUCTS_BASE}/view`, { productId })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch product details. Please try again.')
+    }
+
+    return mapApiProductViewToRow(body.data)
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch product details. Please try again.')
+  }
 }
 
-export async function updateBookstoreProduct(id, payload) {
-  return tryApi(
-    () => api.put(`/bookstore/products/${id}`, payload),
-    () => {
-      const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id)
-      if (idx < 0) return undefined
+export async function createBookstoreProduct(payload, assetContext = {}) {
+  if (USE_MOCK) {
+    const row = {
+      id: nextProductId(),
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      ...payload,
+    }
+    MOCK_BOOKSTORE_PRODUCTS.unshift(row)
+    recordInitialStock(row.id, Number(payload.stockQuantity) || 0)
+    return {
+      success: true,
+      statusCode: 10000,
+      message: 'Product created successfully',
+      product: row,
+    }
+  }
 
-      const previous = MOCK_BOOKSTORE_PRODUCTS[idx]
-      const previousStock = previous.stockQuantity
-      const hasStockUpdate = payload.stockQuantity !== undefined
-      const nextStock = hasStockUpdate ? Number(payload.stockQuantity) : previousStock
+  try {
+    const formData =
+      payload instanceof FormData
+        ? payload
+        : buildProductFormData(payload, assetContext)
 
-      MOCK_BOOKSTORE_PRODUCTS[idx] = { ...previous, ...payload }
+    const response = await api.post(`${PRODUCTS_BASE}/create`, formData)
+    const body = response?.data ?? {}
 
-      if (hasStockUpdate && nextStock !== previousStock) {
-        recordProductStockAdjustment(id, previousStock, nextStock)
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to create product. Please try again.')
+    }
+
+    return {
+      success: body.success,
+      statusCode: body.statusCode,
+      message: body.message || 'Product created successfully',
+      product: mapApiProductViewToRow(body.data),
+    }
+  } catch (error) {
+    throw toProductError(error, 'Unable to create product. Please try again.')
+  }
+}
+
+export async function updateBookstoreProduct(id, payload, assetContext = {}) {
+  if (USE_MOCK) {
+    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id || p.mongoId === id)
+    if (idx < 0) return undefined
+
+    const previous = MOCK_BOOKSTORE_PRODUCTS[idx]
+    const previousStock = previous.stockQuantity
+    const hasStockUpdate = payload.stockQuantity !== undefined
+    const nextStock = hasStockUpdate ? Number(payload.stockQuantity) : previousStock
+
+    MOCK_BOOKSTORE_PRODUCTS[idx] = { ...previous, ...payload }
+
+    if (hasStockUpdate && nextStock !== previousStock) {
+      recordProductStockAdjustment(id, previousStock, nextStock)
+    }
+
+    return {
+      success: true,
+      statusCode: 10000,
+      message: 'Product updated successfully',
+      product: MOCK_BOOKSTORE_PRODUCTS[idx],
+    }
+  }
+
+  try {
+    const mongoId = id
+    const formData =
+      payload instanceof FormData
+        ? payload
+        : buildProductUpdateFormData(payload, assetContext)
+
+    const response = await api.put(
+      `${PRODUCTS_BASE}/update/${encodeURIComponent(mongoId)}`,
+      formData,
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update product. Please try again.')
+    }
+
+    return {
+      success: body.success,
+      statusCode: body.statusCode,
+      message: body.message || 'Product updated successfully',
+      product: mapApiProductViewToRow(body.data),
+    }
+  } catch (error) {
+    throw toProductError(error, 'Unable to update product. Please try again.')
+  }
+}
+
+export async function changeBookstoreProductStatus(id, status) {
+  if (USE_MOCK) {
+    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id || p.mongoId === id)
+    if (idx >= 0) {
+      MOCK_BOOKSTORE_PRODUCTS[idx] = {
+        ...MOCK_BOOKSTORE_PRODUCTS[idx],
+        status: status === 'ACTIVE' ? 'active' : 'inactive',
       }
+    }
 
-      return MOCK_BOOKSTORE_PRODUCTS[idx]
-    },
-  )
+    const row = MOCK_BOOKSTORE_PRODUCTS[idx]
+    return {
+      success: true,
+      statusCode: 10000,
+      message: 'Product status updated successfully',
+      productId: row?.id || '',
+      mongoId: row?.mongoId || String(id),
+      status: status === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
+      apiStatus: status === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
+      uiStatus: status === 'ACTIVE' ? 'active' : 'inactive',
+    }
+  }
+
+  try {
+    const response = await api.patch(`${PRODUCTS_BASE}/status/${encodeURIComponent(id)}`, {
+      status,
+    })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update product status. Please try again.')
+    }
+
+    return normalizeBookstoreStatusChangeResponse(body)
+  } catch (error) {
+    throw toProductError(error, 'Unable to update product status. Please try again.')
+  }
 }
 
 export async function deleteBookstoreProduct(id) {
-  return tryApi(
-    () => api.delete(`/bookstore/products/${id}`),
-    () => {
-      const i = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id)
-      if (i >= 0) MOCK_BOOKSTORE_PRODUCTS.splice(i, 1)
-      return { success: true }
+  if (USE_MOCK) {
+    const i = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id || p.mongoId === id)
+    const removed = i >= 0 ? MOCK_BOOKSTORE_PRODUCTS[i] : null
+    if (i >= 0) MOCK_BOOKSTORE_PRODUCTS.splice(i, 1)
+
+    return {
+      success: true,
+      statusCode: 10000,
+      message: 'Product deleted successfully',
+      productId: removed?.id || '',
+      mongoId: removed?.mongoId || String(id),
+      deleted: true,
+    }
+  }
+
+  try {
+    const response = await api.delete(`${PRODUCTS_BASE}/delete/${encodeURIComponent(id)}`)
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to delete the product. Please try again.')
+    }
+
+    return normalizeBookstoreDeleteResponse(body)
+  } catch (error) {
+    throw toProductError(error, 'Unable to delete the product. Please try again.')
+  }
+}
+
+function buildMockInventoryListPage(params = {}) {
+  const search = String(params.search || '').trim().toLowerCase()
+  const page = params.page || 1
+  const limit = params.limit || 10
+
+  let rawItems = MOCK_BOOKSTORE_PRODUCTS.map((product) => ({
+    _id: product.mongoId || product.id,
+    productId: product.id,
+    productName: product.name,
+    stockQuantity: Number(product.stockQuantity) || 0,
+    alert:
+      product.stockQuantity === 0
+        ? 'OUT_OF_STOCK'
+        : product.stockQuantity <= 20
+          ? 'LOW_STOCK'
+          : 'OK',
+  }))
+
+  if (search) {
+    rawItems = rawItems.filter((item) => {
+      const haystack = [item.productId, item.productName].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(search)
+    })
+  }
+
+  const total = rawItems.length
+  const totalPages = Math.ceil(total / limit) || 0
+  const start = (page - 1) * limit
+
+  return normalizeBookstoreInventoryListResponse(
+    {
+      data: {
+        items: rawItems.slice(start, start + limit),
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1,
+        },
+      },
     },
+    { page, limit },
   )
+}
+
+export async function fetchBookstoreInventoryPage(params = {}) {
+  if (USE_MOCK) {
+    return buildMockInventoryListPage(params)
+  }
+
+  try {
+    const response = await api.post(
+      `${INVENTORY_BASE}/list`,
+      buildBookstoreInventoryListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch inventory records. Please try again.')
+    }
+
+    return normalizeBookstoreInventoryListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 10,
+    })
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch inventory records. Please try again.')
+  }
+}
+
+function buildMockInventoryLogsPage(params = {}) {
+  const productId = String(params.productId || '').trim()
+  const page = params.page || 1
+  const limit = params.limit || 10
+
+  let rawItems = getSortedInventoryLogs().map((log, index) => {
+    const product = MOCK_BOOKSTORE_PRODUCTS.find((entry) => entry.id === log.productId)
+
+    return {
+      _id: log.id || `mock-log-${index}`,
+      productId: log.productId,
+      productName: product?.name || log.productId,
+      stockChange: log.change,
+      stockAfter: log.stockAfter,
+      reason: log.reason,
+      actionType: log.change > 0 ? 'RESTOCK' : 'MANUAL_ADJUSTMENT',
+      createdAt: log.createdAt,
+    }
+  })
+
+  if (productId) {
+    rawItems = rawItems.filter((item) => item.productId === productId)
+  }
+
+  const total = rawItems.length
+  const totalPages = Math.ceil(total / limit) || 0
+  const start = (page - 1) * limit
+
+  return normalizeBookstoreInventoryLogsResponse(
+    {
+      data: {
+        items: rawItems.slice(start, start + limit),
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1,
+        },
+      },
+    },
+    { page, limit },
+  )
+}
+
+export async function fetchBookstoreInventoryLogsPage(params = {}) {
+  if (USE_MOCK) {
+    return buildMockInventoryLogsPage(params)
+  }
+
+  try {
+    const response = await api.post(
+      `${INVENTORY_BASE}/logs`,
+      buildBookstoreInventoryLogsParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch inventory logs. Please try again.')
+    }
+
+    return normalizeBookstoreInventoryLogsResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 10,
+    })
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch inventory logs. Please try again.')
+  }
 }
 
 export async function fetchBookstoreInventory() {
@@ -107,18 +466,92 @@ export async function fetchBookstoreInventory() {
   )
 }
 
-export async function restockBookstoreProduct(id, quantity, options = {}) {
-  const { reason = 'Restock', transactionId } = options
-  return tryApi(
-    () => api.post(`/bookstore/inventory/${id}/restock`, { quantity, reason, transactionId }),
-    () => {
-      applyStockChange(id, quantity, {
+export async function adjustBookstoreStock(productId, payload = {}) {
+  const action = payload.action === 'DECREASE' ? 'DECREASE' : 'INCREASE'
+  const quantity = Number(payload.quantity)
+  const reason = String(payload.reason || '').trim()
+
+  if (USE_MOCK) {
+    const product = MOCK_BOOKSTORE_PRODUCTS.find((entry) => entry.id === productId)
+    if (!product) {
+      throw new Error('Product not found')
+    }
+
+    if (action === 'DECREASE' && product.stockQuantity < quantity) {
+      throw new Error('Insufficient stock available')
+    }
+
+    const delta = action === 'INCREASE' ? quantity : -quantity
+    applyStockChange(productId, delta, {
+      reason,
+      transactionId: `adjust-${productId}-${action}-${quantity}-${Date.now()}`,
+    })
+
+    const alert =
+      product.stockQuantity === 0
+        ? 'OUT_OF_STOCK'
+        : product.stockQuantity <= 20
+          ? 'LOW_STOCK'
+          : 'OK'
+    const latestLog = getSortedInventoryLogs()[0]
+
+    return normalizeBookstoreAdjustStockResponse({
+      success: true,
+      statusCode: 10000,
+      message: 'Stock updated successfully',
+      data: {
+        product: {
+          productId: product.id,
+          productName: product.name,
+          stockQuantity: product.stockQuantity,
+          alert,
+        },
+        log: {
+          _id: latestLog?.id || `mock-log-${Date.now()}`,
+          productId: product.id,
+          productName: product.name,
+          stockChange: delta,
+          stockAfter: product.stockQuantity,
+          reason,
+          actionType: action === 'INCREASE' ? 'RESTOCK' : 'MANUAL_ADJUSTMENT',
+          createdAt: latestLog?.createdAt || new Date().toISOString(),
+        },
+      },
+    })
+  }
+
+  try {
+    const response = await api.put(
+      `${INVENTORY_BASE}/adjust-stock/${encodeURIComponent(productId)}`,
+      {
+        action,
+        quantity,
         reason,
-        transactionId: transactionId || `restock-${id}-${quantity}-${Date.now()}`,
-      })
-      return MOCK_BOOKSTORE_PRODUCTS.find((p) => p.id === id)
-    },
-  )
+      },
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update stock. Please try again.')
+    }
+
+    return normalizeBookstoreAdjustStockResponse(body)
+  } catch (error) {
+    throw toProductError(error, 'Unable to update stock. Please try again.')
+  }
+}
+
+export async function restockBookstoreProduct(id, quantity, options = {}) {
+  const { reason = 'Restock' } = options
+  const absQuantity = Math.abs(Number(quantity))
+
+  if (!absQuantity) return null
+
+  return adjustBookstoreStock(id, {
+    action: quantity >= 0 ? 'INCREASE' : 'DECREASE',
+    quantity: absQuantity,
+    reason,
+  })
 }
 
 export async function fetchBookstoreCombos() {

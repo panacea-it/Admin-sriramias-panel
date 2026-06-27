@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Package } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
@@ -7,13 +7,19 @@ import ProductRowActions from '../../components/bookstore/ProductRowActions'
 import ProductFormModal from '../../components/bookstore/ProductFormModal'
 import ProductPreviewModal from '../../components/bookstore/ProductPreviewModal'
 import BookstoreConfirmDialog from '../../components/bookstore/modal/BookstoreConfirmDialog'
+import CategoryEmptyState from '../../components/categories/CategoryEmptyState'
 import { BannerButton } from '../../components/academics/AcademicsUi'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildFilterSignature, useEffectivePage } from '../../hooks/useMasterListQuery'
 import {
-  fetchBookstoreProducts,
-  createBookstoreProduct,
-  updateBookstoreProduct,
-  deleteBookstoreProduct,
-} from '../../api/bookstoreAPI'
+  useBookstoreProduct,
+  useBookstoreProductsList,
+  useChangeBookstoreProductStatus,
+  useCreateBookstoreProduct,
+  useDeleteBookstoreProduct,
+  useUpdateBookstoreProduct,
+} from '../../hooks/bookstore/useBookstoreProducts'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
 const PRODUCT_STATUS_OPTIONS = [
@@ -22,91 +28,247 @@ const PRODUCT_STATUS_OPTIONS = [
   { value: 'inactive', label: 'Deactivated' },
 ]
 
+const DEFAULT_PAGE_SIZE = 10
+
 export default function BookstoreProductsPage() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [preview, setPreview] = useState(null)
+  const [editingRow, setEditingRow] = useState(null)
+  const [previewProductId, setPreviewProductId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const res = await fetchBookstoreProducts()
-    setProducts(res?.items || res || [])
-    setLoading(false)
-  }, [])
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const filterSignature = buildFilterSignature([debouncedSearch, statusFilter, pageSize])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const listParams = useMemo(
+    () => ({
+      page: effectivePage,
+      limit: pageSize,
+      search: debouncedSearch.trim(),
+      status: statusFilter,
+    }),
+    [effectivePage, pageSize, debouncedSearch, statusFilter],
+  )
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return products.filter((p) => {
-      const matchQ =
-        !q ||
-        [p.name, p.examCategory, p.subject, p.id, p.authorName].some((v) =>
-          String(v || '').toLowerCase().includes(q),
-        )
-      const matchStatus = statusFilter === 'all' || p.status === statusFilter
-      return matchQ && matchStatus
-    })
-  }, [products, search, statusFilter])
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } = useBookstoreProductsList(listParams)
 
-  const handleSave = async (form) => {
-    setSaving(true)
+  const products = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 0
+
+  const pagination = useMemo(() => {
+    const safePage =
+      totalPages > 0 ? Math.min(Math.max(1, page), totalPages) : Math.max(1, page)
+    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalItems)
+
+    return {
+      page: safePage,
+      pageSize,
+      totalItems,
+      totalPages,
+      startIndex,
+      endIndex,
+      hasNextPage: data?.hasNextPage ?? (totalPages > 0 && safePage < totalPages),
+      hasPrevPage: data?.hasPrevPage ?? safePage > 1,
+    }
+  }, [page, pageSize, totalItems, totalPages, data?.hasNextPage, data?.hasPrevPage])
+
+  const controlledPagination = useMemo(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      startIndex: pagination.startIndex,
+      endIndex: pagination.endIndex,
+      hasNextPage: pagination.hasNextPage,
+      hasPrevPage: pagination.hasPrevPage,
+      onPageChange: setPage,
+      onPageSizeChange: (nextSize) => {
+        setPageSize(nextSize)
+        setPage(1)
+      },
+    }),
+    [pagination],
+  )
+
+  const createMutation = useCreateBookstoreProduct()
+  const updateMutation = useUpdateBookstoreProduct()
+  const statusMutation = useChangeBookstoreProductStatus()
+  const deleteMutation = useDeleteBookstoreProduct()
+
+  const formSaving = createMutation.isPending || updateMutation.isPending
+  const rowActionLoading = formSaving || deleteMutation.isPending
+  const statusUpdatingMongoId = statusMutation.isPending
+    ? statusMutation.variables?.mongoId
+    : null
+
+  const editingProductId = editingRow?.id
+  const shouldFetchDetail = Boolean(editingProductId) && modalOpen
+  const { data: editingDetail, isFetching: isDetailFetching } = useBookstoreProduct(
+    editingProductId,
+    { enabled: shouldFetchDetail },
+  )
+
+  const editingProduct = editingDetail || editingRow
+
+  const handleSave = async ({ values, cover, samples, keywords, isDraft }) => {
+    const isUpdate = Boolean(editingRow?.mongoId)
+
     try {
-      if (editing) {
-        await updateBookstoreProduct(editing.id, form)
-        toast.success(form.publishState === 'draft' ? 'Draft saved' : 'Product updated')
-      } else {
-        await createBookstoreProduct(form)
-        toast.success(form.publishState === 'draft' ? 'Draft saved' : 'Product created')
+      if (isUpdate) {
+        const result = await updateMutation.mutateAsync({
+          mongoId: editingRow.mongoId,
+          productId: editingRow.id,
+          values,
+          cover,
+          samples,
+          keywords,
+          isDraft,
+        })
+
+        if (result?.success === true && result?.statusCode === 10000) {
+          toast.success(result.message || 'Product updated successfully')
+          setModalOpen(false)
+          setEditingRow(null)
+          return
+        }
+
+        toast.error(result?.message || 'Unable to update product. Please try again.')
+        return
       }
-      setModalOpen(false)
-      setEditing(null)
-      load()
-    } finally {
-      setSaving(false)
+
+      const result = await createMutation.mutateAsync({
+        values,
+        cover,
+        samples,
+        keywords,
+        isDraft,
+      })
+
+      if (result?.success === true && result?.statusCode === 10000) {
+        toast.success(result.message || 'Product created successfully')
+        setModalOpen(false)
+        setEditingRow(null)
+        return
+      }
+
+      toast.error(result?.message || 'Unable to create product. Please try again.')
+    } catch (saveError) {
+      toast.error(
+        getApiErrorMessage(
+          saveError,
+          isUpdate
+            ? 'Unable to update product. Please try again.'
+            : 'Unable to create product. Please try again.',
+        ),
+      )
     }
   }
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
-    await deleteBookstoreProduct(deleteTarget)
-    toast.success('Product deleted')
-    setDeleteTarget(null)
-    load()
+    if (!deleteTarget?.mongoId || deleteMutation.isPending) return
+
+    try {
+      const result = await deleteMutation.mutateAsync({
+        mongoId: deleteTarget.mongoId,
+        productId: deleteTarget.id,
+      })
+
+      if (result?.success === true && result?.statusCode === 10000) {
+        toast.success(result.message || 'Product deleted successfully')
+        setDeleteTarget(null)
+
+        if (previewProductId === deleteTarget.id) {
+          setPreviewProductId(null)
+        }
+
+        if (
+          editingRow?.id === deleteTarget.id ||
+          editingRow?.mongoId === deleteTarget.mongoId
+        ) {
+          setModalOpen(false)
+          setEditingRow(null)
+        }
+
+        return
+      }
+
+      toast.error(result?.message || 'Unable to delete the product. Please try again.')
+    } catch (deleteError) {
+      toast.error(
+        getApiErrorMessage(deleteError, 'Unable to delete the product. Please try again.'),
+      )
+    }
   }
 
-  const toggleStatus = useCallback(async (row) => {
-    const next = row.status === 'active' ? 'inactive' : 'active'
-    await updateBookstoreProduct(row.id, { status: next })
-    toast.success('Status updated')
-    load()
-  }, [load])
+  const toggleStatus = useCallback(
+    async (row) => {
+      if (!row?.mongoId || statusMutation.isPending) return
+      const isCurrentlyActive =
+        row.status === 'active' || String(row.apiStatus || '').toUpperCase() === 'ACTIVE'
+      const next = isCurrentlyActive ? 'inactive' : 'active'
+
+      try {
+        const result = await statusMutation.mutateAsync({
+          mongoId: row.mongoId,
+          productId: row.id,
+          status: next,
+        })
+
+        if (result?.success === true && result?.statusCode === 10000) {
+          toast.success(result.message || 'Product status updated successfully')
+          return
+        }
+
+        toast.error(result?.message || 'Unable to update product status. Please try again.')
+      } catch (statusError) {
+        toast.error(
+          getApiErrorMessage(statusError, 'Unable to update product status. Please try again.'),
+        )
+      }
+    },
+    [statusMutation],
+  )
 
   const renderRowActions = useCallback(
     (row) => (
       <ProductRowActions
         name={row.name}
         status={row.status}
-        loading={saving}
-        onView={() => setPreview(row)}
+        apiStatus={row.apiStatus}
+        loading={rowActionLoading}
+        statusToggleLoading={statusUpdatingMongoId === row.mongoId}
+        onView={() => setPreviewProductId(row.id)}
         onEdit={() => {
-          setEditing(row)
+          setEditingRow(row)
           setModalOpen(true)
         }}
         onStatusToggle={() => toggleStatus(row)}
-        onDelete={() => setDeleteTarget(row.id)}
+        onDelete={() => setDeleteTarget(row)}
       />
     ),
-    [saving, toggleStatus],
+    [rowActionLoading, statusUpdatingMongoId, toggleStatus],
   )
+
+  const isListBusy = isLoading || isFetching
+  const listErrorMessage = isError
+    ? getApiErrorMessage(error, 'Unable to fetch products. Please try again.')
+    : ''
+  const showListEmptyState =
+    !isListBusy && !isError && (products.length === 0 || totalItems === 0)
+  const showListTable = !showListEmptyState
 
   return (
     <BookstorePageShell
@@ -115,7 +277,7 @@ export default function BookstoreProductsPage() {
       actions={
         <BannerButton
           onClick={() => {
-            setEditing(null)
+            setEditingRow(null)
             setModalOpen(true)
           }}
         >
@@ -131,16 +293,37 @@ export default function BookstoreProductsPage() {
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           statusOptions={PRODUCT_STATUS_OPTIONS}
-          disabled={loading && products.length === 0}
+          disabled={isListBusy}
         />
 
+        {listErrorMessage ? (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+            {listErrorMessage}
+          </div>
+        ) : null}
+
         <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
-          <ProductsTable
-            products={filtered}
-            loading={loading}
-            resetDeps={[search, statusFilter]}
-            renderActions={renderRowActions}
-          />
+          {showListEmptyState ? (
+            <CategoryEmptyState
+              title="No Products Available"
+              description="Create your first bookstore product or adjust your search filters."
+              ctaLabel="Add Product"
+              onCta={() => {
+                setEditingRow(null)
+                setModalOpen(true)
+              }}
+            />
+          ) : null}
+
+          {showListTable ? (
+            <ProductsTable
+              products={products}
+              loading={isListBusy}
+              resetDeps={[debouncedSearch, statusFilter]}
+              renderActions={renderRowActions}
+              controlledPagination={controlledPagination}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -148,24 +331,28 @@ export default function BookstoreProductsPage() {
         open={modalOpen}
         onClose={() => {
           setModalOpen(false)
-          setEditing(null)
+          setEditingRow(null)
         }}
-        initial={editing}
+        initial={editingProduct}
         onSubmit={handleSave}
-        loading={saving}
+        loading={formSaving || isDetailFetching}
       />
       <ProductPreviewModal
-        open={Boolean(preview)}
-        onClose={() => setPreview(null)}
-        product={preview}
+        open={Boolean(previewProductId)}
+        onClose={() => setPreviewProductId(null)}
+        productId={previewProductId}
       />
       <BookstoreConfirmDialog
         open={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null)
+        }}
         onConfirm={confirmDelete}
-        title="Deactivate"
-        message="This product will be removed from the bookstore catalog. This action cannot be undone."
-        confirmLabel="Deactivate"
+        title="Delete product"
+        message="Are you sure you want to delete this product?"
+        confirmLabel="Delete"
+        loading={deleteMutation.isPending}
+        loadingLabel="Deleting…"
       />
     </BookstorePageShell>
   )

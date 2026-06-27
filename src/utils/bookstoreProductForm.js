@@ -99,13 +99,8 @@ export function mapKeywordsFromProduct(product) {
 export function validateProductAssets({ cover, samples, keywords }, { isDraft } = {}) {
   const errors = {}
 
-  if (!isDraft) {
-    if (!cover?.previewUrl) {
-      errors.cover = 'Book cover thumbnail is required.'
-    }
-    if (samples.length < BOOKSTORE_MIN_SAMPLE_IMAGES) {
-      errors.samples = `Add at least ${BOOKSTORE_MIN_SAMPLE_IMAGES} sample / preview images.`
-    }
+  if (!isDraft && !cover?.previewUrl) {
+    errors.cover = 'Thumbnail image is required.'
   }
 
   const seen = new Set()
@@ -118,6 +113,85 @@ export function validateProductAssets({ cover, samples, keywords }, { isDraft } 
   })
   if (dupes.length) {
     errors.keywords = `Duplicate keywords: ${dupes.join(', ')}`
+  }
+
+  return errors
+}
+
+function normalizeIsbn(value) {
+  return String(value || '').replace(/[-\s]/g, '')
+}
+
+export function validateIsbn(value) {
+  const normalized = normalizeIsbn(value)
+  if (!normalized) return 'ISBN is required.'
+  if (!/^\d{10}(\d{3})?$/.test(normalized)) {
+    return 'Enter a valid ISBN-10 or ISBN-13.'
+  }
+  return ''
+}
+
+export function validateProductForm(values, { cover, keywords, isDraft, isEdit } = {}) {
+  const errors = {}
+
+  if (!String(values.name || '').trim()) {
+    errors.name = 'Product name is required.'
+  }
+
+  if (!String(values.examCategory || '').trim()) {
+    errors.examCategory = 'Exam category is required.'
+  }
+
+  if (!String(values.authorName || '').trim()) {
+    errors.authorName = 'Author name is required.'
+  }
+
+  if (!String(values.language || '').trim()) {
+    errors.language = 'Language is required.'
+  }
+
+  const isbnError = validateIsbn(values.isbn)
+  if (isbnError) errors.isbn = isbnError
+
+  if (!String(values.description || '').trim()) {
+    errors.description = 'Book summary is required.'
+  }
+
+  const originalPrice = Number(values.originalPrice)
+  if (!Number.isFinite(originalPrice) || originalPrice <= 0) {
+    errors.originalPrice = 'Original price must be greater than 0.'
+  }
+
+  const discountRaw = String(values.discountPrice ?? '').trim()
+  if (discountRaw) {
+    const discountPrice = Number(discountRaw)
+    if (!Number.isFinite(discountPrice) || discountPrice < 0) {
+      errors.discountPrice = 'Discount price cannot be negative.'
+    } else if (Number.isFinite(originalPrice) && discountPrice > originalPrice) {
+      errors.discountPrice = 'Discount price cannot exceed original price.'
+    }
+  }
+
+  const stockQuantity = Number(values.stockQuantity)
+  if (!Number.isFinite(stockQuantity) || stockQuantity < 0 || !Number.isInteger(stockQuantity)) {
+    errors.stockQuantity = 'Stock quantity must be a non-negative whole number.'
+  }
+
+  if (!values.status) {
+    errors.status = 'Status is required.'
+  }
+
+  if (!isDraft && !cover?.previewUrl) {
+    errors.cover = 'Thumbnail image is required.'
+  }
+
+  if (!isDraft && !isEdit && !cover?.file) {
+    errors.cover = 'Upload a thumbnail image before creating the product.'
+  }
+
+  const keywordErrors = validateProductAssets({ cover, samples: [], keywords }, { isDraft })
+  if (keywordErrors.keywords) {
+    errors.keywords = keywordErrors.keywords
   }
 
   return errors

@@ -181,6 +181,8 @@ export default function PaginatedFigmaTable({
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           itemLabel={itemLabel}
+          hasNextPage={controlledPagination?.hasNextPage}
+          hasPrevPage={controlledPagination?.hasPrevPage}
           className={cn('shrink-0 border-t border-[#E5E7EB] bg-white', resolvedPaginationClassName)}
           gradientActivePage={gradientActivePage}
         />
