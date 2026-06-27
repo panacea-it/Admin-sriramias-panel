@@ -1,5 +1,6 @@
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { StatusBadge } from '../academics/AcademicsUi'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { facultySubjectLabels } from '../../data/facultySubjectLabels'
 import FacultySubjectTableActions from './FacultySubjectTableActions'
 import SubjectChipPopover from './SubjectChipPopover'
@@ -44,6 +45,44 @@ function TeacherCell({ name }) {
   )
 }
 
+function SortableLabel({ label, columnKey, sortBy, sortOrder, onSort, sortKey }) {
+  if (!onSort) return label
+  const active = sortBy === sortKey
+  const Icon = active ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(columnKey)}
+      className={cn(
+        'inline-flex items-center gap-1 font-semibold transition hover:text-[#246392]',
+        active && 'text-[#246392]',
+      )}
+    >
+      {label}
+      <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+    </button>
+  )
+}
+
+function withSortableLabel(column, { sortBy, sortOrder, onSort, sortKey }) {
+  if (!onSort || !sortKey) return column
+  return {
+    ...column,
+    label: (
+      <SortableLabel
+        label={column.label}
+        columnKey={column.key}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        sortKey={sortKey}
+      />
+    ),
+    headerTruncate: false,
+  }
+}
+
 export default function SubjectTable({
   data,
   onView,
@@ -53,6 +92,8 @@ export default function SubjectTable({
   onStatusToggle,
   search,
   statusFilter,
+  categoryFilter,
+  teacherFilter,
   selectedIds = [],
   onToggleSelect,
   onToggleSelectPage,
@@ -61,33 +102,43 @@ export default function SubjectTable({
   loading = false,
   controlledPagination,
   statusChangingId,
+  sortBy,
+  sortOrder,
+  onSort,
+  canMutate = true,
 }) {
   const columns = [
-    {
-      key: 'id',
-      label: 'ID',
-      width: '7%',
-      headerClassName: cn(OVERFLOW_CELL, 'whitespace-nowrap'),
-      cellClassName: OVERFLOW_CELL,
-      headerTruncate: false,
-      render: (row) => (
-        <CellWrap>
-          <AdminTooltip label={`Subject ID: ${row.displayId || row.facultySubjectId || row.id}`}>
-            <span className="block truncate font-mono text-xs font-bold tracking-tight text-[#1a3a5c]">
-              {row.displayId || row.facultySubjectId || row.id}
-            </span>
-          </AdminTooltip>
-        </CellWrap>
-      ),
-    },
-    {
-      key: 'subjectName',
-      label: 'Faculty Subject',
-      width: '18%',
-      headerClassName: OVERFLOW_CELL,
-      cellClassName: OVERFLOW_CELL,
-      render: (row) => <SubjectNameCell name={row.subjectName} />,
-    },
+    withSortableLabel(
+      {
+        key: 'id',
+        label: 'ID',
+        width: '7%',
+        headerClassName: cn(OVERFLOW_CELL, 'whitespace-nowrap'),
+        cellClassName: OVERFLOW_CELL,
+        headerTruncate: false,
+        render: (row) => (
+          <CellWrap>
+            <AdminTooltip label={`Subject ID: ${row.displayId || row.facultySubjectId || row.id}`}>
+              <span className="block truncate font-mono text-xs font-bold tracking-tight text-[#1a3a5c]">
+                {row.displayId || row.facultySubjectId || row.id}
+              </span>
+            </AdminTooltip>
+          </CellWrap>
+        ),
+      },
+      { sortBy, sortOrder, onSort, sortKey: 'facultySubjectId' },
+    ),
+    withSortableLabel(
+      {
+        key: 'subjectName',
+        label: 'Faculty Subject',
+        width: '18%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (row) => <SubjectNameCell name={row.subjectName} />,
+      },
+      { sortBy, sortOrder, onSort, sortKey: 'subjectName' },
+    ),
     {
       key: 'teacher',
       label: 'Faculty',
@@ -96,20 +147,23 @@ export default function SubjectTable({
       cellClassName: OVERFLOW_CELL,
       render: (row) => <TeacherCell name={row.teacher} />,
     },
-    {
-      key: 'status',
-      label: 'Status',
-      width: '9%',
-      align: 'center',
-      headerClassName: cn(OVERFLOW_CELL, 'text-center whitespace-nowrap'),
-      cellClassName: cn(OVERFLOW_CELL, 'text-center'),
-      headerTruncate: false,
-      render: (row) => (
-        <div className="flex w-full items-center justify-center px-1">
-          <StatusBadge status={row.status} />
-        </div>
-      ),
-    },
+    withSortableLabel(
+      {
+        key: 'status',
+        label: 'Status',
+        width: '9%',
+        align: 'center',
+        headerClassName: cn(OVERFLOW_CELL, 'text-center whitespace-nowrap'),
+        cellClassName: cn(OVERFLOW_CELL, 'text-center'),
+        headerTruncate: false,
+        render: (row) => (
+          <div className="flex w-full items-center justify-center px-1">
+            <StatusBadge status={row.status} />
+          </div>
+        ),
+      },
+      { sortBy, sortOrder, onSort, sortKey: 'status' },
+    ),
     {
       key: 'topics',
       label: 'Topics',
@@ -149,11 +203,12 @@ export default function SubjectTable({
         <FacultySubjectTableActions
           row={row}
           onView={() => onView?.(row)}
-          onEdit={() => onEdit(row)}
+          onEdit={onEdit ? () => onEdit(row) : undefined}
           onManageContent={() => onManageContent?.(row)}
-          onStatusToggle={() => onStatusToggle?.(row)}
-          onDelete={() => onDelete(row)}
+          onStatusToggle={onStatusToggle ? () => onStatusToggle?.(row) : undefined}
+          onDelete={onDelete ? () => onDelete(row) : undefined}
           statusLoading={statusChangingId === row.id}
+          canMutate={canMutate}
         />
       ),
     }),
@@ -179,7 +234,7 @@ export default function SubjectTable({
       data={data}
       emptyMessage={emptyMessage}
       itemLabel="subjects"
-      resetDeps={[search, statusFilter]}
+      resetDeps={[search, statusFilter, categoryFilter, teacherFilter]}
       rowClassName="hover:bg-[#eef6fc]/70"
       loading={loading}
       controlledPagination={controlledPagination}

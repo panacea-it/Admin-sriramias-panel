@@ -24,6 +24,7 @@ export default function SearchableSelect({
   menuClassName,
   usePortal = true,
   maxMenuHeight = 280,
+  filterOption,
 }) {
   const [open, setOpen] = useState(false)
   const [menuVisible, setMenuVisible] = useState(false)
@@ -41,10 +42,14 @@ export default function SearchableSelect({
 
   const filtered = useMemo(() => {
     const selectable = options.filter((o) => !o.disabled)
-    const q = search.trim().toLowerCase()
+    const q = search.trim()
     if (!q) return selectable
-    return selectable.filter((o) => o.label.toLowerCase().includes(q))
-  }, [options, search])
+    if (typeof filterOption === 'function') {
+      return selectable.filter((o) => filterOption(o, q))
+    }
+    const needle = q.toLowerCase()
+    return selectable.filter((o) => o.label.toLowerCase().includes(needle))
+  }, [options, search, filterOption])
 
   const closeMenu = useCallback(() => {
     setMenuVisible(false)

@@ -27,6 +27,17 @@ export function getAuthToken() {
   )
 }
 
+/** Demo / employee mock tokens from offline login — not valid for live API calls. */
+export function isOfflineAuthToken(token = getAuthToken()) {
+  if (!token) return false
+  const value = String(token)
+  return value.startsWith('demo-token-') || value.startsWith('employee-token-')
+}
+
+export function canUseLiveApi() {
+  return Boolean(getAuthToken()) && !isOfflineAuthToken()
+}
+
 export function getStoredUserJson() {
   return sessionStorage.getItem(USER_KEY) || localStorage.getItem(USER_KEY)
 }

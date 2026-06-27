@@ -3,6 +3,7 @@ import { useBatchStudents } from '../hooks/useBatchStudents'
 import { getFacultySubjects } from '../api/facultySubjectsAPI'
 import { normalizeFacultySubjectsListResponse } from '../utils/facultySubjectHelpers'
 import { syncFacultySubjectsToLocalStorage } from '../utils/facultySubjectSync'
+import { canUseLiveApi } from '../utils/authStorage'
 
 const BatchManagementContext = createContext(null)
 
@@ -15,6 +16,8 @@ export function resolveStudentKey(row, getStudents) {
 
 export function BatchManagementProvider({ children }) {
   useEffect(() => {
+    if (!canUseLiveApi()) return undefined
+
     let cancelled = false
     ;(async () => {
       try {

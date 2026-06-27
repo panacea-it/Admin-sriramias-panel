@@ -34,6 +34,20 @@ function toAuthError(error) {
     }
   }
 
+  if (status === 422) {
+    const fieldErrors = data?.error?.errors
+    const firstFieldError = Array.isArray(fieldErrors)
+      ? fieldErrors.find((entry) => entry?.message)?.message
+      : null
+    return {
+      message:
+        firstFieldError ||
+        (typeof data === 'object' && (data.message || data.error)) ||
+        'Invalid email or password. Please check your credentials.',
+      status: 422,
+    }
+  }
+
   if (status === 403) {
     return {
       message:

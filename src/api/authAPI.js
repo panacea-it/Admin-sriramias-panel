@@ -57,11 +57,20 @@ function assertExpectedRole(mapped, expectedRole) {
 function shouldFallbackToDemo(error) {
   if (!isDemoAuthEnabled) return false
   const status = error?.status ?? error?.response?.status
-  // Never retry or fall back on rate limits, forbidden, or server errors.
-  if (status === 429 || status === 403 || (status && status >= 500)) return false
-  if (status === 401) return true
+  // Never fall back on forbidden or server errors.
+  if (status === 403 || (status && status >= 500)) return false
+  // Rate limits and auth failures: try demo credentials in dev.
+  if (status === 429 || status === 401 || status === 422) return true
   if (error?.code === 'ERR_NETWORK' || !error?.response) return true
   return false
+}
+
+function tryDemoLogin(credentials, expectedRole) {
+  if (!isDemoAuthEnabled) return null
+  if (!findDemoUser(credentials.email, credentials.password)) return null
+  const result = mockAuthenticate(credentials.email, credentials.password)
+  assertExpectedRole(result, expectedRole)
+  return result
 }
 
 function resolveThrownMessage(error) {
@@ -105,15 +114,20 @@ export async function login({ email, password, expectedRole }) {
       return await loginSuperAdminViaApi(credentials, expectedRole)
     } catch (error) {
       if (shouldFallbackToDemo(error)) {
+        const demoResult = tryDemoLogin(credentials, expectedRole)
+        if (demoResult) return demoResult
         try {
           return tryMock()
-        } catch (demoError) {
+        } catch {
           throw new Error(resolveThrownMessage(error), { cause: error })
         }
       }
       throw new Error(resolveThrownMessage(error), { cause: error })
     }
   }
+
+  const demoResult = tryDemoLogin(credentials, expectedRole)
+  if (demoResult) return demoResult
 
   if (isFrontendOnly || isDemoAuthEnabled) {
     return tryMock()

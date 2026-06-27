@@ -1,84 +1,123 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchMentorsDropdown } from '../api/batchesAPI'
-import { isFrontendOnly } from '../config/appMode'
-import { useAdminRoles } from '../contexts/AdminRolesContext'
-import { listEmployees } from '../utils/employeeAuthStorage'
+import adminManagementService from '../services/adminManagementService'
+import { isRecordStatusActive } from '../constants/recordStatus'
 import {
-  EMPLOYEES_UPDATED_EVENT,
-  buildMentorSelectOptions,
-  formatMentorOptionLabel,
+  mapRolesDropdownResponse,
+  normalizeAdminListResponse,
+} from '../utils/adminManagementHelpers'
+import {
+  isMentorAdminRole,
+  mapMentorDropdownRow,
 } from '../utils/mentorEmployees'
 
-function mapApiMentorToOption(mentor) {
-  const id = mentor._id || mentor.id
-  if (!id) return null
-  const name = mentor.fullName || mentor.name || '—'
-  const roleLabel = mentor.roleTitle || mentor.roleCode || 'Mentor'
-  return {
-    value: String(id),
-    label: formatMentorOptionLabel(
-      { name, fullName: name, employeeId: mentor.employeeId },
-      roleLabel,
-    ),
-    employee: {
-      _id: id,
-      email: mentor.officialEmail || mentor.email || '',
-      name,
-      fullName: name,
-      employeeId: mentor.employeeId || '',
-      centerName: mentor.centerName || '',
-      centerCode: mentor.centerCode || '',
-    },
-    roleId: mentor.roleCode || '',
-    roleLabel,
+const LOAD_ERROR = 'Unable to load mentors'
+
+async function fetchActiveMentorAdminsFromAccess() {
+  const rolesData = await adminManagementService.getRolesDropdown()
+  const roles = mapRolesDropdownResponse(rolesData)
+  const mentorRole = roles.find(isMentorAdminRole)
+
+  if (!mentorRole?.value) {
+    if (import.meta.env.DEV) {
+      console.warn('[batch mentor dropdown] No Mentor Admin role found in roles dropdown')
+    }
+    return []
   }
+
+  let page = 1
+  const limit = 100
+  let totalPages = 1
+  const items = []
+
+  do {
+    const listData = await adminManagementService.getAdmins({
+      page,
+      limit,
+      roleId: mentorRole.value,
+    })
+    const normalized = normalizeAdminListResponse(listData, { page, limit })
+    items.push(
+      ...normalized.items.filter((row) => isRecordStatusActive(row.status)),
+    )
+    totalPages = normalized.totalPages || 1
+    page += 1
+  } while (page <= totalPages)
+
+  return items.map((row) => ({
+    _id: row.id,
+    id: row.id,
+    fullName: row.fullName,
+    name: row.fullName,
+    employeeName: row.employeeName,
+    employeeId: row.employeeId,
+    roleCode: row.roleCode,
+    roleTitle: row.roleTitle,
+  }))
 }
 
-/** Active batch mentors from Admin API dropdown, with local fallback in frontend-only mode. */
-export function useMentorEmployees({ enabled = true } = {}) {
-  const { roles } = useAdminRoles()
-  const [employees, setEmployees] = useState(() => listEmployees())
-  const [apiOptions, setApiOptions] = useState([])
+/** Batch mentor dropdown — mentors/dropdown first, admin-access fallback when empty. */
+export function useMentorEmployees({ enabled = false } = {}) {
+  const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
-  const [fetchError, setFetchError] = useState(null)
+  const [error, setError] = useState(null)
 
-  const refreshLocal = useCallback(() => {
-    setEmployees(listEmployees())
-  }, [])
-
-  const loadMentors = useCallback(async () => {
-    if (!enabled || isFrontendOnly) return
-    setLoading(true)
-    try {
-      const rows = await fetchMentorsDropdown()
-      setApiOptions(
-        rows.map(mapApiMentorToOption).filter(Boolean).sort((a, b) => a.label.localeCompare(b.label)),
-      )
-      setFetchError(null)
-    } catch (err) {
-      setApiOptions([])
-      setFetchError(err?.message || 'Failed to load mentors')
-    } finally {
+  useEffect(() => {
+    if (!enabled) {
+      setOptions([])
+      setError(null)
       setLoading(false)
+      return undefined
+    }
+
+    const ac = new AbortController()
+    let active = true
+    setLoading(true)
+    setError(null)
+    setOptions([])
+
+    ;(async () => {
+      try {
+        let rows = await fetchMentorsDropdown({ signal: ac.signal })
+
+        if (!rows.length) {
+          rows = await fetchActiveMentorAdminsFromAccess()
+          if (import.meta.env.DEV && rows.length) {
+            console.log(
+              '[batch mentor dropdown] mentors/dropdown was empty; loaded from admin-access',
+              rows,
+            )
+          }
+        }
+
+        if (!active) return
+
+        if (import.meta.env.DEV) {
+          console.log('[batch mentor dropdown] API rows', rows)
+        }
+
+        setOptions(
+          rows
+            .map(mapMentorDropdownRow)
+            .filter(Boolean)
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        )
+        setError(null)
+      } catch (err) {
+        if (!active) return
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+        setOptions([])
+        setError(err?.message || LOAD_ERROR)
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+
+    return () => {
+      active = false
+      ac.abort()
     }
   }, [enabled])
 
-  useEffect(() => {
-    refreshLocal()
-    window.addEventListener(EMPLOYEES_UPDATED_EVENT, refreshLocal)
-    return () => window.removeEventListener(EMPLOYEES_UPDATED_EVENT, refreshLocal)
-  }, [refreshLocal])
-
-  useEffect(() => {
-    if (!enabled) return undefined
-    void loadMentors()
-    return undefined
-  }, [enabled, loadMentors])
-
-  const options = useMemo(() => {
-    if (!isFrontendOnly && apiOptions.length) return apiOptions
-    return buildMentorSelectOptions(employees, roles)
-  }, [apiOptions, employees, roles])
-
-  return { options, loading, error: fetchError, refresh: loadMentors }
+  return { options, loading, error }
 }

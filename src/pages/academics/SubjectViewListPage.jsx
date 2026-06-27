@@ -10,6 +10,7 @@ import RecurrenceScopeDialog from '../../components/live-classes/RecurrenceScope
 import { RECURRENCE_DELETE_SCOPES } from '../../constants/recurrence'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
+import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
 import { buildLiveClassesFromRecurrence } from '../../utils/academicsSubjectsRecurrence'
 import { syncSubjectLiveClassesToModule } from '../../utils/subjectModuleSync'
 import { formatSubjectViewTitle } from '../../utils/academicsSubjectsStorage'
@@ -20,12 +21,18 @@ export default function SubjectViewListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const {
-    getSubjectById,
+    subject,
+    loading: subjectLoading,
+    error: subjectError,
+  } = useFacultySubjectDetail(id, {
+    enabled: Boolean(id),
+    syncLocal: true,
+  })
+  const {
     upsertLiveClass,
     upsertLiveClassesBatch,
     deleteLiveClassWithScope,
   } = useAcademicsSubjects()
-  const subject = getSubjectById(id)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -54,13 +61,25 @@ export default function SubjectViewListPage() {
     })
   }, [liveClasses, search, statusFilter])
 
+  if (subjectLoading) {
+    return (
+      <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
+        <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+          <div className="flex min-h-[240px] items-center justify-center rounded-2xl bg-white text-sm font-medium text-[#686868] shadow-sm">
+            Loading faculty subject…
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   if (!subject) {
     return (
       <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
         <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
           <SubjectEmptyState
-            title="Unable to load subject"
-            description="Subject not found."
+            title="Unable to load faculty subject"
+            description={subjectError || 'Faculty subject not found.'}
             actionLabel="Back to Faculty Subjects"
             onAction={() => navigate('/academics/subjects')}
           />

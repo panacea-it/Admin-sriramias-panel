@@ -4,12 +4,8 @@ import { getApiErrorMessage } from '../utils/apiError'
 import {
   getFacultySubjectCategories,
   getFacultySubjectCreateForm,
-  getSubjectsDropdown,
 } from '../api/facultySubjectsAPI'
-import {
-  normalizeFacultySubjectCreateFormResponse,
-  normalizeSubjectsDropdownResponse,
-} from '../utils/facultySubjectHelpers'
+import { normalizeFacultySubjectCreateFormResponse } from '../utils/facultySubjectHelpers'
 
 const BASE_CACHE_TTL_MS = 60_000
 const CREATE_FORM_CACHE_TTL_MS = 30_000
@@ -82,9 +78,10 @@ export function useFacultySubjectFormOptions({ open, enabled = true }) {
     setLoadingSubjects(true)
     setLoadingCategories(true)
 
-    const subjectsPromise = getSubjectsDropdown({ signal })
+    const subjectsPromise = getFacultySubjectCreateForm(undefined, { signal })
       .then((data) => {
-        const subjects = normalizeSubjectsDropdownResponse(data)
+        const normalized = normalizeFacultySubjectCreateFormResponse(data)
+        const subjects = normalized.subjects
         setSubjectOptions(subjects)
         baseOptionsCache = {
           ...baseOptionsCache,

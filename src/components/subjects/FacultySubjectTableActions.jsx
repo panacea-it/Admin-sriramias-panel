@@ -14,6 +14,7 @@ export default function FacultySubjectTableActions({
   onStatusToggle,
   onDelete: _onDelete,
   statusLoading = false,
+  canMutate = true,
 }) {
   const statusAction = recordStatusActionLabel(row.status)
   const rowLabel = row.subjectName || row.name || 'subject'
@@ -25,7 +26,7 @@ export default function FacultySubjectTableActions({
       className={TABLE_ACTIONS_WRAP}
     >
       <ViewButton onClick={onView} />
-      <EditButton onClick={onEdit} />
+      {canMutate && onEdit && <EditButton onClick={onEdit} />}
       <IconActionButton
         label="Manage Content"
         onClick={onManageContent}
@@ -33,14 +34,16 @@ export default function FacultySubjectTableActions({
       >
         <Plus className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
       </IconActionButton>
-      <IconActionButton
-        label={statusAction}
-        onClick={onStatusToggle}
-        disabled={statusLoading}
-        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
-      >
-        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
-      </IconActionButton>
+      {canMutate && onStatusToggle && (
+        <IconActionButton
+          label={statusAction}
+          onClick={onStatusToggle}
+          disabled={statusLoading}
+          className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+        >
+          <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
+        </IconActionButton>
+      )}
     </div>
   )
 }

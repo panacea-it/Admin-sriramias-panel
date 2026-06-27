@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { BookOpen } from 'lucide-react'
 import ModalCloseButton from './ModalCloseButton'
 import { toast } from '@/utils/toast'
@@ -10,6 +11,12 @@ import SubjectContentFields from './SubjectContentFields'
 import { FormFooter } from './subjectFormUi'
 import { useAuth } from '../../contexts/AuthContext'
 import { useBatchesData } from '../../hooks/useBatchesData'
+import { useFacultySubjectFormOptions } from '../../hooks/useFacultySubjectFormOptions'
+import {
+  facultySubjectFormSchema,
+  EMPTY_FACULTY_SUBJECT_FORM,
+} from '../../modules/academics/facultySubjects/validation/facultySubject.schema'
+import { facultySubjectToForm } from '../../modules/academics/facultySubjects/utils/facultySubjectFormUtils'
 import {
   CATEGORY_OPTIONS,
   SUBJECT_DROPDOWN_OPTIONS,
@@ -69,12 +76,14 @@ export default function SubjectModal({
   subjects = [],
   onSubmit,
   detailLoading = false,
+  apiIntegrated = false,
 }) {
   const { user } = useAuth()
   const actorName = user?.name || user?.email || 'Admin'
   const isEdit = mode === 'edit'
   const liveClassOnly = context === 'liveClass'
   const subjectOnly = context === 'subject'
+  const useApiForm = subjectOnly && apiIntegrated
   const { sourceRows: batches, loading: batchesLoading } = useBatchesData({ enabled: liveClassOnly })
   const [saving, setSaving] = useState(false)
   const [recordingUploadError, setRecordingUploadError] = useState(null)
@@ -87,6 +96,23 @@ export default function SubjectModal({
   const categoryOptions = CATEGORY_OPTIONS
   const [topicOptions, setTopicOptions] = useState([])
   const [teacherOptions, setTeacherOptions] = useState([])
+
+  const apiFormOptions = useFacultySubjectFormOptions({
+    open: open && useApiForm,
+    enabled: useApiForm,
+  })
+
+  const resolvedSubjectOptions = useApiForm
+    ? apiFormOptions.subjectOptions
+    : subjectOptions
+  const resolvedCategoryOptions = useApiForm
+    ? apiFormOptions.categoryOptions
+    : categoryOptions
+  const resolvedTopicOptions = useApiForm ? apiFormOptions.topicOptions : topicOptions
+  const resolvedTeacherOptions = useApiForm ? apiFormOptions.teacherOptions : teacherOptions
+  const loadingSubjects = useApiForm ? apiFormOptions.loadingSubjects : false
+  const loadingCategories = useApiForm ? apiFormOptions.loadingCategories : false
+  const loadingFormOptions = useApiForm ? apiFormOptions.loadingFormOptions : false
 
   const applySubjectFormOptions = useCallback((subjectKey, { merge = false } = {}) => {
     const topics = topicsForSubject(subjectKey)
@@ -119,7 +145,10 @@ export default function SubjectModal({
     setError,
     clearErrors,
     formState: { errors },
-  } = useForm({ defaultValues: EMPTY_SUBJECT_FORM })
+  } = useForm({
+    defaultValues: useApiForm ? EMPTY_FACULTY_SUBJECT_FORM : EMPTY_SUBJECT_FORM,
+    resolver: useApiForm ? zodResolver(facultySubjectFormSchema) : undefined,
+  })
 
   const subjectRef = useRef(subject)
   subjectRef.current = subject
@@ -137,14 +166,26 @@ export default function SubjectModal({
 
   useInitOnModalOpen(open, seedKey, () => {
     const raw = subjectRef.current
-    const seeded = subjectToForm(raw, liveClassRef.current)
+    const seeded = useApiForm
+      ? facultySubjectToForm(raw)
+      : subjectToForm(raw, liveClassRef.current)
     lastSubjectRef.current = seeded.subject ? String(seeded.subject) : ''
     reset(seeded)
     syncRecurrenceState(seeded)
     clearErrors()
     setTestSeriesErrors({})
     setRecordingUploadError(null)
-    if (subjectOnly) {
+    if (subjectOnly && useApiForm) {
+      if (seeded.subject) {
+        apiFormOptions.loadCreateFormOptions(seeded.subject, { merge: isEdit })
+      }
+      if (raw?.topicMeta?.length || raw?.teacherMeta?.length) {
+        apiFormOptions.seedFormOptions({
+          topics: raw.topicMeta || [],
+          teachers: raw.teacherMeta || [],
+        })
+      }
+    } else if (subjectOnly) {
       applySubjectFormOptions(seeded.subject, { merge: isEdit })
       const existingTopics = Array.isArray(raw?.topics)
         ? raw.topics.map((name) => ({ value: name, label: name }))
@@ -171,8 +212,12 @@ export default function SubjectModal({
     lastSubjectRef.current = id
     setValue('teacher', '')
     setValue('topics', [])
-    applySubjectFormOptions(id)
-    if (id && !watch('subjectName')?.trim()) {
+    if (useApiForm) {
+      apiFormOptions.loadCreateFormOptions(id)
+    } else {
+      applySubjectFormOptions(id)
+    }
+    if (id && !watch('subjectName')?.trim() && !useApiForm) {
       setValue('subjectName', id)
     }
   }
@@ -191,6 +236,27 @@ export default function SubjectModal({
   }
 
   const onFormSubmit = async (values) => {
+    if (useApiForm) {
+      if (loadingFormOptions || loadingSubjects || loadingCategories) {
+        toast.error('Please wait for form options to finish loading.')
+        return
+      }
+      if (isEdit && detailLoading) {
+        toast.error('Subject is still loading. Please wait.')
+        return
+      }
+      setSaving(true)
+      try {
+        await onSubmit(values)
+        onClose()
+      } catch {
+        /* parent shows toast */
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     const payload = {
       ...values,
       recurring,
@@ -271,10 +337,13 @@ export default function SubjectModal({
                 register={register}
                 control={control}
                 errors={errors}
-                subjectOptions={subjectOptions}
-                topicOptions={topicOptions}
-                teacherOptions={teacherOptions}
-                categoryOptions={categoryOptions}
+                subjectOptions={resolvedSubjectOptions}
+                topicOptions={resolvedTopicOptions}
+                teacherOptions={resolvedTeacherOptions}
+                categoryOptions={resolvedCategoryOptions}
+                loadingSubjects={loadingSubjects}
+                loadingCategories={loadingCategories}
+                loadingFormOptions={loadingFormOptions}
                 onSubjectChange={handleSubjectChange}
                 disabledTopicsTeachers={!watchedSubjectId}
               />
@@ -321,11 +390,15 @@ export default function SubjectModal({
           saving={saving || detailLoading}
           onReset={() => {
             const raw = subject
-            const seeded = subjectToForm(raw, liveClass)
+            const seeded = useApiForm
+              ? facultySubjectToForm(raw)
+              : subjectToForm(raw, liveClass)
             lastSubjectRef.current = seeded.subject ? String(seeded.subject) : ''
             reset(seeded)
             syncRecurrenceState(seeded)
-            if (subjectOnly) {
+            if (subjectOnly && useApiForm && seeded.subject) {
+              apiFormOptions.loadCreateFormOptions(seeded.subject, { merge: isEdit })
+            } else if (subjectOnly) {
               applySubjectFormOptions(seeded.subject, { merge: isEdit })
             }
           }}

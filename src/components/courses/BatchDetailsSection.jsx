@@ -20,6 +20,7 @@ export default function BatchDetailsSection({
   excludeCourseIds = [],
   onBrochureUploadingChange,
   isEditMode = false,
+  modalOpen = false,
 }) {
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
@@ -72,10 +73,11 @@ export default function BatchDetailsSection({
       </CourseFormField>
 
       <BatchMentorSelect
+        open={modalOpen}
         form={form}
         setForm={setForm}
-        error={errors.mentorEmail}
-        onClearError={() => clearError('mentorEmail')}
+        error={errors.mentorId}
+        onClearError={() => clearError('mentorId')}
         className="sm:col-span-1 lg:col-span-1"
       />
 

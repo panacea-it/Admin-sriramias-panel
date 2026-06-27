@@ -1,5 +1,5 @@
 ﻿import axios from "axios";
-import { clearAuthStorage, getAuthToken } from "../utils/authStorage";
+import { clearAuthStorage, getAuthToken, isOfflineAuthToken } from "../utils/authStorage";
 
 function readEnvBaseUrl() {
   const raw =
@@ -63,7 +63,7 @@ api.interceptors.response.use(
     if (
       status === 401 &&
       !url.includes("/auth/login") &&
-      !String(token).startsWith("demo-token-")
+      !isOfflineAuthToken(token)
     ) {
       clearAuthStorage();
       if (window.location.pathname !== "/login") {

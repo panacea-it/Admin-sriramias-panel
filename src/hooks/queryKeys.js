@@ -85,6 +85,19 @@ export const freeResourceKeys = {
   mockTestQuestions: (mockTestId) => [...freeResourceKeys.all, 'mock-test-questions', mockTestId],
 }
 
+export const facultySubjectKeys = {
+  all: ['faculty-subjects'],
+  lists: () => [...facultySubjectKeys.all, 'list'],
+  /** @param {Record<string, unknown>} [params] */
+  list: (params) => [...facultySubjectKeys.lists(), params ?? {}],
+  details: () => [...facultySubjectKeys.all, 'detail'],
+  detail: (id) => [...facultySubjectKeys.details(), id],
+  categories: () => [...facultySubjectKeys.all, 'categories'],
+  createForm: (subjectId) => [...facultySubjectKeys.all, 'create-form', subjectId ?? ''],
+  /** @param {Record<string, unknown>} [params] */
+  dropdown: (params) => [...facultySubjectKeys.all, 'dropdown', params ?? {}],
+}
+
 export const currentAffairsKeys = {
   all: ['current-affairs', 'admin'],
   lists: () => [...currentAffairsKeys.all, 'list'],

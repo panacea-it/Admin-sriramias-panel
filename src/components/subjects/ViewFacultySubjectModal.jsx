@@ -54,7 +54,7 @@ function resolveTopicLabels(item) {
     .filter(Boolean)
 }
 
-export default function ViewFacultySubjectModal({ open, onClose, item, loading = false }) {
+export default function ViewFacultySubjectModal({ open, onClose, item, loading = false, error = null }) {
   if (!open) return null
 
   if (loading) {
@@ -62,6 +62,25 @@ export default function ViewFacultySubjectModal({ open, onClose, item, loading =
       <Modal open={open} onClose={onClose} size="md" title="View subject" showCloseButton={false}>
         <div className="flex min-h-[240px] items-center justify-center rounded-2xl bg-white p-8 text-sm font-medium text-[#686868]">
           Loading subject details…
+        </div>
+      </Modal>
+    )
+  }
+
+  if (error && !item) {
+    return (
+      <Modal open={open} onClose={onClose} size="md" title="View subject" showCloseButton={false}>
+        <div className="space-y-4 rounded-2xl bg-white p-6">
+          <p className="text-sm font-medium text-red-700">{error}</p>
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-w-[120px] rounded-full bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 py-2.5 text-sm font-bold text-white shadow-md transition hover:brightness-110"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </Modal>
     )

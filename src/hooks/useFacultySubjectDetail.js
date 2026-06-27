@@ -47,7 +47,7 @@ export function useFacultySubjectDetail(facultySubjectId, { enabled = true, sync
         if (!row) {
           if (!localRow) {
             setSubject(null)
-            setError('Subject not found')
+            setError('Faculty subject not found')
           }
           return
         }

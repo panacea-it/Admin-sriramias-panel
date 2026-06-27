@@ -15,6 +15,7 @@ import {
 } from '../utils/batchApiHelpers'
 import { findBatchRow, resolveBatchMongoId } from '../utils/batchHelpers'
 import { isMongoObjectId } from '../utils/facultySubjectHelpers'
+import { unwrapMentorsDropdownList } from '../utils/mentorEmployees'
 
 function logFormDataKeys(formData, label) {
   if (!import.meta.env.DEV || !(formData instanceof FormData)) return
@@ -416,11 +417,12 @@ export async function fetchMentorsDropdown({ signal } = {}) {
       signal,
       skipAuthRedirect: true,
     })
-    const body = response.data
-    return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []
+    const rows = unwrapMentorsDropdownList(response.data)
+    logBatchApiDev('fetchMentorsDropdown response', { raw: response.data, count: rows.length })
+    return rows
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
-    throw mapBatchApiError(error, 'Failed to load mentors')
+    throw mapBatchApiError(error, 'Unable to load mentors')
   }
 }
 

@@ -99,8 +99,8 @@ export default function AddCourseModal({
     const next = {}
     if (!form.batchName?.trim()) next.batchName = 'Batch name is required'
     if (!form.batchCode?.trim()) next.batchCode = 'Batch code is required'
-    if (!form.mentorId?.trim() && !form.mentorEmail?.trim()) {
-      next.mentorEmail = 'Mentor is required'
+    if (!form.mentorId?.trim()) {
+      next.mentorId = 'Mentor is required'
     }
     if (!form.academicCourseId?.trim() && !form.courseId?.trim()) {
       next.courseId = 'Please select a course'
@@ -239,6 +239,7 @@ export default function AddCourseModal({
                 onBrochureUploadingChange={setBrochureUploading}
                 excludeCourseIds={[]}
                 isEditMode={isEditMode}
+                modalOpen={open}
               />
             </BatchFormCard>
 

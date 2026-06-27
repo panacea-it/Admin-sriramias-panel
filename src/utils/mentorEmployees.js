@@ -1,86 +1,81 @@
-/** Mentor employees for batch assignment — sourced from Admin Management (role access). */
+/** Mentor employees for batch assignment — sourced from Admin Management API. */
 
 export const EMPLOYEES_UPDATED_EVENT = 'employees-updated'
 
-/**
- * Mentor-related roles for batch assignment (excludes admin-only titles like "Mentor Admin").
- * @param {{ id?: string, label?: string } | string} roleOrLabel
- */
-export function isBatchMentorRole(roleOrLabel) {
-  const label =
-    typeof roleOrLabel === 'string'
-      ? roleOrLabel
-      : roleOrLabel?.label || roleOrLabel?.id || ''
-  const id = typeof roleOrLabel === 'object' ? roleOrLabel?.id || '' : ''
-  const haystack = `${label} ${id}`.toLowerCase()
-  if (!haystack.includes('mentor')) return false
-  if (/mentor\s*admin/i.test(label) || id === 'mentor_admin') return false
+/** Unwrap GET /api/admin/admin-access/mentors/dropdown list payloads. */
+export function unwrapMentorsDropdownList(body) {
+  if (!body) return []
+  if (Array.isArray(body)) return body
+
+  if (Array.isArray(body.data)) return body.data
+
+  const nested = body.data
+  if (nested && typeof nested === 'object') {
+    if (Array.isArray(nested.data)) return nested.data
+    if (Array.isArray(nested.items)) return nested.items
+    if (Array.isArray(nested.mentors)) return nested.mentors
+    if (Array.isArray(nested.results)) return nested.results
+  }
+
+  if (Array.isArray(body.mentors)) return body.mentors
+  if (Array.isArray(body.items)) return body.items
+  if (Array.isArray(body.results)) return body.results
+
+  return []
+}
+
+export function resolveMentorDropdownId(mentor = {}) {
+  const candidates = [
+    mentor._id,
+    mentor.id,
+    mentor.mentorId,
+    mentor.adminId,
+    mentor.userId,
+  ]
+  for (const raw of candidates) {
+    const id = String(raw ?? '').trim()
+    if (id) return id
+  }
+  return ''
+}
+
+/** Match Mentor Admin role from GET /api/admin/roles/dropdown options. */
+export function isMentorAdminRole(role = {}) {
+  const code = String(role.roleCode || role.code || '').trim().toUpperCase()
+  if (code === 'MENTOR_ADMIN') return true
+
+  const label = String(role.label || role.roleTitle || '').trim().toLowerCase()
+  if (!label.includes('mentor')) return false
+  if (label.includes('counsel')) return false
   return true
 }
 
-export function formatMentorOptionLabel(employee, roleLabel) {
-  const name = employee.name || employee.fullName || '—'
-  const empId = employee.employeeId || employee.id || '—'
-  const role = roleLabel || '—'
-  return `${name} (${empId}) – ${role}`
-}
+export function mapMentorDropdownRow(mentor = {}) {
+  const value = resolveMentorDropdownId(mentor)
+  if (!value) return null
 
-/**
- * @param {object[]} employees
- * @param {object[]} roles — from AdminRolesContext
- * @returns {Array<{ value: string, label: string, employee: object, roleId: string, roleLabel: string }>}
- */
-export function buildMentorSelectOptions(employees, roles) {
-  const roleLabels = Object.fromEntries((roles || []).map((r) => [r.id, r.label]))
-  const seen = new Set()
-  const options = []
+  const name = String(
+    mentor.fullName ?? mentor.name ?? mentor.employeeName ?? '',
+  ).trim()
+  const employeeId = String(mentor.employeeId ?? mentor.employeeCode ?? '').trim()
+  const displayName = name || employeeId || 'Mentor'
 
-  for (const emp of employees || []) {
-    if (emp.status === 'inactive') continue
-    const roleId = emp.role || ''
-    const roleLabel = roleLabels[roleId] || roleId
-    if (!isBatchMentorRole({ id: roleId, label: roleLabel })) continue
-
-    const value = emp.email?.toLowerCase()
-    if (!value || seen.has(value)) continue
-    seen.add(value)
-
-    options.push({
-      value,
-      label: formatMentorOptionLabel(emp, roleLabel),
-      employee: emp,
-      roleId,
-      roleLabel,
-    })
-  }
-
-  return options.sort((a, b) => a.label.localeCompare(b.label))
-}
-
-export function mentorFieldsFromOption(option) {
-  if (!option) {
-    return {
-      mentorId: '',
-      mentorEmail: '',
-      mentorEmployeeId: '',
-      mentorName: '',
-      mentorRoleId: '',
-      mentorRoleLabel: '',
-      trainerName: '',
-    }
-  }
-  const emp = option.employee || {}
-  const name = emp.name || emp.fullName || ''
-  const mentorId = emp._id || option.value || ''
   return {
-    mentorId: String(mentorId || ''),
-    mentorEmail: emp.email || emp.officialEmail || '',
-    mentorEmployeeId: emp.employeeId || emp.id || '',
-    mentorName: name,
-    mentorRoleId: option.roleId || '',
-    mentorRoleLabel: option.roleLabel || '',
-    trainerName: name,
+    value,
+    label: formatMentorOptionLabel(
+      { name: displayName, fullName: displayName, employeeId },
+      'Mentor',
+    ),
+    searchText: `${displayName} ${employeeId}`.trim().toLowerCase(),
   }
+}
+
+export function formatMentorOptionLabel(employee, roleLabel = 'Mentor') {
+  const name = String(employee.name || employee.fullName || '').trim() || '—'
+  const empId = String(employee.employeeId || '').trim()
+  const role = String(roleLabel || 'Mentor').trim() || 'Mentor'
+  if (empId) return `${name} (${empId}) – ${role}`
+  return `${name} – ${role}`
 }
 
 export function resolveMentorDisplayName(row = {}) {

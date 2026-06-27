@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { BASE_URL, buildApiUrl } from '../config/api'
-import { isDemoAuthEnabled, isFrontendOnly } from '../config/appMode'
+import { isFrontendOnly } from '../config/appMode'
 import { emitAuthLogout } from '../utils/authEvents'
-import { clearAuthStorage, getAuthToken } from '../utils/authStorage'
+import { clearAuthStorage, getAuthToken, isOfflineAuthToken } from '../utils/authStorage'
 
 export function resolveApiBaseUrl() {
   if (isFrontendOnly) {
@@ -63,7 +63,8 @@ api.interceptors.response.use(
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     const skipAuthRedirect = Boolean(error.config?.skipAuthRedirect)
     if (error.response?.status === 401 && !isLoginRequest && !skipAuthRedirect) {
-      if (!isFrontendOnly && !isDemoAuthEnabled) {
+      const token = getAuthToken() || localStorage.getItem('SuperAdminToken')
+      if (!isFrontendOnly && !isOfflineAuthToken(token)) {
         clearAuthStorage()
         emitAuthLogout()
         if (window.location.pathname !== '/login') {

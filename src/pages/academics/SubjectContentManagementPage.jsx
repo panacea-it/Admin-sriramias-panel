@@ -9,6 +9,7 @@ import SubjectContentFormPanel, {
 import ContentBulkConfirmDialog from '../../components/subject-content/ContentBulkConfirmDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
+import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
 import { useSubjectContent } from '../../hooks/useSubjectContent'
 import { mergeSeedIntoSubject } from '../../data/facultySubjectContentSeed'
 import {
@@ -29,11 +30,15 @@ export default function SubjectContentManagementPage() {
   const { subjectId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { subjects, upsertSubject } = useAcademicsSubjects()
-  const subject = useMemo(
-    () => subjects.find((s) => String(s.id) === String(subjectId)),
-    [subjects, subjectId],
-  )
+  const { upsertSubject } = useAcademicsSubjects()
+  const {
+    subject,
+    loading: subjectLoading,
+    error: subjectError,
+  } = useFacultySubjectDetail(subjectId, {
+    enabled: Boolean(subjectId),
+    syncLocal: true,
+  })
 
   const facultyName = user?.name || user?.email || subject?.teacher || 'Faculty'
   const teacherShort = subject?.teacher?.split(' ')[0] || facultyName.split(' ')[0]
@@ -541,12 +546,14 @@ export default function SubjectContentManagementPage() {
     setPanelMode('list')
   }
 
-  const showPageLoading = loading && !categories.length
+  const showPageLoading = (subjectLoading || loading) && !categories.length
 
-  if (!subject && !loading) {
+  if (!subject && !subjectLoading && !loading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8">
-        <p className="text-lg font-semibold text-[#1a3a5c]">Subject not found</p>
+        <p className="text-lg font-semibold text-[#1a3a5c]">
+          {subjectError || 'Faculty subject not found'}
+        </p>
         <button
           type="button"
           onClick={() => navigate('/academics/subjects')}
@@ -648,7 +655,7 @@ export default function SubjectContentManagementPage() {
               facultySubjectId=""
               listLoading={folderListLoading}
               itemCount={isRecordingCategory ? recordingCount : undefined}
-              subjects={subjects}
+              subjects={subject ? [subject] : []}
               category={activeCategory}
               folder={activeFolder}
               item={activeItem}

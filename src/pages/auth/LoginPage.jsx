@@ -10,6 +10,11 @@ import SriramLogo from '../../components/brand/SriramLogo'
 import { cn } from '../../utils/cn'
 import { resolveLoginErrorMessage } from '../../utils/authHelpers'
 import {
+  getLoginCooldownRemainingMs,
+  isRateLimitError,
+  setLoginCooldown,
+} from '../../utils/loginCooldown'
+import {
   firstLoginValidationMessage,
   validateLoginFields,
 } from '../../utils/loginValidation'
@@ -23,7 +28,21 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const submitLock = useRef(false)
+
+  useEffect(() => {
+    const syncCooldown = () => {
+      const remainingMs = getLoginCooldownRemainingMs()
+      setCooldownSeconds(remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0)
+    }
+
+    syncCooldown()
+    if (getLoginCooldownRemainingMs() <= 0) return undefined
+
+    const timer = window.setInterval(syncCooldown, 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const redirectTo =
     location.state?.from?.pathname && location.state.from.pathname !== '/login'
@@ -46,7 +65,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (authLoading || isSubmitting || submitLock.current) return
+    if (authLoading || isSubmitting || submitLock.current || cooldownSeconds > 0) return
 
     submitLock.current = true
     setIsSubmitting(true)
@@ -69,6 +88,10 @@ export default function LoginPage() {
       toast.success('Login successful')
       navigate(redirectTo, { replace: true })
     } catch (err) {
+      if (isRateLimitError(err)) {
+        setLoginCooldown()
+        setCooldownSeconds(Math.ceil(getLoginCooldownRemainingMs() / 1000))
+      }
       toast.error(resolveLoginErrorMessage(err))
     } finally {
       submitLock.current = false
@@ -77,6 +100,7 @@ export default function LoginPage() {
   }
 
   const signingIn = authLoading || isSubmitting
+  const loginBlocked = signingIn || cooldownSeconds > 0
 
   return (
     <div className="figma-admin-section flex min-h-screen w-full bg-[#f7f7f7]">
@@ -216,7 +240,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={signingIn}
+              disabled={loginBlocked}
               aria-busy={signingIn}
               className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] text-sm font-bold text-white shadow-[0_5px_13px_rgba(36,99,146,0.35)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
             >
@@ -225,10 +249,19 @@ export default function LoginPage() {
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   Signing in...
                 </>
+              ) : cooldownSeconds > 0 ? (
+                `Try again in ${cooldownSeconds}s`
               ) : (
                 'Sign in'
               )}
             </button>
+            {cooldownSeconds > 0 ? (
+              <p className="mt-3 text-center text-xs font-medium text-[#b45309]">
+                Too many login attempts. Wait {cooldownSeconds}s, then use{' '}
+                <span className="font-semibold">admin@sriram.com</span> /{' '}
+                <span className="font-semibold">admin123</span> for live API access.
+              </p>
+            ) : null}
           </form>
         </div>
       </div>
