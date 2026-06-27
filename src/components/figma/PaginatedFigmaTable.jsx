@@ -129,7 +129,9 @@ export default function PaginatedFigmaTable({
   }
 
   const showPagination = controlledPagination
-    ? !loading && controlledPagination.totalItems > 0
+    ? !loading &&
+      controlledPagination.totalItems > 0 &&
+      controlledPagination.totalPages > 0
     : !loading && data.length > 0
 
   return (

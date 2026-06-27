@@ -9,6 +9,7 @@ export function normalizeRankInput(value) {
 
 export function resolvePriorityOrder(row) {
   if (!row) return null
+  if (row.rank != null && row.rank >= 1) return Number(row.rank)
   if (row.priorityOrder != null && row.priorityOrder >= 1) return row.priorityOrder
   if (row.priorityLevel > 0) return row.priorityLevel
   return null
@@ -20,6 +21,7 @@ export function extractYoutubeVideoId(url = '') {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/i,
     /youtube\.com\/shorts\/([\w-]{11})/i,
+    /youtube\.com\/live\/([\w-]{11})/i,
   ]
   for (const pattern of patterns) {
     const match = raw.match(pattern)
@@ -53,6 +55,8 @@ export function normalizeYoutubeVideo(row) {
 
   return {
     ...row,
+    rank: row.rank ?? priorityOrder ?? null,
+    priority: Number(row.priority) > 0 ? Number(row.priority) : 0,
     priorityOrder,
     priorityLevel: priorityOrder ?? 0,
     customOrder: Number(row.customOrder) || 0,
@@ -75,9 +79,16 @@ export function applyExpiredPriorityCleanup(videos) {
 
 export function sortYoutubeVideos(videos) {
   return [...videos].sort((a, b) => {
-    const pa = a.priorityOrder ?? 999999
-    const pb = b.priorityOrder ?? 999999
+    const ra = a.rank ?? a.priorityOrder
+    const rb = b.rank ?? b.priorityOrder
+    const rankA = ra != null && ra >= 1 ? ra : 999999
+    const rankB = rb != null && rb >= 1 ? rb : 999999
+    if (rankA !== rankB) return rankA - rankB
+
+    const pa = a.priority > 0 ? a.priority : 999999
+    const pb = b.priority > 0 ? b.priority : 999999
     if (pa !== pb) return pa - pb
+
     if (a.customOrder !== b.customOrder) return a.customOrder - b.customOrder
     return new Date(b.createdAt) - new Date(a.createdAt)
   })

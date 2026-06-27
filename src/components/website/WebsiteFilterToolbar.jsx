@@ -98,9 +98,15 @@ export default function WebsiteFilterToolbar({
   rankMinError,
   rankMaxError,
   showRankRange = false,
+  disabled = false,
 }) {
   return (
-    <div className="flex min-h-[56px] flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.07)] sm:gap-4">
+    <div
+      className={cn(
+        'flex min-h-[56px] flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.07)] sm:gap-4',
+        disabled && 'pointer-events-none opacity-60',
+      )}
+    >
       <div className="relative w-full min-w-0 flex-1 lg:max-w-lg">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180]" />
         <input
@@ -108,6 +114,7 @@ export default function WebsiteFilterToolbar({
           value={search}
           onChange={onSearchChange}
           placeholder={searchPlaceholder}
+          disabled={disabled}
           className={cn(
             controlHeight,
             'w-full rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/45',

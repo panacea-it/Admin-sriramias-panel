@@ -20,14 +20,16 @@ export default function CategoryEmptyState({
       </div>
       <h3 className="text-lg font-bold text-[#222] sm:text-xl">{title}</h3>
       <p className="mt-2 max-w-sm text-sm font-medium text-[#686868]">{description}</p>
-      <button
-        type="button"
-        onClick={onCta}
-        className="mt-8 inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(3,4,94,0.35)] transition hover:scale-[1.03] hover:shadow-[0_8px_22px_rgba(3,4,94,0.4)] active:scale-[0.98]"
-      >
-        <PlusCircle className="h-4 w-4" strokeWidth={2.2} />
-        {ctaLabel}
-      </button>
+      {ctaLabel && onCta ? (
+        <button
+          type="button"
+          onClick={onCta}
+          className="mt-8 inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(3,4,94,0.35)] transition hover:scale-[1.03] hover:shadow-[0_8px_22px_rgba(3,4,94,0.4)] active:scale-[0.98]"
+        >
+          <PlusCircle className="h-4 w-4" strokeWidth={2.2} />
+          {ctaLabel}
+        </button>
+      ) : null}
     </motion.div>
   )
 }

@@ -172,13 +172,14 @@ export function WebsiteStatusBadge({ status }) {
   return <StatusBadge status={status} />
 }
 
-export function WebsiteStatusSelect({ value, onChange, id, required, className }) {
+export function WebsiteStatusSelect({ value, onChange, id, required, className, disabled }) {
   return (
     <select
       id={id}
       value={value}
       onChange={onChange}
       required={required}
+      disabled={disabled}
       className={cn(websiteInputClass, 'cursor-pointer', className)}
     >
       <option value="Active">Active</option>

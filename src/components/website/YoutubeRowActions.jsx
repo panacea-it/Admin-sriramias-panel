@@ -64,7 +64,7 @@ export default function YoutubeRowActions({
             label={isActive ? `Set ${rowName} inactive` : `Set ${rowName} active`}
             onClick={(e) => {
               e?.stopPropagation?.()
-              onStatusChange?.(isActive ? 'Inactive' : 'Active')
+              onStatusChange?.(isActive ? 'Deactivated' : 'Active')
             }}
             className="text-amber-700 hover:border-amber-100 hover:bg-amber-50 hover:text-amber-800"
           >

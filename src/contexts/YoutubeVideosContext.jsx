@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   fetchYoutubeVideos,
   createYoutubeVideo,
@@ -7,15 +8,16 @@ import {
   assignYoutubeRank,
   removeYoutubeRank,
   reorderYoutubeRanks,
-  reorderYoutubeVideos,
 } from '../api/youtubeVideosAPI'
+import { youtubeVideoKeys } from '../hooks/useYoutubeVideos'
 import {
   applyExpiredPriorityCleanup,
   normalizeYoutubeVideo,
   normalizeYoutubeVideos,
   sortYoutubeVideos,
 } from '../utils/youtubeVideoPriority'
-import { mockAssignRank, mockRemoveRank, mockReorderRanks } from '../utils/youtubeRankMock'
+import { isYoutubeMutationSuccess, mapUiStatusToApi } from '../utils/youtubeApiHelpers'
+import { getApiErrorMessage } from '../utils/apiError'
 import { toast } from '@/utils/toast'
 
 const YoutubeVideosContext = createContext(null)
@@ -27,20 +29,17 @@ function applyLocalVideos(setVideos, updater) {
   })
 }
 
-function applyVideosFromResponse(setVideos, response) {
-  if (response?.videos?.length) {
-    setVideos(sortYoutubeVideos(normalizeYoutubeVideos(response.videos)))
-    return true
-  }
-  return false
-}
-
 export function YoutubeVideosProvider({ children }) {
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+
+  const invalidateLists = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: youtubeVideoKeys.all })
+  }, [queryClient])
 
   const syncFromStore = useCallback(async () => {
-    const rows = await fetchYoutubeVideos({ dateBucket: 'all' })
+    const rows = await fetchYoutubeVideos({ sortBy: 'priority', sortOrder: 'asc' })
     setVideos(sortYoutubeVideos(normalizeYoutubeVideos(rows)))
     return rows
   }, [])
@@ -49,8 +48,8 @@ export function YoutubeVideosProvider({ children }) {
     setLoading(true)
     try {
       await syncFromStore()
-    } catch {
-      toast.error('Failed to load videos')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load videos'))
     } finally {
       setLoading(false)
     }
@@ -75,141 +74,118 @@ export function YoutubeVideosProvider({ children }) {
 
   const assignRank = useCallback(
     async (videoId, rank) => {
-      applyLocalVideos(setVideos, (prev) => {
-        const result = mockAssignRank(prev, videoId, rank, { allowGaps: false })
-        return result?.videos ?? prev
-      })
-      try {
-        const response = await assignYoutubeRank(videoId, rank, { allowGaps: false })
-        applyVideosFromResponse(setVideos, response)
-      } catch {
-        await syncFromStore()
-        throw new Error('assign failed')
+      const response = await assignYoutubeRank(videoId, rank)
+      if (!isYoutubeMutationSuccess(response)) {
+        throw new Error(response?.message || 'Unable to assign video rank. Please try again.')
       }
+      await syncFromStore()
+      invalidateLists()
+      return response
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const removeRank = useCallback(
     async (videoId) => {
-      applyLocalVideos(setVideos, (prev) => {
-        const result = mockRemoveRank(prev, videoId, true)
-        return result?.videos ?? prev
-      })
       try {
-        const response = await removeYoutubeRank(videoId, true)
-        applyVideosFromResponse(setVideos, response)
-      } catch {
+        await removeYoutubeRank(videoId)
         await syncFromStore()
-        toast.error('Failed to remove priority')
-        throw new Error('remove failed')
+        invalidateLists()
+      } catch (error) {
+        await syncFromStore()
+        toast.error(getApiErrorMessage(error, 'Failed to remove priority'))
+        throw error
       }
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const reorderRanks = useCallback(
     async (orderedIds) => {
-      applyLocalVideos(setVideos, (prev) => {
-        const result = mockReorderRanks(prev, orderedIds)
-        return result?.videos ?? prev
-      })
       try {
-        const response = await reorderYoutubeRanks(orderedIds)
-        applyVideosFromResponse(setVideos, response)
-      } catch {
+        await reorderYoutubeRanks(orderedIds)
         await syncFromStore()
-        toast.error('Failed to reorder priorities')
-        throw new Error('reorder failed')
+        invalidateLists()
+      } catch (error) {
+        await syncFromStore()
+        toast.error(getApiErrorMessage(error, 'Failed to reorder priorities'))
+        throw error
       }
     },
-    [syncFromStore],
-  )
-
-  const reorderVideos = useCallback(
-    async (orderedIds) => {
-      await reorderYoutubeVideos(orderedIds)
-      await syncFromStore()
-    },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const createVideo = useCallback(
-    async (payload) => {
-      await createYoutubeVideo(payload)
+    async (form) => {
+      const response = await createYoutubeVideo(form)
+      if (!isYoutubeMutationSuccess(response)) {
+        throw new Error(response?.message || 'Something went wrong. Please try again.')
+      }
       await syncFromStore()
+      invalidateLists()
+      return response
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const updateVideo = useCallback(
-    async (id, payload) => {
-      await updateYoutubeVideo(id, payload)
+    async (id, form) => {
+      const response = await updateYoutubeVideo(id, form)
+      if (!isYoutubeMutationSuccess(response)) {
+        throw new Error(response?.message || 'Unable to update the YouTube video. Please try again.')
+      }
       await syncFromStore()
+      invalidateLists()
+      return response
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const deleteVideo = useCallback(
     async (id) => {
-      applyLocalVideos(setVideos, (prev) => {
-        const target = prev.find((v) => v.id === id)
-        let next = prev.filter((v) => v.id !== id)
-        if (target?.priorityOrder) {
-          const removed = target.priorityOrder
-          next = next.map((v) => {
-            if (v.priorityOrder != null && v.priorityOrder > removed) {
-              return normalizeYoutubeVideo({
-                ...v,
-                priorityOrder: v.priorityOrder - 1,
-                priorityLevel: v.priorityOrder - 1,
-                isPinned: v.priorityOrder - 1 === 1,
-              })
-            }
-            return v
-          })
-        }
-        return next
-      })
       try {
-        await deleteYoutubeVideo(id)
-      } catch {
+        const response = await deleteYoutubeVideo(id)
+        if (!isYoutubeMutationSuccess(response)) {
+          throw new Error(response?.message || 'Something went wrong. Please try again.')
+        }
         await syncFromStore()
-        toast.error('Failed to delete video')
-        throw new Error('delete failed')
+        invalidateLists()
+      } catch (error) {
+        await syncFromStore()
+        toast.error(getApiErrorMessage(error, 'Unable to delete YouTube video. Please try again.'))
+        throw error
       }
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const updateStatus = useCallback(
     async (row, newStatus) => {
-      if (row.status === newStatus) return
-      const hadRank = row.priorityOrder != null
+      const uiStatus = newStatus === 'Inactive' ? 'Deactivated' : newStatus
+      if (row.status === uiStatus) return
 
-      applyLocalVideos(setVideos, (prev) => {
-        let next = prev
-        if (newStatus === 'Deactivated' && hadRank) {
-          const result = mockRemoveRank(prev, row.id, true)
-          next = result?.videos ?? prev
-        }
-        return next.map((v) =>
-          v.id === row.id ? normalizeYoutubeVideo({ ...v, status: newStatus }) : v,
-        )
-      })
+      applyLocalVideos(setVideos, (prev) =>
+        prev.map((v) =>
+          v.id === row.id ? normalizeYoutubeVideo({ ...v, status: uiStatus }) : v,
+        ),
+      )
 
       try {
-        if (newStatus === 'Deactivated' && hadRank) {
-          await removeYoutubeRank(row.id, true)
+        const response = await updateYoutubeVideo(row.id, {
+          status: mapUiStatusToApi(uiStatus),
+        })
+        if (!isYoutubeMutationSuccess(response)) {
+          throw new Error(response?.message || 'Something went wrong. Please try again.')
         }
-        await updateYoutubeVideo(row.id, { status: newStatus })
-      } catch {
         await syncFromStore()
-        toast.error('Failed to update status')
-        throw new Error('status update failed')
+        invalidateLists()
+      } catch (error) {
+        await syncFromStore()
+        toast.error(getApiErrorMessage(error, 'Failed to update status'))
+        throw error
       }
     },
-    [syncFromStore],
+    [syncFromStore, invalidateLists],
   )
 
   const value = useMemo(
@@ -222,7 +198,6 @@ export function YoutubeVideosProvider({ children }) {
       assignRank,
       removeRank,
       reorderRanks,
-      reorderVideos,
       createVideo,
       updateVideo,
       deleteVideo,
@@ -237,7 +212,6 @@ export function YoutubeVideosProvider({ children }) {
       assignRank,
       removeRank,
       reorderRanks,
-      reorderVideos,
       createVideo,
       updateVideo,
       deleteVideo,

@@ -11,8 +11,10 @@ export default function WebsiteFormShell({
   onReset,
   onSave,
   saving,
+  saveDisabled = false,
   saveLabel = 'Save',
   closeVariant = 'back',
+  hideFooter = false,
   children,
 }) {
   const sectionParts = sectionTitle.split(' ')
@@ -62,6 +64,8 @@ export default function WebsiteFormShell({
       </div>
 
       <div className="flex shrink-0 flex-wrap justify-center gap-3 border-t border-[#eef2fc] bg-[#fafcff] px-5 py-4 sm:gap-4 sm:px-8">
+        {!hideFooter ? (
+          <>
         <button
           type="button"
           onClick={onReset}
@@ -72,11 +76,13 @@ export default function WebsiteFormShell({
         <button
           type="button"
           onClick={onSave}
-          disabled={saving}
+          disabled={saving || saveDisabled}
           className="inline-flex min-h-[42px] min-w-[130px] items-center justify-center rounded-[10px] bg-gradient-to-br from-[#1e4d73] via-[#246392] to-[#0f2d45] px-10 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(36,99,146,0.35)] transition hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
         >
           {saving ? 'Saving…' : saveLabel}
         </button>
+          </>
+        ) : null}
       </div>
     </article>
   )

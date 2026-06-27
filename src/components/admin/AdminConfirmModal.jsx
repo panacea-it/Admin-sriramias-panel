@@ -29,6 +29,7 @@ export default function AdminConfirmModal({
   cancelLabel = 'Cancel',
   loading = false,
   loadingLabel = 'Please wait…',
+  errorMessage = '',
   variant = 'primary',
   size = 'md',
 }) {
@@ -76,6 +77,11 @@ export default function AdminConfirmModal({
               </p>
             ) : null}
           </div>
+          {errorMessage ? (
+            <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {errorMessage}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-slate-200/80 bg-[#fafbfc] px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
