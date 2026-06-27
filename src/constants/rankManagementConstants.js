@@ -1,5 +1,16 @@
 export const MAX_TOP10_RANKERS = 10
 
+export const RANK_MANAGEMENT_BASE = '/marketing/rank-management'
+
+export function getRankYearOptions() {
+  const currentYear = new Date().getFullYear()
+  const years = []
+  for (let year = currentYear + 2; year >= currentYear - 10; year -= 1) {
+    years.push(year)
+  }
+  return years
+}
+
 export const RANK_PROGRAM_OPTIONS = [
   { value: 'UPSC CSE', label: 'UPSC CSE' },
   { value: 'IAS Foundation', label: 'IAS Foundation' },

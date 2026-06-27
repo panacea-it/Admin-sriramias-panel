@@ -1,238 +1,261 @@
-import { isFrontendOnly } from '../config/appMode'
 import api from './axiosInstance'
-import { INITIAL_YOUTUBE_VIDEOS } from '../data/websiteData'
+import { getApiErrorMessage } from '../utils/apiError'
 import {
-  applyExpiredPriorityCleanup,
-  normalizeYoutubeVideo,
-  sortYoutubeVideos,
-} from '../utils/youtubeVideoPriority'
-import {
-  mockAssignRank,
-  mockRemoveRank,
-  mockReorderRanks,
-  mockRecalculateRanks,
-} from '../utils/youtubeRankMock'
+  buildYoutubeCreatePayload,
+  buildYoutubeListParams,
+  buildYoutubeUpdatePayload,
+  isYoutubeListSuccess,
+  isYoutubeApiSuccess,
+  mapApiVideosToRows,
+  mapApiVideoToRow,
+  normalizeYoutubeListResponse,
+} from '../utils/youtubeApiHelpers'
 
-const USE_MOCK = isFrontendOnly || import.meta.env.VITE_YOUTUBE_USE_MOCK !== 'false'
-
-let mockStore = applyExpiredPriorityCleanup(
-  INITIAL_YOUTUBE_VIDEOS.map((row, i) =>
-    normalizeYoutubeVideo({
-      ...row,
-      priorityOrder: i < 8 ? i + 1 : null,
-      customOrder: i,
-      createdAt: row.createdAt || new Date(Date.now() - i * 86400000).toISOString(),
-    }),
-  ),
-)
-
-function syncMockStore(next) {
-  mockStore = sortYoutubeVideos(applyExpiredPriorityCleanup(next))
-  return mockStore
+function unwrapMutation(response) {
+  return response?.data ?? response
 }
 
-function mockPayload(extra = {}) {
-  return { videos: mockStore, ...extra }
+function toError(error, fallback) {
+  const err = new Error(getApiErrorMessage(error, fallback))
+  err.cause = error
+  return err
 }
 
-async function tryApi(fn, fallback) {
-  if (USE_MOCK) return fallback()
+export async function fetchYoutubeVideosPage(params = {}) {
   try {
-    const res = await fn()
-    return res.data?.data ?? res.data
-  } catch {
-    return fallback()
+    const response = await api.get('/youtube/videos', {
+      params: buildYoutubeListParams(params),
+    })
+    const body = response?.data ?? {}
+
+    if (!isYoutubeListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch YouTube videos. Please try again.')
+    }
+
+    return normalizeYoutubeListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 10,
+    })
+  } catch (error) {
+    throw toError(error, 'Unable to fetch YouTube videos. Please try again.')
   }
 }
 
-export async function fetchYoutubeVideos(params = {}) {
-  return tryApi(
-    () => api.get('/youtube-videos', { params }),
-    () => {
-      let rows = [...mockStore]
-      const q = params.search?.trim().toLowerCase()
-      if (q) {
-        rows = rows.filter(
-          (r) =>
-            r.id.includes(q) ||
-            r.name.toLowerCase().includes(q) ||
-            r.url.toLowerCase().includes(q),
-        )
-      }
-      if (params.status && params.status !== 'all') {
-        rows = rows.filter((r) => r.status === params.status)
-      }
-      if (params.dateBucket && params.dateBucket !== 'all') {
-        rows = rows.filter((r) => r.dateBucket === params.dateBucket)
-      }
-      if (params.priority === 'none') rows = rows.filter((r) => !r.priorityOrder)
-      else if (params.priority === 'ranked') rows = rows.filter((r) => r.priorityOrder)
-      else if (params.priority === 'top') {
-        const topN = Math.max(1, Number(params.topN) || 10)
-        rows = rows.filter((r) => r.priorityOrder && r.priorityOrder <= topN)
-      }
-      if (params.priorityMin) {
-        const min = Number(params.priorityMin)
-        rows = rows.filter((v) => v.priorityOrder && v.priorityOrder >= min)
-      }
-      if (params.priorityMax) {
-        const max = Number(params.priorityMax)
-        rows = rows.filter((v) => v.priorityOrder && v.priorityOrder <= max)
-      }
-      return sortYoutubeVideos(rows)
-    },
-  )
+export async function fetchYoutubeVideos(filters = {}) {
+  try {
+    const result = await fetchYoutubeVideosPage({
+      ...filters,
+      page: filters.page || 1,
+      limit: filters.limit || 100,
+    })
+    return result.items
+  } catch (error) {
+    throw toError(error, 'Failed to fetch YouTube videos')
+  }
 }
 
-export async function fetchRankedYoutubeVideos() {
-  return tryApi(
-    () => api.get('/youtube-videos/rank/ranked'),
-    () => mockStore.filter((v) => v.priorityOrder).sort((a, b) => a.priorityOrder - b.priorityOrder),
-  )
+export async function fetchYoutubeVideoById(id) {
+  try {
+    const response = await api.get(`/youtube/videos/${encodeURIComponent(id)}`)
+    const body = response?.data ?? {}
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch YouTube video details. Please try again.')
+    }
+
+    const row = mapApiVideoToRow(body.data)
+    if (!row) {
+      throw new Error('Unable to fetch YouTube video details. Please try again.')
+    }
+
+    return row
+  } catch (error) {
+    throw toError(error, 'Unable to fetch YouTube video details. Please try again.')
+  }
 }
 
-export async function assignYoutubeRank(videoId, priorityOrder, options = {}) {
-  const { allowGaps = false } = options
-  return tryApi(
-    () => api.post('/youtube-videos/rank/assign', { videoId, priorityOrder, allowGaps }),
-    () => {
-      const result = mockAssignRank(mockStore, videoId, priorityOrder, { allowGaps })
-      if (!result) return null
-      syncMockStore(result.videos)
-      return mockPayload({ message: result.message })
-    },
-  )
+export async function createYoutubeVideo(form) {
+  try {
+    const payload = buildYoutubeCreatePayload(form)
+    const desiredStatus = payload.status
+    delete payload.status
+
+    const response = await api.post('/youtube/videos', payload)
+    const body = unwrapMutation(response)
+    const createdId = body?.data?._id
+
+    if (createdId && desiredStatus && desiredStatus !== 'ACTIVE') {
+      await api.put(`/youtube/videos/${encodeURIComponent(createdId)}`, {
+        status: desiredStatus,
+      })
+    }
+
+    return body
+  } catch (error) {
+    throw toError(error, 'Failed to create YouTube video')
+  }
 }
 
-export async function removeYoutubeRank(videoId, autoCompact = true) {
-  return tryApi(
-    () => api.post('/youtube-videos/rank/remove', { videoId, autoCompact }),
-    () => {
-      const result = mockRemoveRank(mockStore, videoId, autoCompact)
-      syncMockStore(result.videos)
-      return mockPayload({ message: result.message })
-    },
-  )
+export async function updateYoutubeVideo(id, formOrPayload) {
+  try {
+    const payload =
+      formOrPayload?.title != null || formOrPayload?.youtubeUrl != null
+        ? formOrPayload
+        : buildYoutubeUpdatePayload(formOrPayload)
+
+    const response = await api.put(`/youtube/videos/${encodeURIComponent(id)}`, payload)
+    const body = unwrapMutation(response)
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update the YouTube video. Please try again.')
+    }
+
+    return {
+      ...body,
+      video: mapApiVideoToRow(body.data),
+    }
+  } catch (error) {
+    throw toError(error, 'Unable to update the YouTube video. Please try again.')
+  }
+}
+
+export async function deleteYoutubeVideo(id) {
+  try {
+    const response = await api.delete(`/youtube/videos/${encodeURIComponent(id)}`)
+    const body = unwrapMutation(response)
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to delete YouTube video. Please try again.')
+    }
+
+    return body
+  } catch (error) {
+    throw toError(error, 'Unable to delete YouTube video. Please try again.')
+  }
+}
+
+export async function fetchRankedYoutubeVideos(params = {}) {
+  try {
+    const response = await api.get('/youtube/rankings', { params })
+    const body = response?.data ?? {}
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch ranked YouTube videos. Please try again.')
+    }
+
+    const items = mapApiVideosToRows(Array.isArray(body?.data) ? body.data : [])
+
+    return {
+      ...body,
+      items,
+      count: body.count ?? items.length,
+    }
+  } catch (error) {
+    throw toError(error, 'Unable to fetch ranked YouTube videos. Please try again.')
+  }
+}
+
+export async function searchRankedYoutubeVideos(params = {}) {
+  try {
+    const response = await api.get('/youtube/rankings/search', { params })
+    const body = response?.data ?? {}
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to search ranked YouTube videos. Please try again.')
+    }
+
+    const items = mapApiVideosToRows(Array.isArray(body?.data) ? body.data : [])
+
+    return {
+      ...body,
+      items,
+      count: body.count ?? items.length,
+    }
+  } catch (error) {
+    throw toError(error, 'Unable to search ranked YouTube videos. Please try again.')
+  }
+}
+
+export async function assignYoutubeRank(videoId, rank) {
+  try {
+    const response = await api.put(`/youtube/videos/${encodeURIComponent(videoId)}/rank`, {
+      rank: Number(rank),
+    })
+    const body = unwrapMutation(response)
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to assign video rank. Please try again.')
+    }
+
+    return {
+      ...body,
+      video: mapApiVideoToRow(body.data),
+    }
+  } catch (error) {
+    throw toError(error, 'Unable to assign video rank. Please try again.')
+  }
+}
+
+export async function updateYoutubeVideoPriority(videoId, priority) {
+  try {
+    const response = await api.put(`/youtube/videos/${encodeURIComponent(videoId)}/priority`, {
+      priority: Number(priority),
+    })
+    const body = unwrapMutation(response)
+
+    if (!isYoutubeApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update video priority. Please try again.')
+    }
+
+    return {
+      ...body,
+      video: mapApiVideoToRow(body.data),
+    }
+  } catch (error) {
+    throw toError(error, 'Unable to update video priority. Please try again.')
+  }
+}
+
+export async function removeYoutubeRank(videoId) {
+  try {
+    const response = await api.put(`/youtube/videos/${encodeURIComponent(videoId)}/priority`, {
+      priority: 0,
+    })
+    return unwrapMutation(response)
+  } catch (error) {
+    throw toError(error, 'Failed to remove video priority')
+  }
 }
 
 export async function reorderYoutubeRanks(orderedIds) {
-  return tryApi(
-    () => api.post('/youtube-videos/rank/reorder', { orderedIds }),
-    () => {
-      const result = mockReorderRanks(mockStore, orderedIds)
-      syncMockStore(result.videos)
-      return mockPayload({ message: result.message })
-    },
-  )
+  try {
+    for (let index = 0; index < orderedIds.length; index += 1) {
+      await assignYoutubeRank(orderedIds[index], index + 1)
+    }
+    return fetchRankedYoutubeVideos()
+  } catch (error) {
+    throw toError(error, 'Failed to reorder video ranks')
+  }
 }
 
 export async function recalculateYoutubeRanks() {
-  return tryApi(
-    () => api.post('/youtube-videos/rank/recalculate'),
-    () => {
-      const result = mockRecalculateRanks(mockStore)
-      syncMockStore(result.videos)
-      return mockPayload({ message: result.message })
-    },
-  )
+  try {
+    const response = await api.post('/youtube/rankings/recalculate')
+    return unwrapMutation(response)
+  } catch (error) {
+    throw toError(error, 'Failed to recalculate video ranks')
+  }
 }
 
 export const assignYoutubePriority = assignYoutubeRank
 export const removeYoutubePriority = removeYoutubeRank
 export const swapYoutubePriority = assignYoutubeRank
 
-export async function createYoutubeVideo(payload) {
-  return tryApi(
-    () => api.post('/youtube-videos', payload),
-    () => {
-      const rank = payload.priorityOrder ?? (payload.priorityLevel > 0 ? payload.priorityLevel : null)
-      const row = normalizeYoutubeVideo({
-        ...payload,
-        priorityOrder: null,
-        priorityLevel: 0,
-        createdAt: new Date().toISOString(),
-      })
-      syncMockStore([row, ...mockStore])
-      if (rank) return assignYoutubeRank(row.id, rank)
-      return { ...row, videos: mockStore }
-    },
-  )
-}
-
-export async function updateYoutubeVideo(id, payload) {
-  return tryApi(
-    () => api.put(`/youtube-videos/${id}`, payload),
-    () => {
-      const rank =
-        payload.priorityOrder !== undefined
-          ? payload.priorityOrder || null
-          : payload.priorityLevel > 0
-            ? payload.priorityLevel
-            : payload.priorityLevel === 0
-              ? null
-              : undefined
-      if (rank !== undefined) {
-        if (rank) return assignYoutubeRank(id, rank)
-        return removeYoutubeRank(id, payload.autoCompact !== false)
-      }
-      const idx = mockStore.findIndex((v) => v.id === id)
-      if (idx < 0) return null
-      const updated = normalizeYoutubeVideo({ ...mockStore[idx], ...payload })
-      const next = [...mockStore]
-      next[idx] = updated
-      syncMockStore(next)
-      return updated
-    },
-  )
-}
-
-export async function deleteYoutubeVideo(id) {
-  return tryApi(
-    () => api.delete(`/youtube-videos/${id}`),
-    () => {
-      const target = mockStore.find((v) => v.id === id)
-      let next = mockStore.filter((v) => v.id !== id)
-      if (target?.priorityOrder) {
-        const removed = target.priorityOrder
-        next = next.map((v) => {
-          if (v.priorityOrder != null && v.priorityOrder > removed) {
-            return {
-              ...v,
-              priorityOrder: v.priorityOrder - 1,
-              priorityLevel: v.priorityOrder - 1,
-              isPinned: v.priorityOrder - 1 === 1,
-            }
-          }
-          return v
-        })
-      }
-      syncMockStore(next)
-      return { success: true }
-    },
-  )
-}
-
-export async function updateYoutubeVideoPriority(id, payload) {
-  const rank = payload?.priorityOrder ?? payload?.priorityLevel
-  if (rank > 0) return assignYoutubeRank(id, rank)
-  return removeYoutubeRank(id, payload?.autoCompact !== false)
-}
-
-export async function reorderYoutubeVideos(orderedIds) {
-  return tryApi(
-    () => api.post('/youtube-videos/reorder', { orderedIds }),
-    () => {
-      const orderMap = new Map(orderedIds.map((id, i) => [id, i]))
-      const next = mockStore.map((v) => ({
-        ...v,
-        customOrder: orderMap.has(v.id) ? orderMap.get(v.id) : v.customOrder,
-      }))
-      syncMockStore(next)
-      return mockStore
-    },
-  )
+export async function reorderYoutubeVideos() {
+  return fetchYoutubeVideos()
 }
 
 export async function fetchPinnedYoutubeVideos() {
-  return mockStore.filter((v) => v.priorityOrder === 1)
+  const result = await fetchRankedYoutubeVideos()
+  return (result.items ?? []).filter((video) => video.priorityOrder === 1)
 }

@@ -5,8 +5,8 @@ import { getTop10RowClassName } from './rankManagementDisplay'
 export default function RankManagementTable({
   columns,
   data,
-  emptyMessage = 'No rankers found.',
-  itemLabel = 'rankers',
+  emptyMessage = 'No Toppers Found',
+  itemLabel = 'toppers',
   initialPageSize = 6,
   resetDeps = [],
   loading = false,

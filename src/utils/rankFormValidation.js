@@ -22,13 +22,10 @@ export function isValidRankValue(value = '') {
 
 export function validateRankerForm(form, { editingId = null, rankers = [] } = {}) {
   const errors = {}
-
-  if (!form.program?.trim()) {
-    errors.program = 'Program is required.'
-  }
+  const isEditing = Boolean(editingId)
 
   if (!form.course?.trim()) {
-    errors.course = 'Course is required.'
+    errors.course = 'Course / Program is required.'
   }
 
   if (!form.year?.trim()) {
@@ -51,11 +48,13 @@ export function validateRankerForm(form, { editingId = null, rankers = [] } = {}
   }
 
   if (!hasRankerImageValue(form.image)) {
-    errors.image = 'Image is required.'
+    errors.image = isEditing
+      ? 'Image is required. Upload a new image or keep the existing one.'
+      : 'Image is required.'
   }
 
   if (!form.status) {
-    errors.status = 'Status is required.'
+    errors.status = 'Display status is required.'
   }
 
   return errors

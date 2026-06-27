@@ -1,4 +1,4 @@
-import { extractYoutubeVideoId, normalizeRankInput } from './youtubeVideoPriority'
+import { extractYoutubeVideoId } from './youtubeVideoPriority'
 
 export function isValidYoutubeUrl(url = '') {
   const trimmed = String(url).trim()
@@ -10,25 +10,27 @@ export function validateYoutubeVideoForm(form) {
   const errors = {}
 
   if (!form.name?.trim()) {
-    errors.name = 'Name is required.'
+    errors.name = 'Video name is required.'
   }
 
   const url = form.url?.trim() ?? ''
   if (!url) {
-    errors.url = 'Youtube URL is required.'
+    errors.url = 'YouTube URL is required.'
   } else if (!isValidYoutubeUrl(url)) {
-    errors.url = 'Please enter a valid Youtube URL.'
+    errors.url = 'Please enter a valid YouTube URL.'
   }
 
   if (!form.status) {
     errors.status = 'Status is required.'
   }
 
-  const priorityRaw = form.priorityOrder
-  if (priorityRaw !== '' && priorityRaw != null && priorityRaw !== undefined) {
-    const rank = normalizeRankInput(priorityRaw)
-    if (rank == null) {
-      errors.priorityOrder = 'Enter a valid priority rank.'
+  const priorityRaw = String(form.priority ?? '').trim()
+  if (!priorityRaw) {
+    errors.priority = 'Priority is required.'
+  } else {
+    const priority = Number.parseInt(priorityRaw, 10)
+    if (!Number.isFinite(priority) || priority < 1 || !Number.isInteger(priority)) {
+      errors.priority = 'Priority must be a positive integer.'
     }
   }
 
