@@ -4,6 +4,9 @@ import { isDemoAuthEnabled, isFrontendOnly } from '../config/appMode'
 import { emitAuthLogout } from '../utils/authEvents'
 import { clearAuthStorage, getAuthToken } from '../utils/authStorage'
 
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60000
+export const UPLOAD_REQUEST_TIMEOUT_MS = 120000
+
 export function resolveApiBaseUrl() {
   if (isFrontendOnly) {
     return '/api'
@@ -23,7 +26,7 @@ export function resolveApiBaseUrl() {
 
 const api = axios.create({
   baseURL: resolveApiBaseUrl(),
-  timeout: 30000,
+  timeout: DEFAULT_REQUEST_TIMEOUT_MS,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: false,
 })
@@ -42,6 +45,7 @@ api.interceptors.request.use((config) => {
 
   // FormData: remove Content-Type so the browser sets multipart boundary.
   if (config.data instanceof FormData && config.headers) {
+    config.timeout = config.timeout ?? UPLOAD_REQUEST_TIMEOUT_MS
     if (typeof config.headers.delete === 'function') {
       config.headers.delete('Content-Type')
     } else {

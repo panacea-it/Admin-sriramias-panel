@@ -1,4 +1,4 @@
-import { AlertTriangle, Info } from 'lucide-react'
+import { AlertTriangle, Info, Loader2 } from 'lucide-react'
 import AppModalWrapper from '../ui/AppModalWrapper'
 import { cn } from '../../utils/cn'
 
@@ -92,11 +92,18 @@ export default function AdminConfirmModal({
             onClick={handleConfirm}
             disabled={loading}
             className={cn(
-              'inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl px-6 text-sm font-bold text-white shadow-sm transition disabled:opacity-60',
+              'inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl px-6 text-sm font-bold text-white shadow-sm transition disabled:opacity-60',
               config.buttonClassName,
             )}
           >
-            {loading ? loadingLabel : confirmLabel}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                {loadingLabel}
+              </>
+            ) : (
+              confirmLabel
+            )}
           </button>
         </div>
       </div>

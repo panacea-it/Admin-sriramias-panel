@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GraduationCap, PlusCircle, X } from 'lucide-react'
 import WebsiteFilterToolbar from './WebsiteFilterToolbar'
 import WebsiteFormShell from './WebsiteFormShell'
@@ -6,30 +7,37 @@ import WebsiteFormModal from './WebsiteFormModal'
 import RankManagementTable from './RankManagementTable'
 import RankManagementImageCell from './RankManagementImageCell'
 import RankerRowActions from './RankerRowActions'
+import AdminConfirmModal from '../admin/AdminConfirmModal'
 import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import RankTop10Badge from './RankTop10Badge'
 import {
-  getNextDisplayOrder,
   isActiveTop10Ranker,
   sortRankersForDisplay,
   TOP10_INACTIVE_MESSAGE,
 } from './rankManagementDisplay'
+import RankerFormFields, { emptyRankForm } from './RankerFormFields'
+import TopperDisplayStatusToggle from './TopperDisplayStatusToggle'
+import TopperTop10Toggle from './TopperTop10Toggle'
 import {
-  WebsiteField,
-  WebsiteImageInput,
   WebsiteStatusBadge,
-  WebsiteStatusSelect,
-  websiteInputClass,
 } from './websiteUi'
-import { INITIAL_RANKERS } from '../../data/websiteData'
-import {
-  MAX_TOP10_RANKERS,
-  RANK_PROGRAM_OPTIONS,
-  enrichRankerSeedRows,
-  getCoursesForProgram,
-} from '../../constants/rankManagementConstants'
+import { MAX_TOP10_RANKERS, RANK_MANAGEMENT_BASE } from '../../constants/rankManagementConstants'
 import { isSameCalendarDay, startOfDay } from '../../utils/dailyCollectionUtils'
 import { validateRankerForm } from '../../utils/rankFormValidation'
+import { lookupStudentByStudentId } from '../../utils/rankStudentLookup'
+import {
+  buildTopperFormData,
+  mapApiToppersToRankerRows,
+  prepareTopperImageForUpload,
+} from '../../utils/topperApiHelpers'
+import {
+  useCreateTopper,
+  useDeleteTopper,
+  useToggleTopperDisplay,
+  useToggleTopperTop10,
+  useToppers,
+} from '../../hooks/useToppers'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
 
@@ -37,93 +45,11 @@ function isValidDate(date) {
   return date instanceof Date && !Number.isNaN(date.getTime())
 }
 
-function resolveRankerCreatedAt(row, index = 0) {
-  if (row.createdAt) {
-    const fromField = new Date(row.createdAt)
-    if (isValidDate(fromField)) return fromField.toISOString()
-  }
-
-  if (row.date) {
-    const dateOnly = new Date(row.date)
-    if (isValidDate(dateOnly)) return dateOnly.toISOString()
-  }
-
-  return new Date(Date.now() - index * 86400000).toISOString()
-}
-
-function normalizeRanker(row, index = 0) {
-  const createdAt = resolveRankerCreatedAt(row, index)
-  const created = new Date(createdAt)
-  const isActive = row.status !== 'Deactivated'
-  const isTop10 = isActive ? Boolean(row.isTop10) : false
-
-  return {
-    ...row,
-    studentId: row.studentId || `STU-${row.id}`,
-    isTop10,
-    displayOrder: isTop10 ? row.displayOrder ?? null : null,
-    createdAt,
-    time: row.time || created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-    date:
-      row.date ||
-      created.toLocaleDateString(undefined, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      }),
-  }
-}
-
-function normalizeRankers(rows) {
-  return (rows || []).map((row, i) => normalizeRanker(row, i))
-}
-
-function getRankYearOptions() {
-  const currentYear = new Date().getFullYear()
-  const years = []
-  for (let year = currentYear + 2; year >= currentYear - 10; year -= 1) {
-    years.push(year)
-  }
-  return years
-}
-
-const emptyRankForm = () => ({
-  program: RANK_PROGRAM_OPTIONS[0]?.value || '',
-  course: getCoursesForProgram(RANK_PROGRAM_OPTIONS[0]?.value)[0]?.value || '',
-  year: String(new Date().getFullYear()),
-  studentId: '',
-  studentName: '',
-  rank: '',
-  image: '',
-  status: 'Active',
-  isTop10: false,
-  displayOrder: '',
-})
-
-function formFromRow(row) {
-  return {
-    program: row.program || '',
-    course: row.course || '',
-    year: row.year ? String(row.year) : String(new Date().getFullYear()),
-    studentId: row.studentId || '',
-    studentName: row.name || '',
-    rank: row.rank || '',
-    image: row.imageUrl || '',
-    status: row.status || 'Active',
-    isTop10: Boolean(row.isTop10) && row.status === 'Active',
-    displayOrder: row.displayOrder ?? '',
-  }
-}
-
 function matchesSelectedDate(row, selectedDate) {
   if (!selectedDate) return true
   const created = row.createdAt ? new Date(row.createdAt) : null
   if (!created || Number.isNaN(created.getTime())) return false
   return isSameCalendarDay(created, selectedDate)
-}
-
-function nextRankerId() {
-  return String(56565 + Date.now())
 }
 
 function formatCreatedOn(row) {
@@ -148,27 +74,31 @@ function RankBadge({ rank }) {
   )
 }
 
-const inputErrorClass = 'ring-2 ring-[#EF4444]/60 bg-red-50/40'
-
-function FieldError({ message }) {
-  if (!message) return null
-  return <p className="mt-1.5 text-xs font-medium text-[#EF4444]">{message}</p>
-}
-
 export default function RankManagementTab() {
-  const [rankers, setRankers] = useState(() =>
-    normalizeRankers(enrichRankerSeedRows(INITIAL_RANKERS)),
-  )
+  const navigate = useNavigate()
+  const { data: apiToppers = [], isLoading, isError, error, refetch } = useToppers()
+  const createTopperMutation = useCreateTopper()
+  const deleteTopperMutation = useDeleteTopper()
+  const toggleDisplayMutation = useToggleTopperDisplay()
+  const toggleTop10Mutation = useToggleTopperTop10()
+
+  const rankers = useMemo(() => mapApiToppersToRankerRows(apiToppers), [apiToppers])
+
   const [rankFormOpen, setRankFormOpen] = useState(false)
   const [viewTarget, setViewTarget] = useState(null)
-  const [editingId, setEditingId] = useState(null)
   const [search, setSearch] = useState('')
   const [selectedDate, setSelectedDate] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [rankForm, setRankForm] = useState(emptyRankForm)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  const [togglingDisplayIds, setTogglingDisplayIds] = useState(() => new Set())
+  const pendingDisplayTogglesRef = useRef(new Set())
+  const [togglingTop10Ids, setTogglingTop10Ids] = useState(() => new Set())
+  const pendingTop10TogglesRef = useRef(new Set())
+
+  const saving = createTopperMutation.isPending
+  const deleting = deleteTopperMutation.isPending
 
   const clearFieldError = (field) => {
     if (!formErrors[field]) return
@@ -186,16 +116,6 @@ export default function RankManagementTab() {
     [rankers],
   )
   const top10LimitReached = top10Count >= MAX_TOP10_RANKERS
-
-  const editingRow = useMemo(
-    () => (editingId ? rankers.find((row) => row.id === editingId) : null),
-    [editingId, rankers],
-  )
-
-  const courseOptions = useMemo(
-    () => getCoursesForProgram(rankForm.program),
-    [rankForm.program],
-  )
 
   const filteredRankers = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -216,148 +136,139 @@ export default function RankManagementTab() {
   }, [rankers, search, selectedDate, statusFilter])
 
   const openAddRank = () => {
-    setEditingId(null)
     setRankForm(emptyRankForm())
     clearFormErrors()
     setRankFormOpen(true)
   }
 
   const openEditRank = (row) => {
-    setEditingId(row.id)
-    setRankForm(formFromRow(row))
-    clearFormErrors()
-    setRankFormOpen(true)
+    navigate(`${RANK_MANAGEMENT_BASE}/edit/${encodeURIComponent(row.id)}`)
   }
 
   const closeRankForm = () => {
     setRankFormOpen(false)
-    setEditingId(null)
     clearFormErrors()
   }
 
-  const toggleTop10 = (rowId) => {
-    const row = rankers.find((r) => r.id === rowId)
-    if (!row) return
+  const handleToggleTop10 = useCallback(async (row) => {
+    if (pendingTop10TogglesRef.current.has(row.id)) return
 
     if (row.status !== 'Active') {
       toast.error(TOP10_INACTIVE_MESSAGE)
       return
     }
 
-    if (!row.isTop10 && top10Count >= MAX_TOP10_RANKERS) {
+    if (!row.isTop10Enabled && top10LimitReached) {
       toast.error('Maximum 10 Top Rankers allowed.')
       return
     }
 
-    setRankers((prev) =>
-      prev.map((r) => {
-        if (r.id !== rowId) return r
-        if (r.isTop10) {
-          return { ...r, isTop10: false, displayOrder: null }
-        }
-        const nextOrder = getNextDisplayOrder(prev)
-        return { ...r, isTop10: true, displayOrder: nextOrder }
-      }),
-    )
-    toast.success(row.isTop10 ? 'Top 10 tag removed' : 'Marked as Top 10 Ranker')
-  }
+    pendingTop10TogglesRef.current.add(row.id)
+    setTogglingTop10Ids(new Set(pendingTop10TogglesRef.current))
 
-  const changeStatus = (row, newStatus) => {
-    if (row.status === newStatus) return
-    setRankers((prev) =>
-      prev.map((r) =>
-        r.id === row.id
-          ? {
-              ...r,
-              status: newStatus,
-              ...(newStatus === 'Deactivated'
-                ? { isTop10: false, displayOrder: null }
-                : {}),
-            }
-          : r,
-      ),
-    )
-    toast.success(`Status updated to ${newStatus}`)
-  }
+    try {
+      const response = await toggleTop10Mutation.mutateAsync(row.id)
+      toast.success(response?.message || 'Top 10 status updated')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to update Top 10 status'))
+    } finally {
+      pendingTop10TogglesRef.current.delete(row.id)
+      setTogglingTop10Ids(new Set(pendingTop10TogglesRef.current))
+    }
+  }, [toggleTop10Mutation, top10LimitReached])
+
+  const handleToggleDisplay = useCallback(async (row) => {
+    if (pendingDisplayTogglesRef.current.has(row.id)) return
+
+    pendingDisplayTogglesRef.current.add(row.id)
+    setTogglingDisplayIds(new Set(pendingDisplayTogglesRef.current))
+
+    try {
+      const response = await toggleDisplayMutation.mutateAsync(row.id)
+      toast.success(response?.message || 'Display status updated')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to update display status'))
+    } finally {
+      pendingDisplayTogglesRef.current.delete(row.id)
+      setTogglingDisplayIds(new Set(pendingDisplayTogglesRef.current))
+    }
+  }, [toggleDisplayMutation])
 
   const confirmDeleteRanker = async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
+    if (!deleteTarget || deleting) return
+
     try {
-      setRankers((prev) => prev.filter((r) => r.id !== deleteTarget.id))
-      toast.success('Ranker deleted')
+      const response = await deleteTopperMutation.mutateAsync(deleteTarget.id)
+      toast.success(response?.message || 'Topper deleted successfully')
       setDeleteTarget(null)
-    } catch {
-      toast.error('Failed to delete ranker. Please try again.')
-    } finally {
-      setDeleting(false)
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete topper. Please try again.'))
     }
   }
 
-  const saveRank = () => {
-    const existing = rankers.find((r) => r.id === editingId)
+  const saveRank = async () => {
     const wantsTop10 = rankForm.status === 'Active' && rankForm.isTop10
-    const wasTop10 = Boolean(existing?.isTop10) && existing?.status === 'Active'
 
-    if (wantsTop10 && !wasTop10 && top10Count >= MAX_TOP10_RANKERS) {
+    if (wantsTop10 && top10Count >= MAX_TOP10_RANKERS) {
       toast.error('Maximum 10 Top Rankers allowed.')
       return
     }
 
-    const errors = validateRankerForm(rankForm, {
-      editingId,
-      rankers,
-    })
+    const errors = validateRankerForm(rankForm, { rankers })
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       toast.error('Please fix the highlighted fields')
       return
     }
 
-    const displayOrder = wantsTop10
-      ? existing?.isTop10 && existing?.displayOrder
-        ? existing.displayOrder
-        : getNextDisplayOrder(rankers.filter((row) => String(row.id) !== String(editingId)))
-      : null
-
-    if (wantsTop10 && displayOrder == null) {
-      toast.error('Maximum 10 Top Rankers allowed.')
+    const imageFile = await prepareTopperImageForUpload(rankForm.image)
+    if (!imageFile) {
+      setFormErrors((prev) => ({ ...prev, image: 'Image is required.' }))
+      toast.error('Please upload a topper image')
       return
     }
 
-    const payload = {
-      id: existing?.id || nextRankerId(),
-      studentId: rankForm.studentId.trim(),
-      name: rankForm.studentName.trim(),
-      program: rankForm.program,
-      course: rankForm.course,
-      year: rankForm.year,
-      rank: rankForm.rank.trim(),
-      imageUrl: rankForm.image || null,
-      time: existing?.time || new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-      date:
-        existing?.date ||
-        new Date().toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        }),
-      status: rankForm.status,
-      isTop10: wantsTop10,
-      displayOrder,
-      createdAt: existing?.createdAt || new Date().toISOString(),
+    const studentLookup = await lookupStudentByStudentId(rankForm.studentId)
+    if (!studentLookup.ok) {
+      setFormErrors((prev) => ({
+        ...prev,
+        studentId: studentLookup.message,
+        studentName: '',
+      }))
+      toast.error(studentLookup.message)
+      return
     }
 
-    if (editingId) {
-      setRankers((prev) =>
-        prev.map((r) => (r.id === editingId ? normalizeRanker({ ...r, ...payload }) : r)),
-      )
-      toast.success('Ranker updated successfully')
-    } else {
-      setRankers((prev) => [normalizeRanker(payload), ...prev])
-      toast.success('Ranker added successfully')
+    const verifiedForm = {
+      ...rankForm,
+      studentId: studentLookup.studentId,
+      studentName: studentLookup.studentName,
     }
-    closeRankForm()
+
+    try {
+      const formData = buildTopperFormData(verifiedForm, {
+        imageFile,
+        includeImage: true,
+      })
+
+      const response = await createTopperMutation.mutateAsync(formData)
+      toast.success(response?.message || 'Topper created successfully')
+      closeRankForm()
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'Failed to save ranker')
+      if (/student not found/i.test(message)) {
+        toast.error(
+          'This Student ID is not registered. Add the student in Users → List Users first.',
+        )
+        setFormErrors((prev) => ({
+          ...prev,
+          studentId:
+            'This Student ID is not registered. Add the student in Users → List Users first.',
+        }))
+        return
+      }
+      toast.error(message)
+    }
   }
 
   const columns = useMemo(
@@ -382,13 +293,6 @@ export default function RankManagementTab() {
         ),
       },
       {
-        key: 'program',
-        label: 'Program',
-        headerClassName: 'min-w-[130px]',
-        cellClassName: 'min-w-[130px] align-middle text-[13px] font-medium text-[#111]',
-        render: (row) => <span className="block truncate">{row.program}</span>,
-      },
-      {
         key: 'course',
         label: 'Course',
         headerClassName: 'min-w-[150px]',
@@ -410,6 +314,28 @@ export default function RankManagementTab() {
         render: (row) => <RankBadge rank={row.rank} />,
       },
       {
+        key: 'year',
+        label: 'Year',
+        headerClassName: 'min-w-[90px]',
+        cellClassName: 'min-w-[90px] align-middle text-[13px] text-[#686868]',
+        render: (row) => row.year || '—',
+      },
+      {
+        key: 'top10',
+        label: 'Top 10',
+        headerClassName: 'min-w-[120px] whitespace-nowrap',
+        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap',
+        align: 'center',
+        render: (row) => (
+          <TopperTop10Toggle
+            row={row}
+            loading={togglingTop10Ids.has(row.id)}
+            disabled={row.status !== 'Active' && !row.isTop10Enabled}
+            onChange={() => handleToggleTop10(row)}
+          />
+        ),
+      },
+      {
         key: 'displayOrder',
         label: 'Display Order',
         headerClassName: 'min-w-[110px] whitespace-nowrap',
@@ -426,10 +352,18 @@ export default function RankManagementTab() {
       },
       {
         key: 'status',
-        label: 'Status',
-        headerClassName: 'min-w-[110px] whitespace-nowrap',
-        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap',
-        render: (row) => <WebsiteStatusBadge status={row.status} />,
+        label: 'Display Status',
+        headerClassName: 'min-w-[130px] whitespace-nowrap',
+        cellClassName: 'min-w-[130px] align-middle whitespace-nowrap',
+        align: 'center',
+        render: (row) => (
+          <TopperDisplayStatusToggle
+            checked={row.status === 'Active'}
+            loading={togglingDisplayIds.has(row.id)}
+            topperName={row.name}
+            onChange={() => handleToggleDisplay(row)}
+          />
+        ),
       },
       {
         key: 'created',
@@ -443,23 +377,26 @@ export default function RankManagementTab() {
         ),
       },
       createActionsColumn({
-        buttonCount: 4,
+        buttonCount: 3,
         align: 'right',
         render: (row) => (
           <RankerRowActions
             rowName={row.name}
-            status={row.status}
-            isTop10={row.isTop10}
-            top10Disabled={top10LimitReached}
             onView={() => setViewTarget(row)}
             onEdit={() => openEditRank(row)}
-            onStatusChange={(newStatus) => changeStatus(row, newStatus)}
-            onToggleTop10={() => toggleTop10(row.id)}
+            onDelete={() => setDeleteTarget(row)}
           />
         ),
       }),
     ],
-    [top10LimitReached, rankers],
+    [
+      top10LimitReached,
+      rankers,
+      togglingDisplayIds,
+      togglingTop10Ids,
+      handleToggleDisplay,
+      handleToggleTop10,
+    ],
   )
 
   return (
@@ -499,226 +436,52 @@ export default function RankManagementTab() {
         showStatusFilter
       />
 
+      {isError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {getApiErrorMessage(error, 'Failed to load rankers.')}
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="ml-3 font-semibold underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <RankManagementTable
         columns={columns}
         data={filteredRankers}
-        resetDeps={[search, selectedDate, statusFilter, top10Count]}
+        loading={isLoading}
+        emptyMessage="No Toppers Found"
+        itemLabel="toppers"
+        resetDeps={[search, selectedDate, statusFilter, top10Count, apiToppers.length]}
       />
 
       <WebsiteFormModal open={rankFormOpen} onClose={closeRankForm}>
         <WebsiteFormShell
           icon={GraduationCap}
           iconClassName="text-[#246392]"
-          title={editingId ? 'Edit Ranker' : 'Add Ranker'}
+          title="Add Ranker"
           sectionTitle="Ranker Details"
           closeVariant="icon"
           onGoBack={closeRankForm}
           onReset={() => {
             clearFormErrors()
-            setRankForm(
-              editingId
-                ? formFromRow(rankers.find((r) => r.id === editingId) || {})
-                : emptyRankForm(),
-            )
+            setRankForm(emptyRankForm())
           }}
           onSave={saveRank}
+          saving={saving}
         >
-          <div className="grid gap-6 sm:grid-cols-2">
-            <WebsiteField label="Program" required>
-              <select
-                value={rankForm.program}
-                onChange={(e) => {
-                  const program = e.target.value
-                  const firstCourse = getCoursesForProgram(program)[0]?.value || ''
-                  setRankForm((f) => ({ ...f, program, course: firstCourse }))
-                  clearFieldError('program')
-                  clearFieldError('course')
-                }}
-                aria-invalid={Boolean(formErrors.program)}
-                className={cn(
-                  websiteInputClass,
-                  'cursor-pointer',
-                  formErrors.program && inputErrorClass,
-                )}
-                required
-              >
-                <option value="">Select program</option>
-                {RANK_PROGRAM_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={formErrors.program} />
-            </WebsiteField>
-
-            <WebsiteField label="Course" required>
-              <select
-                value={rankForm.course}
-                onChange={(e) => {
-                  setRankForm((f) => ({ ...f, course: e.target.value }))
-                  clearFieldError('course')
-                }}
-                aria-invalid={Boolean(formErrors.course)}
-                className={cn(
-                  websiteInputClass,
-                  'cursor-pointer',
-                  formErrors.course && inputErrorClass,
-                )}
-                required
-              >
-                <option value="">Select course</option>
-                {courseOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={formErrors.course} />
-            </WebsiteField>
-
-            <WebsiteField label="Year" required>
-              <select
-                value={rankForm.year}
-                onChange={(e) => {
-                  setRankForm((f) => ({ ...f, year: e.target.value }))
-                  clearFieldError('year')
-                }}
-                aria-invalid={Boolean(formErrors.year)}
-                className={cn(
-                  websiteInputClass,
-                  'cursor-pointer',
-                  formErrors.year && inputErrorClass,
-                )}
-                required
-              >
-                <option value="">Select year</option>
-                {getRankYearOptions().map((year) => (
-                  <option key={year} value={String(year)}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={formErrors.year} />
-            </WebsiteField>
-
-            <WebsiteField label="Student ID" required>
-              <input
-                type="text"
-                value={rankForm.studentId}
-                onChange={(e) => {
-                  setRankForm((f) => ({ ...f, studentId: e.target.value }))
-                  clearFieldError('studentId')
-                }}
-                aria-invalid={Boolean(formErrors.studentId)}
-                className={cn(websiteInputClass, formErrors.studentId && inputErrorClass)}
-                placeholder="e.g. STU-10001"
-              />
-              <FieldError message={formErrors.studentId} />
-            </WebsiteField>
-
-            <WebsiteField label="Student Name" required>
-              <input
-                type="text"
-                value={rankForm.studentName}
-                onChange={(e) => {
-                  setRankForm((f) => ({ ...f, studentName: e.target.value }))
-                  clearFieldError('studentName')
-                }}
-                aria-invalid={Boolean(formErrors.studentName)}
-                className={cn(websiteInputClass, formErrors.studentName && inputErrorClass)}
-              />
-              <FieldError message={formErrors.studentName} />
-            </WebsiteField>
-
-            <WebsiteField label="Rank" required>
-              <input
-                type="text"
-                value={rankForm.rank}
-                onChange={(e) => {
-                  setRankForm((f) => ({ ...f, rank: e.target.value }))
-                  clearFieldError('rank')
-                }}
-                aria-invalid={Boolean(formErrors.rank)}
-                className={cn(websiteInputClass, formErrors.rank && inputErrorClass)}
-                placeholder="e.g. AIR 4"
-              />
-              <FieldError message={formErrors.rank} />
-            </WebsiteField>
-
-            <div className="grid gap-6 sm:grid-cols-2">
-              <WebsiteField label="Status" required>
-                <WebsiteStatusSelect
-                  id="ranker-status"
-                  value={rankForm.status}
-                  onChange={(e) => {
-                    const status = e.target.value
-                    setRankForm((f) => ({
-                      ...f,
-                      status,
-                      ...(status === 'Deactivated' ? { displayOrder: '', isTop10: false } : {}),
-                    }))
-                    clearFieldError('status')
-                    clearFieldError('displayOrder')
-                    clearFieldError('isTop10')
-                  }}
-                  required
-                  className={formErrors.status ? inputErrorClass : undefined}
-                />
-                <FieldError message={formErrors.status} />
-              </WebsiteField>
-
-              <WebsiteField label="Mark as Top 10" required>
-                <select
-                  value={rankForm.isTop10 ? 'Yes' : 'No'}
-                  onChange={(e) => {
-                    const isTop10 = e.target.value === 'Yes'
-                    if (isTop10 && rankForm.status !== 'Active') {
-                      toast.error(TOP10_INACTIVE_MESSAGE)
-                      return
-                    }
-                    if (isTop10 && !editingRow?.isTop10 && top10LimitReached) {
-                      toast.error('Maximum 10 Top Rankers allowed.')
-                      return
-                    }
-                    setRankForm((f) => ({
-                      ...f,
-                      isTop10,
-                      ...(isTop10 ? {} : { displayOrder: '' }),
-                    }))
-                    clearFieldError('isTop10')
-                    clearFieldError('displayOrder')
-                  }}
-                  disabled={rankForm.status !== 'Active'}
-                  aria-invalid={Boolean(formErrors.isTop10)}
-                  className={cn(
-                    websiteInputClass,
-                    'cursor-pointer',
-                    rankForm.status !== 'Active' && 'cursor-not-allowed opacity-70',
-                    formErrors.isTop10 && inputErrorClass,
-                  )}
-                  required
-                >
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                </select>
-                <FieldError message={formErrors.isTop10} />
-              </WebsiteField>
-            </div>
-
-            <WebsiteField label="Image Upload" required className="sm:col-span-2">
-              <WebsiteImageInput
-                id="ranker-image"
-                value={rankForm.image}
-                invalid={Boolean(formErrors.image)}
-                onChange={(val) => {
-                  setRankForm((f) => ({ ...f, image: val }))
-                  clearFieldError('image')
-                }}
-              />
-              <FieldError message={formErrors.image} />
-            </WebsiteField>
-          </div>
+          <RankerFormFields
+            form={rankForm}
+            setForm={setRankForm}
+            formErrors={formErrors}
+            setFormErrors={setFormErrors}
+            clearFieldError={clearFieldError}
+            top10LimitReached={top10LimitReached}
+            requireRegisteredStudent
+          />
         </WebsiteFormShell>
       </WebsiteFormModal>
 
@@ -784,7 +547,20 @@ export default function RankManagementTab() {
         )}
       </WebsiteFormModal>
 
-      
+      <AdminConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete Topper"
+        description="Are you sure you want to delete this topper? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loadingLabel="Deleting…"
+        variant="danger"
+        loading={deleting}
+        onClose={() => {
+          if (!deleting) setDeleteTarget(null)
+        }}
+        onConfirm={confirmDeleteRanker}
+      />
     </div>
   )
 }

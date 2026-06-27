@@ -8,6 +8,10 @@ const YoutubeManagementPage = lazyRoute(
   () => import('../pages/marketing/YoutubeManagementPage'),
   'Youtube Management',
 )
+const EditTopperPage = lazyRoute(
+  () => import('../pages/marketing/EditTopperPage'),
+  'Edit Topper',
+)
 const RankManagementPage = lazyRoute(
   () => import('../pages/marketing/RankManagementPage'),
   'Rank Management',
@@ -45,6 +49,7 @@ export default function HomePageManagementLayout() {
             <Route index element={<Navigate to="website" replace />} />
             <Route path="website" element={<YoutubeManagementPage />} />
             <Route path="rank-management" element={<RankManagementPage />} />
+            <Route path="rank-management/edit/:id" element={<EditTopperPage />} />
             <Route path="free-learning-resources" element={<FreeLearningResourcesPage />} />
             <Route
               path="free-learning-resources/view/:resourceType"
