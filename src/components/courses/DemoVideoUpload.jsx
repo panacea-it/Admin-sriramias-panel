@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Film, Loader2, RefreshCw, Upload, X } from 'lucide-react'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { UPLOAD_PROFILES } from '../../constants/uploadConstraints'
 import { formatBytesLabel, validateUploadFile } from '../../utils/uploadValidation'
+import { resolveCourseMediaUrl } from '../../utils/courseMediaPrefill'
 
 const PROFILE = 'BATCH_DEMO_VIDEO'
 const ACCEPT = UPLOAD_PROFILES.BATCH_DEMO_VIDEO.accept
@@ -23,7 +24,8 @@ export default function DemoVideoUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState('')
 
-  const hasVideo = Boolean(videoUrl)
+  const displayVideoUrl = useMemo(() => resolveCourseMediaUrl(videoUrl), [videoUrl])
+  const hasVideo = Boolean(displayVideoUrl)
   const displayName = fileName || (hasVideo ? 'Demo video' : '')
 
   const applyFile = async (file) => {
@@ -67,6 +69,9 @@ export default function DemoVideoUpload({
 
   const handleRemove = () => {
     if (disabled || uploading) return
+    if (videoUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(videoUrl)
+    }
     setValidationError(null)
     setUploadStatus('')
     onChange?.({
@@ -99,7 +104,7 @@ export default function DemoVideoUpload({
         >
           <div className="border-b border-[#55ace7]/10 bg-[#1a3a5c] p-2 sm:p-3">
             <video
-              src={videoUrl}
+              src={displayVideoUrl}
               controls
               playsInline
               preload="metadata"
@@ -150,26 +155,25 @@ export default function DemoVideoUpload({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          onClick={openFilePicker}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              openFilePicker()
-            }
-          }}
-          role="button"
-          tabIndex={disabled || uploading ? -1 : 0}
           className={cn(
             'relative overflow-hidden rounded-2xl border-2 border-dashed transition duration-200',
             dragOver
               ? 'border-[#55ace7] bg-[#eef6fc] shadow-inner'
               : 'border-gray-200 bg-[#fafcff]',
             (error || validationError) && 'border-red-300 bg-red-50/30',
-            (disabled || uploading) && 'cursor-not-allowed opacity-70',
-            !disabled && !uploading && 'cursor-pointer hover:border-[#55ace7]/60 hover:bg-[#f0f7fc]',
+            (disabled || uploading) && 'opacity-70',
           )}
         >
-          <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+          <button
+            type="button"
+            disabled={disabled || uploading}
+            onClick={openFilePicker}
+            className={cn(
+              'flex min-h-[180px] w-full flex-col items-center justify-center gap-3 px-6 py-8 text-center transition',
+              (disabled || uploading) && 'cursor-not-allowed',
+              !disabled && !uploading && 'cursor-pointer hover:bg-[#f0f7fc]',
+            )}
+          >
             {uploading ? (
               <>
                 <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" aria-hidden />
@@ -188,7 +192,7 @@ export default function DemoVideoUpload({
                 <span className="max-w-sm text-sm text-gray-500">or click to browse</span>
               </>
             )}
-          </div>
+          </button>
         </div>
       )}
 

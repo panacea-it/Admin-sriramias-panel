@@ -5,6 +5,7 @@ import { toast } from '../../utils/toast'
 import OfflinePaymentModalHeader from './offline-payment/OfflinePaymentModalHeader'
 import PaymentTypeToggle from './offline-payment/PaymentTypeToggle'
 import EditableStudentCard from './offline-payment/EditableStudentCard'
+import DownPaymentDetailsSection from './offline-payment/DownPaymentDetailsSection'
 import EmiStrategyConfig from './offline-payment/EmiStrategyConfig'
 import EmiScheduleTable from './offline-payment/EmiScheduleTable'
 import EmiEarlyClosurePanel from './offline-payment/EmiEarlyClosurePanel'
@@ -14,7 +15,9 @@ import EmiInstallmentEditDialog from './offline-payment/EmiInstallmentEditDialog
 import EmiInstallmentCollectDialog from './offline-payment/EmiInstallmentCollectDialog'
 
 const fieldClass =
-  'mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
+  'mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
+
+const labelClass = 'block text-xs font-semibold text-[#555]'
 
 export default function AddOfflinePaymentModal({
   open,
@@ -45,7 +48,9 @@ export default function AddOfflinePaymentModal({
     handleProofChange,
     handleProofFilesChange,
     clearProof,
-    schedulePreview,
+    downPaymentProofFiles,
+    handleDownPaymentProofFilesChange,
+    downPaymentFieldErrors,
     validationErrors,
     editInstallment,
     setEditInstallment,
@@ -98,6 +103,14 @@ export default function AddOfflinePaymentModal({
     })
   }
 
+  const handleStatusChange = (row, status) => {
+    updateInstallment({
+      ...row,
+      status,
+      rebalanceRemaining: false,
+    })
+  }
+
   return (
     <Modal open={open} onClose={onClose} size="full" title="Offline EMI Payment" showCloseButton={false}>
       <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-[#f4f6f9] shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
@@ -130,12 +143,20 @@ export default function AddOfflinePaymentModal({
             />
 
             {emiEnabled ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <DownPaymentDetailsSection
+                  config={emiConfig}
+                  onChange={setEmiConfig}
+                  proofFiles={downPaymentProofFiles}
+                  onProofFilesChange={handleDownPaymentProofFilesChange}
+                  fieldErrors={downPaymentFieldErrors}
+                  financials={financials}
+                />
+
                 <EmiStrategyConfig
                   config={emiConfig}
                   onChange={setEmiConfig}
                   financials={financials}
-                  schedulePreview={schedulePreview}
                   installments={installments}
                 />
 
@@ -146,33 +167,27 @@ export default function AddOfflinePaymentModal({
                   onCloseEmi={handleEarlyClosure}
                 />
 
-                <div>
-                  <h3 className="mb-2 text-sm font-bold text-[#246392]">Installment schedule</h3>
+                <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+                  <h3 className="mb-3 text-sm font-bold text-[#246392]">Installment schedule</h3>
                   <EmiScheduleTable
                     installments={installments}
                     planClosed={planClosed}
                     onCollect={(row) => openCollectDialog(row)}
                     onEdit={setEditInstallment}
+                    onStatusChange={handleStatusChange}
                     customLayout
                     expectedPrincipal={expectedEmiPrincipal}
                     onAmountChange={handleInlineAmountChange}
                   />
-                </div>
+                </section>
 
-                <label className="block text-xs font-semibold text-[#555]">
-                  Plan start date
-                  <input
-                    type="date"
-                    {...register('paymentDate', { required: true })}
-                    className={fieldClass}
-                  />
-                </label>
+                <input type="hidden" {...register('paymentDate')} />
               </div>
             ) : (
-              <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                <h3 className="mb-3 text-sm font-bold text-[#246392]">Full payment</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-xs font-semibold text-[#555]">
+              <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+                <h3 className="mb-4 text-sm font-bold text-[#246392]">Full payment</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className={labelClass}>
                     Payment mode
                     <select {...register('paymentMode', { required: true })} className={fieldClass}>
                       {OFFLINE_PAYMENT_MODES.map((m) => (
@@ -182,16 +197,17 @@ export default function AddOfflinePaymentModal({
                       ))}
                     </select>
                   </label>
-                  <label className="block text-xs font-semibold text-[#555]">
+                  <label className={labelClass}>
                     Amount paid (₹) *
                     <input
                       type="number"
                       min="0"
                       {...register('amount', { required: true })}
                       className={fieldClass}
+                      placeholder="Enter amount"
                     />
                   </label>
-                  <label className="block text-xs font-semibold text-[#555] sm:col-span-2">
+                  <label className={`${labelClass} sm:col-span-2`}>
                     Payment date *
                     <input
                       type="date"
@@ -213,12 +229,13 @@ export default function AddOfflinePaymentModal({
                       onClearProof={clearProof}
                     />
                   </div>
-                  <label className="block text-xs font-semibold text-[#555] sm:col-span-2">
+                  <label className={`${labelClass} sm:col-span-2`}>
                     Remarks
                     <textarea
                       {...register('remarks')}
-                      rows={2}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#55ace7]"
+                      rows={3}
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25"
+                      placeholder="Optional notes about this payment"
                     />
                   </label>
                 </div>

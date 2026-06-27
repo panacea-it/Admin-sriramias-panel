@@ -8,14 +8,20 @@ import CategoryEmptyState from '../../../../components/categories/CategoryEmptyS
 import ExamCategoryFormModal from '../../../../components/categories/ExamCategoryFormModal'
 import ViewExamCategoryModal from '../../../../components/categories/ViewExamCategoryModal'
 import ConfirmExamCategoryStatusModal from '../../../../components/categories/ConfirmExamCategoryStatusModal'
-import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
+import CategoryTableLoadingShell from '../../../../components/categories/CategoryTableLoadingShell'
+import CategoryStandardTable from '../../../../components/categories/CategoryStandardTable'
 import ExamCategoryBulkActionsBar from '../../../../components/categories/ExamCategoryBulkActionsBar'
 import ExamCategoryTableActions from '../../../../components/categories/ExamCategoryTableActions'
-import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
+import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../../../components/feedback/ErrorState'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamCategoryManagement } from '../../../../hooks/useExamCategoryManagement'
+import { useCreateExamCategory } from '../../../../hooks/useCreateExamCategory'
+import { useUpdateExamCategory } from '../../../../hooks/useUpdateExamCategory'
+import { useDeleteExamCategory } from '../../../../hooks/useDeleteExamCategory'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
+import { useProgramsByCenter } from '../../../../hooks/useProgramsByCenter'
 import { useTableRowSelection } from '../../../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
@@ -31,18 +37,13 @@ import {
   filterDisableableIds,
   filterEnableableIds,
 } from '../../../../utils/masterBulkActions'
-import { cn } from '../../../../utils/cn'
 import {
   buildExamCategoryApiPayload,
   mapApiExamCategoryToLocal,
-  mapCentreDropdownDisplayOptions,
 } from '../../../../utils/examCategoryApiHelpers'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
 import {
-  createExamCategory,
-  deleteExamCategory,
   getExamCategoryById,
-  updateExamCategory,
   updateExamCategoryStatus,
 } from '../../../../services/examCategoryService'
 
@@ -75,20 +76,29 @@ export default function ExamCategorySection({ section }) {
     categories,
     totalCategories,
     loading,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    programFilter,
+    setProgramFilter,
+    controlledPagination,
     refreshCategories,
     patchCategoryLocally,
     removeCategoryLocally,
   } = useExamCategoryManagement()
 
-  const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
+  const { mutateAsync: createCategory, isPending: createPending } = useCreateExamCategory()
+  const { mutateAsync: updateCategory, isPending: updatePending } = useUpdateExamCategory()
+  const { mutateAsync: deleteCategory, isPending: deleteMutationPending } = useDeleteExamCategory()
 
-  const [programFilter, setProgramFilter] = useState('all')
+  const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
+  const { programOptions: centerProgramOptions } = useProgramsByCenter(
+    centerFilter !== 'all' ? centerFilter : null,
+  )
 
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
@@ -104,31 +114,20 @@ export default function ExamCategorySection({ section }) {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centreOptions = useMemo(
-    () => [
-      { value: 'all', label: 'Center' },
-      ...mapCentreDropdownDisplayOptions(centreDropdownOptions),
-    ],
+    () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
     [centreDropdownOptions],
   )
 
-  const centreFormOptions = useMemo(
-    () => mapCentreDropdownDisplayOptions(centreDropdownOptions),
-    [centreDropdownOptions],
-  )
+  const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
 
   const programFilterOptions = useMemo(() => {
-    const programs = [...new Set(categories.map((row) => row.program).filter(Boolean))].sort()
-    return [{ value: 'all', label: 'Program' }, ...programs.map((p) => ({ value: p, label: p }))]
-  }, [categories])
+    if (centerFilter === 'all') {
+      return [{ value: 'all', label: 'Program' }]
+    }
+    return [{ value: 'all', label: 'Program' }, ...centerProgramOptions]
+  }, [centerFilter, centerProgramOptions])
 
-  const displayedCategories = useMemo(() => {
-    if (programFilter === 'all') return categories
-    return categories.filter((row) => row.program === programFilter)
-  }, [categories, programFilter])
-
-  useEffect(() => {
-    setProgramFilter('all')
-  }, [centerFilter])
+  const formSubmittingBusy = formSubmitting || createPending || updatePending
 
   const categoriesById = useMemo(
     () => new Map(categories.map((row) => [String(row.id), row])),
@@ -188,10 +187,10 @@ export default function ExamCategorySection({ section }) {
       try {
         const payload = buildExamCategoryApiPayload(form)
         if (isEdit && id != null) {
-          await updateExamCategory(id, payload)
+          await updateCategory({ id, payload })
           toast.success('Category updated')
         } else {
-          await createExamCategory(payload)
+          await createCategory(payload)
           toast.success('Category created')
         }
         await refreshCategories()
@@ -202,7 +201,7 @@ export default function ExamCategorySection({ section }) {
         setFormSubmitting(false)
       }
     },
-    [refreshCategories],
+    [createCategory, updateCategory, refreshCategories],
   )
 
   const confirmDelete = useCallback(async () => {
@@ -213,7 +212,7 @@ export default function ExamCategorySection({ section }) {
 
       for (const id of deleteTarget.ids) {
         try {
-          await deleteExamCategory(id)
+          await deleteCategory(id)
           removeCategoryLocally(id)
           successCount += 1
         } catch (error) {
@@ -240,23 +239,25 @@ export default function ExamCategorySection({ section }) {
       setDeleteTarget(null)
       clearSelection()
       setDeleteLoading(false)
+      await refreshCategories()
       return
     }
 
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      await deleteExamCategory(deleteTarget.id)
+      await deleteCategory(deleteTarget.id)
       removeCategoryLocally(deleteTarget.id)
       clearSelection()
       toast.success('Category deleted')
       setDeleteTarget(null)
+      await refreshCategories()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete category'))
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeCategoryLocally, clearSelection])
+  }, [deleteTarget, deleteCategory, removeCategoryLocally, clearSelection, refreshCategories])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -290,11 +291,6 @@ export default function ExamCategorySection({ section }) {
     setBulkConfirm({ type: 'disable' })
   }
 
-  const handleBulkDeleteRequest = () => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }
-
   const confirmBulkAction = async () => {
     if (!bulkConfirm) return
     setBulkActionLoading(true)
@@ -318,49 +314,15 @@ export default function ExamCategorySection({ section }) {
         ids.forEach((id) => patchCategoryLocally(id, { status: 'In Active' }))
         clearSelection()
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        let successCount = 0
-        let failCount = 0
-
-        for (const id of ids) {
-          try {
-            await deleteExamCategory(id)
-            removeCategoryLocally(id)
-            successCount += 1
-          } catch (error) {
-            failCount += 1
-            if (import.meta.env.DEV) {
-              console.error(error)
-            }
-          }
-        }
-
-        if (successCount > 0) {
-          toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        }
-        if (failCount > 0) {
-          toast.error(
-            failCount === 1
-              ? 'Failed to delete 1 category'
-              : `Failed to delete ${failCount} categories`,
-          )
-        }
-        clearSelection()
       }
       setBulkConfirm(null)
+      await refreshCategories()
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(
-        bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected categories')
-          : getMasterBulkErrorMessage(error, bulkConfirm.type),
-      )
-      if (bulkConfirm.type !== 'delete') {
-        await refreshCategories()
-      }
+      toast.error(getMasterBulkErrorMessage(error, bulkConfirm.type))
+      await refreshCategories()
     } finally {
       setBulkActionLoading(false)
     }
@@ -458,8 +420,8 @@ export default function ExamCategorySection({ section }) {
     statusFilter !== 'all' ||
     centerFilter !== 'all' ||
     programFilter !== 'all'
-  const showEmpty = !loading && totalCategories === 0 && !hasActiveFilters
-  const showNoResults = !loading && displayedCategories.length === 0 && !showEmpty
+  const showEmpty = !loading && !listError && totalCategories === 0 && !hasActiveFilters
+  const showNoResults = !loading && !listError && categories.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
@@ -510,10 +472,14 @@ export default function ExamCategorySection({ section }) {
           onDisable={handleBulkDisableRequest}
         />
 
-        {loading ? (
-          <div className="overflow-hidden rounded-2xl bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80 sm:p-5">
-            <ExamCategoryTableSkeleton />
-          </div>
+        {listError && !loading ? (
+          <ErrorState
+            title="Unable to load exam categories"
+            message={listError}
+            onRetry={refreshCategories}
+          />
+        ) : loading ? (
+          <CategoryTableLoadingShell />
         ) : showEmpty ? (
           <CategoryEmptyState
             title={section.emptyTitle}
@@ -529,27 +495,15 @@ export default function ExamCategorySection({ section }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="min-w-0 rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={displayedCategories}
-              itemLabel="exam categories"
-              resetDeps={[search, statusFilter, centerFilter, programFilter]}
-              selection={selection}
-              density="comfortable"
-              loading={bulkActionLoading}
-              rowClassName="hover:bg-[#eef6fc]/70"
-              tableClassName="rounded-none border-0 shadow-none"
-              tableMinWidth={960}
-              paginationClassName={cn(
-                '[&>div:last-child]:items-center',
-                '[&_nav]:items-center',
-                '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
-                '[&_form_input]:h-9 [&_form_input]:leading-none',
-                '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
-              )}
-            />
-          </div>
+          <CategoryStandardTable
+            columns={columns}
+            data={categories}
+            itemLabel="exam categories"
+            controlledPagination={controlledPagination}
+            resetDeps={[search, statusFilter, centerFilter, programFilter]}
+            selection={selection}
+            loading={bulkActionLoading || deleteMutationPending}
+          />
         )}
 
         <ExamCategoryFormModal
@@ -560,13 +514,22 @@ export default function ExamCategorySection({ section }) {
           centreOptions={centreFormOptions}
           centresLoading={centresLoading}
           detailLoading={editDetailLoading}
-          submitting={formSubmitting}
+          submitting={formSubmittingBusy}
         />
 
         <ViewExamCategoryModal
           open={Boolean(viewItem)}
           onClose={() => setViewItem(null)}
           item={viewItem}
+        />
+
+        <ConfirmDeleteDialog
+          open={Boolean(deleteTarget)}
+          title="Delete exam category?"
+          message={deleteMessage}
+          loading={deleteLoading}
+          onCancel={() => !deleteLoading && setDeleteTarget(null)}
+          onConfirm={confirmDelete}
         />
 
         <ConfirmExamCategoryStatusModal

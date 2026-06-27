@@ -1,24 +1,26 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Plus, Shield } from 'lucide-react'
-import { toast } from '@/utils/toast'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { handleApiError } from '../../utils/errorHandler'
+import { isRecordStatusActive } from '../../constants/recordStatus'
 import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
-import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import CreateAdminModal from '../../components/admin-management/CreateAdminModal'
 import ViewAdminDrawer from '../../components/admin-management/ViewAdminDrawer'
+import ConfirmAdminDeleteModal from '../../components/admin-management/ConfirmAdminDeleteModal'
 import ConfirmAdminStatusModal from '../../components/admin-management/ConfirmAdminStatusModal'
 import AdminBulkActionsBar from '../../components/admin-management/AdminBulkActionsBar'
 import AdminManagementTable from '../../components/admin-management/AdminManagementTable'
 import AdminTableActions from '../../components/admin-management/AdminTableActions'
-import { useAdminManagement } from '../../hooks/useAdminManagement'
-import { useRolesDropdown } from '../../hooks/useRolesDropdown'
-import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
+import AdminManagementFilterToolbar from '../../components/admin-management/AdminManagementFilterToolbar'
+import { useAdminsManagement } from '../../hooks/useAdminsManagement'
+import { useQuery } from '@tanstack/react-query'
+import adminManagementService from '../../services/adminManagementService'
+import { adminKeys } from '../../hooks/admin/adminKeys'
+import { mapCentersDropdownResponse } from '../../utils/adminManagementHelpers'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
-import { getApiErrorMessage } from '../../utils/apiError'
-import {
-  deleteAdminUser,
-  updateAdminStatus,
-} from '../../services/adminAccessService'
+import { useDeleteAdmin } from '../../hooks/admin/useDeleteAdmin'
+import { useAdminStatus } from '../../hooks/admin/useAdminStatus'
 
 export default function AdminManagementPage() {
   const {
@@ -33,22 +35,30 @@ export default function AdminManagementPage() {
     setCenterFilter,
     statusFilter,
     setStatusFilter,
+    sortPreset,
+    setSortPreset,
+    roleFilterOptions,
     pagination,
     refreshUsers,
-    patchUserLocally,
-    removeUserLocally,
-  } = useAdminManagement()
+  } = useAdminsManagement()
 
   const {
-    options: roleDropdownOptions = [],
-    error: rolesDropdownError,
-    refresh: refreshRolesDropdown,
-  } = useRolesDropdown({ adminManagement: true })
-  const {
-    options: centerDropdownOptions = [],
+    data: centersData,
     error: centersDropdownError,
-    refresh: refreshCentersDropdown,
-  } = useCentersDropdownOptions({ adminManagement: true })
+    refetch: refreshCentersDropdown,
+  } = useQuery({
+    queryKey: adminKeys.centersDropdown(),
+    queryFn: () => adminManagementService.getCentersDropdown(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const centerDropdownOptions = useMemo(
+    () => mapCentersDropdownResponse(centersData),
+    [centersData],
+  )
+
+  const deleteMutation = useDeleteAdmin()
+  const statusMutation = useAdminStatus()
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 
@@ -57,29 +67,11 @@ export default function AdminManagementPage() {
   const [viewingId, setViewingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [bulkDisableIds, setBulkDisableIds] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
-
-  const roleFilterOptions = useMemo(
-    () => [
-      { value: 'all', label: 'All Roles' },
-      ...(Array.isArray(roleDropdownOptions) ? roleDropdownOptions : []),
-    ],
-    [roleDropdownOptions],
-  )
-
-  const centerFilterOptions = useMemo(
-    () => [
-      { value: 'all', label: 'All Centers' },
-      ...(Array.isArray(centerDropdownOptions) ? centerDropdownOptions : []),
-    ],
-    [centerDropdownOptions],
-  )
 
   const selectedActiveCount = useMemo(
-    () => users.filter((u) => selectedIds.includes(u.id) && u.status === 'Active').length,
+    () => users.filter((u) => selectedIds.includes(u.id) && isRecordStatusActive(u.status)).length,
     [users, selectedIds],
   )
 
@@ -98,20 +90,14 @@ export default function AdminManagementPage() {
     setEditingId(null)
   }
 
-  const handleSuccess = useCallback(() => {
-    refreshUsers()
-  }, [refreshUsers])
-
   const confirmDelete = async () => {
     if (bulkDeleteIds?.length) {
-      setDeleteLoading(true)
       let successCount = 0
       let failCount = 0
 
       for (const id of bulkDeleteIds) {
         try {
-          await deleteAdminUser(id)
-          removeUserLocally(id)
+          await deleteMutation.mutateAsync(id)
           successCount += 1
         } catch (error) {
           failCount += 1
@@ -121,75 +107,47 @@ export default function AdminManagementPage() {
         }
       }
 
-      if (successCount > 0) {
-        toast.success(
-          successCount === 1 ? 'User access deleted' : `${successCount} user access records deleted`,
-        )
-      }
       if (failCount > 0) {
-        toast.error(
-          failCount === 1
-            ? 'Failed to delete 1 user access record'
-            : `Failed to delete ${failCount} user access records`,
+        handleApiError(new Error('Some deletions failed'), {
+          fallback: `Failed to delete ${failCount} admin account(s)`,
+        })
+      } else if (successCount > 0) {
+        const { toast } = await import('../../utils/toast')
+        toast.success(
+          successCount === 1
+            ? 'Admin account permanently deleted'
+            : `${successCount} admin accounts permanently deleted`,
         )
       }
 
       setBulkDeleteIds(null)
       clearSelection()
-      await refreshUsers()
-      setDeleteLoading(false)
       return
     }
 
     if (!deleteTarget) return
-    setDeleteLoading(true)
-    try {
-      await deleteAdminUser(deleteTarget.id)
-      removeUserLocally(deleteTarget.id)
-      toast.success('User access deleted')
-      setDeleteTarget(null)
-      await refreshUsers()
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to delete user access'))
-    } finally {
-      setDeleteLoading(false)
-    }
-  }
 
-  const handleStatusToggleRequest = (row) => {
-    setStatusTarget(row)
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id)
+      const { toast } = await import('../../utils/toast')
+      toast.success('Admin account permanently deleted')
+      setDeleteTarget(null)
+    } catch (error) {
+      handleApiError(error, { fallback: 'Failed to delete admin account' })
+    }
   }
 
   const confirmStatusChange = async () => {
     if (!statusTarget) return
-    const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'In Active'
-
-    setStatusLoading(true)
-    patchUserLocally(statusTarget.id, {
-      status: nextStatus,
-      accountStatus: enabling,
-    })
+    const enabling = !isRecordStatusActive(statusTarget.status)
 
     try {
-      await updateAdminStatus(statusTarget.id, enabling)
-      toast.success(enabling ? 'Account enabled' : 'Account disabled')
+      await statusMutation.mutateAsync({ id: statusTarget.id, status: enabling })
+      const { toast } = await import('../../utils/toast')
+      toast.success(enabling ? 'Admin account enabled' : 'Admin account disabled')
       setStatusTarget(null)
-      await refreshUsers()
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      patchUserLocally(statusTarget.id, {
-        status: statusTarget.status,
-        accountStatus: statusTarget.accountStatus,
-      })
-      toast.error(getApiErrorMessage(error, 'Failed to update account status'))
-    } finally {
-      setStatusLoading(false)
+      handleApiError(error, { fallback: 'Failed to update account status' })
     }
   }
 
@@ -197,7 +155,7 @@ export default function AdminManagementPage() {
     if (!bulkDisableIds?.length) return
 
     const targets = users.filter(
-      (row) => bulkDisableIds.includes(row.id) && row.status === 'Active',
+      (row) => bulkDisableIds.includes(row.id) && isRecordStatusActive(row.status),
     )
 
     if (!targets.length) {
@@ -205,30 +163,22 @@ export default function AdminManagementPage() {
       return
     }
 
-    setStatusLoading(true)
     let successCount = 0
     let failCount = 0
 
     for (const row of targets) {
-      patchUserLocally(row.id, {
-        status: 'In Active',
-        accountStatus: false,
-      })
       try {
-        await updateAdminStatus(row.id, false)
+        await statusMutation.mutateAsync({ id: row.id, status: false })
         successCount += 1
       } catch (error) {
         failCount += 1
-        patchUserLocally(row.id, {
-          status: row.status,
-          accountStatus: row.accountStatus,
-        })
         if (import.meta.env.DEV) {
           console.error(error)
         }
       }
     }
 
+    const { toast } = await import('../../utils/toast')
     if (successCount > 0) {
       toast.success(successCount === 1 ? 'Account disabled' : `${successCount} accounts disabled`)
     }
@@ -242,8 +192,6 @@ export default function AdminManagementPage() {
 
     setBulkDisableIds(null)
     clearSelection()
-    await refreshUsers()
-    setStatusLoading(false)
   }
 
   const renderRowActions = useCallback(
@@ -252,35 +200,42 @@ export default function AdminManagementPage() {
         row={row}
         onView={() => setViewingId(row.id)}
         onEdit={() => openEdit(row)}
-        onStatusToggle={() => handleStatusToggleRequest(row)}
+        onStatusToggle={() => setStatusTarget(row)}
         onDelete={() => setDeleteTarget(row)}
       />
     ),
     [],
   )
 
-  const emptyMessage = loadError
+  const loadErrorMessage = loadError
+    ? getApiErrorMessage(loadError, 'Failed to load admin users')
+    : null
+
+  const emptyMessage = loadErrorMessage
     ? 'Unable to load admin users.'
     : search.trim() || roleFilter !== 'all' || centerFilter !== 'all' || statusFilter !== 'all'
-      ? 'No employees match your filters.'
-      : 'No employees found'
+      ? 'No admins match your filters.'
+      : 'No admin accounts found'
 
-  const emptyState = loadError ? (
+  const emptyState = loadErrorMessage ? (
     <div className="px-4 py-6 sm:px-6">
       <ErrorState
         title="Unable to load admin users"
-        message={loadError}
+        message={loadErrorMessage}
         onRetry={refreshUsers}
       />
     </div>
   ) : undefined
 
-  const filterDropdownWarning =
-    rolesDropdownError || centersDropdownError
-      ? [rolesDropdownError && 'Role filter unavailable', centersDropdownError && 'Center filter unavailable']
-          .filter(Boolean)
-          .join(' · ')
-      : null
+  const centersDropdownErrorMessage = centersDropdownError
+    ? getApiErrorMessage(centersDropdownError, 'Failed to load centers')
+    : null
+
+  const filterDropdownWarning = centersDropdownErrorMessage
+    ? 'Center filter unavailable'
+    : null
+
+  const actionLoading = deleteMutation.isPending || statusMutation.isPending
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-10 pt-6 sm:px-5 lg:px-6">
@@ -299,22 +254,34 @@ export default function AdminManagementPage() {
         <CreateAdminModal
           open={createModalOpen}
           onClose={handleCloseModal}
-          onSuccess={handleSuccess}
+          onSuccess={refreshUsers}
           editingId={editingId}
         />
 
         <ViewAdminDrawer open={!!viewingId} adminAccessId={viewingId} onClose={() => setViewingId(null)} />
 
-        
+        <ConfirmAdminDeleteModal
+          open={!!deleteTarget || !!bulkDeleteIds?.length}
+          employeeName={deleteTarget?.fullName || deleteTarget?.employeeName}
+          bulkCount={bulkDeleteIds?.length || 0}
+          loading={deleteMutation.isPending}
+          onCancel={() => {
+            if (!deleteMutation.isPending) {
+              setDeleteTarget(null)
+              setBulkDeleteIds(null)
+            }
+          }}
+          onConfirm={confirmDelete}
+        />
 
         <ConfirmAdminStatusModal
           open={!!statusTarget || !!bulkDisableIds?.length}
-          employeeName={statusTarget?.employeeName}
+          employeeName={statusTarget?.fullName || statusTarget?.employeeName}
           bulkCount={bulkDisableIds?.length || 0}
-          enabling={bulkDisableIds?.length ? false : statusTarget?.status !== 'Active'}
-          loading={statusLoading}
+          enabling={bulkDisableIds?.length ? false : !isRecordStatusActive(statusTarget?.status)}
+          loading={statusMutation.isPending}
           onCancel={() => {
-            if (!statusLoading) {
+            if (!statusMutation.isPending) {
               setStatusTarget(null)
               setBulkDisableIds(null)
             }
@@ -323,21 +290,21 @@ export default function AdminManagementPage() {
         />
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-          <CourseFilterToolbar
+          <AdminManagementFilterToolbar
             search={search}
             onSearchChange={(e) => setSearch(e.target.value)}
-            searchPlaceholder="Search by employee name or employee ID"
-            category={roleFilter}
-            onCategoryChange={(e) => setRoleFilter(e.target.value)}
-            categoryOptions={roleFilterOptions}
-            categoryAriaLabel="Role Title"
-            center={centerFilter}
-            onCenterChange={(e) => setCenterFilter(e.target.value)}
-            centerOptions={centerFilterOptions}
-            centerAriaLabel="Center"
-            status={statusFilter}
-            onStatusChange={(e) => setStatusFilter(e.target.value)}
+            roleFilter={roleFilter}
+            onRoleFilterChange={(e) => setRoleFilter(e.target.value)}
+            roleOptions={roleFilterOptions}
+            centerFilter={centerFilter}
+            onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+            centerOptions={centerDropdownOptions}
+            statusFilter={statusFilter}
+            onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+            sortPreset={sortPreset}
+            onSortPresetChange={(e) => setSortPreset(e.target.value)}
             disabled={loading && users.length === 0}
+            onRefresh={refreshUsers}
           />
 
           {filterDropdownWarning && (
@@ -349,8 +316,7 @@ export default function AdminManagementPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (rolesDropdownError) refreshRolesDropdown()
-                  if (centersDropdownError) refreshCentersDropdown()
+                  if (centersDropdownErrorMessage) refreshCentersDropdown()
                 }}
                 className="shrink-0 self-start rounded-lg border border-amber-300/80 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100/60 sm:self-center"
               >
@@ -372,10 +338,10 @@ export default function AdminManagementPage() {
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
             <AdminManagementTable
               users={users}
-              loading={loading}
+              loading={loading || actionLoading}
               controlledPagination={pagination}
               selection={selection}
-              resetDeps={[search, roleFilter, centerFilter, statusFilter]}
+              resetDeps={[search, roleFilter, centerFilter, statusFilter, sortPreset]}
               emptyMessage={emptyMessage}
               emptyState={emptyState}
               renderActions={renderRowActions}

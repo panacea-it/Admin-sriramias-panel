@@ -6,7 +6,6 @@ import {
 } from './CourseFormField'
 import { batchFormGrid } from './batch-form/BatchFormCard'
 import BrochurePdfUpload from './BrochurePdfUpload'
-import DemoVideoUpload from './DemoVideoUpload'
 import BannerImageUpload from './BannerImageUpload'
 import CourseCatalogSelect from './CourseCatalogSelect'
 import BatchMentorSelect from './BatchMentorSelect'
@@ -20,7 +19,6 @@ export default function BatchDetailsSection({
   setErrors,
   excludeCourseIds = [],
   onBrochureUploadingChange,
-  onDemoVideoUploadingChange,
   isEditMode = false,
 }) {
   const clearError = (key) => {
@@ -204,34 +202,6 @@ export default function BatchDetailsSection({
               brochureFileSize: fileSize,
             }))
             clearError('brochureUrl')
-          }}
-        />
-      </CourseFormField>
-
-      <CourseFormField
-        label="Add Your Demo Video"
-        className="sm:col-span-2 lg:col-span-3"
-      >
-        <DemoVideoUpload
-          videoUrl={form.demoVideoUrl}
-          fileName={form.demoVideoFileName}
-          fileSize={form.demoVideoFileSize}
-          error={errors.demoVideoUrl}
-          onUploadingChange={onDemoVideoUploadingChange}
-          onChange={({ file, videoUrl, fileName, fileSize }) => {
-            setForm((f) => {
-              if (f.demoVideoUrl?.startsWith('blob:') && f.demoVideoUrl !== videoUrl) {
-                URL.revokeObjectURL(f.demoVideoUrl)
-              }
-              return {
-                ...f,
-                demoVideoFile: file || null,
-                demoVideoUrl: videoUrl,
-                demoVideoFileName: fileName,
-                demoVideoFileSize: fileSize,
-              }
-            })
-            clearError('demoVideoUrl')
           }}
         />
       </CourseFormField>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getCentreDropdownDisplayName } from '../../utils/centreDropdownDisplay'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { FolderTree } from 'lucide-react'
 import Modal from '../ui/Modal'
@@ -38,7 +39,13 @@ function withCurrentOption(options, value, label) {
     return options
   }
   if (!label) return options
-  return [...options, { value: normalizedValue, label }]
+  return [
+    ...options,
+    {
+      value: normalizedValue,
+      label: getCentreDropdownDisplayName({ centerName: label, label }),
+    },
+  ]
 }
 
 export default function ExamSubCategoryFormModal({

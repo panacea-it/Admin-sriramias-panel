@@ -1,3 +1,5 @@
+import { getCentreDropdownDisplayName } from './centreDropdownDisplay'
+
 function unwrapList(data, keys) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.data)) return data.data
@@ -24,9 +26,13 @@ export function normalizeCenterDropdownOptions(data) {
     .map((row) => {
       const mongoId = row._id ?? (isMongoObjectId(row.id) ? row.id : '')
       const businessCenterId = row.centerId || row.value || ''
+      const label = getCentreDropdownDisplayName({
+        centerName: row.centerName ?? row.name ?? row.label,
+        label: row.label,
+      })
       return {
         value: resolveApiRef(mongoId, businessCenterId),
-        label: String(row.centerName ?? row.label ?? row.name ?? '').trim(),
+        label,
       }
     })
     .filter((opt) => opt.value && opt.label)
@@ -77,6 +83,34 @@ export function normalizeSubCategoryDropdownOptions(data) {
     .filter((opt) => opt.value && opt.label)
 }
 
+function formatCourseCatalogLabel(courseName, courseId) {
+  const name = String(courseName || '').trim()
+  const code = String(courseId || '').trim()
+  return code ? `${name} - ${code}` : name
+}
+
+/** Batch form course picker — requires Mongo _id for POST /api/batches `courseId`. */
+export function normalizeCourseCatalogDropdownOptions(data) {
+  return unwrapList(data, ['courses', 'items', 'results'])
+    .map((row) => {
+      const mongoId =
+        row._id ??
+        row.academicCourseId ??
+        (isMongoObjectId(row.id) ? row.id : '')
+      const courseId = String(row.courseId || '').trim()
+      const courseName = String(row.courseName ?? row.title ?? row.name ?? '').trim()
+      if (!isMongoObjectId(mongoId) || !courseName) return null
+      return {
+        _id: String(mongoId),
+        courseId,
+        courseName,
+        label: formatCourseCatalogLabel(courseName, courseId),
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.courseName.localeCompare(b.courseName))
+}
+
 export function withCurrentSelectOption(options, value, label) {
   if (!value) return options
   const normalizedValue = String(value)
@@ -84,5 +118,11 @@ export function withCurrentSelectOption(options, value, label) {
     return options
   }
   if (!label) return options
-  return [...options, { value: normalizedValue, label }]
+  return [
+    ...options,
+    {
+      value: normalizedValue,
+      label: getCentreDropdownDisplayName({ centerName: label, label }),
+    },
+  ]
 }

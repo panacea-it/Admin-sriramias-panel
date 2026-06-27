@@ -6,6 +6,7 @@ import ModalPanelHeader from '../courses/ModalPanelHeader'
 import SectionBar from '../courses/SectionBar'
 import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
+import DemoVideoUpload from '../courses/DemoVideoUpload'
 import SearchableSelect from './SearchableSelect'
 import CourseMarketingSections from './CourseMarketingSections'
 import { useCourseFormDropdowns } from '../../hooks/useCourseFormDropdowns'
@@ -16,6 +17,7 @@ import {
   serializeAcademicCourseContent,
 } from '../../utils/academicCourseForm'
 import { validateCreateCourseContent } from '../../utils/courseApiHelpers'
+import { mapDemoVideoFromCourse } from '../../utils/courseMediaPrefill'
 import { toast } from '../../utils/toast'
 
 function buildHierarchyForm(item) {
@@ -39,24 +41,51 @@ function buildHierarchyForm(item) {
   }
 }
 
-function buildFullForm(item) {
+function buildDemoVideoFields(item) {
+  const mapped = mapDemoVideoFromCourse(item)
   return {
-    ...buildHierarchyForm(item),
-    ...academicCourseItemToContent(item),
+    demoVideoFile: null,
+    demoVideoUrl: mapped.demoVideoUrl || '',
+    demoVideoFileName: mapped.demoVideoFileName || '',
+    demoVideoFileSize: mapped.demoVideoFileSize ?? null,
   }
 }
 
-export default function CourseFormModal({ open, onClose, item, onSubmit, submitting = false }) {
+function buildFullForm(item) {
+  const row = item && typeof item === 'object' ? item : null
+  return {
+    ...buildHierarchyForm(row),
+    ...academicCourseItemToContent(row),
+    ...buildDemoVideoFields(row),
+  }
+}
+
+function getCourseFormInitKey(item, isEdit, detailLoading) {
+  if (!isEdit) return '__create__'
+  const id = getModalEditKey(item)
+  return detailLoading ? `${id}:loading` : `${id}:ready`
+}
+
+export default function CourseFormModal({
+  open,
+  onClose,
+  item,
+  onSubmit,
+  submitting = false,
+  detailLoading = false,
+}) {
   const isEdit = Boolean(item)
   const [form, setForm] = useState(() => ({
     ...buildHierarchyForm(null),
     ...createEmptyAcademicCourseContent(),
+    ...buildDemoVideoFields(null),
   }))
   const [errors, setErrors] = useState({})
+  const [demoVideoUploading, setDemoVideoUploading] = useState(false)
   const closingRef = useRef(false)
   const itemRef = useRef(item)
   itemRef.current = item
-  const editKey = getModalEditKey(item)
+  const editKey = getCourseFormInitKey(item, isEdit, detailLoading)
 
   const {
     centerOptions,
@@ -79,6 +108,7 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
     closingRef.current = false
     setForm(buildFullForm(itemRef.current))
     setErrors({})
+    setDemoVideoUploading(false)
   })
 
   const centreSelectOptions = useMemo(
@@ -106,6 +136,14 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
     [subCategoryOptions, form.examSubCategoryId, item?.examSubCategory],
   )
 
+  const selectedCenterLabel = useMemo(
+    () =>
+      centreSelectOptions.find((c) => String(c.value) === String(form.centerId))?.label ||
+      item?.centerName ||
+      '',
+    [centreSelectOptions, form.centerId, item?.centerName],
+  )
+
   const handleClose = () => {
     if (closingRef.current || submitting) return
     closingRef.current = true
@@ -122,7 +160,7 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
       examSubCategoryId: '',
     }))
     clearDependentOptions()
-    setErrors({})
+    if (errors.centerId) setErrors((err) => ({ ...err, centerId: undefined }))
   }
 
   const handleReset = () => {
@@ -143,10 +181,16 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (demoVideoUploading) {
+      toast.error('Please wait for the demo video upload to finish')
+      return
+    }
     const hierarchyOk = validateHierarchy()
-    const contentErrs = isEdit ? {} : validateCreateCourseContent(form)
-    if (!hierarchyOk || Object.keys(contentErrs).length) {
-      if (Object.keys(contentErrs).length) setErrors((prev) => ({ ...prev, ...contentErrs }))
+    const hierarchyErrs = validateCreateCourseContent(form)
+    if (!hierarchyOk || Object.keys(hierarchyErrs).length) {
+      if (Object.keys(hierarchyErrs).length) {
+        setErrors((prev) => ({ ...prev, ...hierarchyErrs }))
+      }
       toast.error('Please fix the highlighted fields')
       return
     }
@@ -179,6 +223,13 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
           howWill: form.howWill,
           whyChooseTitle: form.whyChooseTitle,
           whyChooseSubtitle: form.whyChooseSubtitle,
+          demoVideoFile: form.demoVideoFile,
+          demoVideoUrl: form.demoVideoUrl,
+          demoVideoFileName: form.demoVideoFileName,
+          demoVideoFileSize: form.demoVideoFileSize,
+          newDelhiUi: form.newDelhiUi,
+          hyderabadUi: form.hyderabadUi,
+          puneUi: form.puneUi,
           ...serializeAcademicCourseContent(form, {
             examCategory: category?.label || '',
             courseName: form.name.trim(),
@@ -194,24 +245,43 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
 
   if (!open) return null
 
+  if (detailLoading) {
+    return (
+      <Modal open={open} onClose={handleClose} size="full" title="Loading course…">
+        <div className="flex min-h-[200px] items-center justify-center p-8 text-sm text-[#686868]">
+          Loading course details…
+        </div>
+      </Modal>
+    )
+  }
+
   const title = isEdit ? 'Edit Course' : 'Add Course'
 
   return (
-    <Modal open={open} onClose={handleClose} size="full" title={title} showCloseButton={false}>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      size="full"
+      title={title}
+      showCloseButton={false}
+      className="flex max-h-[90vh] flex-col overflow-hidden"
+    >
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[min(92vh,820px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-[#f0f4f8] shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
       >
-        <ModalPanelHeader
-          title={title}
-          onClose={handleClose}
-          closeVariant="icon"
-          plainCloseIcon
-          icon={BookOpen}
-          iconClassName="text-[#246392]"
-        />
+        <div className="shrink-0">
+          <ModalPanelHeader
+            title={title}
+            onClose={handleClose}
+            closeVariant="icon"
+            plainCloseIcon
+            icon={BookOpen}
+            iconClassName="text-[#246392]"
+          />
+        </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 sm:py-7">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 sm:py-6">
           <div className="space-y-6">
             <SectionBar title="Course Details" />
             <div className="grid gap-4 rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:grid-cols-2 sm:px-6 sm:py-6">
@@ -300,28 +370,59 @@ export default function CourseFormModal({ open, onClose, item, onSubmit, submitt
             </div>
           </div>
 
-          <CourseMarketingSections
-            form={form}
-            setForm={setForm}
-            courseName={form.name}
-            centerLabel={
-              centreSelectOptions.find((c) => String(c.value) === String(form.centerId))
-                ?.label || item?.centerName || ''
-            }
-          />
+          <div className="space-y-6">
+            <SectionBar title="Demo Video" />
+            <div className="grid gap-4 rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:grid-cols-2 sm:px-6 sm:py-6">
+              <CourseFormField label="Add Your Demo Video" className="sm:col-span-2">
+                <DemoVideoUpload
+                  videoUrl={form.demoVideoUrl}
+                  fileName={form.demoVideoFileName}
+                  fileSize={form.demoVideoFileSize}
+                  error={errors.demoVideoUrl}
+                  onUploadingChange={setDemoVideoUploading}
+                  onChange={({ file, videoUrl, fileName, fileSize }) => {
+                    setForm((f) => {
+                      if (f.demoVideoUrl?.startsWith('blob:') && f.demoVideoUrl !== videoUrl) {
+                        URL.revokeObjectURL(f.demoVideoUrl)
+                      }
+                      return {
+                        ...f,
+                        demoVideoFile: file || null,
+                        demoVideoUrl: videoUrl,
+                        demoVideoFileName: fileName,
+                        demoVideoFileSize: fileSize,
+                      }
+                    })
+                    if (errors.demoVideoUrl) {
+                      setErrors((err) => ({ ...err, demoVideoUrl: undefined }))
+                    }
+                  }}
+                />
+              </CourseFormField>
+            </div>
+          </div>
+
+          {form.centerId ? (
+            <CourseMarketingSections
+              form={form}
+              setForm={setForm}
+              courseName={form.name}
+              centerLabel={selectedCenterLabel}
+            />
+          ) : null}
         </div>
 
-        <div className="sticky bottom-0 z-10 shrink-0 border-t border-[#e5eaf2] bg-[#f0f4f8]/95 px-4 py-5 backdrop-blur-md sm:px-8">
+        <div className="sticky bottom-0 z-20 shrink-0 border-t border-[#e5eaf2] bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] sm:px-8">
           <FormModalSubmitBar
             isEditMode={isEdit}
             onReset={handleReset}
-            isSubmitting={submitting}
-            disableSubmit={submitting}
+            isSubmitting={submitting || demoVideoUploading}
+            disableSubmit={submitting || demoVideoUploading}
             disableReset={submitting}
             createLabel="Create"
             updateLabel="Update"
-            loadingLabel="Creating…"
-            className="border-t-0 pt-4"
+            loadingLabel={isEdit ? 'Updating…' : 'Creating…'}
+            className="border-t-0 pt-2"
           />
         </div>
       </form>

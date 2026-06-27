@@ -1,11 +1,11 @@
-import { Ban, CheckSquare } from 'lucide-react'
+import { Ban, CheckSquare, Trash2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export default function ManageUsersBulkActionsBar({
   count,
   disableCount = 0,
   onDisable,
-  onDelete: _onDelete,
+  onDelete,
   className,
 }) {
   if (!count) return null
@@ -31,11 +31,18 @@ export default function ManageUsersBulkActionsBar({
           type="button"
           onClick={onDisable}
           disabled={disableCount === 0}
-          title="Deactivate"
           className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3.5 py-2 text-xs font-semibold text-orange-700 shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
         >
           <Ban className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Deactivate Selected
+          Disable Selected
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D64B5F] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#c43d51] sm:text-sm"
+        >
+          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.4} />
+          Delete Selected
         </button>
       </div>
     </div>

@@ -163,19 +163,6 @@ export default function EditableStudentCard({
             triggerClassName={batchTriggerClass}
           />
         </label>
-        {profile.isWalkIn && (
-          <label className="block text-xs font-semibold text-[#555] sm:col-span-2">
-            Course fee / pending balance (₹)
-            <input
-              type="number"
-              min="0"
-              value={profile.customFee}
-              onChange={(e) => set('customFee', e.target.value)}
-              className={fieldClass}
-              placeholder="For walk-in counseling"
-            />
-          </label>
-        )}
       </div>
 
       {financials && (

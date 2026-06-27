@@ -9,19 +9,20 @@ import CurrentAffairsBulkActionsBar from '../../components/current-affairs/Curre
 import CurrentAffairsBulkConfirmDialog from '../../components/current-affairs/CurrentAffairsBulkConfirmDialog'
 import CurrentAffairsTableActions from '../../components/current-affairs/CurrentAffairsTableActions'
 import ViewCurrentAffairsModal from '../../components/current-affairs/ViewCurrentAffairsModal'
+import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../components/feedback/ErrorState'
 import { BannerButton, StatusBadge } from '../../components/academics/AcademicsUi'
 import { CURRENT_AFFAIRS_FORM_CATEGORIES } from '../../constants/currentAffairsForm'
-import { CURRENT_AFFAIRS_CATEGORIES } from '../../data/currentAffairsData'
+import { MONTH_OPTIONS } from '../../data/currentAffairsData'
 import { useEditModal } from '../../hooks/useEditModal'
-import { useCurrentAffairs } from '../../hooks/useCurrentAffairs'
-import { getApiErrorMessage } from '../../utils/apiError'
+import { useCurrentAffairsManagement } from '../../hooks/useCurrentAffairsManagement'
+import { useDeleteCurrentAffair } from '../../hooks/useDeleteCurrentAffair'
+import { useUpdateCurrentAffairStatus } from '../../hooks/useUpdateCurrentAffairStatus'
+import handleApiError from '../../utils/errorHandler'
 import { cn } from '../../utils/cn'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { mapUiStatusToApi } from '../../utils/currentAffairsApiHelpers'
-import {
-  deleteCurrentAffair,
-  updateCurrentAffairStatus,
-} from '../../services/currentAffairsService'
+import { getCurrentAffairsYearOptions } from '../../utils/currentAffairsYearOptions'
 
 function nextRowStatus(status) {
   return status === 'Active' ? 'In Active' : 'Active'
@@ -36,44 +37,74 @@ function TruncateCell({ value, className }) {
   )
 }
 
+function ExtraFilterSelect({ label, value, onChange, options }) {
+  return (
+    <div className="relative w-full sm:w-auto sm:min-w-[130px]">
+      <select
+        value={value}
+        onChange={onChange}
+        aria-label={label}
+        className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function CurrentAffairsPage() {
   const {
     items,
     loading,
-    loadError,
+    isFetching,
+    listError,
     search,
     setSearch,
     categoryFilter,
     setCategoryFilter,
-    resourceFilter,
-    setResourceFilter,
+    yearFilter,
+    setYearFilter,
+    monthFilter,
+    setMonthFilter,
     statusFilter,
     setStatusFilter,
+    controlledPagination,
     refreshItems,
-    removeItemsLocally,
-    patchItemLocally,
-  } = useCurrentAffairs()
+  } = useCurrentAffairsManagement()
+
+  const deleteMutation = useDeleteCurrentAffair()
+  const statusMutation = useUpdateCurrentAffairStatus()
 
   const modal = useEditModal()
   const [selectedIds, setSelectedIds] = useState([])
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [bulkConfirm, setBulkConfirm] = useState(null)
-  const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [statusLoadingId, setStatusLoadingId] = useState(null)
 
-  const categoryOptions = useMemo(
+  const yearOptions = useMemo(
     () => [
-      { value: 'all', label: 'Category' },
-      ...CURRENT_AFFAIRS_CATEGORIES.map((c) => ({ value: c.name, label: c.name })),
+      { value: 'all', label: 'Year' },
+      ...getCurrentAffairsYearOptions().map((y) => ({ value: y, label: y })),
     ],
     [],
   )
 
-  const resourceOptions = useMemo(
+  const monthOptions = useMemo(
     () => [
-      { value: 'all', label: 'Resource' },
+      { value: 'all', label: 'Month' },
+      ...MONTH_OPTIONS.map((m) => ({ value: m, label: m })),
+    ],
+    [],
+  )
+
+  const categoryOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Category' },
       ...CURRENT_AFFAIRS_FORM_CATEGORIES.map((name) => ({ value: name, label: name })),
     ],
     [],
@@ -98,18 +129,18 @@ export default function CurrentAffairsPage() {
     const nextStatus = nextRowStatus(row.status)
     setStatusLoadingId(row.id)
     try {
-      await updateCurrentAffairStatus(row.id, mapUiStatusToApi(nextStatus))
-      patchItemLocally(row.id, { status: nextStatus })
+      await statusMutation.mutateAsync({
+        id: row.id,
+        status: mapUiStatusToApi(nextStatus),
+      })
       toast.success(
         nextStatus === 'Active'
           ? 'Current affairs entry activated'
           : 'Current affairs entry deactivated',
       )
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[Current Affairs] Status toggle failed:', error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to update status'))
+      handleApiError(error, { fallback: 'Failed to update status' })
+      await refreshItems()
     } finally {
       setStatusLoadingId(null)
     }
@@ -117,34 +148,34 @@ export default function CurrentAffairsPage() {
 
   const performDelete = useCallback(
     async (ids) => {
-      await Promise.all(ids.map((id) => deleteCurrentAffair(id)))
-      removeItemsLocally(ids)
+      await Promise.all(
+        ids.map((id) => {
+          const row = itemsById.get(String(id))
+          return deleteMutation.mutateAsync({ id, category: row?.category })
+        }),
+      )
       setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       toast.success(
         ids.length > 1 ? `${ids.length} entries deleted` : 'Current affairs entry deleted',
       )
     },
-    [removeItemsLocally],
+    [deleteMutation, itemsById],
   )
 
   const handleBulkEnable = async () => {
     const ids = selectedIds.filter((id) => itemsById.get(String(id))?.status === 'In Active')
     if (!ids.length) return
 
-    setBulkActionLoading(true)
     try {
-      await Promise.all(ids.map((id) => updateCurrentAffairStatus(id, true)))
-      ids.forEach((id) => patchItemLocally(id, { status: 'Active' }))
+      await Promise.all(
+        ids.map((id) => statusMutation.mutateAsync({ id, status: true })),
+      )
       setSelectedIds([])
       toast.success(ids.length > 1 ? `${ids.length} entries enabled` : 'Current affairs entry enabled')
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[Current Affairs] Bulk enable failed:', error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to enable selected entries'))
+      handleApiError(error, { fallback: 'Failed to enable selected entries' })
       await refreshItems()
     } finally {
-      setBulkActionLoading(false)
       setBulkConfirm(null)
     }
   }
@@ -153,20 +184,16 @@ export default function CurrentAffairsPage() {
     const ids = selectedIds.filter((id) => itemsById.get(String(id))?.status === 'Active')
     if (!ids.length) return
 
-    setBulkActionLoading(true)
     try {
-      await Promise.all(ids.map((id) => updateCurrentAffairStatus(id, false)))
-      ids.forEach((id) => patchItemLocally(id, { status: 'In Active' }))
+      await Promise.all(
+        ids.map((id) => statusMutation.mutateAsync({ id, status: false })),
+      )
       setSelectedIds([])
       toast.success(ids.length > 1 ? `${ids.length} entries disabled` : 'Current affairs entry disabled')
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[Current Affairs] Bulk disable failed:', error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to disable selected entries'))
+      handleApiError(error, { fallback: 'Failed to disable selected entries' })
       await refreshItems()
     } finally {
-      setBulkActionLoading(false)
       setBulkConfirm(null)
     }
   }
@@ -175,18 +202,11 @@ export default function CurrentAffairsPage() {
     const ids = [...selectedIds]
     if (!ids.length) return
 
-    setBulkActionLoading(true)
     try {
       await performDelete(ids)
       setBulkConfirm(null)
-      await refreshItems()
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[Current Affairs] Bulk delete failed:', error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to delete selected entries'))
-    } finally {
-      setBulkActionLoading(false)
+      handleApiError(error, { fallback: 'Failed to delete selected entries' })
     }
   }
 
@@ -203,18 +223,11 @@ export default function CurrentAffairsPage() {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return
-    setDeleteLoading(true)
     try {
       await performDelete(deleteTarget.ids)
       setDeleteTarget(null)
-      await refreshItems()
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[Current Affairs] Delete failed:', error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to delete current affairs entry'))
-    } finally {
-      setDeleteLoading(false)
+      handleApiError(error, { fallback: 'Failed to delete current affairs entry' })
     }
   }
 
@@ -233,30 +246,49 @@ export default function CurrentAffairsPage() {
 
   const allItemIds = useMemo(() => items.map((row) => row.id), [items])
 
+  const bulkActionLoading =
+    deleteMutation.isPending || statusMutation.isPending
+
   const columns = useMemo(
     () => [
       {
         key: 'name',
-        label: 'Current Affairs Name',
-        width: '24%',
+        label: 'Title',
+        width: '20%',
         headerClassName: 'min-w-0',
         cellClassName: 'min-w-0 max-w-0 align-middle',
         render: (row) => <TruncateCell value={row.name} className="text-[#111111]" />,
       },
       {
         key: 'category',
-        label: 'Current Affair Category',
-        width: '20%',
+        label: 'Category',
+        width: '16%',
         headerTruncate: false,
         headerClassName: 'min-w-0',
         cellClassName: 'min-w-0 max-w-0 align-middle',
         render: (row) => <TruncateCell value={row.category} className="text-[#686868]" />,
       },
       {
+        key: 'year',
+        label: 'Year',
+        width: '8%',
+        headerClassName: 'min-w-0',
+        cellClassName: 'min-w-0 align-middle',
+        render: (row) => <TruncateCell value={row.year} className="text-[#686868]" />,
+      },
+      {
+        key: 'month',
+        label: 'Month',
+        width: '10%',
+        headerClassName: 'min-w-0',
+        cellClassName: 'min-w-0 align-middle',
+        render: (row) => <TruncateCell value={row.month} className="text-[#686868]" />,
+      },
+      {
         key: 'status',
         label: 'Status',
         align: 'center',
-        width: '12%',
+        width: '10%',
         headerClassName: 'min-w-0 text-center',
         cellClassName: 'min-w-0 align-middle text-center',
         render: (row) => (
@@ -264,7 +296,7 @@ export default function CurrentAffairsPage() {
             <button
               type="button"
               onClick={() => handleToggleItemStatus(row)}
-              disabled={statusLoadingId === row.id}
+              disabled={statusLoadingId === row.id || statusMutation.isPending}
               className="inline-flex items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/50 disabled:opacity-60"
               aria-label={`Toggle status for ${row.name}, currently ${row.status}`}
             >
@@ -275,8 +307,8 @@ export default function CurrentAffairsPage() {
       },
       {
         key: 'uploadedOn',
-        label: 'Uploaded On',
-        width: '16%',
+        label: 'Created',
+        width: '14%',
         headerClassName: 'min-w-0 whitespace-nowrap',
         cellClassName: 'min-w-0 align-middle whitespace-nowrap',
         render: (row) => (
@@ -289,10 +321,20 @@ export default function CurrentAffairsPage() {
         ),
       },
       {
+        key: 'createdBy',
+        label: 'Created By',
+        width: '12%',
+        headerClassName: 'min-w-0',
+        cellClassName: 'min-w-0 align-middle',
+        render: (row) => (
+          <TruncateCell value={row.createdBy?.name} className="text-[#686868]" />
+        ),
+      },
+      {
         key: 'actions',
         label: 'Actions',
         align: 'center',
-        width: '28%',
+        width: '10%',
         headerClassName: 'min-w-0 text-center',
         cellClassName: 'min-w-0 align-middle text-center',
         render: (row) => (
@@ -301,43 +343,43 @@ export default function CurrentAffairsPage() {
             onView={() => setViewItem(row)}
             onEdit={() => modal.openEdit(row)}
             onStatusToggle={() => handleToggleItemStatus(row)}
-            onDelete={() => setDeleteTarget({ ids: [row.id], name: row.name })}
+            onDelete={() => setDeleteTarget({ ids: [row.id], name: row.name, category: row.category })}
             statusLoading={statusLoadingId === row.id}
           />
         ),
       },
     ],
-    [statusLoadingId, modal],
+    [statusLoadingId, statusMutation.isPending, modal],
   )
 
   const deleteMessage =
     deleteTarget?.ids?.length > 1
-      ? `Delete ${deleteTarget.ids.length} selected current affairs entries? This cannot be undone.`
-      : `Delete "${deleteTarget?.name || 'this entry'}"? This cannot be undone.`
+      ? `Delete ${deleteTarget.ids.length} selected current affairs entries? This is a permanent action and cannot be undone.`
+      : `Delete "${deleteTarget?.name || 'this entry'}"? This is a permanent action and cannot be undone.`
 
   const hasActiveFilters =
     Boolean(search.trim()) ||
     categoryFilter !== 'all' ||
-    resourceFilter !== 'all' ||
+    yearFilter !== 'all' ||
+    monthFilter !== 'all' ||
     statusFilter !== 'all'
 
-  const emptyMessage = loadError
+  const emptyMessage = listError
     ? 'Unable to load current affairs.'
     : hasActiveFilters
       ? 'No current affairs match your filters.'
       : 'No current affairs found.'
 
-  const emptyState = loadError ? (
-    <div className="flex flex-col items-center gap-3 px-6 py-10">
-      <p className="text-sm font-semibold text-slate-600">{loadError}</p>
-      <button
-        type="button"
-        onClick={() => refreshItems()}
-        className="rounded-lg border border-[#55ace7]/25 bg-white px-4 py-2 text-sm font-semibold text-[#246392] shadow-sm transition hover:bg-[#eef2fc]"
-      >
-        Try again
-      </button>
-    </div>
+  const listErrorMessage = listError
+    ? handleApiError(listError, { silent: true }).message
+    : null
+
+  const emptyState = listError ? (
+    <ErrorState
+      title="Unable to load current affairs"
+      message={listErrorMessage}
+      onRetry={() => refreshItems()}
+    />
   ) : undefined
 
   return (
@@ -352,19 +394,33 @@ export default function CurrentAffairsPage() {
           <BannerButton onClick={modal.openCreate}>Add Current Affairs</BannerButton>
         </PageBanner>
 
-        <CourseFilterToolbar
-          search={search}
-          onSearchChange={(e) => setSearch(e.target.value)}
-          searchPlaceholder="Search Current Affairs"
-          category={categoryFilter}
-          onCategoryChange={(e) => setCategoryFilter(e.target.value)}
-          resource={resourceFilter}
-          onResourceChange={(e) => setResourceFilter(e.target.value)}
-          resourceOptions={resourceOptions}
-          status={statusFilter}
-          onStatusChange={(e) => setStatusFilter(e.target.value)}
-          categoryOptions={categoryOptions}
-        />
+        <div className="space-y-2">
+          <CourseFilterToolbar
+            search={search}
+            onSearchChange={(e) => setSearch(e.target.value)}
+            searchPlaceholder="Search Current Affairs"
+            category={categoryFilter}
+            onCategoryChange={(e) => setCategoryFilter(e.target.value)}
+            status={statusFilter}
+            onStatusChange={(e) => setStatusFilter(e.target.value)}
+            categoryOptions={categoryOptions}
+            showStatusFilter
+          />
+          <div className="flex flex-wrap gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
+            <ExtraFilterSelect
+              label="Year"
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              options={yearOptions}
+            />
+            <ExtraFilterSelect
+              label="Month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              options={monthOptions}
+            />
+          </div>
+        </div>
 
         <CurrentAffairsBulkActionsBar
           count={selectedIds.length}
@@ -373,23 +429,24 @@ export default function CurrentAffairsPage() {
           onClearSelection={() => setSelectedIds([])}
           onEnable={() => setBulkConfirm({ type: 'enable' })}
           onDisable={() => setBulkConfirm({ type: 'disable' })}
-          onDelete={() => setBulkConfirm({ type: 'deactivate' })}
+          onDelete={() => setBulkConfirm({ type: 'delete' })}
         />
 
         <PaginatedFigmaTable
           columns={columns}
           data={items}
-          loading={loading || bulkActionLoading}
+          loading={loading || isFetching || bulkActionLoading}
           emptyMessage={emptyMessage}
           emptyState={emptyState}
           itemLabel="entries"
-          resetDeps={[search, categoryFilter, resourceFilter, statusFilter]}
+          resetDeps={[search, categoryFilter, yearFilter, monthFilter, statusFilter]}
           rowClassName="hover:bg-[#eef6fc]/70"
           density="comfortable"
           tableLayoutFixed
           tableMinWidth={0}
           className="min-w-0 rounded-2xl shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80"
           tableClassName="rounded-none border-0 shadow-none"
+          controlledPagination={controlledPagination}
           selection={{
             selectedIds,
             onToggle: toggleSelect,
@@ -415,7 +472,17 @@ export default function CurrentAffairsPage() {
         onClose={() => setViewItem(null)}
       />
 
-      
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Permanently delete entry?"
+        message={deleteMessage}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null)
+        }}
+        loading={deleteMutation.isPending}
+        confirmLabel="Delete permanently"
+      />
 
       <CurrentAffairsBulkConfirmDialog
         open={Boolean(bulkConfirm)}

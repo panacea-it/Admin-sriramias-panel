@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import RouteErrorBoundary from '../components/feedback/RouteErrorBoundary'
 import NestedRouteRedirect from '../components/feedback/NestedRouteRedirect'
 import OmrRouteGuard from '../components/test-management/omr/OmrRouteGuard'
+import CbtTestRouteGuard from '../components/test-management/cbt-tests/CbtTestRouteGuard'
 import { TEST_MANAGEMENT_ROUTES } from '../constants/testManagementNav'
 import { lazyRoute } from '../routes/lazyRoute'
 
@@ -10,9 +11,25 @@ const TestManagementDashboardPage = lazyRoute(
   () => import('../pages/test-management/TestManagementDashboardPage'),
   'Test Management dashboard',
 )
-const CbtManagementPage = lazyRoute(
-  () => import('../pages/test-management/CbtManagementPage'),
-  'CBT Management',
+const CbtTestsListPage = lazyRoute(
+  () => import('../pages/test-management/cbt-tests/CbtTestsListPage'),
+  'CBT Tests',
+)
+const CreateCbtTestPage = lazyRoute(
+  () => import('../pages/test-management/cbt-tests/CreateCbtTestPage'),
+  'Create CBT test',
+)
+const EditCbtTestPage = lazyRoute(
+  () => import('../pages/test-management/cbt-tests/EditCbtTestPage'),
+  'Edit CBT test',
+)
+const ViewCbtTestPage = lazyRoute(
+  () => import('../pages/test-management/cbt-tests/ViewCbtTestPage'),
+  'View CBT test',
+)
+const CbtTestQuestionsPage = lazyRoute(
+  () => import('../pages/test-management/cbt-tests/CbtTestQuestionsPage'),
+  'CBT test questions',
 )
 const CbtFacultyDetailPage = lazyRoute(
   () => import('../pages/test-management/CbtFacultyDetailPage'),
@@ -107,6 +124,14 @@ function PageFallback() {
   )
 }
 
+function CbtTestsRoute({ children }) {
+  return (
+    <CbtTestRouteGuard>
+      {children}
+    </CbtTestRouteGuard>
+  )
+}
+
 export default function TestManagementLayout() {
   const location = useLocation()
 
@@ -118,7 +143,46 @@ export default function TestManagementLayout() {
             <Routes>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<TestManagementDashboardPage />} />
-              <Route path="cbt" element={<CbtManagementPage />} />
+              <Route
+                path="cbt/create"
+                element={
+                  <CbtTestsRoute>
+                    <CreateCbtTestPage />
+                  </CbtTestsRoute>
+                }
+              />
+              <Route
+                path="cbt/edit/:id"
+                element={
+                  <CbtTestsRoute>
+                    <EditCbtTestPage />
+                  </CbtTestsRoute>
+                }
+              />
+              <Route
+                path="cbt/view/:id"
+                element={
+                  <CbtTestsRoute>
+                    <ViewCbtTestPage />
+                  </CbtTestsRoute>
+                }
+              />
+              <Route
+                path="cbt/:id/questions"
+                element={
+                  <CbtTestsRoute>
+                    <CbtTestQuestionsPage />
+                  </CbtTestsRoute>
+                }
+              />
+              <Route
+                path="cbt"
+                element={
+                  <CbtTestsRoute>
+                    <CbtTestsListPage />
+                  </CbtTestsRoute>
+                }
+              />
               <Route path="cbt/faculty/:subjectId" element={<CbtFacultyDetailPage />} />
               <Route path="cbt/faculty/:subjectId/topic/:topicId" element={<CbtTopicDetailPage />} />
               <Route

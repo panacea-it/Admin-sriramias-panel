@@ -1,126 +1,172 @@
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import CategoryStatusBadge from '../categories/CategoryStatusBadge'
-import ClassroomTableActions from './ClassroomTableActions'
+import ExamCategoryTableActions from '../categories/ExamCategoryTableActions'
+import {
+  categoryActionsColumn,
+  categoryDateColumn,
+  categoryStatusColumn,
+  categoryTruncatedTextColumn,
+} from '../categories/categoryTableColumns'
+import { CATEGORY_COL } from '../../utils/categoryUiStandards'
 import { formatClassroomDateTime } from '../../utils/classroomApiHelpers'
-import { getUsageStats } from '../../api/classroomsAPI'
 import { normalizeClassroomStatus } from '../../utils/classroomsStorage'
+import { cn } from '../../utils/cn'
 
-function OccupancyCell({ classroomId }) {
-  let stats = { upcomingBookings: 0, totalBookings: 0 }
-  try {
-    stats = getUsageStats(classroomId) || stats
-  } catch {
-    /* safe fallback */
-  }
-  const pct =
-    stats.totalBookings === 0
-      ? 0
-      : Math.min(
-          100,
-          Math.round((stats.upcomingBookings / Math.max(stats.totalBookings, 1)) * 100),
-        )
+function SortableLabel({ label, columnKey, sortBy, sortOrder, onSort, sortKey }) {
+  const active = sortBy === sortKey
+  const Icon = active ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+
   return (
-    <div className="flex min-w-[96px] flex-col items-start gap-1">
-      <span className="text-xs font-semibold leading-none text-[#246392]">
-        {stats.upcomingBookings} upcoming
-      </span>
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8f4fc]">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-[#55ace7] to-[#3dad4a]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-[10px] leading-none text-[#94a3b8]">{stats.totalBookings} total</span>
+    <button
+      type="button"
+      onClick={() => onSort?.(columnKey)}
+      className={cn(
+        'inline-flex items-center gap-1 font-semibold transition hover:text-white/90',
+        active && 'text-white',
+      )}
+    >
+      {label}
+      <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+    </button>
+  )
+}
+
+function withSortableLabel(column, { sortBy, sortOrder, onSort, sortKey }) {
+  return {
+    ...column,
+    label: (
+      <SortableLabel
+        label={column.label}
+        columnKey={column.key}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        sortKey={sortKey}
+      />
+    ),
+    headerTruncate: false,
+  }
+}
+
+function UsageCell({ row }) {
+  const upcoming = row.usage?.upcoming ?? 0
+  const totalBookings = row.usage?.totalBookings ?? 0
+
+  return (
+    <div className="flex min-w-[96px] flex-col items-start gap-0.5 text-xs">
+      <span className="font-semibold text-[#246392]">{upcoming} upcoming</span>
+      <span className="text-[#94a3b8]">{totalBookings} total bookings</span>
     </div>
   )
 }
 
-export function buildClassroomTableColumns({ onView, onEdit, onToggle, onDelete }) {
+export function buildClassroomTableColumns({
+  onView,
+  onEdit,
+  onToggle,
+  onDelete,
+  sortBy,
+  sortOrder,
+  onSort,
+}) {
+  const sortProps = { sortBy, sortOrder, onSort }
+
   return [
     {
-      key: 'code',
-      label: 'Code',
-      cellClassName: 'whitespace-nowrap',
+      key: 'classroomId',
+      label: 'Classroom ID',
+      headerClassName: CATEGORY_COL.idHeader,
+      cellClassName: CATEGORY_COL.idCell,
       render: (row) => (
-        <span className="font-mono text-sm font-semibold text-[#246392]">{row.code}</span>
-      ),
-    },
-    {
-      key: 'centerName',
-      label: 'Center',
-      cellClassName: 'min-w-[120px] max-w-[160px]',
-      render: (row) => (
-        <span className="block truncate text-sm font-medium text-[#1a3a5c]">
-          {row.centerName || '—'}
+        <span className="font-mono text-sm font-semibold text-[#111]">
+          {row.classroomId || '—'}
         </span>
       ),
     },
-    {
-      key: 'placeName',
-      label: 'City / Place',
-      cellClassName: 'min-w-[110px] max-w-[150px]',
-      render: (row) => (
-        <span className="block truncate text-sm text-[#444]">{row.placeName || '—'}</span>
-      ),
-    },
-    {
-      key: 'name',
-      label: 'Classroom',
-      cellClassName: 'min-w-[140px]',
-      render: (row) => (
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: row.color || '#246392' }}
-          />
-          <span className="truncate font-medium text-[#1a3a5c]">{row.name}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'capacity',
-      label: 'Capacity',
-      align: 'center',
-      cellClassName: 'whitespace-nowrap text-center',
-      render: (row) => (
-        <span className="text-sm text-[#444]">{row.capacity != null ? row.capacity : '—'}</span>
-      ),
-    },
+    withSortableLabel(
+      {
+        key: 'name',
+        label: 'Name',
+        headerClassName: CATEGORY_COL.nameHeader,
+        cellClassName: CATEGORY_COL.nameCell,
+        render: (row) => (
+          <span className="truncate font-semibold text-[#111]" title={row.name}>
+            {row.name || '—'}
+          </span>
+        ),
+      },
+      { ...sortProps, sortKey: 'classroomName' },
+    ),
+    withSortableLabel(
+      {
+        key: 'code',
+        label: 'Code',
+        headerClassName: CATEGORY_COL.idHeader,
+        cellClassName: CATEGORY_COL.idCell,
+        render: (row) => (
+          <span className="font-mono text-sm font-semibold text-[#111]">{row.code || '—'}</span>
+        ),
+      },
+      { ...sortProps, sortKey: 'classroomCode' },
+    ),
+    withSortableLabel(
+      categoryTruncatedTextColumn({
+        key: 'centerName',
+        label: 'Center',
+        accent: true,
+      }),
+      { ...sortProps, sortKey: 'centerName' },
+    ),
+    withSortableLabel(
+      categoryTruncatedTextColumn({
+        key: 'placeName',
+        label: 'City / Branch',
+      }),
+      { ...sortProps, sortKey: 'cityAddress' },
+    ),
+    withSortableLabel(
+      {
+        key: 'capacity',
+        label: 'Capacity',
+        headerClassName: CATEGORY_COL.statusHeader,
+        cellClassName: 'whitespace-nowrap align-middle text-center',
+        render: (row) => (
+          <span className="text-sm font-medium text-[#686868]">
+            {row.capacity != null ? row.capacity : '—'}
+          </span>
+        ),
+      },
+      { ...sortProps, sortKey: 'capacity' },
+    ),
+    withSortableLabel(
+      categoryStatusColumn((row) => (
+        <CategoryStatusBadge status={normalizeClassroomStatus(row.status)} />
+      )),
+      { ...sortProps, sortKey: 'status' },
+    ),
     {
       key: 'usage',
-      label: 'Usage',
-      cellClassName: 'min-w-[108px]',
-      render: (row) => <OccupancyCell classroomId={row.id} />,
+      label: 'Bookings',
+      headerClassName: CATEGORY_COL.textHeader,
+      cellClassName: CATEGORY_COL.textCell,
+      render: (row) => <UsageCell row={row} />,
     },
-    {
-      key: 'createdAt',
-      label: 'Added On',
-      cellClassName: 'whitespace-nowrap min-w-[130px]',
-      render: (row) => (
-        <span className="text-sm text-[#64748b]">{formatClassroomDateTime(row.createdAt)}</span>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      align: 'center',
-      cellClassName: 'min-w-[100px] whitespace-nowrap text-center',
-      render: (row) => <CategoryStatusBadge status={normalizeClassroomStatus(row.status)} />,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'right',
-      headerClassName: 'min-w-[200px] whitespace-nowrap pr-4 sm:pr-6',
-      cellClassName: 'min-w-[200px] whitespace-nowrap align-middle pr-4 sm:pr-6',
-      render: (row) => (
-        <ClassroomTableActions
-          row={row}
-          onView={() => onView(row)}
-          onEdit={() => onEdit(row)}
-          onToggle={() => onToggle(row)}
-          onDelete={() => onDelete(row)}
-        />
-      ),
-    },
+    withSortableLabel(
+      categoryDateColumn({
+        key: 'createdAt',
+        label: 'Created',
+        formatFn: formatClassroomDateTime,
+      }),
+      { ...sortProps, sortKey: 'createdAt' },
+    ),
+    categoryActionsColumn((row) => (
+      <ExamCategoryTableActions
+        row={row}
+        onView={() => onView(row)}
+        onEdit={() => onEdit(row)}
+        onStatusToggle={() => onToggle(row)}
+        onDelete={() => onDelete(row)}
+      />
+    )),
   ]
 }

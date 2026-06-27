@@ -1,20 +1,20 @@
-import { buildPlaceholderCityCode, getCachedCityCode } from './cityCodeCache'
-
 export function mapCityStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
-  if (statusFilter === 'Deactivated') return 'INACTIVE'
+  if (statusFilter === 'In Active' || statusFilter === 'Deactivated') return 'INACTIVE'
   return undefined
 }
 
 export function mapApiCityStatusToUi(status) {
   const raw = String(status || 'ACTIVE').toUpperCase().replace(/\s+/g, '_')
-  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'DISABLED') return 'Deactivated'
+  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'DISABLED') return 'In Active'
   return 'Active'
 }
 
 export function mapUiCityStatusToApi(status) {
   const raw = String(status || 'Active').toUpperCase().replace(/\s+/g, '_')
-  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'IN ACTIVE') return 'INACTIVE'
+  if (raw === 'INACTIVE' || raw === 'IN_ACTIVE' || raw === 'IN ACTIVE' || raw === 'DEACTIVATED') {
+    return 'INACTIVE'
+  }
   return 'ACTIVE'
 }
 
@@ -56,10 +56,6 @@ function resolveCenterName(row) {
   return ''
 }
 
-function looksLikeMongoId(value) {
-  return /^[a-f0-9]{24}$/i.test(String(value || '').trim())
-}
-
 function unwrapCityRecord(data) {
   const row =
     data?.data?.city ??
@@ -84,188 +80,92 @@ function unwrapCityRecord(data) {
   return base
 }
 
-function formatCityCodeFromId(row) {
-  const raw = row?.cityId ?? row?.displayId ?? row?.serialNumber
-  if (raw == null || raw === '') return ''
-  const str = String(raw).trim()
-  if (looksLikeMongoId(str)) return ''
-  if (/^CTY/i.test(str)) return str.toUpperCase()
-  if (/^[A-Z0-9-]+$/i.test(str) && /[A-Z]/i.test(str) && /\d/.test(str)) return str.toUpperCase()
-  if (/^\d+$/.test(str)) {
-    const num = parseInt(str, 10)
-    if (!Number.isNaN(num) && num > 0) return `CTY${String(num).padStart(3, '0')}`
-  }
-  return ''
-}
-
-export function resolveCityCode(row) {
-  if (!row || typeof row !== 'object') return ''
-
-  const candidates = [
-    row.cityCode,
-    row.code,
-    row.city_code,
-    row.city_id,
-    row.branchCode,
-    row.placeCode,
-    row.city?.cityCode,
-    row.city?.code,
-    row.city?.city_code,
-  ]
-
-  for (const raw of candidates) {
-    const value = String(raw ?? '').trim()
-    if (!value || looksLikeMongoId(value)) continue
-    return value.toUpperCase()
-  }
-
-  const businessId = String(row.cityId ?? '').trim()
-  if (businessId && !looksLikeMongoId(businessId)) {
-    return businessId.toUpperCase()
-  }
-
-  return formatCityCodeFromId(row)
-}
-
-export function getCityDisplayCode(city) {
-  if (!city || typeof city !== 'object') return ''
-  const resolved = resolveCityCode(city)
-  if (resolved) return resolved
-  const stored = String(city.code ?? city.cityCode ?? '').trim()
-  if (stored && !looksLikeMongoId(stored)) return stored.toUpperCase()
-  return getCachedCityCode(city)
-}
-
-export function mergeCityWithSource(source, detail) {
-  if (!detail) return applyCityCodeFields(source)
-  const code =
-    getCityDisplayCode(detail) ||
-    getCityDisplayCode(source) ||
-    getCachedCityCode(source) ||
-    getCachedCityCode(detail)
-  return applyCityCodeFields({
-    ...source,
-    ...detail,
-    code,
-    cityCode: code,
-  })
-}
-
-function applyCityCodeFields(city) {
-  if (!city || typeof city !== 'object') return city
-  const code = getCityDisplayCode(city) || getCachedCityCode(city)
-  if (!code) return city
-  return { ...city, code, cityCode: code }
-}
-
 export function mapApiCityToLocal(data) {
   const row = unwrapCityRecord(data)
   if (!row) return null
 
-  const id = row._id ?? row.id ?? row.cityId
+  const id = row._id ?? row.id
   if (!id) return null
 
-  const code = resolveCityCode(row)
-  const localId = String(row._id ?? row.id ?? id)
-  const placeName = String(row.cityAddress ?? row.placeName ?? row.address ?? '').trim()
-  const resolvedCode =
-    code ||
-    getCachedCityCode({
-      id: localId,
-      centerId: resolveCenterId(row),
-      placeName,
-    })
+  const cityAddress = String(row.cityAddress ?? row.placeName ?? row.address ?? '').trim()
 
   return {
-    id: localId,
-    code: resolvedCode,
-    cityCode: resolvedCode,
+    id: String(id),
     centerId: resolveCenterId(row),
     centerName: resolveCenterName(row),
-    placeName,
+    cityAddress,
+    placeName: cityAddress,
     status: mapApiCityStatusToUi(row.status),
     createdAt: row.createdAt || row.createdOn || null,
+    updatedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
     modifiedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
   }
 }
 
-export async function enrichCitiesWithMissingCodes(items, _fetchCityById, options = {}) {
-  return applyCityCodesToList(items, options)
-}
-
-export function applyCityCodesToList(items, { page = 1, limit = 10 } = {}) {
-  if (!Array.isArray(items) || !items.length) {
-    return items
-  }
-
-  return items.map((item, index) => {
-    const existingCode = resolveCityCode(item)
-    if (existingCode) return { ...item, code: existingCode, cityCode: existingCode }
-
-    const cachedCode = getCachedCityCode(item)
-    if (cachedCode) return { ...item, code: cachedCode, cityCode: cachedCode }
-
-    const placeholderCode = buildPlaceholderCityCode((page - 1) * limit + index + 1)
-    return { ...item, code: placeholderCode, cityCode: placeholderCode }
-  })
-}
-
 export function normalizeCitiesListResponse(data, { page = 1, limit = 10 } = {}) {
-  const payload =
-    data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
-  const itemsRaw =
-    payload?.cities ??
-    payload?.items ??
-    payload?.results ??
-    data?.cities ??
-    (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
+  const itemsRaw = Array.isArray(data?.data) ? data.data : []
 
-  const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
-    .map((row) => mapApiCityToLocal(row))
-    .filter(Boolean)
+  const items = itemsRaw.map((row) => mapApiCityToLocal(row)).filter(Boolean)
 
-  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
-  const total =
-    pagination.total ??
-    payload?.total ??
-    data?.total ??
-    payload?.totalCount ??
-    data?.totalCount ??
-    items.length
-  const totalPages =
-    pagination.totalPages ??
-    payload?.totalPages ??
-    data?.totalPages ??
-    Math.max(1, Math.ceil(total / limit) || 1)
-  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
+  const total = data?.total ?? items.length
+  const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = data?.page ?? page
 
   return {
     items,
     total,
     totalPages,
     page: currentPage,
+    count: data?.count ?? items.length,
+    limit: data?.limit ?? limit,
   }
 }
 
-export function buildCreateCityPayload({ centerId, placeName, code }) {
-  const normalizedCode = String(code || '')
-    .trim()
-    .toUpperCase()
-  return {
+export function normalizeCitiesByCenterDropdown(data) {
+  const list = Array.isArray(data) ? data : data?.data || []
+
+  return (Array.isArray(list) ? list : [])
+    .map((item) => ({
+      label: item.cityAddress || item.cityName || item.placeName || '',
+      value: String(item._id || item.id || ''),
+      centerId: String(item.centerId || ''),
+    }))
+    .filter((opt) => opt.label && opt.value)
+}
+
+export function buildCreateCityPayload({ centerId, cityAddress, placeName, status }) {
+  const payload = {
     centerId: String(centerId || '').trim(),
-    cityAddress: String(placeName || '').trim(),
-    cityCode: normalizedCode,
-    status: 'ACTIVE',
+    cityAddress: String(cityAddress ?? placeName ?? '').trim(),
   }
+
+  const apiStatus = mapUiCityStatusToApi(status)
+  if (apiStatus) payload.status = apiStatus
+
+  return payload
 }
 
-export function buildUpdateCityPayload({ placeName, status, code }) {
-  const normalizedCode = String(code || '')
-    .trim()
-    .toUpperCase()
-  return {
-    cityAddress: String(placeName || '').trim(),
-    cityCode: normalizedCode,
-    status: mapUiCityStatusToApi(status),
+export function buildUpdateCityPayload({ centerId, cityAddress, placeName, status }) {
+  /** @type {import('../types/city.types').UpdateCityPayload} */
+  const payload = {}
+
+  if (centerId != null && String(centerId).trim()) {
+    payload.centerId = String(centerId).trim()
   }
+
+  const address = cityAddress ?? placeName
+  if (address != null && String(address).trim()) {
+    payload.cityAddress = String(address).trim()
+  }
+
+  if (status != null && String(status).trim()) {
+    payload.status = mapUiCityStatusToApi(status)
+  }
+
+  return payload
+}
+
+export function mergeCityWithSource(source, detail) {
+  if (!detail) return source
+  return { ...source, ...detail }
 }

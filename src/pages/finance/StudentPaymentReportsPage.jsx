@@ -1,111 +1,67 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileSpreadsheet, Eye, Pencil, SearchX, RotateCcw, MessageSquare } from 'lucide-react'
+import { Calendar, ChevronDown, FileSpreadsheet, Search, SearchX, RotateCcw } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
-import FinanceRefundBadge from '../../components/finance/FinanceRefundBadge'
-import FinanceAccessStatusBadge from '../../components/finance/FinanceAccessStatusBadge'
-import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import FinanceConfirmDialog from '../../components/finance/FinanceConfirmDialog'
-import FinanceSearchInput from '../../components/finance/FinanceSearchInput'
 import FinancePaymentModeManager from '../../components/finance/FinancePaymentModeManager'
-import FinanceGatewayFilter from '../../components/finance/FinanceGatewayFilter'
-import FinanceMobileFilters, {
-  FilterChip,
-  FilterField,
-  FilterInput,
-  FILTER_FIELD_CLASS,
-} from '../../components/finance/FinanceMobileFilters'
 import PaymentViewDrawer from '../../components/finance/PaymentViewDrawer'
 import PaymentEditModal from '../../components/finance/PaymentEditModal'
-import StudentCommentsDialog from '../../components/finance/StudentCommentsDialog'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
+import ViewButton from '../../components/common/ViewButton'
+import EditButton from '../../components/common/EditButton'
 import {
   fetchPaymentReports,
   fetchPaymentModeSettings,
   updatePaymentStatus,
 } from '../../api/financeAPI'
-import { FINANCE_COURSES } from '../../data/financeMockData'
 import {
   filterPaymentReports,
   formatINR,
   DEFAULT_PAYMENT_REPORT_FILTERS,
 } from '../../utils/financeFilters'
-import { buildPaymentModeFilterOptions } from '../../utils/finance/paymentModeUtils'
+import { normalizePaymentModeLabel } from '../../utils/finance/paymentModeUtils'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
-import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import {
-  FINANCE_BATCHES,
-  FINANCE_PAYMENT_STATUSES,
-  FINANCE_REFUND_STATUSES,
-  FINANCE_ACCESS_STATUSES,
-} from '../../constants/financeConstants'
+  ADMIN_DATA_PANEL,
+  ADMIN_TABLE_CONTAINER,
+  ADMIN_TABLE_PAGINATION_CLASS,
+  ADMIN_TABLE_ROW_CLASS,
+} from '../../utils/adminUiStandards'
+import { createActionsColumn, TABLE_ACTIONS_WRAP_CENTER } from '../../utils/tableColumnHelpers'
 import { toast } from '../../utils/toast'
-import { cn } from '../../utils/cn'
 
 const TABLE_COLUMNS = [
-  { key: 'studentName', label: 'Student' },
+  { key: 'studentId', label: 'Student ID' },
+  { key: 'studentName', label: 'Student Name' },
   { key: 'centerName', label: 'Center' },
   { key: 'courseName', label: 'Course' },
   { key: 'batchName', label: 'Batch' },
-  { key: 'paymentStatus', label: 'Status' },
-  { key: 'refundStatus', label: 'Refund' },
-  { key: 'accessStatus', label: 'Access' },
-  { key: 'amountPaid', label: 'Paid' },
-  { key: 'pendingAmount', label: 'Pending' },
-  { key: 'paymentMode', label: 'Mode' },
-  { key: 'paymentGateway', label: 'Gateway' },
-  { key: 'paymentDate', label: 'Date' },
+  { key: 'paymentStatus', label: 'Payment Status' },
+  { key: 'amountPaid', label: 'Paid Amount' },
+  { key: 'pendingAmount', label: 'Pending Amount' },
+  { key: 'paymentMode', label: 'Payment Mode' },
+  { key: 'paymentGateway', label: 'Payment Gateway' },
+  { key: 'paymentDate', label: 'Payment Date' },
   { key: 'editReason', label: 'Reason' },
   { key: 'editComment', label: 'Comments' },
 ]
 
-const COLUMN_ALIGN = {
-  studentName: 'left',
-  centerName: 'left',
-  courseName: 'left',
-  batchName: 'left',
-  paymentStatus: 'center',
-  refundStatus: 'center',
-  accessStatus: 'center',
-  amountPaid: 'right',
-  pendingAmount: 'right',
-  paymentMode: 'left',
-  paymentGateway: 'left',
-  paymentDate: 'center',
-  editReason: 'left',
-  editComment: 'left',
-  actions: 'center',
+const DISPLAY_PAYMENT_MODES = new Set([
+  'UPI',
+  'Card',
+  'Net Banking',
+  'Cash',
+  'Offline Cash',
+  'EMI',
+])
+
+const INITIAL_FILTERS = {
+  centerName: 'all',
+  paymentDate: '',
 }
-
-/** Fixed pixel widths for split header/body table alignment */
-const PAYMENT_COLUMN_WIDTHS = {
-  studentName: 220,
-  centerName: 180,
-  courseName: 240,
-  batchName: 200,
-  paymentStatus: 180,
-  refundStatus: 180,
-  accessStatus: 150,
-  amountPaid: 140,
-  pendingAmount: 140,
-  paymentMode: 140,
-  paymentGateway: 180,
-  paymentDate: 220,
-  editReason: 220,
-  editComment: 140,
-  actions: 150,
-}
-
-const PAYMENT_TABLE_MIN_WIDTH = Object.values(PAYMENT_COLUMN_WIDTHS).reduce((sum, w) => sum + w, 0)
-
-const CELL_BASE = 'px-5 py-4 align-middle text-sm'
-const STATUS_CELL = 'overflow-hidden'
-const BADGE_CELL = 'flex justify-center overflow-hidden px-1'
-
-const STATUS_FILTER_OPTIONS = ['Paid', 'Partial', 'Pending', 'Failed', 'Refunded', 'EMI Running']
 
 /** Latest admin edit note — reason and comment are stored together in adminLogs.comment */
 function parseLatestAdminNote(row) {
@@ -127,21 +83,44 @@ function parseLatestAdminNote(row) {
   return { reason: latest.action || '', comment: raw }
 }
 
-function CommentActionCell({ comment, onOpen }) {
-  if (!comment?.trim()) {
-    return <span className="text-[#9ca0a8]">—</span>
-  }
+function deriveDisplayPaymentStatus(row) {
+  const paid = Math.max(0, Number(row.amountPaid) || 0)
+  const pending = Math.max(0, Number(row.pendingAmount) || 0)
 
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#246392] transition hover:bg-[#EAF4FD] hover:shadow-sm"
-      aria-label="View student comments"
-    >
-      <MessageSquare className="h-4 w-4" strokeWidth={2} />
-    </button>
-  )
+  if (row.paymentType === 'EMI' && pending === 0 && paid > 0) {
+    return 'EMI Completed'
+  }
+  if (row.emiStatus === 'EMI Completed' || row.paymentStatus === 'EMI Completed') {
+    return 'EMI Completed'
+  }
+  if (pending === 0 && paid > 0) return 'Paid'
+  if (paid > 0 && pending > 0) return 'Partially Paid'
+  return 'Pending'
+}
+
+function formatPaymentReportDate(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return {
+    date: d.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    time: d.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }),
+  }
+}
+
+function formatDisplayPaymentMode(mode) {
+  if (!mode) return '—'
+  const label = normalizePaymentModeLabel(mode)
+  if (label === '—') return '—'
+  return DISPLAY_PAYMENT_MODES.has(label) ? label : '—'
 }
 
 function NoteCell({ value, variant = 'text' }) {
@@ -167,30 +146,100 @@ function NoteCell({ value, variant = 'text' }) {
   )
 }
 
+function PaymentDateCell({ iso }) {
+  const formatted = formatPaymentReportDate(iso)
+  if (!formatted) return <span className="text-[#9ca0a8]">—</span>
+
+  return (
+    <div className="flex flex-col whitespace-nowrap">
+      <span className="font-medium text-[#111]">{formatted.date}</span>
+      <span className="text-xs text-[#686868]">{formatted.time}</span>
+    </div>
+  )
+}
+
 function countActiveFilters(filters, search) {
   let count = 0
-  Object.entries(filters).forEach(([key, val]) => {
-    if (key === 'studentId' && val?.trim()) count++
-    else if (val && val !== 'all' && val !== '') count++
-  })
   if (search.trim()) count++
+  if (filters.centerName && filters.centerName !== 'all') count++
+  if (filters.paymentDate) count++
   return count
 }
 
-function FilterSelectRow({ value, onChange, options, ariaLabel, className }) {
+function FilterChip({ label, onRemove }) {
   return (
-    <select
-      value={value}
-      onChange={onChange}
-      aria-label={ariaLabel}
-      className={cn(FILTER_FIELD_CLASS, className)}
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef6fc] px-3 py-1 text-xs font-semibold text-[#246392]">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-full px-1 text-[#246392]/70 hover:bg-white hover:text-[#246392]"
+        aria-label={`Remove ${label} filter`}
+      >
+        ×
+      </button>
+    </span>
+  )
+}
+
+function PaymentReportsFilterToolbar({
+  search,
+  onSearchChange,
+  center,
+  onCenterChange,
+  centerOptions,
+  paymentDate,
+  onPaymentDateChange,
+  disabled = false,
+}) {
+  return (
+    <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.08)] sm:px-4">
+      <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180] sm:left-4" />
+        <input
+          type="search"
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Search student"
+          disabled={disabled}
+          className="h-10 w-full min-h-[38px] rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] disabled:opacity-60 sm:pl-11 sm:text-base"
+        />
+      </div>
+
+      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+        <div className="relative w-full sm:w-auto sm:min-w-[150px]">
+          <select
+            value={center}
+            onChange={onCenterChange}
+            aria-label="Center"
+            disabled={disabled}
+            className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 disabled:opacity-60 sm:text-base"
+          >
+            <option value="all" className="bg-white text-[#222]">
+              All centers
+            </option>
+            {centerOptions.map((name) => (
+              <option key={name} value={name} className="bg-white text-[#222]">
+                {name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+        </div>
+
+        <div className="relative w-full sm:w-auto sm:min-w-[160px]">
+          <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+          <input
+            type="date"
+            value={paymentDate}
+            onChange={onPaymentDateChange}
+            aria-label="Payment date"
+            disabled={disabled}
+            className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-10 pr-3 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 disabled:opacity-60 [color-scheme:dark] sm:text-base"
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -202,16 +251,17 @@ export default function StudentPaymentReportsPage() {
   const [modeSettings, setModeSettings] = useState([])
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 350)
-  const [filters, setFilters] = useState({ ...DEFAULT_PAYMENT_REPORT_FILTERS })
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [filters, setFilters] = useState({ ...INITIAL_FILTERS })
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [confirmSave, setConfirmSave] = useState(false)
-  const [editForm, setEditForm] = useState({ newStatus: 'Paid', amountAdjustment: '', reason: 'Manual Approval', comment: '' })
-  const [commentsRow, setCommentsRow] = useState(null)
+  const [editForm, setEditForm] = useState({
+    newStatus: 'Paid',
+    amountAdjustment: '',
+    reason: 'Manual Approval',
+    comment: '',
+  })
   const [saving, setSaving] = useState(false)
-
-  const openComments = useCallback((row) => setCommentsRow(row), [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -232,8 +282,11 @@ export default function StudentPaymentReportsPage() {
 
   const combinedFilters = useMemo(
     () => ({
-      ...filters,
+      ...DEFAULT_PAYMENT_REPORT_FILTERS,
       search: debouncedSearch,
+      centerName: filters.centerName,
+      dateFrom: filters.paymentDate,
+      dateTo: filters.paymentDate,
     }),
     [filters, debouncedSearch],
   )
@@ -241,11 +294,6 @@ export default function StudentPaymentReportsPage() {
   const filtered = useMemo(
     () => filterPaymentReports(rows ?? [], combinedFilters),
     [rows, combinedFilters],
-  )
-
-  const paymentModeOptions = useMemo(
-    () => buildPaymentModeFilterOptions(modeSettings),
-    [modeSettings],
   )
 
   const centerOptions = useMemo(() => {
@@ -257,44 +305,30 @@ export default function StudentPaymentReportsPage() {
 
   const filterChips = useMemo(() => {
     const chips = []
-    if (search.trim()) chips.push({ key: 'search', label: `Search: ${search.trim()}`, clear: () => setSearch('') })
-    const filterLabels = {
-      paymentStatus: 'Status',
-      paymentType: 'Type',
-      paymentMode: 'Mode',
-      paymentGateway: 'Gateway',
-      refundStatus: 'Refund',
-      accessStatus: 'Access',
-      courseId: 'Course',
-      batchId: 'Batch',
-      centerName: 'Center',
-      verificationStatus: 'Verification',
+    if (search.trim()) {
+      chips.push({ key: 'search', label: `Search: ${search.trim()}`, clear: () => setSearch('') })
     }
-    Object.entries(filters).forEach(([key, val]) => {
-      if (!val || val === 'all' || val === '') return
-      if (['dateFrom', 'dateTo', 'studentId', 'mobile', 'email', 'enrollmentNumber', 'receiptNumber', 'transactionId'].includes(key)) {
-        if (key === 'dateFrom' || key === 'dateTo') {
-          chips.push({ key, label: `${key === 'dateFrom' ? 'From' : 'To'}: ${val}`, clear: () => setFilters((f) => ({ ...f, [key]: '' })) })
-        } else if (val?.trim?.()) {
-          chips.push({ key, label: `${key}: ${val}`, clear: () => setFilters((f) => ({ ...f, [key]: '' })) })
-        }
-        return
-      }
-      let display = val
-      if (key === 'courseId') display = FINANCE_COURSES.find((c) => c.id === val)?.name || val
-      if (key === 'batchId') display = FINANCE_BATCHES.find((b) => b.id === val)?.name || val
+    if (filters.centerName && filters.centerName !== 'all') {
       chips.push({
-        key,
-        label: `${filterLabels[key] || key}: ${display}`,
-        clear: () => setFilters((f) => ({ ...f, [key]: 'all' })),
+        key: 'center',
+        label: `Center: ${filters.centerName}`,
+        clear: () => setFilters((f) => ({ ...f, centerName: 'all' })),
       })
-    })
+    }
+    if (filters.paymentDate) {
+      const formatted = formatPaymentReportDate(filters.paymentDate)
+      chips.push({
+        key: 'date',
+        label: `Date: ${formatted?.date || filters.paymentDate}`,
+        clear: () => setFilters((f) => ({ ...f, paymentDate: '' })),
+      })
+    }
     return chips
   }, [search, filters])
 
   const resetAllFilters = () => {
     setSearch('')
-    setFilters({ ...DEFAULT_PAYMENT_REPORT_FILTERS })
+    setFilters({ ...INITIAL_FILTERS })
   }
 
   const handleSaveEdit = async () => {
@@ -318,265 +352,180 @@ export default function StudentPaymentReportsPage() {
     }
   }
 
-  const renderFilterFields = (layout = 'desktop') => {
-    const isMobile = layout === 'mobile'
-    const Wrapper = isMobile ? FilterField : 'div'
-    const wrapProps = (label) => (isMobile ? { label } : {})
-
-    return (
-      <>
-        <Wrapper {...wrapProps('Payment status')}>
-          {!isMobile && <span className="sr-only">Payment status</span>}
-          <FilterSelectRow
-            value={filters.paymentStatus}
-            onChange={(e) => setFilters((f) => ({ ...f, paymentStatus: e.target.value }))}
-            ariaLabel="Payment status"
-            options={[{ value: 'all', label: 'All statuses' }, ...STATUS_FILTER_OPTIONS.map((s) => ({ value: s, label: s }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Payment type')}>
-          <FilterSelectRow
-            value={filters.paymentType}
-            onChange={(e) => setFilters((f) => ({ ...f, paymentType: e.target.value }))}
-            ariaLabel="Payment type"
-            options={[{ value: 'all', label: 'All types' }, { value: 'Full', label: 'Full' }, { value: 'EMI', label: 'EMI' }]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Payment mode')}>
-          <FilterSelectRow
-            value={filters.paymentMode}
-            onChange={(e) => setFilters((f) => ({ ...f, paymentMode: e.target.value }))}
-            ariaLabel="Payment mode"
-            options={paymentModeOptions}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Payment gateway')}>
-          <FinanceGatewayFilter
-            value={filters.paymentGateway}
-            onChange={(e) => setFilters((f) => ({ ...f, paymentGateway: e.target.value }))}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Refund status')}>
-          <FilterSelectRow
-            value={filters.refundStatus}
-            onChange={(e) => setFilters((f) => ({ ...f, refundStatus: e.target.value }))}
-            ariaLabel="Refund status"
-            options={[{ value: 'all', label: 'All refunds' }, ...FINANCE_REFUND_STATUSES.map((s) => ({ value: s, label: s }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Access status')}>
-          <FilterSelectRow
-            value={filters.accessStatus}
-            onChange={(e) => setFilters((f) => ({ ...f, accessStatus: e.target.value }))}
-            ariaLabel="Access status"
-            options={[{ value: 'all', label: 'All access' }, ...FINANCE_ACCESS_STATUSES.map((s) => ({ value: s, label: s }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Course')}>
-          <FilterSelectRow
-            value={filters.courseId}
-            onChange={(e) => setFilters((f) => ({ ...f, courseId: e.target.value }))}
-            ariaLabel="Course"
-            options={[{ value: 'all', label: 'All courses' }, ...FINANCE_COURSES.map((c) => ({ value: c.id, label: c.name }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Batch')}>
-          <FilterSelectRow
-            value={filters.batchId}
-            onChange={(e) => setFilters((f) => ({ ...f, batchId: e.target.value }))}
-            ariaLabel="Batch"
-            options={[{ value: 'all', label: 'All batches' }, ...FINANCE_BATCHES.map((b) => ({ value: b.id, label: b.name }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Verification')}>
-          <FilterSelectRow
-            value={filters.verificationStatus}
-            onChange={(e) => setFilters((f) => ({ ...f, verificationStatus: e.target.value }))}
-            ariaLabel="Verification status"
-            options={[
-              { value: 'all', label: 'All verification' },
-              ...FINANCE_PAYMENT_STATUSES.filter((s) => ['Verified', 'Verification Pending', 'Rejected'].includes(s)).map((s) => ({
-                value: s,
-                label: s,
-              })),
-            ]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('Center')}>
-          <FilterSelectRow
-            value={filters.centerName}
-            onChange={(e) => setFilters((f) => ({ ...f, centerName: e.target.value }))}
-            ariaLabel="Center"
-            options={[{ value: 'all', label: 'All centers' }, ...centerOptions.map((n) => ({ value: n, label: n }))]}
-          />
-        </Wrapper>
-        <Wrapper {...wrapProps('From date')}>
-          <FilterInput type="date" value={filters.dateFrom} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))} ariaLabel="From date" />
-        </Wrapper>
-        <Wrapper {...wrapProps('To date')}>
-          <FilterInput type="date" value={filters.dateTo} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))} ariaLabel="To date" />
-        </Wrapper>
-        <Wrapper {...wrapProps('Student ID')}>
-          <FilterInput value={filters.studentId} onChange={(e) => setFilters((f) => ({ ...f, studentId: e.target.value }))} placeholder="Student ID" />
-        </Wrapper>
-      </>
-    )
-  }
-
   const columns = useMemo(() => {
     const defs = TABLE_COLUMNS.map((c) => {
       const base = {
         ...c,
-        width: PAYMENT_COLUMN_WIDTHS[c.key],
-        align: COLUMN_ALIGN[c.key] || 'left',
-      headerClassName: cn(CELL_BASE, 'font-semibold overflow-hidden', c.key === 'studentName' && 'pl-5 sm:pl-6'),
-        cellClassName: cn(
-          CELL_BASE,
-          'overflow-hidden',
-          c.key === 'studentName' && 'pl-5 sm:pl-6',
-          ['paymentStatus', 'refundStatus', 'accessStatus'].includes(c.key) && STATUS_CELL,
-          ['amountPaid', 'pendingAmount'].includes(c.key) && 'tabular-nums whitespace-nowrap',
-          c.key === 'paymentDate' && 'whitespace-nowrap tabular-nums',
-        ),
+        headerClassName: 'min-w-0 whitespace-nowrap align-middle',
+        cellClassName: 'min-w-0 align-middle',
+      }
+
+      if (c.key === 'studentId') {
+        return {
+          ...base,
+          headerClassName: 'min-w-[110px] whitespace-nowrap align-middle',
+          cellClassName: 'min-w-[110px] align-middle',
+          render: (r) => (
+            <span className="block truncate font-mono text-[12px] font-medium text-[#686868]" title={r.studentId}>
+              {r.studentId || r.enrollmentNumber || '—'}
+            </span>
+          ),
+        }
       }
 
       if (c.key === 'paymentStatus') {
         return {
           ...base,
-          render: (r) => (
-            <div className={BADGE_CELL}>
-              <FinanceStatusBadge status={r.paymentStatus} truncate title={r.paymentStatus} />
-            </div>
-          ),
+          headerClassName: 'min-w-[130px] whitespace-nowrap align-middle',
+          cellClassName: 'min-w-[130px] align-middle',
+          render: (r) => {
+            const status = deriveDisplayPaymentStatus(r)
+            return (
+              <div className="flex justify-center">
+                <FinanceStatusBadge status={status} truncate title={status} />
+              </div>
+            )
+          },
         }
       }
-      if (c.key === 'refundStatus') {
-        return {
-          ...base,
-          render: (r) => (
-            <div className={BADGE_CELL}>
-              <FinanceRefundBadge status={r.refundStatus} truncate />
-            </div>
-          ),
-        }
-      }
-      if (c.key === 'accessStatus') {
-        return {
-          ...base,
-          render: (r) => (
-            <div className={BADGE_CELL}>
-              <FinanceAccessStatusBadge status={r.accessStatus} truncate />
-            </div>
-          ),
-        }
-      }
+
       if (['amountPaid', 'pendingAmount'].includes(c.key)) {
         return {
           ...base,
-          render: (r) => (
-            <span className="font-bold tabular-nums text-[#1a3a5c]">{formatINR(r[c.key])}</span>
-          ),
+          align: 'right',
+          headerClassName: 'min-w-[120px] whitespace-nowrap align-middle',
+          cellClassName: 'min-w-[120px] whitespace-nowrap align-middle tabular-nums',
+          render: (r) => {
+            const value = Math.max(0, Number(r[c.key]) || 0)
+            return <span className="font-bold tabular-nums text-[#1a3a5c]">{formatINR(value)}</span>
+          },
         }
       }
+
       if (c.key === 'paymentDate') {
         return {
           ...base,
-          render: (r) => (
-            <span className="inline-block whitespace-nowrap text-sm text-[#111111]">
-              {r.paymentDate ? formatCategoryDateTime(r.paymentDate) : '—'}
-            </span>
-          ),
+          headerClassName: 'min-w-[130px] whitespace-nowrap align-middle',
+          cellClassName: 'min-w-[130px] align-middle',
+          render: (r) => <PaymentDateCell iso={r.paymentDate} />,
         }
       }
+
       if (c.key === 'studentName') {
         return {
           ...base,
+          headerClassName: 'min-w-[160px]',
+          cellClassName: 'min-w-[160px] align-middle',
           render: (r) => (
-            <span className="block truncate font-bold text-[#1a3a5c]" title={r.studentName}>
-              {r.studentName}
+            <span className="block truncate font-semibold text-slate-900" title={r.studentName}>
+              {r.studentName || '—'}
             </span>
           ),
         }
       }
+
       if (c.key === 'centerName') {
         return {
           ...base,
+          headerClassName: 'min-w-[140px]',
+          cellClassName: 'min-w-[140px] align-middle',
           render: (r) => (
-            <span className="block truncate font-medium text-[#444]" title={r.centerName}>
+            <span className="block truncate font-medium text-[#111]" title={r.centerName}>
               {r.centerName || '—'}
             </span>
           ),
         }
       }
-      if (['courseName', 'batchName', 'paymentMode', 'paymentGateway'].includes(c.key)) {
+
+      if (['courseName', 'batchName'].includes(c.key)) {
         return {
           ...base,
+          headerClassName: 'min-w-[150px]',
+          cellClassName: 'min-w-[150px] align-middle',
           render: (r) => (
-            <span className="block truncate text-[#333]" title={r[c.key]}>
+            <span className="block truncate font-medium text-[#111]" title={r[c.key]}>
               {r[c.key] || '—'}
             </span>
           ),
         }
       }
-      if (c.key === 'editReason') {
+
+      if (c.key === 'paymentMode') {
         return {
           ...base,
-          render: (r) => <NoteCell value={parseLatestAdminNote(r).reason} variant="reason" />,
-        }
-      }
-      if (c.key === 'editComment') {
-        return {
-          ...base,
+          headerClassName: 'min-w-[120px] whitespace-nowrap',
+          cellClassName: 'min-w-[120px] whitespace-nowrap align-middle',
           render: (r) => (
-            <CommentActionCell
-              comment={parseLatestAdminNote(r).comment}
-              onOpen={() => openComments(r)}
-            />
+            <span className="font-medium text-[#111]" title={formatDisplayPaymentMode(r.paymentMode)}>
+              {formatDisplayPaymentMode(r.paymentMode)}
+            </span>
           ),
         }
       }
+
+      if (c.key === 'paymentGateway') {
+        return {
+          ...base,
+          headerClassName: 'min-w-[130px] whitespace-nowrap',
+          cellClassName: 'min-w-[130px] whitespace-nowrap align-middle',
+          render: (r) => (
+            <span className="block truncate font-medium text-[#111]" title={r.paymentGateway || ''}>
+              {r.paymentGateway || '—'}
+            </span>
+          ),
+        }
+      }
+
+      if (c.key === 'editReason') {
+        return {
+          ...base,
+          headerClassName: 'min-w-[150px]',
+          cellClassName: 'min-w-[150px] align-middle',
+          render: (r) => <NoteCell value={parseLatestAdminNote(r).reason} variant="reason" />,
+        }
+      }
+
+      if (c.key === 'editComment') {
+        return {
+          ...base,
+          headerClassName: 'min-w-[160px]',
+          cellClassName: 'min-w-[160px] align-middle',
+          render: (r) => <NoteCell value={parseLatestAdminNote(r).comment} />,
+        }
+      }
+
       return base
     })
 
-    defs.push({
-      key: 'actions',
-      label: 'Actions',
-      width: PAYMENT_COLUMN_WIDTHS.actions,
-      align: 'center',
-      headerClassName: cn(CELL_BASE, 'min-w-[150px] overflow-hidden pr-5 sm:pr-6'),
-      cellClassName: cn(CELL_BASE, 'whitespace-nowrap overflow-hidden pr-5 sm:pr-6'),
-      render: (row) => (
-        <FinanceActionMenu
-          className="mx-auto"
-          buttonVariant="crm"
-          actions={[
-            { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
-            {
-              label: 'Comments',
-              icon: MessageSquare,
-              onClick: () => openComments(row),
-            },
-            {
-              label: 'Edit',
-              icon: Pencil,
-              onClick: () => {
-                const note = parseLatestAdminNote(row)
-                setEditRow(row)
-                setEditForm({
-                  newStatus: row.paymentStatus,
-                  amountAdjustment: String(row.amountPaid),
-                  reason: note.reason || 'Manual Approval',
-                  comment: note.comment || '',
-                })
-              },
-              show: canEdit,
-            },
-          ]}
-        />
-      ),
-    })
+    defs.push(
+      createActionsColumn({
+        buttonCount: canEdit ? 2 : 1,
+        align: 'center',
+        render: (row) => (
+          <div className={TABLE_ACTIONS_WRAP_CENTER}>
+            <ViewButton onClick={() => setViewRow(row)} label={`View ${row.studentName}`} />
+            {canEdit ? (
+              <EditButton
+                onClick={() => {
+                  const note = parseLatestAdminNote(row)
+                  setEditRow(row)
+                  setEditForm({
+                    newStatus: deriveDisplayPaymentStatus(row),
+                    amountAdjustment: String(row.amountPaid ?? ''),
+                    reason: note.reason || 'Manual Approval',
+                    comment: note.comment || '',
+                  })
+                }}
+                label={`Edit ${row.studentName}`}
+              />
+            ) : null}
+          </div>
+        ),
+      }),
+    )
+
     return defs
-  }, [canEdit, openComments])
+  }, [canEdit])
 
   return (
     <FinancePageShell
@@ -592,24 +541,21 @@ export default function StudentPaymentReportsPage() {
         />
       }
     >
-      <div className="space-y-3">
-        <div className="rounded-xl bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      <div className={ADMIN_DATA_PANEL}>
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <FinanceSearchInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="SEARCH STUDENT , COURSE "
-              className="min-w-0 flex-1"
-            />
-            <FinanceMobileFilters
-              open={mobileFiltersOpen}
-              onOpen={() => setMobileFiltersOpen(true)}
-              onClose={() => setMobileFiltersOpen(false)}
-              onReset={resetAllFilters}
-              activeCount={activeFilterCount}
-            >
-              {renderFilterFields('mobile')}
-            </FinanceMobileFilters>
+            <div className="min-w-0 flex-1">
+              <PaymentReportsFilterToolbar
+                search={search}
+                onSearchChange={(e) => setSearch(e.target.value)}
+                center={filters.centerName}
+                onCenterChange={(e) => setFilters((f) => ({ ...f, centerName: e.target.value }))}
+                centerOptions={centerOptions}
+                paymentDate={filters.paymentDate}
+                onPaymentDateChange={(e) => setFilters((f) => ({ ...f, paymentDate: e.target.value }))}
+                disabled={loading && rows.length === 0}
+              />
+            </div>
             {activeFilterCount > 0 && (
               <button
                 type="button"
@@ -622,82 +568,63 @@ export default function StudentPaymentReportsPage() {
             )}
           </div>
 
-          <div className="mt-3 hidden gap-3 lg:grid lg:grid-cols-4 xl:grid-cols-5">
-            {renderFilterFields('desktop')}
-          </div>
+          {filterChips.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-1">
+              {filterChips.map((chip) => (
+                <FilterChip key={chip.key} label={chip.label} onRemove={chip.clear} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {filterChips.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-1">
-            {filterChips.map((chip) => (
-              <FilterChip key={chip.key} label={chip.label} onRemove={chip.clear} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-6 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 sm:mt-5">
           <p className="text-sm font-medium text-[#686868]">
             {loading ? 'Loading…' : `${filtered.length} records`}
           </p>
         </div>
 
-        {loading ? (
-          <FinanceTableSkeleton rows={8} columns={8} />
-        ) : (
-          <PaginatedFigmaTable
-          columns={columns}
-          data={filtered}
-          itemLabel="payments"
-          resetDeps={[debouncedSearch, filters]}
-          zebraStriping
-          stickyHeader
-          bodyMaxHeight="min(70vh, 720px)"
-          headerVariant="premium"
-          headerAlign="center"
-          animateRows
-          tableMinWidth={PAYMENT_TABLE_MIN_WIDTH}
-          emptyState={
-            <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                <SearchX className="h-7 w-7 text-slate-400" />
-              </div>
-              <p className="text-base font-semibold text-slate-800">No finance reports available</p>
-              <p className="max-w-sm text-sm text-slate-500">
-                {rows.length === 0
-                  ? 'There are no payment reports to show yet.'
-                  : 'No payments match your current filters. Try clearing search or adjusting filters.'}
-              </p>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="mt-2 rounded-lg bg-[#246392] px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-          }
-          className="isolate overflow-hidden rounded-[12px] bg-white shadow-[0_5px_20px_rgba(0,0,0,0.08)]"
-          tableClassName="rounded-none shadow-none"
-          density="payment"
-        />
-        )}
+        <div className={ADMIN_TABLE_CONTAINER}>
+          {loading ? (
+            <FinanceTableSkeleton rows={8} columns={8} />
+          ) : (
+            <PaginatedFigmaTable
+              columns={columns}
+              data={filtered}
+              itemLabel="payments"
+              resetDeps={[debouncedSearch, filters]}
+              density="comfortable"
+              rowClassName={ADMIN_TABLE_ROW_CLASS}
+              tableClassName="rounded-none border-0 shadow-none"
+              paginationClassName={ADMIN_TABLE_PAGINATION_CLASS}
+              tableMinWidth={1680}
+              emptyState={
+                <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+                    <SearchX className="h-7 w-7 text-slate-400" />
+                  </div>
+                  <p className="text-base font-semibold text-slate-800">No finance reports available</p>
+                  <p className="max-w-sm text-sm text-slate-500">
+                    {rows.length === 0
+                      ? 'There are no payment reports to show yet.'
+                      : 'No payments match your current filters. Try clearing search or adjusting filters.'}
+                  </p>
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={resetAllFilters}
+                      className="mt-2 rounded-lg bg-[#246392] px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              }
+            />
+          )}
+        </div>
       </div>
 
-      <StudentCommentsDialog
-        open={!!commentsRow}
-        onClose={() => setCommentsRow(null)}
-        studentName={commentsRow?.studentName}
-        comment={commentsRow ? parseLatestAdminNote(commentsRow).comment : ''}
-      />
-      <PaymentViewDrawer
-        open={!!viewRow}
-        payment={viewRow}
-        onClose={() => setViewRow(null)}
-      />
+      <PaymentViewDrawer open={!!viewRow} payment={viewRow} onClose={() => setViewRow(null)} />
       <PaymentEditModal
         open={!!editRow}
         payment={editRow}

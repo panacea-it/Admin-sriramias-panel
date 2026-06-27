@@ -25,9 +25,6 @@ export const EMI_INSTALLMENT_STATUSES = [
   'Cancelled',
 ]
 
-export const EMI_SLIDER_MIN = 2
-export const EMI_SLIDER_MAX = 24
-
 /** Preset counseling durations shown as selectable cards */
 export const EMI_DURATION_PRESETS = [
   { id: '3', months: 3, label: '3 Months' },

@@ -1,14 +1,10 @@
-import { RefreshCw } from 'lucide-react'
-import ViewButton from '../common/ViewButton'
-import EditButton from '../common/EditButton'
-import IconActionButton from '../common/IconActionButton'
+import { Ban, CheckCircle2, Eye, Pencil, Trash2 } from 'lucide-react'
+import TableActionMenu, { tableActionsCellClass } from '../common/TableActionMenu'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
-import {
-  createActionsColumn,
-  TABLE_ACTIONS_WRAP_CENTER,
-} from '../../utils/tableColumnHelpers'
 
+/** @deprecated Use TestConfigDataTable */
 export const testConfigTablePaginationClass = cn(
   '[&>div:last-child]:items-center',
   '[&_nav]:items-center',
@@ -17,9 +13,9 @@ export const testConfigTablePaginationClass = cn(
   '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
 )
 
+/** @deprecated Use TestConfigDataTable */
 export const testConfigTableProps = {
-  density: 'compact',
-  tableLayoutFixed: true,
+  density: 'comfortable',
   rowClassName: 'hover:bg-[#eef6fc]/70',
   tableClassName: 'rounded-none border-0 shadow-none',
   paginationClassName: testConfigTablePaginationClass,
@@ -36,8 +32,9 @@ export const testConfigStatusColumn = {
 
 export function createTestConfigActionsColumn(render) {
   return createActionsColumn({
-    buttonCount: 3,
+    buttonCount: 1,
     align: 'center',
+    width: 72,
     render,
   })
 }
@@ -46,28 +43,33 @@ function isRowActive(status) {
   return String(status || '').trim().toLowerCase() === 'active'
 }
 
-function TestConfigInlineActions({ isActive, onView, onEdit, onToggleStatus, onDelete: _onDelete }) {
+function TestConfigActionMenu({ row, entityLabel, onView, onEdit, onToggleStatus, onDelete }) {
+  const isActive = isRowActive(row.status)
   const statusAction = recordStatusActionLabel(isActive ? 'Active' : 'In Active')
 
   return (
-    <div className={TABLE_ACTIONS_WRAP_CENTER}>
-      <ViewButton onClick={onView} label="View" />
-      <EditButton onClick={onEdit} label="Edit" />
-      <IconActionButton
-        label={statusAction}
-        onClick={onToggleStatus}
-        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
-      >
-        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
-      </IconActionButton>
-    </div>
+    <TableActionMenu
+      triggerLabel={`${entityLabel} actions`}
+      className="mx-auto"
+      items={[
+        { label: 'View', icon: Eye, onClick: onView },
+        { label: 'Edit', icon: Pencil, onClick: onEdit },
+        {
+          label: statusAction,
+          icon: isActive ? Ban : CheckCircle2,
+          onClick: onToggleStatus,
+        },
+        { label: 'Delete', icon: Trash2, onClick: onDelete, danger: true },
+      ]}
+    />
   )
 }
 
 export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
   return (
-    <TestConfigInlineActions
-      isActive={isRowActive(row.status)}
+    <TestConfigActionMenu
+      row={row}
+      entityLabel="Instruction"
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
@@ -78,8 +80,9 @@ export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, o
 
 export function SectionManagementTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
   return (
-    <TestConfigInlineActions
-      isActive={isRowActive(row.status)}
+    <TestConfigActionMenu
+      row={row}
+      entityLabel="Section"
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
@@ -90,8 +93,9 @@ export function SectionManagementTableActions({ row, onView, onEdit, onToggleSta
 
 export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
   return (
-    <TestConfigInlineActions
-      isActive={isRowActive(row.status)}
+    <TestConfigActionMenu
+      row={row}
+      entityLabel="Language"
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
@@ -99,3 +103,5 @@ export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStat
     />
   )
 }
+
+export { tableActionsCellClass }

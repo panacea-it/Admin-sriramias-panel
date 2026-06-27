@@ -1,3 +1,5 @@
+import { mapCentreDropdownDisplayOption } from './centreDropdownDisplay'
+
 export function mapClassroomStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
   if (statusFilter === 'Deactivated') return 'INACTIVE'
@@ -86,14 +88,19 @@ export function mapApiClassroomToLocal(data) {
 
   return {
     id: String(id),
+    classroomId: String(row.classroomId ?? '').trim(),
     code: String(row.classroomCode ?? row.code ?? '').trim(),
     name: String(row.classroomName ?? row.name ?? '').trim(),
     centerId: resolveCenterId(row),
     centerName: resolveCenterName(row),
     cityPlaceId: resolveCityId(row),
     placeName: resolveCityName(row),
-    capacity: row.capacity != null && row.capacity !== '' ? Number(row.capacity) : null,
+    capacity: row.capacity != null && row.capacity !== '' ? Number(row.capacity) : 0,
     status: mapApiClassroomStatusToUi(row.status),
+    usage: {
+      upcoming: Number(row.usage?.upcoming) || 0,
+      totalBookings: Number(row.usage?.totalBookings) || 0,
+    },
     description: String(row.description ?? '').trim(),
     color: row.color || '#246392',
     createdAt: row.createdAt || row.createdOn || null,
@@ -144,10 +151,16 @@ export function normalizeCentersDropdown(data) {
     : data?.data || data?.centers || data?.items || []
 
   return (Array.isArray(list) ? list : [])
-    .map((item) => ({
-      label: item.label || item.centerName || String(item.name || ''),
-      value: String(item.value || item._id || item.id || item.centerId || ''),
-    }))
+    .map((item) =>
+      mapCentreDropdownDisplayOption({
+        label: item.label || item.centerName || String(item.name || ''),
+        value: String(item.value || item._id || item.id || item.centerId || ''),
+        centerName: item.centerName || item.name || '',
+        centerCode: item.centerCode || '',
+        city: item.city || '',
+        state: item.state || '',
+      }),
+    )
     .filter((opt) => opt.label && opt.value)
 }
 
@@ -165,12 +178,15 @@ export function normalizeCitiesByCenter(data) {
 }
 
 export function buildCreateClassroomPayload(form) {
+  const capacityRaw = String(form.capacity ?? '').trim()
+  const capacity = capacityRaw === '' ? 0 : Number(capacityRaw)
+
   return {
     center: String(form.centerId || '').trim(),
     city: String(form.cityPlaceId || '').trim(),
     classroomName: String(form.name || '').trim(),
     classroomCode: String(form.code || '').trim(),
-    capacity: Number(form.capacity),
+    capacity: Number.isFinite(capacity) && capacity >= 0 ? Math.floor(capacity) : 0,
     status: mapUiClassroomStatusToApi(form.status),
   }
 }

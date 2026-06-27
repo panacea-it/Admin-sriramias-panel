@@ -9,7 +9,8 @@ const TAB_PATHS = {
   courses: '/academics/categories/courses',
   subject: '/academics/categories/subject',
   topic: '/academics/categories/topic',
-  teachers: '/academics/categories/teachers',
+  classes: '/academics/categories/classes',
+  teachers: '/academics/categories/faculty',
   'class-rooms': '/academics/categories/class-rooms',
 }
 

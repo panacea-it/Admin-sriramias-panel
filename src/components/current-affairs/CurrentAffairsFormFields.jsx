@@ -35,6 +35,7 @@ export default function CurrentAffairsFormFields({
   onClearError,
   mainsCategoryOptions,
   mainsCategoryLoading = false,
+  categoryReadOnly = false,
 }) {
   const category = form.category || ''
   /** Always show at least the category dropdown before a type is chosen */
@@ -48,7 +49,11 @@ export default function CurrentAffairsFormFields({
     if (key === 'category') {
       return (
         <CourseFormField key={key} label={label} required>
-          <CourseSelect value={form.category} onChange={onCategoryChange}>
+          <CourseSelect
+            value={form.category}
+            onChange={onCategoryChange}
+            disabled={categoryReadOnly}
+          >
             <option value="">Choose category</option>
             {CURRENT_AFFAIRS_FORM_CATEGORIES.map((name) => (
               <option key={name} value={name}>

@@ -100,7 +100,7 @@ export function mapApiProgramToLocal(data) {
   }
 }
 
-export function normalizeProgramsListResponse(data) {
+export function normalizeProgramsListResponse(data, { page = 1, limit = 10 } = {}) {
   const payload =
     data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
   const itemsRaw =
@@ -110,9 +110,32 @@ export function normalizeProgramsListResponse(data) {
     data?.programs ??
     (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
 
-  return (Array.isArray(itemsRaw) ? itemsRaw : [])
+  const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
     .map((row) => mapApiProgramToLocal(row))
     .filter(Boolean)
+
+  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
+  const total =
+    pagination.total ??
+    payload?.total ??
+    data?.total ??
+    payload?.totalCount ??
+    data?.totalCount ??
+    data?.count ??
+    items.length
+  const totalPages =
+    pagination.totalPages ??
+    payload?.totalPages ??
+    data?.totalPages ??
+    Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
+
+  return {
+    items,
+    total,
+    totalPages,
+    page: currentPage,
+  }
 }
 
 /** Resolve centre display names from IDs */

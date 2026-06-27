@@ -19,45 +19,10 @@ import {
 } from '../../utils/facultySubjectHierarchy'
 import {
   generateContentId,
+  saveSubjectContent,
 } from '../../utils/facultySubjectContentStorage'
 import { nextLiveClassId } from '../../utils/academicsSubjectsStorage'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
-import {
-  createLiveClass,
-  deleteLiveClass,
-  duplicateLiveClass,
-  updateLiveClass,
-  updateLiveClassPublishStatus,
-} from '../../api/liveClassesHttpAPI'
-import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
-import {
-  buildLiveClassApiPayload,
-  mapApiLiveClassToFolderItem,
-  mapApiLiveClassToLocalRow,
-  normalizeLiveClassesListResponse,
-  resolveFacultySubjectApiId,
-  resolveFolderApiId,
-  resolveLiveClassApiId,
-  validateLiveClassApiPayload,
-} from '../../utils/liveClassHelpers'
-import { mapCategoryTypeToApi } from '../../utils/facultySubjectFolderHelpers'
-import { fetchFolderContentByCategory } from '../../utils/folderContentApi'
-import {
-  createRecording,
-  deleteRecording,
-  updateRecording,
-  updateRecordingVisibility,
-} from '../../api/recordingsAPI'
-import {
-  buildRecordingCreateFormData,
-  buildRecordingUpdatePayload,
-  mapApiRecordingToFolderItem,
-  mapApiRecordingToLocalRow,
-  normalizeRecordingsListResponse,
-  resolveRecordingApiId,
-  validateRecordingApiPayload,
-} from '../../utils/recordingHelpers'
-import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
 export default function SubjectContentManagementPage() {
@@ -65,16 +30,10 @@ export default function SubjectContentManagementPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { subjects, upsertSubject } = useAcademicsSubjects()
-  const {
-    subject: apiSubject,
-    loading: subjectDetailLoading,
-  } = useFacultySubjectDetail(subjectId)
-  const localSubject = useMemo(
+  const subject = useMemo(
     () => subjects.find((s) => String(s.id) === String(subjectId)),
     [subjects, subjectId],
   )
-  const subject = apiSubject || localSubject
-  const facultySubjectApiId = resolveFacultySubjectApiId(subject, subjectId)
 
   const facultyName = user?.name || user?.email || subject?.teacher || 'Faculty'
   const teacherShort = subject?.teacher?.split(' ')[0] || facultyName.split(' ')[0]
@@ -84,13 +43,9 @@ export default function SubjectContentManagementPage() {
     loading,
     saving,
     persist,
-    createFolder,
-    renameFolder,
-    removeFolder,
     updateFolderItems,
   } = useSubjectContent(subjectId, {
     subjectMeta: subject,
-    facultySubjectApiId,
   })
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
@@ -109,11 +64,19 @@ export default function SubjectContentManagementPage() {
   const [selectedRowIds, setSelectedRowIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
-  const folderSyncKeyRef = useRef('')
-  const folderSyncAbortRef = useRef(null)
-  const folderSyncInFlightRef = useRef(null)
   const initialSelectionAppliedRef = useRef(false)
   const seedMergedRef = useRef('')
+
+  const persistContent = useCallback(
+    async (updater) => {
+      const next = typeof updater === 'function' ? updater(content) : updater
+      if (!next) return null
+      await persist(next)
+      saveSubjectContent(next, subject)
+      return next
+    },
+    [content, persist, subject],
+  )
 
   const categories = useMemo(() => content?.categories ?? [], [content?.categories])
   const categoryChips = useMemo(
@@ -130,7 +93,6 @@ export default function SubjectContentManagementPage() {
     : null
   const { item: activeItem } = findItemInHierarchy(categories, selectedItemId)
   const folderItems = activeFolder?.items || []
-  const folderApiId = activeFolder ? resolveFolderApiId(activeFolder) : ''
   const isRecordingCategory = activeCategory?.categoryType === 'RECORDED_CLASS'
   const recordingCount = isRecordingCategory ? folderItems.length : undefined
 
@@ -158,8 +120,6 @@ export default function SubjectContentManagementPage() {
     setSelectedCategoryId(null)
     setSelectedFolderId(null)
     setSelectedItemId(null)
-    folderSyncKeyRef.current = ''
-    folderSyncAbortRef.current?.abort()
   }, [subjectId])
 
   useEffect(() => {
@@ -206,172 +166,100 @@ export default function SubjectContentManagementPage() {
   const mutateFolderItems = useCallback(
     (categoryId, folderId, updater) => {
       updateFolderItems(categoryId, folderId, updater)
-    },
-    [updateFolderItems],
-  )
-
-  const syncFolderContentFromApi = useCallback(
-    async (categoryId, folder, { force = false } = {}) => {
-      const category = findCategoryById(categories, categoryId)
-      if (!categoryId || !folder || !category) return
-
-      const apiCategory = mapCategoryTypeToApi(category.categoryType)
-      if (apiCategory !== 'LIVE_CLASS' && apiCategory !== 'RECORDING') return
-
-      const folderApiId = resolveFolderApiId(folder)
-      if (!folderApiId || !facultySubjectApiId) return
-
-      const syncKey = `${facultySubjectApiId}:${apiCategory}:${folderApiId}`
-      if (force) folderSyncKeyRef.current = ''
-      if (!force && folderSyncKeyRef.current === syncKey && folderSyncInFlightRef.current) {
-        return folderSyncInFlightRef.current
-      }
-
-      folderSyncAbortRef.current?.abort()
-      const controller = new AbortController()
-      folderSyncAbortRef.current = controller
-
-      const showSkeleton = force ? false : !(folder.items || []).length
-      if (showSkeleton) setFolderListLoading(true)
-
-      const run = (async () => {
-        try {
-          const response = await fetchFolderContentByCategory(
-            {
-              facultySubjectId: facultySubjectApiId,
-              category: apiCategory,
-              folderId: folderApiId,
-            },
-            { signal: controller.signal, bypassCache: force },
-          )
-          if (controller.signal.aborted) return
-
-          const existingItems = folder.items || []
-          const existingByLinkedId = new Map(
-            existingItems.map((item) => [String(item.linkedExistingFormId), item]),
-          )
-
-          const nextItems =
-            apiCategory === 'LIVE_CLASS'
-              ? normalizeLiveClassesListResponse(response)
-                  .map((row) =>
-                    mapApiLiveClassToFolderItem(
-                      row,
-                      existingByLinkedId.get(String(row.id)),
-                    ),
-                  )
-                  .filter(Boolean)
-              : normalizeRecordingsListResponse(response)
-                  .map((row) =>
-                    mapApiRecordingToFolderItem(
-                      row,
-                      existingByLinkedId.get(String(row.id)),
-                    ),
-                  )
-                  .filter(Boolean)
-
-          mutateFolderItems(categoryId, folder.id, () => nextItems)
-          folderSyncKeyRef.current = syncKey
-        } catch (error) {
-          if (controller.signal.aborted) return
-          const label = apiCategory === 'RECORDING' ? 'recordings' : 'live classes'
-          toast.error(getApiErrorMessage(error, `Failed to load ${label}`))
-        } finally {
-          if (!controller.signal.aborted) setFolderListLoading(false)
+      if (content) {
+        const next = {
+          ...content,
+          categories: content.categories.map((cat) => {
+            if (cat.id !== categoryId) return cat
+            return {
+              ...cat,
+              folders: (cat.folders || []).map((f) => {
+                if (f.id !== folderId) return f
+                const items = typeof updater === 'function' ? updater(f.items || []) : updater
+                return { ...f, items, updatedAt: new Date().toISOString() }
+              }),
+            }
+          }),
         }
-      })()
-
-      folderSyncInFlightRef.current = run
-      try {
-        await run
-      } finally {
-        if (folderSyncInFlightRef.current === run) {
-          folderSyncInFlightRef.current = null
-        }
+        saveSubjectContent(next, subject)
       }
     },
-    [categories, facultySubjectApiId, mutateFolderItems],
+    [updateFolderItems, content, subject],
   )
-
-  useEffect(() => {
-    if (!selectedCategoryId || !activeFolder || !facultySubjectApiId) return
-
-    const category = findCategoryById(categories, selectedCategoryId)
-    if (!category) return
-
-    const apiCategory = mapCategoryTypeToApi(category.categoryType)
-    if (apiCategory !== 'LIVE_CLASS' && apiCategory !== 'RECORDING') return
-
-    const folderApiId = resolveFolderApiId(activeFolder)
-    if (!folderApiId) return
-
-    const syncKey = `${facultySubjectApiId}:${apiCategory}:${folderApiId}`
-    if (folderSyncKeyRef.current === syncKey) return
-
-    syncFolderContentFromApi(selectedCategoryId, activeFolder)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when folder selection changes
-  }, [selectedCategoryId, activeFolder?.id, facultySubjectApiId, activeCategory?.categoryType])
 
   useEffect(() => {
     setSelectedRowIds([])
   }, [selectedFolderId, selectedCategoryId])
 
   const handleAddFolder = async () => {
-    if (!newFolderName.trim() || !selectedCategoryId || !activeCategory) {
+    if (!newFolderName.trim() || !selectedCategoryId || !activeCategory || !content) {
       toast.error('Folder name and category are required')
       return
     }
-    try {
-      const folder = await createFolder({
-        categoryId: selectedCategoryId,
-        categoryType: activeCategory.categoryType,
-        folderName: newFolderName.trim(),
-        description: newFolderDescription.trim(),
-      })
-      setAddingFolder(false)
-      setNewFolderName('')
-      setNewFolderDescription('')
-      if (folder?.id) setSelectedFolderId(folder.id)
-      setSelectedItemId(null)
-      setPanelMode('list')
-      setAddingNewItem(false)
-      toast.success('Folder created')
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to create folder'))
+    const folder = {
+      id: generateContentId('folder'),
+      folderName: newFolderName.trim(),
+      description: newFolderDescription.trim(),
+      items: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
+    await persistContent({
+      ...content,
+      categories: content.categories.map((c) =>
+        c.id === selectedCategoryId ? { ...c, folders: [...(c.folders || []), folder] } : c,
+      ),
+    })
+    setAddingFolder(false)
+    setNewFolderName('')
+    setNewFolderDescription('')
+    setSelectedFolderId(folder.id)
+    setSelectedItemId(null)
+    setPanelMode('list')
+    setAddingNewItem(false)
+    toast.success('Folder created')
   }
 
   const handleRenameFolder = async (folderId, name) => {
-    if (!name.trim() || !selectedCategoryId) return
+    if (!name.trim() || !selectedCategoryId || !content) return
     const folder = activeCategory?.folders?.find((f) => f.id === folderId)
-    try {
-      await renameFolder({
-        folderId,
-        folderName: name.trim(),
-        description: folder?.description || '',
-      })
-      toast.success('Folder renamed')
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to rename folder'))
-    }
+    await persistContent({
+      ...content,
+      categories: content.categories.map((cat) => ({
+        ...cat,
+        folders: (cat.folders || []).map((f) =>
+          f.id === folderId
+            ? {
+                ...f,
+                folderName: name.trim(),
+                description: folder?.description || '',
+                updatedAt: new Date().toISOString(),
+              }
+            : f,
+        ),
+      })),
+    })
+    toast.success('Folder renamed')
   }
 
   const handleDeleteFolder = (folderId) => setDeleteFolderTarget(folderId)
 
   const confirmDeleteFolder = async () => {
-    if (!selectedCategoryId || !deleteFolderTarget) return
-    try {
-      await removeFolder(deleteFolderTarget)
-      if (selectedFolderId === deleteFolderTarget) {
-        setSelectedFolderId(null)
-        setSelectedItemId(null)
-        setPanelMode('list')
-      }
-      setDeleteFolderTarget(null)
-      toast.success('Folder deleted')
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete folder'))
+    if (!selectedCategoryId || !deleteFolderTarget || !content) return
+    await persistContent({
+      ...content,
+      categories: content.categories.map((cat) => ({
+        ...cat,
+        folders: (cat.folders || []).filter((f) => f.id !== deleteFolderTarget),
+      })),
+    })
+    if (selectedFolderId === deleteFolderTarget) {
+      setSelectedFolderId(null)
+      setSelectedItemId(null)
+      setPanelMode('list')
     }
+    setDeleteFolderTarget(null)
+    toast.success('Folder deleted')
   }
 
   const removeItemFromSubject = (item, contentType) => {
@@ -400,33 +288,6 @@ export default function SubjectContentManagementPage() {
   const confirmDeleteItem = async () => {
     if (!deleteItemTarget || !selectedCategoryId || !activeFolder) return
     const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
-    const linkedId = deleteItemTarget?.linkedExistingFormId
-    const liveApiId = resolveLiveClassApiId({
-      id: linkedId,
-      apiId: deleteItemTarget?.data?.apiId,
-    })
-    const recordingApiId = resolveRecordingApiId({
-      id: linkedId,
-      apiId: deleteItemTarget?.data?.apiId,
-    })
-
-    if (contentType === 'live' && liveApiId) {
-      try {
-        await deleteLiveClass(liveApiId)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to delete live class'))
-        return
-      }
-    }
-
-    if (contentType === 'recording' && recordingApiId) {
-      try {
-        await deleteRecording(recordingApiId)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to delete recording'))
-        return
-      }
-    }
 
     mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
       items.filter((i) => i.id !== deleteItemTarget.id),
@@ -439,14 +300,8 @@ export default function SubjectContentManagementPage() {
     setDeleteItemTarget(null)
     if (contentType === 'live') {
       toast.success('Live Class Deleted Successfully')
-      if (selectedCategoryId && activeFolder) {
-        await syncFolderContentFromApi(selectedCategoryId, activeFolder, { force: true })
-      }
     } else if (contentType === 'recording') {
       toast.success('Recording deleted successfully')
-      if (selectedCategoryId && activeFolder) {
-        await syncFolderContentFromApi(selectedCategoryId, activeFolder, { force: true })
-      }
     } else {
       toast.success('Entry deleted')
     }
@@ -455,26 +310,6 @@ export default function SubjectContentManagementPage() {
   const handlePublishItemQuick = async (item, { silent = false } = {}) => {
     if (!selectedCategoryId || !activeFolder) return
     const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
-    const liveApiId = resolveLiveClassApiId({ id: item?.linkedExistingFormId, apiId: item?.data?.apiId })
-    const recordingApiId = resolveRecordingApiId({ id: item?.linkedExistingFormId, apiId: item?.data?.apiId })
-
-    if (contentType === 'live' && liveApiId) {
-      try {
-        await updateLiveClassPublishStatus(liveApiId, 'PUBLISHED')
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to publish live class'))
-        return
-      }
-    }
-
-    if (contentType === 'recording' && recordingApiId) {
-      try {
-        await updateRecordingVisibility(recordingApiId, 'PUBLISHED')
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to publish recording'))
-        return
-      }
-    }
 
     mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
       items.map((i) =>
@@ -505,35 +340,13 @@ export default function SubjectContentManagementPage() {
     const src = row?.payload
     if (!src) return
 
-    const apiId = resolveLiveClassApiId(src)
-    let copy = null
-
-    if (apiId) {
-      try {
-        const result = await duplicateLiveClass(apiId)
-        copy = mapApiLiveClassToLocalRow(result)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to duplicate live class'))
-        return
-      }
-    }
-
-    if (!copy) {
-      const newId = nextLiveClassId(mergedSubject?.liveClasses || [])
-      copy = {
-        ...src,
-        id: newId,
-        apiId: newId,
-        classTitle: `${src.classTitle} (Copy)`,
-        folderId: activeFolder.id,
-        categoryId: activeCategory.id,
-      }
-    } else {
-      copy = {
-        ...copy,
-        folderId: activeFolder.id,
-        categoryId: activeCategory.id,
-      }
+    const newId = nextLiveClassId(mergedSubject?.liveClasses || [])
+    const copy = {
+      ...src,
+      id: newId,
+      classTitle: `${src.classTitle} (Copy)`,
+      folderId: activeFolder.id,
+      categoryId: activeCategory.id,
     }
 
     const newItem = {
@@ -551,32 +364,10 @@ export default function SubjectContentManagementPage() {
       liveClasses: [...(mergedSubject?.liveClasses || []), copy],
     })
     toast.success('Live Class Duplicated Successfully')
-    await syncFolderContentFromApi(selectedCategoryId, activeFolder, { force: true })
   }
 
   const handleDisableItemQuick = async (item, { silent = false } = {}) => {
     if (!selectedCategoryId || !activeFolder) return
-    const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
-    const liveApiId = resolveLiveClassApiId({ id: item?.linkedExistingFormId, apiId: item?.data?.apiId })
-    const recordingApiId = resolveRecordingApiId({ id: item?.linkedExistingFormId, apiId: item?.data?.apiId })
-
-    if (contentType === 'live' && liveApiId) {
-      try {
-        await updateLiveClassPublishStatus(liveApiId, 'DRAFT')
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to disable live class'))
-        return
-      }
-    }
-
-    if (contentType === 'recording' && recordingApiId) {
-      try {
-        await updateRecordingVisibility(recordingApiId, 'DRAFT')
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to disable recording'))
-        return
-      }
-    }
 
     mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
       items.map((i) =>
@@ -645,25 +436,11 @@ export default function SubjectContentManagementPage() {
 
     setBulkActionLoading(true)
     try {
-      if (bulkConfirm.type === 'delete') {
+      if (bulkConfirm.type === 'delete' || bulkConfirm.type === 'deactivate') {
         const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
         const idsToDelete = new Set(items.map((i) => i.id))
 
         for (const item of items) {
-          const liveApiId = resolveLiveClassApiId({
-            id: item?.linkedExistingFormId,
-            apiId: item?.data?.apiId,
-          })
-          const recordingApiId = resolveRecordingApiId({
-            id: item?.linkedExistingFormId,
-            apiId: item?.data?.apiId,
-          })
-          if (contentType === 'live' && liveApiId) {
-            await deleteLiveClass(liveApiId)
-          }
-          if (contentType === 'recording' && recordingApiId) {
-            await deleteRecording(recordingApiId)
-          }
           upsertSubject(removeItemFromSubject(item, contentType))
         }
 
@@ -674,12 +451,6 @@ export default function SubjectContentManagementPage() {
         setSelectedItemId(null)
         setPanelMode('list')
         toast.success(`${items.length} item(s) deleted`)
-        if (
-          activeCategory?.categoryType === 'LIVE_CLASS' ||
-          activeCategory?.categoryType === 'RECORDED_CLASS'
-        ) {
-          await syncFolderContentFromApi(selectedCategoryId, activeFolder, { force: true })
-        }
       } else if (bulkConfirm.type === 'disable') {
         for (const item of items) {
           await handleDisableItemQuick(item, { silent: true })
@@ -689,7 +460,7 @@ export default function SubjectContentManagementPage() {
       }
       setBulkConfirm(null)
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Bulk action failed'))
+      toast.error(error?.message || 'Bulk action failed')
     } finally {
       setBulkActionLoading(false)
     }
@@ -699,7 +470,6 @@ export default function SubjectContentManagementPage() {
     (id) => {
       const cat = categories.find((c) => c.id === id)
       const firstFolder = cat?.folders?.[0]
-      folderSyncKeyRef.current = ''
       setSelectedCategoryId(id)
       setSelectedFolderId(firstFolder?.id ?? null)
       setSelectedItemId(null)
@@ -712,7 +482,6 @@ export default function SubjectContentManagementPage() {
   )
 
   const handleSelectFolder = useCallback((folderId) => {
-    folderSyncKeyRef.current = ''
     setSelectedFolderId(folderId)
     setSelectedItemId(null)
     setPanelMode('list')
@@ -742,137 +511,20 @@ export default function SubjectContentManagementPage() {
     existingItem,
     liveClassData,
     recordingData,
-    recordingFormOptions,
   }) => {
     if (!content || !activeCategory || !activeFolder) return
-
-    let resolvedLiveClassData = liveClassData
-    let resolvedRecordingData = recordingData
-
-    if (contentType === 'recording') {
-      try {
-        if (activeCategory.categoryType !== 'RECORDED_CLASS') {
-          throw new Error('Recordings must be saved under the Recording category')
-        }
-        if (!facultySubjectApiId) {
-          throw new Error('Faculty subject id is missing — open this page from Faculty Subjects list')
-        }
-
-        const folderApiId = resolveFolderApiId(activeFolder)
-        if (!folderApiId) {
-          throw new Error(
-            'Folder id is invalid. Delete this folder, create a new one under Recording, then try again.',
-          )
-        }
-
-        const existingApiId = resolveRecordingApiId(recordingData)
-        const payloadErrors = validateRecordingApiPayload(values, {
-          isEdit: Boolean(existingApiId),
-          hasExistingFile: Boolean(recordingData?.videoFileName),
-          options: recordingFormOptions,
-        })
-        if (payloadErrors.length) {
-          throw new Error(payloadErrors[0])
-        }
-
-        let apiResult
-        if (existingApiId) {
-          const { payload, multipart } = buildRecordingUpdatePayload(values, {
-            folderId: folderApiId,
-            facultySubjectId: facultySubjectApiId,
-            options: recordingFormOptions,
-          })
-          apiResult = await updateRecording(existingApiId, payload, { multipart })
-        } else {
-          const formData = buildRecordingCreateFormData(values, {
-            folderId: folderApiId,
-            facultySubjectId: facultySubjectApiId,
-            options: recordingFormOptions,
-          })
-          apiResult = await createRecording(formData)
-        }
-
-        resolvedRecordingData = mapApiRecordingToLocalRow(apiResult)
-        if (!resolvedRecordingData) {
-          throw new Error('Invalid recording response from server')
-        }
-      } catch (error) {
-        throw new Error(getApiErrorMessage(error, 'Failed to save recording'))
-      }
-    }
-
-    if (contentType === 'live') {
-      try {
-        if (activeCategory.categoryType !== 'LIVE_CLASS') {
-          throw new Error('Live classes must be saved under the Live Class category')
-        }
-        if (!facultySubjectApiId) {
-          throw new Error('Faculty subject id is missing — open this page from Faculty Subjects list')
-        }
-
-        const folderApiId = resolveFolderApiId(activeFolder)
-        if (!folderApiId) {
-          throw new Error(
-            'Folder id is invalid. Delete this folder, create a new one under Live Class, then try again.',
-          )
-        }
-
-        await persist({
-          ...content,
-          subjectName: subject?.subjectName || content.subjectName,
-          categoryIds: categoryChips,
-          facultyName,
-        })
-
-        const isRecurring = Boolean(values.recurring && values.recurrence?.enabled)
-        const apiPayload = buildLiveClassApiPayload(values, {
-          facultySubjectId: facultySubjectApiId,
-          folderId: folderApiId,
-          publish,
-          recurring: isRecurring,
-          recurrence: isRecurring ? values.recurrence : null,
-          timezone: values.timezone || 'Asia/Kolkata',
-        })
-        const payloadErrors = validateLiveClassApiPayload(apiPayload)
-        if (payloadErrors.length) {
-          throw new Error(payloadErrors[0])
-        }
-        const existingApiId = resolveLiveClassApiId(liveClassData)
-        const apiResult = existingApiId
-          ? await updateLiveClass(existingApiId, apiPayload)
-          : await createLiveClass(apiPayload)
-        resolvedLiveClassData = mapApiLiveClassToLocalRow(apiResult)
-        if (!resolvedLiveClassData) {
-          throw new Error('Invalid live class response from server')
-        }
-      } catch (error) {
-        throw new Error(getApiErrorMessage(error, 'Failed to save live class'))
-      }
-    }
 
     const { item, subjectPatch } = buildItemSavePayload({
       values,
       contentType,
       subject: mergedSubject || subject,
       existingItem: existingItem || null,
-      liveClassData: resolvedLiveClassData,
+      liveClassData,
       recordingData,
       folder: activeFolder,
       category: activeCategory,
       publish,
     })
-
-    if (contentType === 'live' && resolvedLiveClassData) {
-      item.linkedExistingFormId = resolvedLiveClassData.id
-      item.data = resolvedLiveClassData
-    }
-
-    if (contentType === 'recording' && resolvedRecordingData) {
-      item.linkedExistingFormId = resolvedRecordingData.id
-      item.data = resolvedRecordingData
-      item.status =
-        resolvedRecordingData.visibility === 'Published' ? 'published' : 'draft'
-    }
 
     mutateFolderItems(selectedCategoryId, activeFolder.id, (items) => {
       const next = [...items]
@@ -887,15 +539,11 @@ export default function SubjectContentManagementPage() {
     setSelectedItemId(item.id)
     setAddingNewItem(false)
     setPanelMode('list')
-
-    if (contentType === 'live' || contentType === 'recording') {
-      await syncFolderContentFromApi(selectedCategoryId, activeFolder, { force: true })
-    }
   }
 
-  const showPageLoading = (loading && !categories.length) || (subjectDetailLoading && !subject)
+  const showPageLoading = loading && !categories.length
 
-  if (!subject && !loading && !subjectDetailLoading) {
+  if (!subject && !loading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8">
         <p className="text-lg font-semibold text-[#1a3a5c]">Subject not found</p>
@@ -997,7 +645,7 @@ export default function SubjectContentManagementPage() {
 
             <SubjectContentFormPanel
               subject={mergedSubject || subject}
-              facultySubjectId={facultySubjectApiId}
+              facultySubjectId=""
               listLoading={folderListLoading}
               itemCount={isRecordingCategory ? recordingCount : undefined}
               subjects={subjects}

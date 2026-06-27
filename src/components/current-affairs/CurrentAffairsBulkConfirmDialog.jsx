@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react'
 import AppModalWrapper from '../ui/AppModalWrapper'
 import { cn } from '../../utils/cn'
 import { BULK_STATUS_CONFIRM_COPY } from '../common/ConfirmStatusChangeModal'
@@ -20,7 +20,16 @@ const COPY = {
   },
   enable: null,
   disable: null,
-  delete: null,
+  delete: {
+    title: 'Permanently Delete Selected Entries',
+    message:
+      'Delete all selected current affairs entries? This is a permanent action and cannot be undone.',
+    confirmLabel: 'Delete permanently',
+    loadingLabel: 'Deleting…',
+    icon: AlertTriangle,
+    iconClassName: 'bg-red-50 text-red-600',
+    buttonClassName: 'bg-red-600 hover:bg-red-700',
+  },
 }
 
 export default function CurrentAffairsBulkConfirmDialog({
@@ -31,9 +40,9 @@ export default function CurrentAffairsBulkConfirmDialog({
   loading = false,
 }) {
   const resolvedType = type === 'enable' ? 'activate' : type === 'disable' ? 'deactivate' : type
-  if (resolvedType === 'delete') return null
 
   const config = COPY[resolvedType] || COPY.deactivate
+  if (!config) return null
   const Icon = config.icon
 
   const handleConfirm = async (e) => {

@@ -1,24 +1,55 @@
-import { RefreshCw } from 'lucide-react'
-import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
-import ViewButton from '../common/ViewButton'
-import EditButton from '../common/EditButton'
-import IconActionButton from '../common/IconActionButton'
-import { recordStatusActionLabel } from '../../constants/recordStatus'
+import { Ban, Eye, Pencil, Trash2 } from 'lucide-react'
+import { isRecordStatusActive } from '../../constants/recordStatus'
 
-export default function AdminTableActions({ row, onView, onEdit, onStatusToggle, onDelete: _onDelete }) {
-  const statusAction = recordStatusActionLabel(row.status)
+const viewEditClassName =
+  'inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-[#246392]'
+
+export default function AdminTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
+  const isActive = isRecordStatusActive(row.status)
+  const displayName = row.fullName || row.employeeName || 'admin'
 
   return (
-    <div className={TABLE_ACTIONS_WRAP}>
-      <ViewButton onClick={onView} />
-      <EditButton onClick={onEdit} />
-      <IconActionButton
-        label={statusAction}
-        onClick={onStatusToggle}
-        className="text-[#246392] hover:border-[#cbeeff] hover:bg-[#eef2fc] hover:text-[#1a5276] hover:shadow-sm"
+    <div className="flex flex-nowrap items-center justify-center gap-4 whitespace-nowrap">
+      <button
+        type="button"
+        onClick={onView}
+        title="View"
+        aria-label={`View ${displayName}`}
+        className={viewEditClassName}
       >
-        <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
-      </IconActionButton>
+        <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+        View
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        title="Edit"
+        aria-label={`Edit ${displayName}`}
+        className={viewEditClassName}
+      >
+        <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+        Edit
+      </button>
+      <button
+        type="button"
+        onClick={onStatusToggle}
+        title={isActive ? 'Disable' : 'Enable'}
+        aria-label={isActive ? `Disable ${displayName}` : `Enable ${displayName}`}
+        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-amber-700 transition hover:text-amber-800"
+      >
+        <Ban className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+        {isActive ? 'Disable' : 'Enable'}
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        title="Delete"
+        aria-label={`Delete ${displayName}`}
+        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-rose-600 transition hover:text-rose-700"
+      >
+        <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+        Delete
+      </button>
     </div>
   )
 }

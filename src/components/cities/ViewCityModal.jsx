@@ -2,7 +2,7 @@ import { MapPin } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import CategoryStatusBadge from '../categories/CategoryStatusBadge'
-import { formatCityDateTime, getCityDisplayCode } from '../../utils/cityApiHelpers'
+import { formatCityDateTime } from '../../utils/cityApiHelpers'
 
 function DetailItem({ label, children }) {
   return (
@@ -16,21 +16,21 @@ function DetailItem({ label, children }) {
 export default function ViewCityModal({ open, onClose, city, loading = false }) {
   if (!open) return null
 
-  const status = city?.status === 'Deactivated' ? 'In Active' : city?.status
-  const displayCode = getCityDisplayCode(city)
+  const displayAddress = city?.cityAddress || city?.placeName
+  const status = city?.status === 'In Active' ? 'In Active' : city?.status
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="md"
-      title={city?.placeName ? `View ${city.placeName}` : 'View City'}
+      title={displayAddress ? `View ${displayAddress}` : 'View City'}
       showCloseButton={false}
     >
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <ModalPanelHeader
-          title={city?.placeName || 'City'}
-          subtitle={displayCode || city?.centerName || 'City details'}
+          title={displayAddress || 'City'}
+          subtitle={city?.centerName || 'City details'}
           onClose={onClose}
           icon={MapPin}
           iconClassName="text-[#246392]"
@@ -50,14 +50,13 @@ export default function ViewCityModal({ open, onClose, city, loading = false }) 
             </div>
           ) : (
             <dl className="grid gap-4 sm:grid-cols-2">
-              <DetailItem label="City Code">{displayCode || '—'}</DetailItem>
-              <DetailItem label="Place Name">{city?.placeName || '—'}</DetailItem>
               <DetailItem label="Center Name">{city?.centerName || '—'}</DetailItem>
+              <DetailItem label="City Address">{displayAddress || '—'}</DetailItem>
               <DetailItem label="Status">
                 <CategoryStatusBadge status={status} />
               </DetailItem>
-              <DetailItem label="Added On">{formatCityDateTime(city?.createdAt)}</DetailItem>
-              <DetailItem label="Modified On">{formatCityDateTime(city?.modifiedAt)}</DetailItem>
+              <DetailItem label="Created">{formatCityDateTime(city?.createdAt)}</DetailItem>
+              <DetailItem label="Updated">{formatCityDateTime(city?.updatedAt || city?.modifiedAt)}</DetailItem>
             </dl>
           )}
         </div>

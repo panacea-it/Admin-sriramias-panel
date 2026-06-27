@@ -1,513 +1,343 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import BatchFormModalShell from './BatchFormModalShell'
-import BatchConfirmDialog from './BatchConfirmDialog'
-import {
-  BatchField,
-  BatchModalFooter,
-  batchInputReadonlyClass,
-  batchSelectClass,
-  batchTextareaClass,
-} from './batchModalUi'
-import { getBatchesDropdown } from '../../api/batchesAPI'
-import { fetchAcademicCourseOptions } from '../../api/academicCoursesAPI'
-import { getCentersDropdown, normalizeCentersDropdown } from '../../services/centerService'
-import { TRANSFER_REASONS } from '../../data/batchManagementData'
-import { resolveBatchDisplayId } from '../../utils/batchHelpers'
-import { canTransferToBatch, normalizeBatchUiStatus } from '../../utils/batchOperations'
-import { cn } from '../../utils/cn'
-
-const REMARKS_MAX = 300
-
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function formatBatchOptionLabel(batch) {
-  const batchId = resolveBatchDisplayId(batch)
-  const batchName = batch.batchName || batch.name || batch.batchLabel || '—'
-  return `${batchId} - ${batchName}`
-}
-
-function normalizeDropdownBatch(row) {
-  const fd = row.formData || {}
-  const id = String(row.id || row._id || '')
-  const center = String(row.center || fd.center || '').trim()
-  const courseName = row.linkedCourseName || row.courseName || fd.courseName || ''
-  const courseId = String(row.academicCourseId || row.courseId || fd.academicCourseId || fd.courseId || '').trim()
-  const capacity = Number(row.capacity ?? fd.capacity) > 0 ? Number(row.capacity ?? fd.capacity) : 50
-  const totalStudents = Number(row.totalStudents ?? row.studentCount ?? fd.totalStudents ?? 0) || 0
-
-  return {
-    id,
-    batchId: row.batchId || row.batchCode || fd.batchId,
-    batchName: row.batchName || row.name || '',
-    center,
-    courseId,
-    courseName,
-    mentorName: row.mentorName || fd.mentorName || row.trainerName || fd.trainerName || '',
-    status: normalizeBatchUiStatus(row.status || fd.status),
-    capacity,
-    totalStudents,
-    label: formatBatchOptionLabel(row),
-    raw: row,
-  }
-}
-
-function ReadOnlyField({ label, value }) {
-  return (
-    <BatchField label={label}>
-      <input readOnly value={value || '—'} className={batchInputReadonlyClass} />
-    </BatchField>
-  )
-}
-
-function SectionTitle({ children }) {
-  return (
-    <h4 className="border-b border-slate-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#686868]">
-      {children}
-    </h4>
-  )
-}
-
-export default function MoveStudentModal({
-  open,
-  onClose,
-  student,
-  currentBatch,
-  targetBatches = [],
-  getTargetStrength,
-  onSubmit,
-  saving = false,
-}) {
-  const [branchId, setBranchId] = useState('')
-  const [courseId, setCourseId] = useState('')
-  const [targetBatchId, setTargetBatchId] = useState('')
-  const [transferDate, setTransferDate] = useState(todayIsoDate)
-  const [transferReason, setTransferReason] = useState('')
-  const [remarks, setRemarks] = useState('')
-  const [errors, setErrors] = useState({})
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [pendingValues, setPendingValues] = useState(null)
-
-  const [dropdownBatches, setDropdownBatches] = useState([])
-  const [branchOptions, setBranchOptions] = useState([])
-  const [courseOptions, setCourseOptions] = useState([])
-  const [loadingMeta, setLoadingMeta] = useState(false)
-
-  useEffect(() => {
-    if (!open) return undefined
-
-    let active = true
-    setLoadingMeta(true)
-
-    Promise.all([
-      getBatchesDropdown({ activeOnly: true }),
-      getCentersDropdown().catch(() => []),
-      fetchAcademicCourseOptions().catch(() => []),
-    ])
-      .then(([batchResponse, centersResponse, coursesResponse]) => {
-        if (!active) return
-        const rows = Array.isArray(batchResponse?.data)
-          ? batchResponse.data
-          : batchResponse?.data?.data || []
-        setDropdownBatches(rows)
-
-        const centers = normalizeCentersDropdown(centersResponse)
-        setBranchOptions(centers)
-
-        const courses = (coursesResponse || []).map((c) => ({
-          id: String(c._id || c.courseId || ''),
-          courseId: String(c.courseId || ''),
-          label: c.label || c.courseName || '—',
-          courseName: c.courseName || '',
-        }))
-        setCourseOptions(courses)
-      })
-      .catch(() => {
-        if (active) {
-          setDropdownBatches([])
-          setBranchOptions([])
-          setCourseOptions([])
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingMeta(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [open])
-
-  const allBatchOptions = useMemo(() => {
-    const source = dropdownBatches.length ? dropdownBatches : targetBatches.map((b) => b.apiRow || b)
-    const currentId = String(currentBatch?.id || currentBatch?.apiRow?._id || '')
-
-    return source
-      .map((row) => normalizeDropdownBatch(row))
-      .filter((row) => row.id && row.id !== currentId && row.status === 'Active')
-  }, [dropdownBatches, targetBatches, currentBatch?.id, currentBatch?.apiRow?._id])
-
-  const selectedBranch = branchOptions.find((b) => String(b.value) === String(branchId))
-
-  const filteredCourses = useMemo(() => {
-    if (!branchId) return courseOptions
-    const branchName = selectedBranch?.centerName || selectedBranch?.label || ''
-    if (!branchName) return courseOptions
-
-    const courseIdsInBranch = new Set(
-      allBatchOptions
-        .filter((b) => b.center && b.center.toLowerCase() === branchName.toLowerCase())
-        .map((b) => b.courseId)
-        .filter(Boolean),
-    )
-
-    if (!courseIdsInBranch.size) return courseOptions
-    return courseOptions.filter(
-      (c) => courseIdsInBranch.has(c.courseId) || courseIdsInBranch.has(c.id),
-    )
-  }, [branchId, courseOptions, allBatchOptions, selectedBranch])
-
-  const filteredBatches = useMemo(() => {
-    let rows = allBatchOptions
-
-    if (branchId) {
-      const branchName = selectedBranch?.centerName || selectedBranch?.label || ''
-      if (branchName) {
-        rows = rows.filter(
-          (b) => !b.center || b.center.toLowerCase() === branchName.toLowerCase(),
-        )
-      }
-    }
-
-    if (courseId) {
-      const course = courseOptions.find((c) => String(c.id) === String(courseId) || String(c.courseId) === String(courseId))
-      const courseKey = course?.courseId || courseId
-      rows = rows.filter(
-        (b) =>
-          (courseKey && b.courseId === courseKey) ||
-          (course?.courseName && b.courseName && b.courseName.toLowerCase() === course.courseName.toLowerCase()),
-      )
-    }
-
-    return rows.sort((a, b) => a.label.localeCompare(b.label))
-  }, [allBatchOptions, branchId, courseId, courseOptions, selectedBranch])
-
-  const selectedTarget = filteredBatches.find((b) => String(b.id) === String(targetBatchId))
-    || allBatchOptions.find((b) => String(b.id) === String(targetBatchId))
-
-  useEffect(() => {
-    if (!open) return
-    setBranchId('')
-    setCourseId('')
-    setTargetBatchId('')
-    setTransferDate(todayIsoDate())
-    setTransferReason('')
-    setRemarks('')
-    setErrors({})
-    setConfirmOpen(false)
-    setPendingValues(null)
-  }, [open, student?.id])
-
-  useEffect(() => {
-    setTargetBatchId('')
-    setErrors((x) => ({ ...x, batch: undefined }))
-  }, [branchId, courseId])
-
-  const resolveTargetStrength = (batchRow) => {
-    if (getTargetStrength) {
-      const tableBatch = targetBatches.find((b) => String(b.id) === String(batchRow.id))
-      if (tableBatch) return getTargetStrength(tableBatch)
-    }
-    return batchRow.totalStudents ?? 0
-  }
-
-  const validate = () => {
-    const next = {}
-
-    if (!branchId) next.branch = 'Please select a branch'
-    if (!courseId) next.course = 'Please select a course'
-    if (!targetBatchId) {
-      next.batch = 'Please select a destination batch'
-    } else if (String(targetBatchId) === String(currentBatch?.id)) {
-      next.batch = 'Cannot move to the same batch'
-    } else if (selectedTarget && selectedTarget.status !== 'Active') {
-      next.batch = 'Selected batch is inactive'
-    } else if (selectedTarget) {
-      const strength = resolveTargetStrength(selectedTarget)
-      const transferCheck = canTransferToBatch(
-        { status: selectedTarget.status, capacity: selectedTarget.capacity },
-        strength,
-      )
-      if (!transferCheck.ok) next.batch = transferCheck.reason
-    }
-
-    if (!transferDate) next.transferDate = 'Transfer date is required'
-    if (!transferReason) next.transferReason = 'Please select a transfer reason'
-    if (remarks.length > REMARKS_MAX) {
-      next.remarks = `Remarks cannot exceed ${REMARKS_MAX} characters`
-    }
-
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!validate()) return
-
-    const branchLabel = selectedBranch?.centerName || selectedBranch?.label || ''
-    const course = courseOptions.find(
-      (c) => String(c.id) === String(courseId) || String(c.courseId) === String(courseId),
-    )
-
-    setPendingValues({
-      targetBatchId,
-      branch: branchLabel,
-      branchId,
-      course: course?.courseName || course?.label || '',
-      courseId: course?.courseId || courseId,
-      transferDate,
-      transferReason,
-      remarks: remarks.trim(),
-    })
-    setConfirmOpen(true)
-  }
-
-  const handleConfirmMove = async () => {
-    if (!pendingValues) return
-    try {
-      await onSubmit?.(pendingValues)
-      setConfirmOpen(false)
-      setPendingValues(null)
-    } catch {
-      setConfirmOpen(false)
-    }
-  }
-
-  if (!student || !currentBatch) return null
-
-  const currentBatchLabel =
-    currentBatch.displayName ||
-    formatBatchOptionLabel(currentBatch.apiRow || currentBatch)
-
-  const currentCourse = currentBatch.courseName || '—'
-  const currentMentor = currentBatch.mentorName || currentBatch.trainerName || '—'
-  const currentCenter = currentBatch.center || currentBatch.apiRow?.center || '—'
-
-  const confirmTargetLabel = selectedTarget?.label || 'the selected batch'
-
-  return (
-    <>
-      <BatchFormModalShell
-        open={open && !confirmOpen}
-        onClose={onClose}
-        title="Move Student to Another Batch"
-        subtitle={`${student.name} · ${student.enrollmentId}`}
-        size="lg"
-        saving={saving}
-        footer={
-          <BatchModalFooter
-            onCancel={onClose}
-            submitLabel={saving ? 'Moving…' : 'Move Student'}
-            saving={saving}
-            submitDisabled={loadingMeta}
-            submitForm="move-student-form"
-            submitType="submit"
-          />
-        }
-      >
-        <form id="move-student-form" onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-3">
-            <SectionTitle>Student Information</SectionTitle>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ReadOnlyField label="Student ID" value={student.enrollmentId} />
-              <ReadOnlyField label="Student Name" value={student.name} />
-              <ReadOnlyField label="Phone Number" value={student.phone} />
-              <ReadOnlyField label="Current Batch" value={currentBatchLabel} />
-              <ReadOnlyField label="Current Course" value={currentCourse} />
-              <ReadOnlyField label="Current Mentor" value={currentMentor} />
-              {currentCenter !== '—' && (
-                <ReadOnlyField label="Current Branch" value={currentCenter} />
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <SectionTitle>Destination Batch</SectionTitle>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <BatchField label="Branch" required>
-                <div className="relative">
-                  <select
-                    value={branchId}
-                    disabled={loadingMeta}
-                    onChange={(e) => {
-                      setBranchId(e.target.value)
-                      setErrors((x) => ({ ...x, branch: undefined }))
-                    }}
-                    className={batchSelectClass}
-                  >
-                    <option value="">
-                      {loadingMeta ? 'Loading branches…' : 'Select branch…'}
-                    </option>
-                    {branchOptions.map((b) => (
-                      <option key={b.value} value={b.value}>
-                        {b.centerName || b.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-                </div>
-                {errors.branch && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.branch}</p>
-                )}
-              </BatchField>
-
-              <BatchField label="Course" required>
-                <div className="relative">
-                  <select
-                    value={courseId}
-                    disabled={loadingMeta || !branchId}
-                    onChange={(e) => {
-                      setCourseId(e.target.value)
-                      setErrors((x) => ({ ...x, course: undefined }))
-                    }}
-                    className={batchSelectClass}
-                  >
-                    <option value="">
-                      {!branchId ? 'Select branch first…' : 'Select course…'}
-                    </option>
-                    {filteredCourses.map((c) => (
-                      <option key={c.id || c.courseId} value={c.id || c.courseId}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-                </div>
-                {errors.course && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.course}</p>
-                )}
-              </BatchField>
-
-              <BatchField label="Batch" required className="sm:col-span-2">
-                <div className="relative">
-                  <select
-                    value={targetBatchId}
-                    disabled={loadingMeta || !courseId}
-                    onChange={(e) => {
-                      setTargetBatchId(e.target.value)
-                      setErrors((x) => ({ ...x, batch: undefined }))
-                    }}
-                    className={batchSelectClass}
-                  >
-                    <option value="">
-                      {!courseId ? 'Select course first…' : 'Choose destination batch…'}
-                    </option>
-                    {filteredBatches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-                </div>
-                {errors.batch && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.batch}</p>
-                )}
-                {selectedTarget && (
-                  <p className="mt-1.5 text-xs text-[#686868]">
-                    {resolveTargetStrength(selectedTarget)} / {selectedTarget.capacity} seats filled
-                  </p>
-                )}
-              </BatchField>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <SectionTitle>Transfer Details</SectionTitle>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <BatchField label="Effective Transfer Date" required>
-                <input
-                  type="date"
-                  value={transferDate}
-                  max={todayIsoDate()}
-                  onChange={(e) => {
-                    setTransferDate(e.target.value)
-                    setErrors((x) => ({ ...x, transferDate: undefined }))
-                  }}
-                  className={cn(batchInputReadonlyClass, 'bg-white text-[#222]')}
-                />
-                {errors.transferDate && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.transferDate}</p>
-                )}
-              </BatchField>
-
-              <BatchField label="Transfer Reason" required>
-                <div className="relative">
-                  <select
-                    value={transferReason}
-                    onChange={(e) => {
-                      setTransferReason(e.target.value)
-                      setErrors((x) => ({ ...x, transferReason: undefined }))
-                    }}
-                    className={batchSelectClass}
-                  >
-                    <option value="">Select reason…</option>
-                    {TRANSFER_REASONS.map((reason) => (
-                      <option key={reason} value={reason}>
-                        {reason}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-                </div>
-                {errors.transferReason && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.transferReason}</p>
-                )}
-              </BatchField>
-
-              <BatchField label="Remarks" className="sm:col-span-2">
-                <textarea
-                  value={remarks}
-                  onChange={(e) => {
-                    setRemarks(e.target.value.slice(0, REMARKS_MAX))
-                    setErrors((x) => ({ ...x, remarks: undefined }))
-                  }}
-                  rows={3}
-                  maxLength={REMARKS_MAX}
-                  className={batchTextareaClass}
-                  placeholder="Optional notes about this transfer…"
-                />
-                <p className="mt-1 text-right text-xs text-[#9ca0a8]">
-                  {remarks.length}/{REMARKS_MAX}
-                </p>
-                {errors.remarks && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.remarks}</p>
-                )}
-              </BatchField>
-            </div>
-          </div>
-        </form>
-      </BatchFormModalShell>
-
-      <BatchConfirmDialog
-        open={confirmOpen}
-        onClose={() => {
-          if (!saving) {
-            setConfirmOpen(false)
-            setPendingValues(null)
-          }
-        }}
-        title="Confirm student move"
-        message={`Are you sure you want to move this student to ${confirmTargetLabel}?`}
-        confirmLabel="Move Student"
-        loading={saving}
-        loadingLabel="Moving…"
-        onConfirm={handleConfirmMove}
-      />
-    </>
-  )
-}
-
+import { useEffect, useMemo, useState } from 'react'
+import { Info } from 'lucide-react'
+import SearchableSelect from '../categories/SearchableSelect'
+import { CourseDateInput } from '../courses/CourseFormField'
+import BatchFormModalShell from './BatchFormModalShell'
+import {
+  BatchField,
+  BatchModalFooter,
+  BatchTransferOptionCheckbox,
+  batchTextareaClass,
+} from './batchModalUi'
+import { getBatchesDropdown } from '../../api/batchesAPI'
+import { resolveBatchDisplayId, resolveBatchMongoId } from '../../utils/batchHelpers'
+import { canTransferToBatch, normalizeBatchUiStatus } from '../../utils/batchOperations'
+import { cn } from '../../utils/cn'
+
+const REASON_MAX = 500
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function formatBatchOptionLabel(batch) {
+  const batchId = resolveBatchDisplayId(batch)
+  const batchName = batch.batchName || batch.name || batch.batchLabel || '—'
+  return `${batchId} - ${batchName}`
+}
+
+function normalizeDropdownBatch(row, index = 0) {
+  const fd = row.formData || {}
+  const mongoId = resolveBatchMongoId(row, []) || String(row._id || '').trim()
+  const humanId = resolveBatchDisplayId(row)
+  const id = mongoId || humanId || `batch-option-${index}`
+  const center = String(row.center || fd.center || '').trim()
+  const courseName = row.linkedCourseName || row.courseName || fd.courseName || ''
+  const courseId = String(row.academicCourseId || row.courseId || fd.academicCourseId || fd.courseId || '').trim()
+  const capacity = Number(row.capacity ?? fd.capacity) > 0 ? Number(row.capacity ?? fd.capacity) : 50
+  const totalStudents = Number(row.totalStudents ?? row.studentCount ?? fd.totalStudents ?? 0) || 0
+
+  return {
+    id,
+    mongoId: mongoId || '',
+    batchId: row.batchId || row.batchCode || fd.batchId || humanId,
+    batchName: row.batchName || row.name || row.batchLabel || '',
+    center,
+    courseId,
+    courseName,
+    status: normalizeBatchUiStatus(row.status || fd.status),
+    capacity,
+    totalStudents,
+    label: formatBatchOptionLabel(row),
+    raw: row,
+  }
+}
+
+export default function MoveStudentModal({
+  open,
+  onClose,
+  student,
+  currentBatch,
+  targetBatches = [],
+  getTargetStrength,
+  onSubmit,
+  saving = false,
+}) {
+  const [targetBatchId, setTargetBatchId] = useState('')
+  const [transferDate, setTransferDate] = useState(todayIsoDate)
+  const [transferReason, setTransferReason] = useState('')
+  const [transferAttendance, setTransferAttendance] = useState(true)
+  const [transferFee, setTransferFee] = useState(true)
+  const [notifyStudent, setNotifyStudent] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  const [dropdownBatches, setDropdownBatches] = useState([])
+  const [loadingMeta, setLoadingMeta] = useState(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    let active = true
+    setLoadingMeta(true)
+
+    getBatchesDropdown({ activeOnly: true })
+      .then((batchResponse) => {
+        if (!active) return
+        const rows = Array.isArray(batchResponse?.data)
+          ? batchResponse.data
+          : batchResponse?.data?.data || []
+        setDropdownBatches(rows)
+      })
+      .catch(() => {
+        if (active) setDropdownBatches([])
+      })
+      .finally(() => {
+        if (active) setLoadingMeta(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [open])
+
+  const allBatchOptions = useMemo(() => {
+    const currentKeys = new Set(
+      [
+        currentBatch?.id,
+        currentBatch?.apiRow?._id,
+        currentBatch?.apiRow?.id,
+        currentBatch?.batchId,
+        currentBatch?.displayBatchId,
+      ]
+        .filter(Boolean)
+        .map((v) => String(v)),
+    )
+
+    const fromProps = (targetBatches || []).map((b, i) => normalizeDropdownBatch(b.apiRow || b, i))
+    const fromApi = (dropdownBatches || []).map((row, i) => normalizeDropdownBatch(row, i))
+    const merged = new Map()
+
+    for (const row of [...fromProps, ...fromApi]) {
+      if (!row.id || row.status !== 'Active') continue
+      const isCurrent =
+        currentKeys.has(String(row.id)) ||
+        currentKeys.has(String(row.mongoId)) ||
+        currentKeys.has(String(row.batchId))
+      if (isCurrent) continue
+      const key = row.mongoId || row.id
+      if (!merged.has(key)) merged.set(key, row)
+    }
+
+    return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label))
+  }, [dropdownBatches, targetBatches, currentBatch])
+
+  const batchSelectOptions = useMemo(
+    () =>
+      allBatchOptions.map((b) => ({
+        value: b.id,
+        label: b.label,
+      })),
+    [allBatchOptions],
+  )
+
+  const selectedTarget = allBatchOptions.find((b) => String(b.id) === String(targetBatchId))
+
+  useEffect(() => {
+    if (!open) return
+    setTargetBatchId('')
+    setTransferDate(todayIsoDate())
+    setTransferReason('')
+    setTransferAttendance(true)
+    setTransferFee(true)
+    setNotifyStudent(false)
+    setErrors({})
+  }, [open, student?.id])
+
+  const resolveTargetStrength = (batchRow) => {
+    if (getTargetStrength) {
+      const tableBatch = targetBatches.find((b) => String(b.id) === String(batchRow.id))
+      if (tableBatch) return getTargetStrength(tableBatch)
+    }
+    return batchRow.totalStudents ?? 0
+  }
+
+  const validate = () => {
+    const next = {}
+    const trimmedReason = transferReason.trim()
+
+    if (!targetBatchId) {
+      next.batch = 'Please select a destination batch'
+    } else if (String(targetBatchId) === String(currentBatch?.id)) {
+      next.batch = 'Cannot move to the same batch'
+    } else if (selectedTarget && selectedTarget.status !== 'Active') {
+      next.batch = 'Selected batch is inactive'
+    } else if (selectedTarget) {
+      const strength = resolveTargetStrength(selectedTarget)
+      const transferCheck = canTransferToBatch(
+        { status: selectedTarget.status, capacity: selectedTarget.capacity },
+        strength,
+      )
+      if (!transferCheck.ok) next.batch = transferCheck.reason
+    }
+
+    if (!transferDate) next.transferDate = 'Transfer date is required'
+    if (!trimmedReason) next.transferReason = 'Transfer reason is required'
+    if (trimmedReason.length > REASON_MAX) {
+      next.transferReason = `Reason cannot exceed ${REASON_MAX} characters`
+    }
+
+    setErrors(next)
+    return Object.keys(next).length === 0
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!validate() || !selectedTarget) return
+
+    const notifyNote = notifyStudent ? ' [Notify student requested]' : ''
+
+    try {
+      await onSubmit?.({
+        targetBatchId,
+        targetBatchMongoId: selectedTarget.mongoId || selectedTarget.id,
+        branch: selectedTarget.center || '',
+        branchId: '',
+        course: selectedTarget.courseName || '',
+        courseId: selectedTarget.courseId || '',
+        transferDate,
+        transferReason: transferReason.trim(),
+        remarks: notifyNote.trim(),
+        transferAttendance,
+        transferFee,
+      })
+    } catch {
+      /* parent shows error toast */
+    }
+  }
+
+  if (!student || !currentBatch) return null
+
+  return (
+    <BatchFormModalShell
+      open={open}
+      onClose={onClose}
+      title="Move Student to Another Batch"
+      subtitle="Transfer this student to another batch while maintaining enrollment history."
+      size="md"
+      saving={saving}
+      footer={
+        <BatchModalFooter
+          onCancel={onClose}
+          submitLabel={saving ? 'Transferring…' : 'Transfer Student'}
+          saving={saving}
+          submitDisabled={loadingMeta}
+          submitForm="move-student-form"
+          submitType="submit"
+        />
+      }
+    >
+      <form id="move-student-form" onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#686868]">Student</p>
+          <p className="mt-1 text-sm font-bold text-[#1a3a5c]">{student.name}</p>
+          <p className="text-xs text-[#686868]">
+            {student.enrollmentId} · {currentBatch.displayName || formatBatchOptionLabel(currentBatch.apiRow || currentBatch)}
+          </p>
+        </div>
+
+        <BatchField label="Select Batch" required>
+          <SearchableSelect
+            options={batchSelectOptions}
+            value={targetBatchId}
+            onChange={(value) => {
+              setTargetBatchId(value)
+              setErrors((x) => ({ ...x, batch: undefined }))
+            }}
+            placeholder="Choose destination batch"
+            emptyMessage={loadingMeta ? 'Loading batches…' : 'No active batches available'}
+            disabled={loadingMeta}
+            loading={loadingMeta}
+            error={errors.batch}
+            triggerClassName={cn(
+              'flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-left text-sm text-gray-800 shadow-sm outline-none transition',
+              'hover:border-[#93c5fd] focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25',
+            )}
+          />
+          {selectedTarget && (
+            <p className="mt-1.5 text-xs text-[#686868]">
+              {resolveTargetStrength(selectedTarget)} / {selectedTarget.capacity} seats filled
+            </p>
+          )}
+        </BatchField>
+
+        <BatchField label="Transfer Reason" required>
+          <textarea
+            value={transferReason}
+            onChange={(e) => {
+              setTransferReason(e.target.value.slice(0, REASON_MAX))
+              setErrors((x) => ({ ...x, transferReason: undefined }))
+            }}
+            rows={4}
+            maxLength={REASON_MAX}
+            className={batchTextareaClass}
+            placeholder="Enter reason for transferring this student..."
+          />
+          <p className="mt-1 text-right text-xs text-[#9ca0a8]">
+            {transferReason.length}/{REASON_MAX}
+          </p>
+          {errors.transferReason && (
+            <p className="mt-1 text-xs font-medium text-red-600">{errors.transferReason}</p>
+          )}
+        </BatchField>
+
+        <BatchField label="Effective Transfer Date" required>
+          <CourseDateInput
+            value={transferDate}
+            max={todayIsoDate()}
+            onChange={(e) => {
+              setTransferDate(e.target.value)
+              setErrors((x) => ({ ...x, transferDate: undefined }))
+            }}
+          />
+          {errors.transferDate && (
+            <p className="mt-1 text-xs font-medium text-red-600">{errors.transferDate}</p>
+          )}
+        </BatchField>
+
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#686868]">Transfer Options</p>
+          <div className="space-y-2.5">
+            <BatchTransferOptionCheckbox
+              label="Transfer attendance history"
+              description="Carry forward attendance records."
+              checked={transferAttendance}
+              onChange={setTransferAttendance}
+            />
+            <BatchTransferOptionCheckbox
+              label="Transfer payment records"
+              description="Keep payment history linked with the student."
+              checked={transferFee}
+              onChange={setTransferFee}
+            />
+            <BatchTransferOptionCheckbox
+              label="Notify student after transfer"
+              description="Send transfer notification after completion."
+              checked={notifyStudent}
+              onChange={setNotifyStudent}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-xl border border-[#55ace7]/20 bg-[#eef6fc]/80 px-4 py-3.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#246392] shadow-sm">
+            <Info className="h-4 w-4" strokeWidth={2.25} />
+          </span>
+          <p className="text-sm leading-relaxed text-[#444]">
+            The student will be removed from the current batch and enrolled into the selected batch
+            while preserving academic history based on the selected options.
+          </p>
+        </div>
+      </form>
+    </BatchFormModalShell>
+  )
+}

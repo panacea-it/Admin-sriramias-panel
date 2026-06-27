@@ -46,6 +46,36 @@ export default function ViewCurrentAffairsModal({ open, onClose, item }) {
             {raw.year ? <DetailItem label="Year">{raw.year}</DetailItem> : null}
             {raw.month ? <DetailItem label="Month">{raw.month}</DetailItem> : null}
             {raw.paperName ? <DetailItem label="Paper Name">{raw.paperName}</DetailItem> : null}
+            {raw.mainsCategory ? (
+              <DetailItem label="Mains Category">{raw.mainsCategory}</DetailItem>
+            ) : null}
+            {item.createdBy?.name ? (
+              <DetailItem label="Created By">{item.createdBy.name}</DetailItem>
+            ) : null}
+            {raw.pdfUrl ? (
+              <DetailItem label="PDF">
+                <a
+                  href={raw.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#246392] underline"
+                >
+                  View PDF
+                </a>
+              </DetailItem>
+            ) : null}
+            {raw.uploadMagzineUrl ? (
+              <DetailItem label="Magazine">
+                <a
+                  href={raw.uploadMagzineUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#246392] underline"
+                >
+                  Download Magazine
+                </a>
+              </DetailItem>
+            ) : null}
           </dl>
         </div>
 

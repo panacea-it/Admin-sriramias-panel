@@ -1,13 +1,9 @@
 import api from '../config/api'
 import { throwApiError } from '../utils/apiError'
+import { getCentersDropdown } from './centerService'
 
 export async function getCenters() {
-  try {
-    const response = await api.get('/api/admin/centers/dropdown')
-    return response.data
-  } catch (error) {
-    throwApiError(error)
-  }
+  return getCentersDropdown()
 }
 
 export async function getProgramsByCenter(centerId) {

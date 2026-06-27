@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, RefreshCw } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
-import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
+import CategoryTableLoadingShell from '../../../../components/categories/CategoryTableLoadingShell'
+import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
+import ErrorState from '../../../../components/feedback/ErrorState'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useTeacherManagement } from '../../../../hooks/useTeacherManagement'
 import { useInitialRouteSearch } from '../../../../hooks/useInitialRouteSearch'
 import { useSubjectsDropdown } from '../../../../hooks/useSubjectsDropdown'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
+import { useCreateFaculty } from '../../../../hooks/useCreateFaculty'
+import { useUpdateFaculty } from '../../../../hooks/useUpdateFaculty'
+import { useDeleteFaculty } from '../../../../hooks/useDeleteFaculty'
+import { useToggleFacultyStatus } from '../../../../hooks/useUpdateFaculty'
+import { useFacultyDetails } from '../../../../hooks/useFacultyDetails'
 import { toast, TOAST_DURATION } from '../../../../utils/toast'
 import {
   bulkUpdateMasterStatus,
@@ -26,13 +33,7 @@ import {
 } from '../../../../utils/masterBulkActions'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
-import {
-  createTeacher,
-  deleteTeacher,
-  getTeacherById,
-  updateTeacher,
-  updateTeacherStatus,
-} from '../../../../services/teacherService'
+import { facultyService } from '../../../../services/facultyService'
 import {
   buildCreateTeacherPayload,
   buildUpdateTeacherPayload,
@@ -63,10 +64,26 @@ function AddButton({ onClick, children, disabled }) {
   )
 }
 
+function RefreshButton({ onClick, disabled, fetching }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+    >
+      <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
+      {fetching ? 'Refreshing…' : 'Refresh'}
+    </button>
+  )
+}
+
 export default function TeacherSection({ section }) {
   const {
     teachers,
     loading,
+    isFetching,
+    listError,
     search,
     setSearch,
     statusFilter,
@@ -75,30 +92,47 @@ export default function TeacherSection({ section }) {
     setSubjectFilter,
     centerFilter,
     setCenterFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
     refreshTeachers,
-    patchTeacherLocally,
-    removeTeacherLocally,
   } = useTeacherManagement()
 
   useInitialRouteSearch(setSearch)
+
+  const createMutation = useCreateFaculty()
+  const updateMutation = useUpdateFaculty()
+  const deleteMutation = useDeleteFaculty()
+  const toggleStatusMutation = useToggleFacultyStatus()
 
   const { options: subjectDropdownOptions, loading: subjectsLoading } = useSubjectsDropdown()
   const { options: centerDropdownOptions } = useCentersDropdownOptions()
 
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
-  const [viewItem, setViewItem] = useState(null)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [editDetail, setEditDetail] = useState(null)
-  const [editDetailLoading, setEditDetailLoading] = useState(false)
-  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [viewId, setViewId] = useState(null)
+  const [editId, setEditId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+
+  const { data: viewQuery, isLoading: viewLoading } = useFacultyDetails(viewId, {
+    enabled: Boolean(viewId),
+  })
+  const viewItem = useMemo(() => {
+    if (!viewId) return null
+    return mapApiTeacherToLocal(viewQuery) || null
+  }, [viewId, viewQuery])
+
+  const { data: editQuery, isLoading: editDetailLoading } = useFacultyDetails(editId, {
+    enabled: Boolean(editId) && isOpen,
+  })
+  const editDetail = useMemo(() => {
+    if (!editId) return selectedItem
+    return mapApiTeacherToLocal(editQuery) || selectedItem
+  }, [editId, editQuery, selectedItem])
 
   const subjectFilterOptions = useMemo(
     () => [{ value: 'all', label: 'Subject' }, ...subjectDropdownOptions],
@@ -125,75 +159,49 @@ export default function TeacherSection({ section }) {
     [selectedIds, teachersById],
   )
 
-  const loadTeacherDetail = useCallback(async (row) => {
-    const data = await getTeacherById(row.id)
-    return mapApiTeacherToLocal(data)
+  const handleView = useCallback((row) => {
+    setViewId(row.id)
   }, [])
 
-  const handleView = useCallback(
-    async (row) => {
-      setViewItem(row)
-      setViewLoading(true)
-      try {
-        const detail = await loadTeacherDetail(row)
-        if (detail) setViewItem(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load faculty details'))
-        setViewItem(null)
-      } finally {
-        setViewLoading(false)
-      }
-    },
-    [loadTeacherDetail],
-  )
-
   const handleEditOpen = useCallback(
-    async (row) => {
+    (row) => {
+      setEditId(row.id)
       openEdit(row)
-      setEditDetail(null)
-      setEditDetailLoading(true)
-      try {
-        const detail = await loadTeacherDetail(row)
-        setEditDetail(detail || row)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load faculty for edit'))
-        close()
-      } finally {
-        setEditDetailLoading(false)
-      }
     },
-    [loadTeacherDetail, openEdit, close],
+    [openEdit],
   )
 
   useEffect(() => {
     if (!isOpen) {
-      setEditDetail(null)
-      setEditDetailLoading(false)
+      setEditId(null)
     }
   }, [isOpen])
 
+  const formSubmitting = createMutation.isPending || updateMutation.isPending
+
   const handleFormSubmit = useCallback(
     async (form, { isEdit, id }) => {
-      setFormSubmitting(true)
       try {
         if (isEdit && id != null) {
-          await updateTeacher(id, buildUpdateTeacherPayload(form))
-          toast.success('Faculty updated')
+          const result = await updateMutation.mutateAsync({
+            id,
+            payload: buildUpdateTeacherPayload(form),
+          })
+          if (!result?.success) return
+          toast.success(result?.message || 'Faculty updated successfully')
         } else {
-          await createTeacher(buildCreateTeacherPayload(form))
-          toast.success('Faculty created')
+          const result = await createMutation.mutateAsync(buildCreateTeacherPayload(form))
+          if (!result?.success || !result?.data?._id) return
+          toast.success(result?.message || 'Faculty created successfully')
         }
-        await refreshTeachers()
       } catch (error) {
         toast.error(
           getApiErrorMessage(error, isEdit ? 'Failed to update faculty' : 'Failed to create faculty'),
         )
         throw error
-      } finally {
-        setFormSubmitting(false)
       }
     },
-    [refreshTeachers],
+    [createMutation, updateMutation],
   )
 
   const handleDelete = useCallback((row) => {
@@ -205,43 +213,37 @@ export default function TeacherSection({ section }) {
     const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
     if (!ids.length) return
 
-    setDeleteLoading(true)
     try {
-      await Promise.all(ids.map((id) => deleteTeacher(id)))
-      ids.forEach((id) => removeTeacherLocally(id))
+      for (const id of ids) {
+        const result = await deleteMutation.mutateAsync(id)
+        if (!result?.success) return
+      }
       setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
-      toast.success(ids.length > 1 ? `${ids.length} faculty deleted` : 'Faculty deleted')
-      await refreshTeachers()
+      toast.success(
+        ids.length > 1 ? `${ids.length} faculty deleted` : 'Faculty deleted successfully',
+      )
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete faculty'))
-    } finally {
-      setDeleteLoading(false)
     }
-  }, [deleteTarget, removeTeacherLocally, refreshTeachers])
+  }, [deleteTarget, deleteMutation])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
     const enabling = statusTarget.status !== 'Active'
-    const nextUi = enabling ? 'Active' : 'In Active'
-    const nextApi = mapUiStatusToApi(nextUi)
-    const previousStatus = statusTarget.status
-
-    patchTeacherLocally(statusTarget.id, { status: nextUi })
-    setStatusLoading(true)
+    const nextApi = mapUiStatusToApi(enabling ? 'Active' : 'In Active')
 
     try {
-      await updateTeacherStatus(statusTarget.id, nextApi)
-      toast.success(enabling ? 'Faculty enabled' : 'Faculty disabled')
+      const result = await toggleStatusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApi,
+      })
+      toast.success(result?.message || (enabling ? 'Faculty enabled' : 'Faculty disabled'))
       setStatusTarget(null)
-      await refreshTeachers()
     } catch (error) {
-      patchTeacherLocally(statusTarget.id, { status: previousStatus })
       toast.error(getApiErrorMessage(error, 'Failed to update status'))
-    } finally {
-      setStatusLoading(false)
     }
-  }, [statusTarget, patchTeacherLocally, refreshTeachers])
+  }, [statusTarget, toggleStatusMutation])
 
   const handleBulkEnableRequest = () => {
     if (!enableableCount) return
@@ -253,11 +255,6 @@ export default function TeacherSection({ section }) {
     setBulkConfirm({ type: 'disable' })
   }
 
-  const handleBulkDeleteRequest = () => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }
-
   const confirmBulkAction = async () => {
     if (!bulkConfirm) return
     setBulkActionLoading(true)
@@ -267,41 +264,27 @@ export default function TeacherSection({ section }) {
         const ids = filterEnableableIds(selectedIds, teachersById)
         const apiStatus = mapUiStatusToApi('Active')
         await bulkUpdateMasterStatus('teachers', ids, apiStatus, {
-          updateSingle: updateTeacherStatus,
+          updateSingle: facultyService.updateFacultyStatus,
         })
-        ids.forEach((id) => patchTeacherLocally(id, { status: 'Active' }))
         setSelectedIds([])
         toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
       } else if (bulkConfirm.type === 'disable') {
         const ids = filterDisableableIds(selectedIds, teachersById)
         const apiStatus = mapUiStatusToApi('In Active')
         await bulkUpdateMasterStatus('teachers', ids, apiStatus, {
-          updateSingle: updateTeacherStatus,
+          updateSingle: facultyService.updateFacultyStatus,
         })
-        ids.forEach((id) => patchTeacherLocally(id, { status: 'In Active' }))
         setSelectedIds([])
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        await Promise.all(ids.map((id) => deleteTeacher(id)))
-        ids.forEach((id) => removeTeacherLocally(id))
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        await refreshTeachers()
       }
       setBulkConfirm(null)
+      await refreshTeachers()
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(
-        bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected faculty')
-          : getMasterBulkErrorMessage(error, bulkConfirm.type),
-      )
-      if (bulkConfirm.type !== 'delete') {
-        await refreshTeachers()
-      }
+      toast.error(getMasterBulkErrorMessage(error, bulkConfirm.type))
+      await refreshTeachers()
     } finally {
       setBulkActionLoading(false)
     }
@@ -323,12 +306,13 @@ export default function TeacherSection({ section }) {
 
   const showEmpty =
     !loading &&
+    !listError &&
     teachers.length === 0 &&
     !search &&
     statusFilter === 'all' &&
     subjectFilter === 'all' &&
     centerFilter === 'all'
-  const showNoResults = !loading && teachers.length === 0 && !showEmpty
+  const showNoResults = !loading && !listError && teachers.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
@@ -355,9 +339,16 @@ export default function TeacherSection({ section }) {
         className="space-y-5 sm:space-y-6"
       >
         <CategoryPageHeader title="Faculty">
-          <AddButton onClick={openCreate} disabled={loading}>
-            {section.addLabel}
-          </AddButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <RefreshButton
+              onClick={() => refreshTeachers()}
+              disabled={loading}
+              fetching={isFetching && !loading}
+            />
+            <AddButton onClick={openCreate} disabled={loading}>
+              {section.addLabel}
+            </AddButton>
+          </div>
         </CategoryPageHeader>
 
         <CategoryFilterBar
@@ -384,8 +375,13 @@ export default function TeacherSection({ section }) {
           onDisable={handleBulkDisableRequest}
         />
 
-        {loading ? (
-          <ExamCategoryTableSkeleton />
+        {listError ? (
+          <ErrorState
+            message={getApiErrorMessage(listError, 'Failed to load faculty')}
+            onRetry={() => refreshTeachers()}
+          />
+        ) : loading ? (
+          <CategoryTableLoadingShell />
         ) : showEmpty ? (
           <CategoryEmptyState
             title={section.emptyTitle}
@@ -403,13 +399,16 @@ export default function TeacherSection({ section }) {
         ) : (
           <TeacherTable
             teachers={teachers}
-            loading={loading || bulkActionLoading}
+            loading={loading || bulkActionLoading || deleteMutation.isPending}
             controlledPagination={controlledPagination}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
             onView={handleView}
             onEdit={handleEditOpen}
             onDelete={handleDelete}
             onToggleStatus={setStatusTarget}
-            resetDeps={[search, statusFilter, subjectFilter, centerFilter]}
+            resetDeps={[search, statusFilter, subjectFilter, centerFilter, sortBy, sortOrder]}
             selection={{
               selectedIds,
               onToggle: toggleSelect,
@@ -430,10 +429,9 @@ export default function TeacherSection({ section }) {
         />
 
         <ViewTeacherModal
-          open={Boolean(viewItem) || viewLoading}
+          open={Boolean(viewId) || viewLoading}
           onClose={() => {
-            setViewItem(null)
-            setViewLoading(false)
+            setViewId(null)
           }}
           item={viewItem}
           loading={viewLoading}
@@ -443,12 +441,19 @@ export default function TeacherSection({ section }) {
           open={Boolean(statusTarget)}
           teacherName={statusTarget?.name || 'this faculty member'}
           enabling={statusTarget?.status !== 'Active'}
-          loading={statusLoading}
+          loading={toggleStatusMutation.isPending}
           onCancel={() => setStatusTarget(null)}
           onConfirm={confirmStatusChange}
         />
 
-        
+        <ConfirmDeleteDialog
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected faculty?' : 'Delete faculty?'}
+          message={deleteMessage}
+          confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Confirm Delete'}
+          onCancel={() => !deleteMutation.isPending && setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

@@ -90,8 +90,8 @@ export default function BatchDetailsPage() {
   const fetchRequestRef = useRef(0)
   const viewFetchRef = useRef(0)
   const { logBatchActivity, adminName } = useBatchAudit()
-  const { hasRole } = usePermissions()
-  const canMoveStudent = hasRole(...STUDENT_MOVE_ROLES)
+  const { hasRole, isSuperAdmin } = usePermissions()
+  const canMoveStudent = isSuperAdmin || hasRole(...STUDENT_MOVE_ROLES)
 
   const selectedBatch = useMemo(
     () => findBatchRow(sourceRows, routeBatchId),
@@ -108,15 +108,10 @@ export default function BatchDetailsPage() {
     meta: studentsMeta,
     loading: studentsLoading,
     searchLoading,
-    error: studentsError,
     search,
-    paymentFilter,
-    accountFilter,
     page: studentsPage,
     pageSize: studentsPageSize,
     setSearch,
-    setPaymentFilter,
-    setAccountFilter,
     setPage: setStudentsPage,
     setPageSize: setStudentsPageSize,
     refetchStudents,
@@ -467,41 +462,56 @@ export default function BatchDetailsPage() {
         return
       }
 
-      const targetRow = findBatchRow(sourceRows, values.targetBatchId)
+      const targetBatchMongoId =
+        values.targetBatchMongoId ||
+        resolveBatchMongoId(values.targetBatchId, sourceRows)
+
+      if (!targetBatchMongoId) {
+        toast.error('Missing target batch id')
+        return
+      }
+
+      const targetRow =
+        findBatchRow(sourceRows, values.targetBatchId) ||
+        findBatchRow(sourceRows, targetBatchMongoId)
       const targetBatch = allTableBatches.find(
-        (b) => String(b.id) === String(values.targetBatchId),
+        (b) =>
+          String(b.id) === String(values.targetBatchId) ||
+          String(b.id) === String(targetBatchMongoId),
       )
       if (!targetRow && !targetBatch) {
         toast.error('Invalid target batch')
         return
       }
-      if (!batch?.id || String(values.targetBatchId) === String(batch.id)) {
+
+      if (
+        !batch?.id ||
+        String(values.targetBatchId) === String(batch.id) ||
+        String(targetBatchMongoId) === String(batch.id)
+      ) {
         toast.error('Cannot move to the same batch')
         return
       }
+
       const targetStatus = targetBatch?.status || targetRow?.status
       if (targetStatus && normalizeBatchUiStatus(targetStatus) !== 'Active') {
         toast.error('Cannot move student to an inactive batch')
         return
       }
 
-      const targetStrength = getTargetStrength(targetBatch || { totalStudents: targetRow?.totalStudents ?? 0 })
+      const targetStrength = getTargetStrength(
+        targetBatch || { totalStudents: targetRow?.totalStudents ?? 0 },
+      )
       const capacityRow = targetBatch?.apiRow || targetRow || targetBatch
       const transferCheck = canTransferToBatch(
-        { status: targetStatus || 'Active', capacity: targetBatch?.capacity ?? capacityRow?.capacity },
+        {
+          status: targetStatus || 'Active',
+          capacity: targetBatch?.capacity ?? capacityRow?.capacity,
+        },
         targetStrength,
       )
       if (!transferCheck.ok) {
         toast.error(transferCheck.reason)
-        return
-      }
-
-      const targetBatchMongoId = resolveBatchMongoId(
-        values.targetBatchId,
-        sourceRows,
-      )
-      if (!targetBatchMongoId) {
-        toast.error('Missing target batch id')
         return
       }
 
@@ -519,8 +529,8 @@ export default function BatchDetailsPage() {
           course: values.course,
           remarks: values.remarks,
           performedBy: adminName,
-          transferAttendance: true,
-          transferFee: true,
+          transferAttendance: values.transferAttendance !== false,
+          transferFee: values.transferFee !== false,
           transferTests: true,
         })
 
@@ -625,10 +635,6 @@ export default function BatchDetailsPage() {
     if (detailError && !shouldRedirect) toast.error(detailError)
   }, [detailError, shouldRedirect])
 
-  useEffect(() => {
-    if (studentsError) toast.error(studentsError)
-  }, [studentsError])
-
   const showSkeleton = (detailLoading || listLoading) && !batch
 
   const studentsStartIndex =
@@ -687,10 +693,6 @@ export default function BatchDetailsPage() {
           togglingStudentId={togglingStudentId}
           search={search}
           onSearchChange={setSearch}
-          paymentFilter={paymentFilter}
-          onPaymentFilterChange={setPaymentFilter}
-          accountFilter={accountFilter}
-          onAccountFilterChange={setAccountFilter}
           page={studentsPage}
           pageSize={studentsPageSize}
           totalItems={studentsMeta.total}
@@ -710,7 +712,6 @@ export default function BatchDetailsPage() {
           onDeleteStudent={handleDeleteStudent}
           onToggleStudentStatus={handleToggleStudentStatus}
           onMoveStudent={canMoveStudent ? handleMoveStudent : undefined}
-          canMoveStudent={canMoveStudent}
           targetBatches={allTableBatches}
           getTargetStrength={getTargetStrength}
         />

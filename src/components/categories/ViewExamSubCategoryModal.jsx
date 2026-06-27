@@ -51,6 +51,7 @@ export default function ViewExamSubCategoryModal({ open, onClose, item, loading 
             <DetailItem label="Centre Name">{item.centerName || '—'}</DetailItem>
             <DetailItem label="Program">{item.program || '—'}</DetailItem>
             <DetailItem label="Exam Category">{item.examCategory || '—'}</DetailItem>
+            <DetailItem label="Linked Courses">{item.linkedCourses ?? 0}</DetailItem>
             <DetailItem label="Status">
               <CategoryStatusBadge status={item.status} />
             </DetailItem>

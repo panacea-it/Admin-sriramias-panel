@@ -6,8 +6,10 @@ import ProgramsFilterBar from '../../../components/categories/ProgramsFilterBar'
 import ProgramsTable from '../../../components/categories/ProgramsTable'
 import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryStatusBadge from '../../../components/categories/CategoryStatusBadge'
-import CategoryTableActions from '../../../components/categories/CategoryTableActions'
+import ExamCategoryTableActions from '../../../components/categories/ExamCategoryTableActions'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
+import CategoryTableLoadingShell from '../../../components/categories/CategoryTableLoadingShell'
+import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import ProgramFormModal from '../../../components/categories/ProgramFormModal'
 import ViewProgramModal from '../../../components/categories/ViewProgramModal'
 import ConfirmProgramStatusModal from '../../../components/categories/ConfirmProgramStatusModal'
@@ -36,6 +38,10 @@ import {
   mapUiStatusToApi,
 } from '../../../utils/programHelpers'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
+import ErrorState from '../../../components/feedback/ErrorState'
+import {
+  CATEGORY_COL,
+} from '../../../utils/categoryUiStandards'
 import {
   createProgram,
   deleteProgram,
@@ -59,24 +65,7 @@ function CreateButton({ onClick, disabled }) {
 }
 
 function ProgramsTableSkeleton() {
-  return (
-    <div className="space-y-3 rounded-2xl bg-[#f0f2f5]/60 p-3">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-16 animate-pulse rounded-xl bg-white/90" />
-      ))}
-    </div>
-  )
-}
-
-function NoMatchesState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#55ace7]/25 bg-white/80 px-6 py-16 text-center shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:py-20">
-      <h3 className="text-lg font-bold text-[#222] sm:text-xl">No matching programs</h3>
-      <p className="mt-2 max-w-sm text-sm font-medium text-[#686868]">
-        Try adjusting your search or filters.
-      </p>
-    </div>
-  )
+  return <CategoryTableLoadingShell />
 }
 
 const PROGRAM_STATUS_FILTER_OPTIONS = [
@@ -107,12 +96,15 @@ export default function ProgramsPage() {
     programs,
     totalPrograms,
     loading,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centreFilter,
     setCentreFilter,
+    debouncedSearch,
+    controlledPagination,
     refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,
@@ -145,7 +137,7 @@ export default function ProgramsPage() {
       { value: 'all', label: 'Centre Wise' },
       ...centerDropdownOptions.map((opt) => ({
         value: opt.value,
-        label: opt.centerName || opt.label,
+        label: opt.label,
       })),
     ],
     [centerDropdownOptions],
@@ -395,16 +387,16 @@ export default function ProgramsPage() {
   }, [])
 
   const filters = useMemo(
-    () => ({ search, status: statusFilter, centre: centreFilter }),
-    [search, statusFilter, centreFilter],
+    () => ({ search: debouncedSearch, status: statusFilter, centre: centreFilter }),
+    [debouncedSearch, statusFilter, centreFilter],
   )
 
   const columns = [
     {
       key: 'programId',
       label: 'Program ID',
-      headerClassName: 'min-w-[7rem]',
-      cellClassName: 'whitespace-nowrap',
+      headerClassName: CATEGORY_COL.idHeader,
+      cellClassName: CATEGORY_COL.idCell,
       render: (row) => (
         <span className="font-mono text-sm font-semibold text-[#111]">
           {row.programId || row.id}
@@ -414,30 +406,49 @@ export default function ProgramsPage() {
     {
       key: 'name',
       label: 'Program Name',
+      headerClassName: CATEGORY_COL.nameHeader,
+      cellClassName: CATEGORY_COL.nameCell,
       render: (row) => (
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#cbeeff] text-xs font-bold text-[#246392]">
             {(row.name || 'PR').slice(0, 2).toUpperCase()}
           </div>
-          <span className="font-semibold text-[#111]">{row.name}</span>
+          <span className="truncate font-semibold text-[#111]">{row.name}</span>
         </div>
       ),
     },
     {
       key: 'centre',
       label: 'Centre Name',
-      cellClassName: 'max-w-[220px]',
+      headerClassName: CATEGORY_COL.textHeader,
+      cellClassName: CATEGORY_COL.textCell,
       render: (row) => (
-        <span className="text-sm font-medium capitalize text-[#444]" title={row.centreLabel}>
-          {row.centreLabel}
+        <span
+          className="block truncate text-sm font-medium text-[#1a3a5c] capitalize"
+          title={row.centreLabel}
+        >
+          {row.centreLabel || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'linkedCourses',
+      label: 'Linked Courses',
+      headerClassName: CATEGORY_COL.textHeader,
+      cellClassName: CATEGORY_COL.textCell,
+      render: (row) => (
+        <span className="text-sm font-medium text-[#686868]">
+          {row.linkedCount ?? 0}
         </span>
       ),
     },
     {
       key: 'createdAt',
       label: 'Created On',
+      headerClassName: CATEGORY_COL.dateHeader,
+      cellClassName: CATEGORY_COL.dateCell,
       render: (row) => (
-        <span className="whitespace-nowrap text-sm text-[#444]">
+        <span className="text-sm font-medium text-[#686868]">
           {row.createdAt ? formatCategoryDateTime(row.createdAt) : '—'}
         </span>
       ),
@@ -445,24 +456,23 @@ export default function ProgramsPage() {
     {
       key: 'status',
       label: 'Status',
-      align: 'center',
-      headerClassName: 'min-w-[6rem]',
+      headerClassName: CATEGORY_COL.statusHeader,
+      cellClassName: CATEGORY_COL.statusCell,
       render: (row) => <CategoryStatusBadge status={row.status} />,
     },
     {
       key: 'actions',
       label: 'Actions',
       align: 'right',
-      headerClassName: 'min-w-[11rem] pr-5 sm:pr-6',
-      cellClassName: 'pr-5 sm:pr-6',
+      headerClassName: CATEGORY_COL.actionsHeader,
+      cellClassName: CATEGORY_COL.actionsCell,
       render: (row) => (
-        <CategoryTableActions
-          variant="icons"
-          status={row.status}
+        <ExamCategoryTableActions
+          row={row}
           onView={() => openView(row)}
           onEdit={() => openEdit(row)}
           onDelete={() => handleDelete(row)}
-          onToggleStatus={() => handleToggleRequest(row)}
+          onStatusToggle={() => handleToggleRequest(row)}
         />
       ),
     },
@@ -470,8 +480,8 @@ export default function ProgramsPage() {
 
   const hasActiveFilters =
     Boolean(search.trim()) || statusFilter !== 'all' || centreFilter !== 'all'
-  const showEmpty = !loading && totalPrograms === 0 && !hasActiveFilters
-  const showNoMatches = !loading && enrichedPrograms.length === 0 && !showEmpty
+  const showEmpty = !loading && !listError && totalPrograms === 0 && !hasActiveFilters
+  const showNoMatches = !loading && !listError && programs.length === 0 && !showEmpty
 
   const deleteMessage =
     deleteTarget?.ids?.length > 1
@@ -519,7 +529,13 @@ export default function ProgramsPage() {
           </div>
         )}
 
-        {loading ? (
+        {listError && !loading ? (
+          <ErrorState
+            title="Unable to load programs"
+            message={listError}
+            onRetry={refreshPrograms}
+          />
+        ) : loading ? (
           <ProgramsTableSkeleton />
         ) : showEmpty ? (
           <CategoryEmptyState
@@ -529,12 +545,23 @@ export default function ProgramsPage() {
             onCta={openCreate}
           />
         ) : showNoMatches ? (
-          <NoMatchesState />
+          <CategoryEmptyState
+            title="No matching records"
+            description="Try adjusting your search or filters."
+            ctaLabel="Clear filters"
+            onCta={() => {
+              setSearch('')
+              setStatusFilter('all')
+              setCentreFilter('all')
+            }}
+          />
         ) : (
           <ProgramsTable
             columns={columns}
             data={enrichedPrograms}
             loading={loading || bulkActionLoading}
+            controlledPagination={controlledPagination}
+            itemLabel="programs"
             resetDeps={[filters]}
             emptyMessage="No programs match your filters."
             selection={{
@@ -564,7 +591,14 @@ export default function ProgramsPage() {
           centresCatalog={centreRows}
         />
 
-        
+        <ConfirmDeleteDialog
+          open={Boolean(deleteTarget)}
+          title="Delete program?"
+          message={deleteMessage}
+          loading={deleteLoading}
+          onCancel={() => !deleteLoading && setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
 
         <ConfirmProgramStatusModal
           open={Boolean(statusTarget)}

@@ -1,5 +1,37 @@
-import { resolveCategoryRelationRef } from './examCategoryApiHelpers'
+import { isMongoObjectId, resolveCategoryRelationRef } from './examCategoryApiHelpers'
 import { mapApiStatusToUi, mapUiStatusToApi } from './programHelpers'
+
+/** Never coerce to Number — hex ObjectIds containing "e" become scientific notation. */
+function normalizeMongoId(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'object') {
+    if (typeof value.$oid === 'string') {
+      const oid = value.$oid.trim()
+      return isMongoObjectId(oid) ? oid : ''
+    }
+    if (typeof value.toString === 'function') {
+      const raw = value.toString().trim()
+      return isMongoObjectId(raw) ? raw : ''
+    }
+    return ''
+  }
+  const str = String(value).trim()
+  return isMongoObjectId(str) ? str : ''
+}
+
+function resolveMongoRecordId(row) {
+  return normalizeMongoId(row?._id) || normalizeMongoId(row?.id)
+}
+
+export function hasCompleteSubCategoryRecord(row) {
+  return (
+    isMongoObjectId(row?.id) &&
+    isMongoObjectId(row?.centerId) &&
+    isMongoObjectId(row?.programId) &&
+    isMongoObjectId(row?.examCategoryId) &&
+    Boolean(String(row?.name || '').trim())
+  )
+}
 
 export function mapExamSubCategoryStatusFilterToApi(statusFilter) {
   if (statusFilter === 'Active') return 'ACTIVE'
@@ -49,32 +81,30 @@ export function mapApiExamSubCategoryToLocal(data) {
 
   if (!row || typeof row !== 'object') return null
 
-  const id = row._id ?? row.id ?? row.subCategoryId ?? row.subcategoryId
+  const id = resolveMongoRecordId(row)
   if (!id) return null
 
   const centerId = resolveCategoryRelationRef(
-    typeof row.center === 'object' ? row.center?._id : '',
-    resolveRelationId(row.center ?? row.centerId),
+    typeof row.center === 'object' ? normalizeMongoId(row.center?._id) : '',
+    normalizeMongoId(row.centerId) || resolveRelationId(row.center ?? row.centerId),
   )
   const programId = resolveCategoryRelationRef(
-    typeof row.program === 'object' ? row.program?._id : '',
+    typeof row.program === 'object' ? normalizeMongoId(row.program?._id) : '',
     typeof row.program === 'object'
-      ? row.program?.programId || row.program?.id
-      : row.programId || row.program,
+      ? normalizeMongoId(row.program?.id)
+      : normalizeMongoId(row.programId),
   )
   const categoryId = resolveCategoryRelationRef(
     typeof row.category === 'object'
-      ? row.category?._id
+      ? normalizeMongoId(row.category?._id)
       : typeof row.examCategory === 'object'
-        ? row.examCategory?._id
+        ? normalizeMongoId(row.examCategory?._id)
         : '',
-    resolveRelationId(
-      row.category ?? row.examCategory ?? row.categoryId ?? row.examCategoryId,
-    ),
+    normalizeMongoId(row.categoryId ?? row.examCategoryId),
   )
 
   return {
-    id: String(id),
+    id,
     subcategoryId: String(row.subCategoryId || row.subcategoryId || row.code || id),
     name: String(row.subCategoryName || row.subcategoryName || row.name || '').trim(),
     centerId,
@@ -90,12 +120,13 @@ export function mapApiExamSubCategoryToLocal(data) {
       resolveRelationLabel(row.category ?? row.examCategory, ['categoryName', 'name']) ||
       String(row.categoryName || row.examCategoryName || '').trim(),
     status: mapApiStatusToUi(row.status),
+    linkedCourses: Number(row.linkedCourses ?? 0),
     createdAt: row.createdAt || row.createdOn || null,
     modifiedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
   }
 }
 
-export function normalizeExamSubCategoriesListResponse(data) {
+export function normalizeExamSubCategoriesListResponse(data, { page = 1, limit = 10 } = {}) {
   const payload =
     data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
   const itemsRaw =
@@ -107,9 +138,32 @@ export function normalizeExamSubCategoriesListResponse(data) {
     data?.subcategories ??
     (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
 
-  return (Array.isArray(itemsRaw) ? itemsRaw : [])
+  const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
     .map((row) => mapApiExamSubCategoryToLocal(row))
     .filter(Boolean)
+
+  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
+  const total =
+    pagination.total ??
+    payload?.total ??
+    data?.total ??
+    payload?.totalCount ??
+    data?.totalCount ??
+    data?.count ??
+    items.length
+  const totalPages =
+    pagination.totalPages ??
+    payload?.totalPages ??
+    data?.totalPages ??
+    Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
+
+  return {
+    items,
+    total,
+    totalPages,
+    page: currentPage,
+  }
 }
 
 export function normalizeCategoriesFilterResponse(data) {
@@ -123,11 +177,11 @@ export function normalizeCategoriesFilterResponse(data) {
 
   return (Array.isArray(itemsRaw) ? itemsRaw : [])
     .map((row) => {
-      const id = row?._id ?? row?.id ?? row?.categoryId
+      const id = resolveMongoRecordId(row)
       if (!id) return null
       const name = String(row.categoryName || row.name || '').trim()
       return {
-        id: String(id),
+        id,
         categoryId: String(row.categoryId || row.code || id),
         name,
         label: name || String(row.categoryId || id),

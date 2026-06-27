@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchNcertBooks } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import {
   getNcertBookApiErrorMessage,
   normalizeNcertBooksListResponse,
@@ -29,7 +29,7 @@ export function useNcertBooksData({ enabled = true, search = '', page = 1, limit
       setError(null)
 
       try {
-        const data = await fetchNcertBooks(
+        const data = await freeResourceService.getNcertBooks(
           {
             page: pageNo,
             limit: pageLimit,
@@ -84,7 +84,7 @@ export function useNcertBooksData({ enabled = true, search = '', page = 1, limit
       setError(null)
 
       try {
-        const data = await fetchNcertBooks(
+        const data = await freeResourceService.getNcertBooks(
           {
             page,
             limit,

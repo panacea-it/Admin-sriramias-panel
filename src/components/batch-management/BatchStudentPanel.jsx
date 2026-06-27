@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Search, ChevronDown, UserPlus, Users, GraduationCap, Loader2 } from 'lucide-react'
+import { Search, UserPlus, Users, GraduationCap, Loader2 } from 'lucide-react'
 import { usePagination } from '../../hooks/usePagination'
 import TablePagination from '../figma/TablePagination'
 import PaymentStatusBadge from './PaymentStatusBadge'
@@ -12,11 +12,11 @@ import StudentEnrollmentStatusBadge from './StudentEnrollmentStatusBadge'
 import { isStudentEnrollmentActive } from './studentStatusDisplay'
 import BatchConfirmDialog from './BatchConfirmDialog'
 import MoveStudentModal from './MoveStudentModal'
-import { PAYMENT_STATUSES, STUDENT_STATUSES } from '../../data/batchManagementData'
 import { DEMO_BATCH_STUDENTS } from '../../data/batchStudentDemoData'
 import { mapPaymentStatusToUi } from '../../utils/batchApiHelpers'
 import { cn } from '../../utils/cn'
 import { resolveEnrollmentApiId } from './enrollmentHelpers'
+import { toast } from '../../utils/toast'
 
 function StudentTableSkeleton({ rows = 5 }) {
   return Array.from({ length: rows }).map((_, index) => (
@@ -44,10 +44,6 @@ export default function BatchStudentPanel({
   togglingStudentId = null,
   search: controlledSearch,
   onSearchChange,
-  paymentFilter: controlledPaymentFilter,
-  onPaymentFilterChange,
-  accountFilter: controlledAccountFilter,
-  onAccountFilterChange,
   page: controlledPage,
   pageSize: controlledPageSize,
   totalItems: controlledTotalItems,
@@ -67,66 +63,47 @@ export default function BatchStudentPanel({
   onDeleteStudent,
   onToggleStudentStatus,
   onMoveStudent,
-  canMoveStudent = false,
   targetBatches = [],
   getTargetStrength,
 }) {
   const realStudents = studentsProp ?? batch.students ?? []
-  const useDemoData = !studentsLoading && realStudents.length === 0
+  const useDemoData = !serverPaginated && !studentsLoading && realStudents.length === 0
   const sourceStudents = useDemoData ? DEMO_BATCH_STUDENTS : realStudents
   const isPage = variant === 'page'
 
   const [localSearch, setLocalSearch] = useState('')
-  const [localPaymentFilter, setLocalPaymentFilter] = useState('all')
-  const [localAccountFilter, setLocalAccountFilter] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState('add')
   const [editingStudent, setEditingStudent] = useState(null)
   const [localViewStudent, setLocalViewStudent] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [disableTarget, setDisableTarget] = useState(null)
   const [moveTarget, setMoveTarget] = useState(null)
   const [saving, setSaving] = useState(false)
   const [editPreparing, setEditPreparing] = useState(false)
 
   const search = serverPaginated ? controlledSearch : localSearch
-  const paymentFilter = serverPaginated ? controlledPaymentFilter : localPaymentFilter
-  const accountFilter = serverPaginated ? controlledAccountFilter : localAccountFilter
   const viewStudent = useDemoData || !serverPaginated ? localViewStudent : controlledViewStudent
 
   const activeSearch = serverPaginated ? controlledSearch : localSearch
-  const activePaymentFilter = serverPaginated ? controlledPaymentFilter : localPaymentFilter
-  const activeAccountFilter = serverPaginated ? controlledAccountFilter : localAccountFilter
 
   const filteredStudents = useMemo(() => {
     if (serverPaginated && !useDemoData) return sourceStudents
     const q = activeSearch.toLowerCase().trim()
+    if (!q) return sourceStudents
     return sourceStudents.filter((s) => {
-      const matchSearch =
-        !q ||
+      return (
         s.name.toLowerCase().includes(q) ||
         s.email.toLowerCase().includes(q) ||
         s.enrollmentId.toLowerCase().includes(q) ||
         s.phone.includes(q)
-      const matchPayment =
-        activePaymentFilter === 'all' || s.paymentStatus === activePaymentFilter
-      const matchAccount =
-        activeAccountFilter === 'all' ||
-        (activeAccountFilter === 'Active' && isStudentEnrollmentActive(s.status)) ||
-        (activeAccountFilter === 'In Active' && !isStudentEnrollmentActive(s.status))
-      return matchSearch && matchPayment && matchAccount
+      )
     })
-  }, [
-    sourceStudents,
-    activeSearch,
-    activePaymentFilter,
-    activeAccountFilter,
-    serverPaginated,
-    useDemoData,
-  ])
+  }, [sourceStudents, activeSearch, serverPaginated, useDemoData])
 
   const clientPagination = usePagination(filteredStudents, {
     initialPageSize: isPage ? 10 : 5,
-    resetDeps: [activeSearch, activePaymentFilter, activeAccountFilter, batch.id, useDemoData],
+    resetDeps: [activeSearch, batch.id, useDemoData],
   })
 
   const useClientDisplay = !serverPaginated || useDemoData
@@ -268,9 +245,7 @@ export default function BatchStudentPanel({
     serverPaginated &&
     !studentsLoading &&
     realStudents.length === 0 &&
-    !search?.trim() &&
-    paymentFilter === 'all' &&
-    accountFilter === 'all'
+    !search?.trim()
 
   const panelBody = (
     <>
@@ -298,8 +273,8 @@ export default function BatchStudentPanel({
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
-        <div className="relative min-w-0 flex-1 sm:max-w-xs">
+      <div className="mb-4 rounded-xl bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
+        <div className="relative min-w-0 max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#687180]" />
           {searchLoading && (
             <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#55ace7]" />
@@ -316,63 +291,23 @@ export default function BatchStudentPanel({
             className="h-10 w-full rounded-lg bg-[#eef2fc] pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40"
           />
         </div>
-        <div className="relative w-full sm:w-44">
-          <select
-            value={paymentFilter}
-            onChange={(e) => {
-              const value = e.target.value
-              if (serverPaginated) onPaymentFilterChange?.(value)
-              else setLocalPaymentFilter(value)
-            }}
-            aria-label="Filter by payment status"
-            className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-[#333] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/30"
-          >
-            <option value="all">All Payments</option>
-            {PAYMENT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-        </div>
-        <div className="relative w-full sm:w-40">
-          <select
-            value={accountFilter}
-            onChange={(e) => {
-              const value = e.target.value
-              if (serverPaginated) onAccountFilterChange?.(value)
-              else setLocalAccountFilter(value)
-            }}
-            aria-label="Filter by account status"
-            className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-[#333] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/30"
-          >
-            <option value="all">All Accounts</option>
-            {STUDENT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#686868]" />
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl bg-white shadow-[0_6px_20px_rgba(15,23,42,0.08)] ring-1 ring-slate-100">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
             <thead className={isPage ? 'sticky top-0 z-10' : undefined}>
               <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-[#686868]">
-                <th className="px-4 py-3 sm:px-5">Student ID</th>
-                <th className="px-4 py-3">Student Name</th>
-                <th className="px-4 py-3">Phone Number</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Enrollment Date</th>
-                <th className="px-4 py-3">Fee Status</th>
-                <th className="px-4 py-3 text-center">Attendance %</th>
-                <th className="px-4 py-3 min-w-[120px]">Progress</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="w-[200px] min-w-[200px] px-4 py-3 text-right sm:px-5">Actions</th>
+                <th className="px-4 py-3.5 sm:px-5">Student ID</th>
+                <th className="px-4 py-3.5">Student Name</th>
+                <th className="px-4 py-3.5">Phone Number</th>
+                <th className="px-4 py-3.5">Email</th>
+                <th className="px-4 py-3.5">Enrollment Date</th>
+                <th className="px-4 py-3.5">Fee Status</th>
+                <th className="px-4 py-3.5 text-center">Attendance %</th>
+                <th className="px-4 py-3.5 min-w-[120px]">Progress</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="w-[340px] min-w-[340px] px-3 py-3.5 text-right sm:px-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -417,15 +352,16 @@ export default function BatchStudentPanel({
                     <tr
                       key={studentApiId || student.enrollmentId || student.id}
                       className={cn(
-                        'border-t border-slate-100 align-middle transition-colors hover:bg-[#f8fbff]',
-                        isInactive && 'bg-slate-50/80 opacity-75',
-                        rowBusy && 'opacity-60',
+                        'border-t border-slate-100 align-middle transition-colors duration-150',
+                        'hover:bg-[#f8fbff] hover:shadow-[inset_3px_0_0_0_#55ace7]',
+                        isInactive && 'bg-slate-50/80 opacity-80',
+                        rowBusy && 'pointer-events-none opacity-60',
                       )}
                     >
-                      <td className="px-4 py-3.5 align-middle font-mono text-xs font-medium text-[#246392] sm:px-5">
+                      <td className="px-4 py-4 align-middle font-mono text-xs font-medium text-[#246392] sm:px-5">
                         {student.enrollmentId}
                       </td>
-                      <td className="px-4 py-3.5 align-middle font-semibold text-[#111]">
+                      <td className="px-4 py-4 align-middle font-semibold text-[#111]">
                         <div className="flex items-center gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#cbeeff] text-xs font-bold text-[#246392]">
                             {student.name.slice(0, 2).toUpperCase()}
@@ -433,40 +369,39 @@ export default function BatchStudentPanel({
                           {student.name}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3.5 align-middle text-[#444]">
+                      <td className="whitespace-nowrap px-4 py-4 align-middle text-[#444]">
                         {student.phone}
                       </td>
-                      <td className="px-4 py-3.5 align-middle text-[#444]">{student.email}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 align-middle text-[#444]">
+                      <td className="px-4 py-4 align-middle text-[#444]">{student.email}</td>
+                      <td className="whitespace-nowrap px-4 py-4 align-middle text-[#444]">
                         {student.enrolledAt || '—'}
                       </td>
-                      <td className="px-4 py-3.5 align-middle">
+                      <td className="px-4 py-4 align-middle">
                         <PaymentStatusBadge status={student.paymentStatus} />
                       </td>
-                      <td className="px-4 py-3.5 align-middle text-center font-semibold text-[#333]">
+                      <td className="px-4 py-4 align-middle text-center font-semibold text-[#333]">
                         {student.attendance}%
                       </td>
-                      <td className="px-4 py-3.5 align-middle">
+                      <td className="px-4 py-4 align-middle">
                         <ProgressBar value={student.progress} />
                       </td>
-                      <td className="px-4 py-3.5 align-middle">
+                      <td className="px-4 py-4 align-middle">
                         <StudentEnrollmentStatusBadge status={student.status} />
                       </td>
-                      <td className="w-[200px] min-w-[200px] px-4 py-3.5 align-middle text-right sm:px-5">
-                        <div className="flex justify-center">
+                      <td className="w-[340px] min-w-[340px] px-3 py-4 align-middle sm:px-4">
+                        <div className="flex justify-end">
                           <StudentTableActions
                             studentName={student.name}
                             status={student.status ?? 'Active'}
                             onView={() => handleView(student)}
                             onEdit={() => void openEdit(student)}
-                            onDelete={() => setDeleteTarget(student)}
-                            onMove={
-                              !useDemoData && canMoveStudent
-                                ? () => setMoveTarget(student)
+                            onDisable={
+                              !useDemoData && isStudentEnrollmentActive(student.status)
+                                ? () => setDisableTarget(student)
                                 : undefined
                             }
-                            onToggleStatus={
-                              !useDemoData
+                            onEnable={
+                              !useDemoData && !isStudentEnrollmentActive(student.status)
                                 ? () =>
                                     onToggleStudentStatus?.(
                                       batch.id,
@@ -474,7 +409,8 @@ export default function BatchStudentPanel({
                                     )
                                 : undefined
                             }
-                            canMove={canMoveStudent}
+                            onMove={onMoveStudent ? () => setMoveTarget(student) : undefined}
+                            canMove={Boolean(onMoveStudent)}
                             disabled={rowBusy}
                           />
                         </div>
@@ -541,6 +477,29 @@ export default function BatchStudentPanel({
       />
 
       <BatchConfirmDialog
+        open={Boolean(disableTarget)}
+        title="Disable Student"
+        message="Are you sure you want to disable this student for this batch? This action can be reversed later."
+        confirmLabel="Disable Student"
+        variant="warning"
+        loading={Boolean(togglingStudentId)}
+        loadingLabel="Disabling…"
+        onClose={() => setDisableTarget(null)}
+        onConfirm={async () => {
+          if (!disableTarget) return
+          try {
+            await onToggleStudentStatus?.(
+              batch.id,
+              resolveEnrollmentApiId(disableTarget) || disableTarget.id,
+            )
+            setDisableTarget(null)
+          } catch {
+            /* parent shows error toast */
+          }
+        }}
+      />
+
+      <BatchConfirmDialog
         open={Boolean(deleteTarget)}
         title="Deactivate"
         message={
@@ -567,13 +526,16 @@ export default function BatchStudentPanel({
         getTargetStrength={getTargetStrength}
         saving={saving || moveStudentSaving}
         onSubmit={async (values) => {
+          if (!moveTarget) return
           if (useDemoData) {
+            toast.success('Student transfer recorded (demo)')
             setMoveTarget(null)
             return
           }
+          if (!onMoveStudent) return
           setSaving(true)
           try {
-            await onMoveStudent?.(moveTarget, values)
+            await onMoveStudent(moveTarget, values)
             setMoveTarget(null)
           } catch {
             /* parent shows error toast */

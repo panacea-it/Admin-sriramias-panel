@@ -56,7 +56,7 @@ function HelpSectionCard({ index, block, onUpdateSlot, onRequestRemove }) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-[#fafcff] px-5 py-4 sm:px-6">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-[#fafcff] px-4 py-3 sm:px-5">
         <h4 className="text-sm font-bold text-[#246392] sm:text-base">
           Help Section #{index + 1}
         </h4>
@@ -70,7 +70,7 @@ function HelpSectionCard({ index, block, onUpdateSlot, onRequestRemove }) {
         </button>
       </header>
 
-      <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
         <HelpSectionMediaUpload
           variant="video"
           label="Upload Help Section Video"
@@ -153,9 +153,9 @@ export default function HelpSectionCardsSection({ howWill = [], setForm }) {
     <BatchFormSection className="space-y-6">
       <div className="space-y-5">
         {displayBlocks.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-[#fafcff] px-6 py-14 text-center">
-            <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef6fc]">
-              <Plus className="h-7 w-7 text-[#55ace7]" aria-hidden />
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-[#fafcff] px-5 py-10 text-center">
+            <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#eef6fc]">
+              <Plus className="h-6 w-6 text-[#55ace7]" aria-hidden />
             </span>
             <p className="text-sm font-semibold text-[#246392]">Upload video and supporting images</p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-gray-500">

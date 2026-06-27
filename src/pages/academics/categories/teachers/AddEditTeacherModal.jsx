@@ -13,13 +13,17 @@ function buildForm(item) {
     const mapped = mapApiTeacherToLocal(item) || item
     return {
       centerId: mapped.centerId || '',
-      subjectId: mapped.subjectId || mapped.subjectIds?.[0] || '',
+      subjectIds: mapped.subjectIds?.length
+        ? mapped.subjectIds
+        : mapped.subjectId
+          ? [mapped.subjectId]
+          : [],
       name: mapped.name || '',
       description: mapped.description || '',
       status: mapped.status || 'Active',
     }
   }
-  return { centerId: '', subjectId: '', name: '', description: '', status: 'Active' }
+  return { centerId: '', subjectIds: [], name: '', description: '', status: 'Active' }
 }
 
 function Field({ label, required, children, error }) {
@@ -37,6 +41,51 @@ function Field({ label, required, children, error }) {
 
 const inputClass =
   'h-11 w-full rounded-lg bg-[#e8f4fc] px-4 text-sm font-medium text-[#222] outline-none transition focus:ring-2 focus:ring-[#55ace7]'
+
+function SubjectMultiSelect({ value = [], options = [], disabled, onChange, error }) {
+  const toggle = (id) => {
+    const next = value.includes(id) ? value.filter((v) => v !== id) : [...value, id]
+    onChange(next)
+  }
+
+  return (
+    <div
+      className={cn(
+        'max-h-40 overflow-y-auto rounded-lg bg-[#e8f4fc] p-2',
+        error && 'ring-2 ring-[#dc2626]',
+      )}
+    >
+      {options.length === 0 ? (
+        <p className="px-2 py-2 text-sm text-[#686868]">No subjects available</p>
+      ) : (
+        <ul className="space-y-1">
+          {options.map((opt) => {
+            const checked = value.includes(opt.value)
+            return (
+              <li key={opt.value}>
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-[#222] transition hover:bg-white/60',
+                    disabled && 'cursor-not-allowed opacity-60',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggle(opt.value)}
+                    className="h-4 w-4 rounded border-slate-300 text-[#246392] focus:ring-[#55ace7]"
+                  />
+                  <span className="truncate">{opt.label}</span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 export default function AddEditTeacherModal({
   open,
@@ -79,8 +128,8 @@ export default function AddEditTeacherModal({
   const validate = () => {
     const next = {}
     if (!form.centerId) next.centerId = 'Center is required'
-    if (!form.subjectId) next.subjectId = 'Select a subject'
-    if (!form.name.trim()) next.name = 'This field is required'
+    if (!form.subjectIds?.length) next.subjectIds = 'At least one subject is required'
+    if (!form.name.trim()) next.name = 'Faculty name is required'
     if (!form.status) next.status = 'Status is required'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -145,39 +194,31 @@ export default function AddEditTeacherModal({
               disabled={submitting}
             />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Subject" required error={errors.subjectId}>
-                <select
-                  value={form.subjectId}
-                  disabled={submitting || subjectsLoading}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, subjectId: e.target.value }))
-                    if (errors.subjectId) setErrors((p) => ({ ...p, subjectId: undefined }))
-                  }}
-                  className={inputClass}
-                >
-                  <option value="">Choose Subject</option>
-                  {subjectOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+            <Field label="Subjects" required error={errors.subjectIds}>
+              <SubjectMultiSelect
+                value={form.subjectIds}
+                options={subjectOptions}
+                disabled={submitting || subjectsLoading}
+                onChange={(subjectIds) => {
+                  setForm((f) => ({ ...f, subjectIds }))
+                  if (errors.subjectIds) setErrors((p) => ({ ...p, subjectIds: undefined }))
+                }}
+                error={errors.subjectIds}
+              />
+            </Field>
 
-              <Field label="Faculty Name" required error={errors.name}>
-                <input
-                  type="text"
-                  value={form.name}
-                  disabled={submitting}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                    if (errors.name) setErrors((p) => ({ ...p, name: undefined }))
-                  }}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
+            <Field label="Faculty Name" required error={errors.name}>
+              <input
+                type="text"
+                value={form.name}
+                disabled={submitting}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                  if (errors.name) setErrors((p) => ({ ...p, name: undefined }))
+                }}
+                className={inputClass}
+              />
+            </Field>
 
             <Field label="Description">
               <textarea

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchMockTests } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import {
   getMockTestApiErrorMessage,
   normalizeMockTestsListResponse,
@@ -30,7 +30,7 @@ export function useMockTestsData({ enabled = true, search = '', page = 1, limit 
       setError(null)
 
       try {
-        const data = await fetchMockTests(
+        const data = await freeResourceService.getMockTests(
           {
             page: pageNo,
             limit: pageLimit,

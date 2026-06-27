@@ -1,66 +1,106 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isRateLimitError } from "../utils/apiError";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isRateLimitError } from '../utils/apiError'
+import { useDebouncedValue } from './useDebouncedValue'
 import {
   clearExamCategoriesListCache,
   getExamCategories,
-} from "../services/examCategoryService";
+} from '../services/examCategoryService'
 import {
   mapExamCategoryStatusFilterToApi,
   normalizeExamCategoriesListResponse,
-} from "../utils/examCategoryApiHelpers";
-import { matchesExamCategorySearch } from "../utils/examCategoryHelpers";
+} from '../utils/examCategoryApiHelpers'
 import {
+  buildFilterSignature,
   createListFetchGuard,
-  getListSessionCache,
   invalidateListSession,
   runGuardedListFetch,
+  useEffectivePage,
   MASTER_LIST_RATE_LIMIT_MESSAGE,
-} from "./useMasterListQuery";
+} from './useMasterListQuery'
 
-const SESSION_SCOPE = "exam-categories";
+const SESSION_SCOPE = 'exam-categories'
+const DEFAULT_PAGE_SIZE = 10
 
-function buildListParams({ statusFilter, centerFilter }) {
-  const params = {};
+function buildListParams({
+  page,
+  pageSize,
+  debouncedSearch,
+  statusFilter,
+  centerFilter,
+  programFilter,
+  sortBy,
+  sortOrder,
+}) {
+  const params = {
+    page,
+    limit: pageSize,
+    sortBy: sortBy || 'createdAt',
+    sortOrder: sortOrder || 'desc',
+  }
 
-  const apiStatus = mapExamCategoryStatusFilterToApi(statusFilter);
-  if (apiStatus) params.status = apiStatus;
-  if (centerFilter !== "all") params.center = centerFilter;
+  const trimmedSearch = debouncedSearch.trim()
+  if (trimmedSearch) params.search = trimmedSearch
 
-  return params;
-}
+  const apiStatus = mapExamCategoryStatusFilterToApi(statusFilter)
+  if (apiStatus) params.status = apiStatus
+  if (centerFilter !== 'all') params.center = centerFilter
+  if (programFilter !== 'all') params.program = programFilter
 
-function buildSessionKey(params) {
-  return `${SESSION_SCOPE}:${JSON.stringify(params)}`;
-}
-
-function getInitialState() {
-  const params = buildListParams({ statusFilter: "all", centerFilter: "all" });
-  const cached = getListSessionCache(buildSessionKey(params));
-  return {
-    categories:
-      cached != null ? normalizeExamCategoriesListResponse(cached) : [],
-    loading: cached == null,
-  };
+  return params
 }
 
 export function useExamCategoryManagement() {
-  const initial = useMemo(() => getInitialState(), []);
-  const [categories, setCategories] = useState(initial.categories);
-  const [loading, setLoading] = useState(initial.loading);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [centerFilter, setCenterFilter] = useState("all");
-  const fetchGuardRef = useRef(null);
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [centerFilter, setCenterFilter] = useState('all')
+  const [programFilter, setProgramFilter] = useState('all')
+  const [sortBy] = useState('createdAt')
+  const [sortOrder] = useState('desc')
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const fetchGuardRef = useRef(null)
 
   if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard();
+    fetchGuardRef.current = createListFetchGuard()
   }
-  const fetchGuard = fetchGuardRef.current;
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    centerFilter,
+    programFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setCategories(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+    setListError(null)
+  }, [])
 
   const loadCategories = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({ statusFilter, centerFilter });
-      const sessionKey = buildSessionKey(params);
+      const params = buildListParams({
+        page: effectivePage,
+        pageSize,
+        debouncedSearch,
+        statusFilter,
+        centerFilter,
+        programFilter,
+        sortBy,
+        sortOrder,
+      })
+
+      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
 
       await runGuardedListFetch({
         fetchGuard,
@@ -68,73 +108,132 @@ export function useExamCategoryManagement() {
         bypassCache,
         ignoreFlag,
         setLoading,
-        fetchFn: () => getExamCategories(params, { bypassCache }),
-        applyData: (data) =>
-          setCategories(normalizeExamCategoriesListResponse(data)),
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error);
-          if (isRateLimitError(error)) {
-            fetchGuard.toastListError(MASTER_LIST_RATE_LIMIT_MESSAGE);
-            return;
-          }
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(
-              error,
-              "Failed to load exam categories",
-            ),
-          );
-          if (!hydratedFromSession) setCategories([]);
+        fetchFn: async () => {
+          const data = await getExamCategories(params, { bypassCache })
+          return normalizeExamCategoriesListResponse(data, {
+            page: effectivePage,
+            limit: pageSize,
+          })
         },
-      });
-    },
-    [statusFilter, centerFilter, fetchGuard],
-  );
+        applyData: applyPaginated,
+        handleError: (error, { hydratedFromSession }) => {
+          if (import.meta.env.DEV) console.error(error)
+          const message = isRateLimitError(error)
+            ? MASTER_LIST_RATE_LIMIT_MESSAGE
+            : fetchGuard.getListErrorMessage(error, 'Failed to load exam categories')
 
-  const filteredCategories = useMemo(
-    () => categories.filter((row) => matchesExamCategorySearch(row, search)),
-    [categories, search],
-  );
+          if (isRateLimitError(error)) {
+            fetchGuard.toastListError(message)
+            return
+          }
+
+          setListError(message)
+          fetchGuard.toastListError(message)
+
+          if (!hydratedFromSession) {
+            setCategories([])
+            setTotalItems(0)
+            setTotalPages(1)
+          }
+        },
+        errorFallback: 'Failed to load exam categories',
+      })
+    },
+    [
+      effectivePage,
+      pageSize,
+      debouncedSearch,
+      statusFilter,
+      centerFilter,
+      programFilter,
+      sortBy,
+      sortOrder,
+      fetchGuard,
+      applyPaginated,
+    ],
+  )
 
   useEffect(() => {
-    let ignore = false;
-    loadCategories({ ignoreFlag: () => ignore });
+    let ignore = false
+    loadCategories({ ignoreFlag: () => ignore })
     return () => {
-      ignore = true;
-    };
-  }, [loadCategories]);
+      ignore = true
+    }
+  }, [loadCategories])
+
+  useEffect(() => {
+    setProgramFilter('all')
+  }, [centerFilter])
 
   const refreshCategories = useCallback(async () => {
-    clearExamCategoriesListCache();
-    invalidateListSession(SESSION_SCOPE);
-    await loadCategories({ bypassCache: true });
-  }, [loadCategories]);
+    clearExamCategoriesListCache()
+    invalidateListSession(SESSION_SCOPE)
+    setListError(null)
+    await loadCategories({ bypassCache: true })
+  }, [loadCategories])
 
   const patchCategoryLocally = useCallback((categoryId, patch) => {
     setCategories((prev) =>
       prev.map((row) =>
         String(row.id) === String(categoryId) ? { ...row, ...patch } : row,
       ),
-    );
-  }, []);
+    )
+  }, [])
 
   const removeCategoryLocally = useCallback((categoryId) => {
-    setCategories((prev) =>
-      prev.filter((row) => String(row.id) !== String(categoryId)),
-    );
-  }, []);
+    setCategories((prev) => prev.filter((row) => String(row.id) !== String(categoryId)))
+    setTotalItems((prev) => Math.max(0, prev - 1))
+  }, [])
+
+  const pagination = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages)
+    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalItems)
+
+    return {
+      page: safePage,
+      pageSize,
+      totalItems,
+      totalPages,
+      startIndex,
+      endIndex,
+    }
+  }, [page, pageSize, totalItems, totalPages])
+
+  const controlledPagination = useMemo(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      startIndex: pagination.startIndex,
+      endIndex: pagination.endIndex,
+      onPageChange: setPage,
+      onPageSizeChange: setPageSize,
+    }),
+    [pagination],
+  )
 
   return {
-    categories: filteredCategories,
-    totalCategories: categories.length,
+    categories,
+    totalCategories: totalItems,
     loading,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    programFilter,
+    setProgramFilter,
+    debouncedSearch,
+    controlledPagination,
     refreshCategories,
     patchCategoryLocally,
     removeCategoryLocally,
-  };
+  }
 }
+
+/** @alias useExamCategoryManagement */
+export const useExamCategories = useExamCategoryManagement

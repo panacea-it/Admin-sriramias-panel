@@ -1,9 +1,10 @@
 import { useRef } from 'react'
 import { FileText } from 'lucide-react'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
+import { CURRENT_AFFAIRS_PDF_ACCEPT } from '../../constants/currentAffairsForm'
 import { validateCurrentAffairsSampleFile } from '../../utils/currentAffairsValidation'
 
-const SAMPLE_ACCEPT = '.pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const SAMPLE_ACCEPT = CURRENT_AFFAIRS_PDF_ACCEPT
 
 export default function CurrentAffairsSampleFileField({
   label,
@@ -36,7 +37,7 @@ export default function CurrentAffairsSampleFileField({
         <CourseInput
           readOnly
           value={value}
-          placeholder="Choose sample PDF or Excel file"
+          placeholder="Choose PDF file"
           className="pr-12"
         />
         <input
@@ -49,7 +50,7 @@ export default function CurrentAffairsSampleFileField({
         />
         <FileText className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#55ace7]" />
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-gray-500">Allowed: PDF, XLS, XLSX</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-gray-500">PDF only, max 10 MB</p>
       {value ? (
         <p className="mt-1 truncate text-[11px] text-[#246392]">Current: {value}</p>
       ) : null}

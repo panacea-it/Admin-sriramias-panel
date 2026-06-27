@@ -1,6 +1,7 @@
 import { pad2 } from './classroomTime'
 import { isMongoObjectId } from './facultySubjectHelpers'
 import { extractCategoryContentItems } from './facultySubjectCategoryContentHelpers'
+import { getCentreDropdownDisplayName } from './centreDropdownDisplay'
 
 const UI_TO_API_WEEKDAY = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const API_TO_UI_WEEKDAY = Object.fromEntries(UI_TO_API_WEEKDAY.map((d, i) => [d, i]))
@@ -119,7 +120,10 @@ export function normalizeCentersDropdownResponse(data) {
   return (Array.isArray(list) ? list : [])
     .map((row) => ({
       value: String(row._id ?? row.id ?? row.centerId ?? ''),
-      label: String(row.centerName ?? row.name ?? row.label ?? ''),
+      label: getCentreDropdownDisplayName({
+        centerName: row.centerName ?? row.name ?? row.label,
+        label: row.label,
+      }),
     }))
     .filter((o) => o.value && o.label)
 }

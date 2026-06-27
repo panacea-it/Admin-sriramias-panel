@@ -78,9 +78,19 @@ function normalizeRankers(rows) {
   return (rows || []).map((row, i) => normalizeRanker(row, i))
 }
 
+function getRankYearOptions() {
+  const currentYear = new Date().getFullYear()
+  const years = []
+  for (let year = currentYear + 2; year >= currentYear - 10; year -= 1) {
+    years.push(year)
+  }
+  return years
+}
+
 const emptyRankForm = () => ({
   program: RANK_PROGRAM_OPTIONS[0]?.value || '',
   course: getCoursesForProgram(RANK_PROGRAM_OPTIONS[0]?.value)[0]?.value || '',
+  year: String(new Date().getFullYear()),
   studentId: '',
   studentName: '',
   rank: '',
@@ -94,6 +104,7 @@ function formFromRow(row) {
   return {
     program: row.program || '',
     course: row.course || '',
+    year: row.year ? String(row.year) : String(new Date().getFullYear()),
     studentId: row.studentId || '',
     studentName: row.name || '',
     rank: row.rank || '',
@@ -320,6 +331,7 @@ export default function RankManagementTab() {
       name: rankForm.studentName.trim(),
       program: rankForm.program,
       course: rankForm.course,
+      year: rankForm.year,
       rank: rankForm.rank.trim(),
       imageUrl: rankForm.image || null,
       time: existing?.time || new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
@@ -563,6 +575,31 @@ export default function RankManagementTab() {
                 ))}
               </select>
               <FieldError message={formErrors.course} />
+            </WebsiteField>
+
+            <WebsiteField label="Year" required>
+              <select
+                value={rankForm.year}
+                onChange={(e) => {
+                  setRankForm((f) => ({ ...f, year: e.target.value }))
+                  clearFieldError('year')
+                }}
+                aria-invalid={Boolean(formErrors.year)}
+                className={cn(
+                  websiteInputClass,
+                  'cursor-pointer',
+                  formErrors.year && inputErrorClass,
+                )}
+                required
+              >
+                <option value="">Select year</option>
+                {getRankYearOptions().map((year) => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+              <FieldError message={formErrors.year} />
             </WebsiteField>
 
             <WebsiteField label="Student ID" required>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getCentreDropdownDisplayName } from '../../../utils/centreDropdownDisplay'
 import { Link, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
@@ -327,7 +328,7 @@ export default function CategorySectionPage() {
       { value: 'all', label: 'Center' },
       ...activeCenters.map((c) => ({
         value: String(c.centerId),
-        label: c.centerName,
+        label: getCentreDropdownDisplayName(c),
       })),
     ],
     [activeCenters],

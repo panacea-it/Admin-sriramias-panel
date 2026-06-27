@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchResourceCategoriesDropdown } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import { createCachedRequest } from '../utils/apiRequestCache'
 import {
   DEFAULT_RESOURCE_CATEGORY_OPTIONS,
@@ -28,7 +28,7 @@ export function useFreeResourceFormDropdowns(open) {
     try {
       const categoriesData = await categoryCache.fetch(
         CATEGORY_CACHE_KEY,
-        () => fetchResourceCategoriesDropdown({ signal: controller.signal }),
+        () => freeResourceService.getResourceCategoriesDropdown({ signal: controller.signal }),
         { bypass: bypassCache },
       )
 

@@ -63,7 +63,7 @@ export const FIELD_LABELS = {
   date: 'Date',
   pdfUpload: 'Upload PDF',
   magazineUpload: 'Upload Magazine',
-  sampleUpload: 'Upload Sample PDF / Excel',
+  sampleUpload: 'Upload PDF (Card Preview)',
   mainsCategory: 'Mains Category',
   paperName: 'Paper Name',
   duration: 'Duration',

@@ -1,15 +1,99 @@
-import axiosInstance from './axiosInstance'
-import { throwApiError } from '../utils/apiError'
-import { createCachedRequest } from '../utils/apiRequestCache'
+import { SEED_OMR_EXAMS } from '../data/omrSeed'
 import {
   buildOmrExamApiPayload,
+  inferOmrFileType,
   mapApiOmrExamToLocal,
   normalizeOmrExamsListResponse,
 } from '../utils/omrApiHelpers'
 
-const omrListCache = createCachedRequest({ ttlMs: 30_000 })
-const omrDetailCache = new Map()
-const omrDetailInFlight = new Map()
+const STORAGE_KEY = 'tm_omr_exams_v1'
+const DELAY_MS = 160
+
+function delay(ms = DELAY_MS) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return fallback
+  }
+}
+
+function loadExams() {
+  if (typeof window === 'undefined') return [...SEED_OMR_EXAMS]
+  const raw = window.localStorage.getItem(STORAGE_KEY)
+  if (!raw) {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_OMR_EXAMS))
+    return [...SEED_OMR_EXAMS]
+  }
+  const parsed = safeJsonParse(raw, SEED_OMR_EXAMS)
+  return Array.isArray(parsed) ? parsed : [...SEED_OMR_EXAMS]
+}
+
+function saveExams(exams) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(exams))
+}
+
+function nextExamId() {
+  return `omr-${Date.now().toString(36)}`
+}
+
+function filterExams(exams, params = {}) {
+  let rows = exams.filter((row) => !row.deletedAt)
+
+  const q = String(params.search || '').trim().toLowerCase()
+  if (q) {
+    rows = rows.filter((row) => row.examName?.toLowerCase().includes(q))
+  }
+
+  const status = String(params.status || 'ALL').toUpperCase()
+  if (status === 'ACTIVE') {
+    rows = rows.filter((row) => row.status === 'Active')
+  } else if (status === 'INACTIVE') {
+    rows = rows.filter((row) => row.status === 'Deactivated')
+  }
+
+  const sortBy = params.sortBy || 'createdAt'
+  const sortOrder = params.sortOrder === 'asc' ? 1 : -1
+  rows.sort((a, b) => {
+    const av = a[sortBy] ?? ''
+    const bv = b[sortBy] ?? ''
+    if (av < bv) return -1 * sortOrder
+    if (av > bv) return 1 * sortOrder
+    return 0
+  })
+
+  return rows
+}
+
+function wrapExam(exam) {
+  return { data: { exam } }
+}
+
+let listCache = null
+let listCacheKey = ''
+const detailCache = new Map()
+
+export function clearOmrExamsListCache() {
+  listCache = null
+  listCacheKey = ''
+}
+
+export function clearOmrExamDetailCache(examId) {
+  if (examId == null || examId === '') {
+    detailCache.clear()
+    return
+  }
+  detailCache.delete(String(examId))
+}
+
+function invalidateAfterMutation(examId) {
+  clearOmrExamsListCache()
+  if (examId != null) clearOmrExamDetailCache(examId)
+}
 
 function triggerBrowserDownload(href, fileName) {
   const link = document.createElement('a')
@@ -20,181 +104,183 @@ function triggerBrowserDownload(href, fileName) {
   document.body.removeChild(link)
 }
 
-function parseDownloadFileName(response, fallback) {
-  const disposition = response?.headers?.['content-disposition']
-  if (!disposition) return fallback
-  const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
-  if (!match?.[1]) return fallback
-  try {
-    return decodeURIComponent(match[1].replace(/"/g, '').trim())
-  } catch {
-    return match[1].replace(/"/g, '').trim()
-  }
-}
-
-export function clearOmrExamsListCache() {
-  omrListCache.clear()
-}
-
-export function clearOmrExamDetailCache(examId) {
-  if (examId == null || examId === '') {
-    omrDetailCache.clear()
-    return
-  }
-  omrDetailCache.delete(String(examId))
-}
-
-function invalidateAfterMutation(examId) {
-  clearOmrExamsListCache()
-  if (examId != null) clearOmrExamDetailCache(examId)
-}
-
 export async function getOmrExams(params = {}, { bypassCache = false } = {}) {
-  try {
-    return await omrListCache.fetch(
-      params,
-      async () => {
-        const response = await axiosInstance.post('/api/omr-exams/list', {
-          page: params.page || 1,
-          limit: params.limit || 100,
-          search: params.search || '',
-          status: params.status || 'ALL',
-          sortBy: params.sortBy || 'createdAt',
-          sortOrder: params.sortOrder || 'desc',
-        })
-        return response.data
-      },
-      { bypass: bypassCache },
-    )
-  } catch (error) {
-    throwApiError(error)
+  await delay()
+  const cacheKey = JSON.stringify(params)
+  if (!bypassCache && listCache && listCacheKey === cacheKey) {
+    return listCache
   }
+
+  const exams = filterExams(loadExams(), params)
+  const page = Number(params.page) || 1
+  const limit = Number(params.limit) || 100
+  const start = (page - 1) * limit
+  const paged = exams.slice(start, start + limit)
+
+  const response = {
+    data: {
+      exams: paged,
+      pagination: {
+        page,
+        limit,
+        total: exams.length,
+        totalPages: Math.max(1, Math.ceil(exams.length / limit)),
+      },
+    },
+  }
+
+  listCache = response
+  listCacheKey = cacheKey
+  return response
 }
 
 export async function getOmrExamById(examId) {
+  await delay()
   const key = String(examId || '')
-  if (!key) throwApiError(new Error('Exam id is required'))
+  if (!key) throw new Error('Exam id is required')
 
-  if (omrDetailCache.has(key)) return omrDetailCache.get(key)
+  if (detailCache.has(key)) return detailCache.get(key)
 
-  const pending = omrDetailInFlight.get(key)
-  if (pending) return pending
+  const exam = loadExams().find((row) => String(row.id) === key && !row.deletedAt)
+  if (!exam) throw new Error('OMR exam not found')
 
-  const request = axiosInstance
-    .post(`/api/omr-exams/${key}`, {})
-    .then((response) => {
-      omrDetailCache.set(key, response.data)
-      omrDetailInFlight.delete(key)
-      return response.data
-    })
-    .catch((error) => {
-      omrDetailInFlight.delete(key)
-      throwApiError(error)
-    })
-
-  omrDetailInFlight.set(key, request)
-  return request
+  const response = wrapExam(exam)
+  detailCache.set(key, response)
+  return response
 }
 
 export async function createOmrExam(form) {
+  await delay()
   const payload = buildOmrExamApiPayload(form)
-  try {
-    const response = await axiosInstance.post('/api/omr-exams', payload)
-    invalidateAfterMutation()
-    return response.data
-  } catch (error) {
-    throwApiError(error)
+  const now = new Date().toISOString()
+  const exam = {
+    id: nextExamId(),
+    examName: payload.examName,
+    examDate: payload.examDate,
+    status: form.status === 'Deactivated' ? 'Deactivated' : 'Active',
+    resultSheetUploaded: false,
+    resultSheet: null,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
   }
+
+  const list = loadExams()
+  list.unshift(exam)
+  saveExams(list)
+  invalidateAfterMutation()
+
+  return wrapExam(exam)
 }
 
 export async function updateOmrExam(examId, form) {
+  await delay()
   const payload = buildOmrExamApiPayload(form)
-  try {
-    const response = await axiosInstance.put(`/api/omr-exams/${examId}`, payload)
-    invalidateAfterMutation(examId)
-    return response.data
-  } catch (error) {
-    throwApiError(error)
+  const list = loadExams()
+  const idx = list.findIndex((row) => String(row.id) === String(examId) && !row.deletedAt)
+  if (idx < 0) throw new Error('OMR exam not found')
+
+  const updated = {
+    ...list[idx],
+    examName: payload.examName,
+    examDate: payload.examDate,
+    status: form.status === 'Deactivated' ? 'Deactivated' : 'Active',
+    updatedAt: new Date().toISOString(),
   }
+
+  list[idx] = updated
+  saveExams(list)
+  invalidateAfterMutation(examId)
+
+  return wrapExam(updated)
 }
 
 export async function deleteOmrExam(examId) {
-  try {
-    const response = await axiosInstance.delete(`/api/omr-exams/${examId}`)
-    invalidateAfterMutation(examId)
-    return response.data
-  } catch (error) {
-    throwApiError(error)
+  await delay()
+  const list = loadExams()
+  const idx = list.findIndex((row) => String(row.id) === String(examId) && !row.deletedAt)
+  if (idx < 0) throw new Error('OMR exam not found')
+
+  list[idx] = {
+    ...list[idx],
+    deletedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
+  saveExams(list)
+  invalidateAfterMutation(examId)
+
+  return { success: true }
 }
 
-function buildResultSheetFormData(file) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return formData
+function attachResultSheet(examId, file, uploadedBy = 'Admin') {
+  const list = loadExams()
+  const idx = list.findIndex((row) => String(row.id) === String(examId) && !row.deletedAt)
+  if (idx < 0) throw new Error('OMR exam not found')
+
+  const now = new Date().toISOString()
+  const resultSheet = {
+    fileName: file.name,
+    fileType: inferOmrFileType(file.name),
+    mimeType: file.type || 'application/octet-stream',
+    uploadedBy,
+    uploadedAt: now,
+  }
+
+  list[idx] = {
+    ...list[idx],
+    resultSheetUploaded: true,
+    resultSheet,
+    updatedAt: now,
+  }
+  saveExams(list)
+  invalidateAfterMutation(examId)
+  return wrapExam(list[idx])
 }
 
-export async function uploadOmrResultSheet(examId, file) {
-  if (!file) throwApiError(new Error('File is required'))
-  try {
-    const response = await axiosInstance.post(
-      `/api/omr-exams/${examId}/result-sheet`,
-      buildResultSheetFormData(file),
-      { headers: { 'Content-Type': undefined } },
-    )
-    invalidateAfterMutation(examId)
-    return response.data
-  } catch (error) {
-    throwApiError(error)
-  }
+export async function uploadOmrResultSheet(examId, file, meta = {}) {
+  await delay()
+  if (!file) throw new Error('File is required')
+  return attachResultSheet(examId, file, meta.uploadedBy || 'Admin')
 }
 
-export async function replaceOmrResultSheet(examId, file) {
-  if (!file) throwApiError(new Error('File is required'))
-  try {
-    const response = await axiosInstance.put(
-      `/api/omr-exams/${examId}/result-sheet`,
-      buildResultSheetFormData(file),
-      { headers: { 'Content-Type': undefined } },
-    )
-    invalidateAfterMutation(examId)
-    return response.data
-  } catch (error) {
-    throwApiError(error)
-  }
+export async function replaceOmrResultSheet(examId, file, meta = {}) {
+  await delay()
+  if (!file) throw new Error('File is required')
+  return attachResultSheet(examId, file, meta.uploadedBy || 'Admin')
 }
 
 export async function deleteOmrResultSheet(examId) {
-  try {
-    const response = await axiosInstance.delete(`/api/omr-exams/${examId}/result-sheet`)
-    invalidateAfterMutation(examId)
-    return response.data
-  } catch (error) {
-    throwApiError(error)
+  await delay()
+  const list = loadExams()
+  const idx = list.findIndex((row) => String(row.id) === String(examId) && !row.deletedAt)
+  if (idx < 0) throw new Error('OMR exam not found')
+
+  list[idx] = {
+    ...list[idx],
+    resultSheetUploaded: false,
+    resultSheet: null,
+    updatedAt: new Date().toISOString(),
   }
+  saveExams(list)
+  invalidateAfterMutation(examId)
+
+  return { success: true }
 }
 
 export async function downloadOmrResultSheet(examId) {
-  try {
-    const response = await axiosInstance.post(
-      `/api/omr-exams/${examId}/result-sheet/download`,
-      { mode: 'file' },
-      { responseType: 'blob' },
-    )
-
-    let fileName = parseDownloadFileName(response, '')
-    if (!fileName) {
-      const exam = mapApiOmrExamToLocal(await getOmrExamById(examId))
-      fileName = exam?.resultSheet?.fileName || `omr-result-${examId}`
-    }
-
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    triggerBrowserDownload(url, fileName)
-    window.URL.revokeObjectURL(url)
-    return { success: true }
-  } catch (error) {
-    throwApiError(error)
+  await delay()
+  const response = await getOmrExamById(examId)
+  const exam = mapApiOmrExamToLocal(response)
+  if (!exam?.resultSheet?.fileName) {
+    throw new Error('No result sheet available for download')
   }
+
+  const content = `OMR Result Sheet\nExam: ${exam.examName}\nDate: ${exam.examDate}\n`
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = window.URL.createObjectURL(blob)
+  triggerBrowserDownload(url, exam.resultSheet.fileName)
+  window.URL.revokeObjectURL(url)
+  return { success: true }
 }
 
 export { normalizeOmrExamsListResponse, mapApiOmrExamToLocal }

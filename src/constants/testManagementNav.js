@@ -6,6 +6,13 @@ export const TEST_MANAGEMENT_BASE = '/test-management'
 export const TEST_MANAGEMENT_ROUTES = {
   dashboard: `${TEST_MANAGEMENT_BASE}/dashboard`,
   cbt: `${TEST_MANAGEMENT_BASE}/cbt`,
+  cbtTestsCreate: `${TEST_MANAGEMENT_BASE}/cbt/create`,
+  cbtTestsEdit: (id) =>
+    `${TEST_MANAGEMENT_BASE}/cbt/edit/${encodeURIComponent(String(id))}`,
+  cbtTestsView: (id) =>
+    `${TEST_MANAGEMENT_BASE}/cbt/view/${encodeURIComponent(String(id))}`,
+  cbtTestQuestions: (id) =>
+    `${TEST_MANAGEMENT_BASE}/cbt/${encodeURIComponent(String(id))}/questions`,
   cbtFaculty: (subjectId) => `${TEST_MANAGEMENT_BASE}/cbt/faculty/${encodeURIComponent(String(subjectId))}`,
   cbtResults: (subjectId, testItemId) =>
     `${TEST_MANAGEMENT_BASE}/cbt/faculty/${encodeURIComponent(String(subjectId))}/results/${encodeURIComponent(String(testItemId))}`,

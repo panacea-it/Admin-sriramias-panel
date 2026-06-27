@@ -9,13 +9,20 @@ import CategoryEmptyState from '../../../../components/categories/CategoryEmptyS
 import ExamSubCategoryFormModal from '../../../../components/categories/ExamSubCategoryFormModal'
 import ViewExamSubCategoryModal from '../../../../components/categories/ViewExamSubCategoryModal'
 import ConfirmExamSubCategoryStatusModal from '../../../../components/categories/ConfirmExamSubCategoryStatusModal'
-import ExamSubCategoryTableSkeleton from '../../../../components/categories/ExamSubCategoryTableSkeleton'
+import CategoryTableLoadingShell from '../../../../components/categories/CategoryTableLoadingShell'
+import CategoryStandardTable from '../../../../components/categories/CategoryStandardTable'
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
-import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
+import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../../../components/feedback/ErrorState'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useExamSubCategoryManagement } from '../../../../hooks/useExamSubCategoryManagement'
+import { useCreateExamSubCategory } from '../../../../hooks/useCreateExamSubCategory'
+import { useUpdateExamSubCategory } from '../../../../hooks/useUpdateExamSubCategory'
+import { useDeleteExamSubCategory } from '../../../../hooks/useDeleteExamSubCategory'
 import { useCentersDropdownOptions } from '../../../../hooks/useCentersDropdownOptions'
+import { useProgramsByCenter } from '../../../../hooks/useProgramsByCenter'
+import { useCategoriesByCenterAndProgram } from '../../../../hooks/useCategoriesByCenterAndProgram'
 import { useTableRowSelection } from '../../../../hooks/useTableRowSelection'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../../utils/apiError'
@@ -31,17 +38,14 @@ import {
   filterDisableableIds,
   filterEnableableIds,
 } from '../../../../utils/masterBulkActions'
-import { cn } from '../../../../utils/cn'
 import {
   buildExamSubCategoryApiPayload,
+  hasCompleteSubCategoryRecord,
   mapApiExamSubCategoryToLocal,
 } from '../../../../utils/examSubCategoryApiHelpers'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
 import {
-  createSubCategory,
-  deleteSubCategory,
   getSubCategoryById,
-  updateSubCategory,
   updateSubCategoryStatus,
 } from '../../../../services/examSubCategoryService'
 
@@ -68,22 +72,38 @@ function CreateButton({ onClick, disabled }) {
 export default function ExamSubCategorySection({ section }) {
   const {
     subCategories,
+    totalSubCategories,
     loading,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    programFilter,
+    setProgramFilter,
+    categoryFilter,
+    setCategoryFilter,
+    controlledPagination,
     refreshSubCategories,
     patchSubCategoryLocally,
     removeSubCategoryLocally,
   } = useExamSubCategoryManagement()
 
-  const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
+  const { mutateAsync: createSubCategory, isPending: createPending } = useCreateExamSubCategory()
+  const { mutateAsync: updateSubCategory, isPending: updatePending } = useUpdateExamSubCategory()
+  const { mutateAsync: deleteSubCategory, isPending: deleteMutationPending } =
+    useDeleteExamSubCategory()
 
-  const [programFilter, setProgramFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
+  const { options: centreDropdownOptions, loading: centresLoading } = useCentersDropdownOptions()
+  const { programOptions: centerProgramOptions } = useProgramsByCenter(
+    centerFilter !== 'all' ? centerFilter : null,
+  )
+  const { categoryOptions: centerCategoryOptions } = useCategoriesByCenterAndProgram(
+    centerFilter !== 'all' ? centerFilter : null,
+    programFilter !== 'all' ? programFilter : null,
+  )
 
   const { isOpen, isEditMode, openEdit, openCreate, close, selectedItem } = useEditModal()
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
@@ -93,6 +113,8 @@ export default function ExamSubCategorySection({ section }) {
   const [editDetailLoading, setEditDetailLoading] = useState(false)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteDetail, setDeleteDetail] = useState(null)
+  const [deleteDetailLoading, setDeleteDetailLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
@@ -107,38 +129,20 @@ export default function ExamSubCategorySection({ section }) {
   const centreFormOptions = useMemo(() => centreDropdownOptions, [centreDropdownOptions])
 
   const programFilterOptions = useMemo(() => {
-    const programs = [...new Set(subCategories.map((row) => row.program).filter(Boolean))].sort()
-    return [{ value: 'all', label: 'Program' }, ...programs.map((p) => ({ value: p, label: p }))]
-  }, [subCategories])
+    if (centerFilter === 'all') {
+      return [{ value: 'all', label: 'Program' }]
+    }
+    return [{ value: 'all', label: 'Program' }, ...centerProgramOptions]
+  }, [centerFilter, centerProgramOptions])
 
   const categoryFilterOptions = useMemo(() => {
-    const scoped =
-      programFilter === 'all'
-        ? subCategories
-        : subCategories.filter((row) => row.program === programFilter)
-    const categories = [...new Set(scoped.map((row) => row.examCategory).filter(Boolean))].sort()
-    return [
-      { value: 'all', label: 'Exam Category' },
-      ...categories.map((c) => ({ value: c, label: c })),
-    ]
-  }, [subCategories, programFilter])
+    if (centerFilter === 'all' || programFilter === 'all') {
+      return [{ value: 'all', label: 'Exam Category' }]
+    }
+    return [{ value: 'all', label: 'Exam Category' }, ...centerCategoryOptions]
+  }, [centerFilter, programFilter, centerCategoryOptions])
 
-  const displayedSubCategories = useMemo(() => {
-    return subCategories.filter((row) => {
-      if (programFilter !== 'all' && row.program !== programFilter) return false
-      if (categoryFilter !== 'all' && row.examCategory !== categoryFilter) return false
-      return true
-    })
-  }, [subCategories, programFilter, categoryFilter])
-
-  useEffect(() => {
-    setProgramFilter('all')
-    setCategoryFilter('all')
-  }, [centerFilter])
-
-  useEffect(() => {
-    setCategoryFilter('all')
-  }, [programFilter])
+  const formSubmittingBusy = formSubmitting || createPending || updatePending
 
   const subCategoriesById = useMemo(
     () => new Map(subCategories.map((row) => [String(row.id), row])),
@@ -181,10 +185,13 @@ export default function ExamSubCategorySection({ section }) {
     async (row) => {
       openEdit(row)
       setEditDetail(row)
-      setEditDetailLoading(true)
+      setEditDetailLoading(!hasCompleteSubCategoryRecord(row))
+
+      if (hasCompleteSubCategoryRecord(row)) return
+
       try {
         const detail = await loadSubCategoryDetail(row)
-        setEditDetail(detail)
+        setEditDetail(detail || row)
       } catch (error) {
         toast.error(getApiErrorMessage(error, 'Failed to load sub-category for edit'))
         close()
@@ -193,6 +200,25 @@ export default function ExamSubCategorySection({ section }) {
       }
     },
     [loadSubCategoryDetail, openEdit, close],
+  )
+
+  const handleDeleteRequest = useCallback(
+    async (row) => {
+      setDeleteTarget(row)
+      setDeleteDetail(row)
+      setDeleteDetailLoading(true)
+      try {
+        const detail = await loadSubCategoryDetail(row)
+        setDeleteDetail(detail || row)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to load sub-category details'))
+        setDeleteTarget(null)
+        setDeleteDetail(null)
+      } finally {
+        setDeleteDetailLoading(false)
+      }
+    },
+    [loadSubCategoryDetail],
   )
 
   useEffect(() => {
@@ -208,7 +234,7 @@ export default function ExamSubCategorySection({ section }) {
       try {
         const payload = buildExamSubCategoryApiPayload(form)
         if (isEdit && id != null) {
-          await updateSubCategory(id, payload)
+          await updateSubCategory({ id, payload })
           toast.success('Sub-category updated')
         } else {
           await createSubCategory(payload)
@@ -227,7 +253,7 @@ export default function ExamSubCategorySection({ section }) {
         setFormSubmitting(false)
       }
     },
-    [refreshSubCategories],
+    [createSubCategory, updateSubCategory, refreshSubCategories],
   )
 
   const confirmDelete = useCallback(async () => {
@@ -263,8 +289,10 @@ export default function ExamSubCategorySection({ section }) {
       }
 
       setDeleteTarget(null)
+      setDeleteDetail(null)
       clearSelection()
       setDeleteLoading(false)
+      await refreshSubCategories()
       return
     }
 
@@ -276,12 +304,20 @@ export default function ExamSubCategorySection({ section }) {
       clearSelection()
       toast.success('Sub-category deleted')
       setDeleteTarget(null)
+      setDeleteDetail(null)
+      await refreshSubCategories()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete sub-category'))
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteTarget, removeSubCategoryLocally, clearSelection])
+  }, [
+    deleteTarget,
+    deleteSubCategory,
+    removeSubCategoryLocally,
+    clearSelection,
+    refreshSubCategories,
+  ])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -315,11 +351,6 @@ export default function ExamSubCategorySection({ section }) {
     setBulkConfirm({ type: 'disable' })
   }
 
-  const handleBulkDeleteRequest = () => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }
-
   const confirmBulkAction = async () => {
     if (!bulkConfirm) return
     setBulkActionLoading(true)
@@ -343,49 +374,15 @@ export default function ExamSubCategorySection({ section }) {
         ids.forEach((id) => patchSubCategoryLocally(id, { status: 'In Active' }))
         clearSelection()
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        let successCount = 0
-        let failCount = 0
-
-        for (const id of ids) {
-          try {
-            await deleteSubCategory(id)
-            removeSubCategoryLocally(id)
-            successCount += 1
-          } catch (error) {
-            failCount += 1
-            if (import.meta.env.DEV) {
-              console.error(error)
-            }
-          }
-        }
-
-        if (successCount > 0) {
-          toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        }
-        if (failCount > 0) {
-          toast.error(
-            failCount === 1
-              ? 'Failed to delete 1 sub-category'
-              : `Failed to delete ${failCount} sub-categories`,
-          )
-        }
-        clearSelection()
       }
       setBulkConfirm(null)
+      await refreshSubCategories()
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      toast.error(
-        bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected sub-categories')
-          : getMasterBulkErrorMessage(error, bulkConfirm.type),
-      )
-      if (bulkConfirm.type !== 'delete') {
-        await refreshSubCategories()
-      }
+      toast.error(getMasterBulkErrorMessage(error, bulkConfirm.type))
+      await refreshSubCategories()
     } finally {
       setBulkActionLoading(false)
     }
@@ -476,13 +473,13 @@ export default function ExamSubCategorySection({ section }) {
             row={row}
             onView={() => handleView(row)}
             onEdit={() => handleEditOpen(row)}
-            onDelete={() => setDeleteTarget(row)}
+            onDelete={() => handleDeleteRequest(row)}
             onStatusToggle={() => setStatusTarget(row)}
           />
         ),
       },
     ],
-    [handleView, handleEditOpen],
+    [handleView, handleEditOpen, handleDeleteRequest],
   )
 
   const hasActiveFilters =
@@ -492,8 +489,8 @@ export default function ExamSubCategorySection({ section }) {
     programFilter !== 'all' ||
     categoryFilter !== 'all'
 
-  const showEmpty = !loading && subCategories.length === 0 && !hasActiveFilters
-  const showNoResults = !loading && displayedSubCategories.length === 0 && !showEmpty
+  const showEmpty = !loading && !listError && totalSubCategories === 0 && !hasActiveFilters
+  const showNoResults = !loading && !listError && subCategories.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
@@ -503,10 +500,13 @@ export default function ExamSubCategorySection({ section }) {
     setCategoryFilter('all')
   }
 
+  const linkedCoursesCount = deleteDetail?.linkedCourses ?? 0
   const deleteMessage =
     deleteTarget?.ids?.length > 1
       ? `Delete ${deleteTarget.ids.length} selected exam sub-categories? This cannot be undone.`
-      : `Are you sure you want to delete "${deleteTarget?.name || 'this sub-category'}"? This action cannot be undone.`
+      : linkedCoursesCount > 0
+        ? `"${deleteTarget?.name || 'This sub-category'}" has ${linkedCoursesCount} linked course${linkedCoursesCount === 1 ? '' : 's'}. Deleting it may affect those courses. This action cannot be undone.`
+        : `Are you sure you want to delete "${deleteTarget?.name || 'this sub-category'}"? This action cannot be undone.`
 
   return (
     <AnimatePresence mode="wait">
@@ -549,10 +549,14 @@ export default function ExamSubCategorySection({ section }) {
           onDisable={handleBulkDisableRequest}
         />
 
-        {loading ? (
-          <div className="overflow-hidden rounded-2xl bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80 sm:p-5">
-            <ExamSubCategoryTableSkeleton />
-          </div>
+        {listError && !loading ? (
+          <ErrorState
+            title="Unable to load exam sub-categories"
+            message={listError}
+            onRetry={refreshSubCategories}
+          />
+        ) : loading ? (
+          <CategoryTableLoadingShell />
         ) : showEmpty ? (
           <CategoryEmptyState
             title={section.emptyTitle}
@@ -568,27 +572,15 @@ export default function ExamSubCategorySection({ section }) {
             onCta={clearFilters}
           />
         ) : (
-          <div className="min-w-0 rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-            <PaginatedFigmaTable
-              columns={columns}
-              data={displayedSubCategories}
-              itemLabel="exam sub-categories"
-              resetDeps={[search, statusFilter, centerFilter, programFilter, categoryFilter]}
-              selection={selection}
-              density="comfortable"
-              loading={bulkActionLoading}
-              rowClassName="hover:bg-[#eef6fc]/70"
-              tableClassName="rounded-none border-0 shadow-none"
-              tableMinWidth={960}
-              paginationClassName={cn(
-                '[&>div:last-child]:items-center',
-                '[&_nav]:items-center',
-                '[&_form]:flex [&_form]:items-center [&_form]:gap-2',
-                '[&_form_input]:h-9 [&_form_input]:leading-none',
-                '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
-              )}
-            />
-          </div>
+          <CategoryStandardTable
+            columns={columns}
+            data={subCategories}
+            itemLabel="exam sub-categories"
+            controlledPagination={controlledPagination}
+            resetDeps={[search, statusFilter, centerFilter, programFilter, categoryFilter]}
+            selection={selection}
+            loading={bulkActionLoading || deleteMutationPending}
+          />
         )}
 
         <ExamSubCategoryFormModal
@@ -600,7 +592,7 @@ export default function ExamSubCategorySection({ section }) {
           centreOptions={centreFormOptions}
           centresLoading={centresLoading}
           detailLoading={editDetailLoading}
-          submitting={formSubmitting}
+          submitting={formSubmittingBusy}
         />
 
         <ViewExamSubCategoryModal
@@ -613,6 +605,20 @@ export default function ExamSubCategorySection({ section }) {
           loading={viewLoading}
         />
 
+        <ConfirmDeleteDialog
+          open={Boolean(deleteTarget)}
+          title="Delete exam sub-category?"
+          message={deleteMessage}
+          loading={deleteLoading || deleteDetailLoading}
+          onCancel={() => {
+            if (!deleteLoading && !deleteDetailLoading) {
+              setDeleteTarget(null)
+              setDeleteDetail(null)
+            }
+          }}
+          onConfirm={confirmDelete}
+        />
+
         <ConfirmExamSubCategoryStatusModal
           open={Boolean(statusTarget)}
           subCategoryName={statusTarget?.name || 'this sub-category'}
@@ -621,8 +627,6 @@ export default function ExamSubCategorySection({ section }) {
           onCancel={() => setStatusTarget(null)}
           onConfirm={confirmStatusChange}
         />
-
-        
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

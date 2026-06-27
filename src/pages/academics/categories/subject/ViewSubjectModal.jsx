@@ -33,7 +33,7 @@ export default function ViewSubjectModal({ open, onClose, item, loading = false 
       <div className="overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
         <ModalPanelHeader
           title={item.name}
-          subtitle={item.displayId || item.subjectId || item.id}
+          subtitle={item.subjectId || item.displayId || item.id}
           onClose={onClose}
           icon={Layers}
           iconClassName="text-[#246392]"
@@ -46,11 +46,13 @@ export default function ViewSubjectModal({ open, onClose, item, loading = false 
             Subjects Details
           </h3>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <DetailItem label="ID">{item.displayId || item.subjectId || item.id}</DetailItem>
+            <DetailItem label="Subject ID">{item.subjectId || item.displayId || item.id}</DetailItem>
             <DetailItem label="Subject Name">{item.name}</DetailItem>
             <DetailItem label="Status">
               <CategoryStatusBadge status={item.status} />
             </DetailItem>
+            <DetailItem label="Linked Topics">{item.linkedTopics ?? 0}</DetailItem>
+            <DetailItem label="Linked Teachers">{item.linkedTeachers ?? 0}</DetailItem>
             <DetailItem label="Created On">
               {formatCategoryDateTime(item.createdAt)}
             </DetailItem>

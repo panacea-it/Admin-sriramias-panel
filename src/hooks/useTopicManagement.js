@@ -1,135 +1,55 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getTopics, getTopicsBySubject } from '../services/topicService'
-import {
-  mapTopicStatusFilterToApi,
-  normalizeTopicsListResponse,
-} from '../pages/academics/categories/topic/topicHelpers'
-import {
-  buildFilterSignature,
-  createListFetchGuard,
-  runGuardedListFetch,
-  useEffectivePage,
-} from './useMasterListQuery'
+import { useTopics } from './useTopics'
+import { mapTopicStatusFilterToApi } from '../pages/academics/categories/topic/topicHelpers'
+import { buildFilterSignature, useEffectivePage } from './useMasterListQuery'
 
 const DEFAULT_PAGE_SIZE = 10
 
 export function useTopicManagement() {
-  const [topics, setTopics] = useState([])
-  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 400)
-  const fetchGuardRef = useRef(null)
-
-  if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard()
-  }
-  const fetchGuard = fetchGuardRef.current
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   const filterSignature = buildFilterSignature([
     debouncedSearch,
     statusFilter,
     subjectFilter,
     pageSize,
+    sortBy,
+    sortOrder,
   ])
   const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  const applyPaginated = useCallback((normalized) => {
-    setTopics(normalized.items)
-    setTotalItems(normalized.total)
-    setTotalPages(normalized.totalPages)
-  }, [])
-
-  const fetchTopics = useCallback(
-    async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const apiStatus = mapTopicStatusFilterToApi(statusFilter)
-      const trimmedSearch = debouncedSearch.trim()
-      const useBySubjectEndpoint =
-        subjectFilter !== 'all' && !trimmedSearch && !apiStatus
-
-      const sessionKey = JSON.stringify({
-        scope: 'topics',
-        effectivePage,
-        pageSize,
-        trimmedSearch,
-        apiStatus,
-        subjectFilter,
-        useBySubjectEndpoint,
-      })
-
-      await runGuardedListFetch({
-        fetchGuard,
-        sessionKey,
-        bypassCache,
-        ignoreFlag,
-        setLoading,
-        fetchFn: async () => {
-          let data
-
-          if (useBySubjectEndpoint) {
-            data = await getTopicsBySubject(subjectFilter)
-          } else {
-            const params = {
-              page: effectivePage,
-              limit: pageSize,
-              search: trimmedSearch,
-            }
-            if (apiStatus) params.status = apiStatus
-            if (subjectFilter !== 'all') params.subject = subjectFilter
-            data = await getTopics(params)
-          }
-
-          let normalized = normalizeTopicsListResponse(data, {
-            page: effectivePage,
-            limit: pageSize,
-          })
-
-          if (useBySubjectEndpoint) {
-            const allItems = normalized.items
-            const total = allItems.length
-            const computedTotalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
-            const safePage = Math.min(Math.max(1, effectivePage), computedTotalPages)
-            const start = (safePage - 1) * pageSize
-            normalized = {
-              items: allItems.slice(start, start + pageSize),
-              total,
-              totalPages: computedTotalPages,
-              page: safePage,
-            }
-          }
-
-          return normalized
-        },
-        applyData: applyPaginated,
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error)
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, 'Failed to load topics'),
-          )
-          if (!hydratedFromSession) {
-            setTopics([])
-            setTotalItems(0)
-            setTotalPages(1)
-          }
-        },
-      })
-    },
-    [effectivePage, pageSize, debouncedSearch, statusFilter, subjectFilter, fetchGuard, applyPaginated],
-  )
-
-  useEffect(() => {
-    let ignore = false
-    fetchTopics({ ignoreFlag: () => ignore })
-    return () => {
-      ignore = true
+  const listParams = useMemo(() => {
+    const params = {
+      page: effectivePage,
+      limit: pageSize,
+      sortBy,
+      sortOrder,
     }
-  }, [fetchTopics])
+
+    const trimmedSearch = debouncedSearch.trim()
+    if (trimmedSearch) params.search = trimmedSearch
+
+    const apiStatus = mapTopicStatusFilterToApi(statusFilter)
+    if (apiStatus) params.status = apiStatus
+
+    if (subjectFilter !== 'all') params.subject = subjectFilter
+
+    return params
+  }, [effectivePage, pageSize, debouncedSearch, statusFilter, subjectFilter, sortBy, sortOrder])
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useTopics(listParams)
+
+  const topics = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -160,34 +80,48 @@ export function useTopicManagement() {
     [pagination],
   )
 
-  const patchTopicLocally = useCallback((topicId, patch) => {
-    setTopics((prev) =>
-      prev.map((row) => (String(row.id) === String(topicId) ? { ...row, ...patch } : row)),
-    )
-  }, [])
+  const handleSort = useCallback((columnKey) => {
+    const allowed = ['createdAt', 'topicName', 'topicId', 'status']
+    const apiKey =
+      columnKey === 'name'
+        ? 'topicName'
+        : columnKey === 'displayId' || columnKey === 'id'
+          ? 'topicId'
+          : columnKey
 
-  const removeTopicLocally = useCallback((topicId) => {
-    setTopics((prev) => prev.filter((row) => String(row.id) !== String(topicId)))
-    setTotalItems((prev) => Math.max(0, prev - 1))
+    if (!allowed.includes(apiKey)) return
+
+    setSortBy((prev) => {
+      if (prev === apiKey) {
+        setSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortOrder('asc')
+      return apiKey
+    })
   }, [])
 
   return {
     topics,
-    loading,
+    loading: isLoading,
+    isFetching,
+    listError: isError ? error : null,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     subjectFilter,
     setSubjectFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     page,
     setPage,
     pageSize,
     setPageSize,
     pagination,
     controlledPagination,
-    refreshTopics: () => fetchTopics({ bypassCache: true }),
-    patchTopicLocally,
-    removeTopicLocally,
+    refreshTopics: refetch,
+    listParams,
   }
 }

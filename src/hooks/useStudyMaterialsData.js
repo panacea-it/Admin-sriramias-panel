@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchStudyMaterials } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import {
   getStudyMaterialApiErrorMessage,
   normalizeStudyMaterialsListResponse,
@@ -30,7 +30,7 @@ export function useStudyMaterialsData({ enabled = true, search = '', page = 1, l
       setError(null)
 
       try {
-        const data = await fetchStudyMaterials(
+        const data = await freeResourceService.getStudyMaterials(
           {
             page: pageNo,
             limit: pageLimit,

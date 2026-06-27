@@ -53,6 +53,7 @@ export default function ViewClassroomModal({ open, onClose, classroom, loading =
             </div>
           ) : classroom ? (
             <dl className="grid gap-4 sm:grid-cols-2">
+              <DetailItem label="Classroom ID">{classroom.classroomId || '—'}</DetailItem>
               <DetailItem label="Center">{classroom.centerName || '—'}</DetailItem>
               <DetailItem label="City">{classroom.placeName || '—'}</DetailItem>
               <DetailItem label="Classroom Name">{classroom.name || '—'}</DetailItem>

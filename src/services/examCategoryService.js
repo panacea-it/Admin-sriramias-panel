@@ -41,16 +41,37 @@ export async function getProgramsByCenter(centerId) {
   }
 }
 
+function stripEmptyParams(params = {}) {
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value != null && value !== ''),
+  )
+}
+
 export async function getExamCategories(params = {}, { bypassCache = false } = {}) {
   try {
+    const query = stripEmptyParams(params)
     return await categoriesListCache.fetch(
-      params,
+      query,
       async () => {
-        const response = await axiosInstance.get('/api/categories', { params })
+        const response = await axiosInstance.get('/api/categories', { params: query })
         return response.data
       },
       { bypass: bypassCache },
     )
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
+export async function getExamCategoryDropdown({ centerId, programId }) {
+  try {
+    const response = await axiosInstance.get('/api/categories/filter', {
+      params: {
+        centerId: String(centerId),
+        programId: String(programId),
+      },
+    })
+    return response.data
   } catch (error) {
     throwApiError(error)
   }

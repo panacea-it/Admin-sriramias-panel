@@ -154,10 +154,9 @@ export default function EnquiriesTable({
           <EnquiryCounselorSelect
             value={counselorById[row.id] || row.assignedCounselor || ""}
             onChange={(value) => onCounselorChange(row.id, value)}
-            // DYNAMIC LOOKUP: Get options for this specific row's centerId
             options={
-              counselorsByCenter[row.centerId] || [
-                { value: "", label: "No Counselors", disabled: true },
+              counselorsByCenter[row.center] || [
+                { value: '', label: 'No Counselors', disabled: true },
               ]
             }
             placeholder="Select Counselor"

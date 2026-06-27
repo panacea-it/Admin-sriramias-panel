@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { getCentreDropdownDisplayName } from '../../utils/centreDropdownDisplay'
 import { Search } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
@@ -78,10 +79,8 @@ export default function CentreMultiSelect({
                   className="mt-1 h-4 w-4 rounded accent-[#246392]"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[#111]">{centre.centerName}</p>
-                  <p className="text-xs text-[#686868]">
-                    {centre.centerCode}
-                    {centre.city ? ` · ${centre.city}` : ''}
+                  <p className="text-sm font-semibold text-[#111]">
+                    {getCentreDropdownDisplayName(centre)}
                   </p>
                 </div>
               </label>

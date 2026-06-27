@@ -1,37 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getTeachers } from '../services/teacherService'
-import {
-  mapTeacherStatusFilterToApi,
-  normalizeTeachersListResponse,
-} from '../pages/academics/categories/teachers/teacherHelpers'
-import {
-  buildFilterSignature,
-  createListFetchGuard,
-  runGuardedListFetch,
-  useEffectivePage,
-} from './useMasterListQuery'
+import { useFaculty } from './useFaculty'
+import { mapTeacherStatusFilterToApi } from '../pages/academics/categories/teachers/teacherHelpers'
+import { buildFilterSignature, useEffectivePage } from './useMasterListQuery'
 
 const DEFAULT_PAGE_SIZE = 10
 
 export function useTeacherManagement() {
-  const [teachers, setTeachers] = useState([])
-  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
   const debouncedSearch = useDebouncedValue(search, 400)
-  const fetchGuardRef = useRef(null)
-
-  if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard()
-  }
-  const fetchGuard = fetchGuardRef.current
 
   const filterSignature = buildFilterSignature([
     debouncedSearch,
@@ -39,73 +23,44 @@ export function useTeacherManagement() {
     subjectFilter,
     centerFilter,
     pageSize,
+    sortBy,
+    sortOrder,
   ])
   const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  const applyPaginated = useCallback((normalized) => {
-    setTeachers(normalized.items)
-    setTotalItems(normalized.total)
-    setTotalPages(normalized.totalPages)
-  }, [])
-
-  const fetchTeachers = useCallback(
-    async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = {
-        page: effectivePage,
-        limit: pageSize,
-        search: debouncedSearch.trim(),
-      }
-
-      const apiStatus = mapTeacherStatusFilterToApi(statusFilter)
-      if (apiStatus) params.status = apiStatus
-      if (subjectFilter !== 'all') params.subject = subjectFilter
-      if (centerFilter !== 'all') params.centerId = centerFilter
-
-      const sessionKey = `teachers:${JSON.stringify(params)}`
-
-      await runGuardedListFetch({
-        fetchGuard,
-        sessionKey,
-        bypassCache,
-        ignoreFlag,
-        setLoading,
-        fetchFn: async () => {
-          const data = await getTeachers(params)
-          return normalizeTeachersListResponse(data, { page: effectivePage, limit: pageSize })
-        },
-        applyData: applyPaginated,
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error)
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, 'Failed to load faculty'),
-          )
-          if (!hydratedFromSession) {
-            setTeachers([])
-            setTotalItems(0)
-            setTotalPages(1)
-          }
-        },
-      })
-    },
-    [
-      effectivePage,
-      pageSize,
-      debouncedSearch,
-      statusFilter,
-      subjectFilter,
-      centerFilter,
-      fetchGuard,
-      applyPaginated,
-    ],
-  )
-
-  useEffect(() => {
-    let ignore = false
-    fetchTeachers({ ignoreFlag: () => ignore })
-    return () => {
-      ignore = true
+  const listParams = useMemo(() => {
+    const params = {
+      page: effectivePage,
+      limit: pageSize,
+      sortBy,
+      sortOrder,
     }
-  }, [fetchTeachers])
+
+    const trimmedSearch = debouncedSearch.trim()
+    if (trimmedSearch) params.search = trimmedSearch
+
+    const apiStatus = mapTeacherStatusFilterToApi(statusFilter)
+    if (apiStatus) params.status = apiStatus
+    if (subjectFilter !== 'all') params.subject = subjectFilter
+    if (centerFilter !== 'all') params.centerId = centerFilter
+
+    return params
+  }, [
+    effectivePage,
+    pageSize,
+    debouncedSearch,
+    statusFilter,
+    subjectFilter,
+    centerFilter,
+    sortBy,
+    sortOrder,
+  ])
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useFaculty(listParams)
+
+  const teachers = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -136,20 +91,32 @@ export function useTeacherManagement() {
     [pagination],
   )
 
-  const patchTeacherLocally = useCallback((teacherId, patch) => {
-    setTeachers((prev) =>
-      prev.map((row) => (String(row.id) === String(teacherId) ? { ...row, ...patch } : row)),
-    )
-  }, [])
+  const handleSort = useCallback((columnKey) => {
+    const allowed = ['createdAt', 'teacherName', 'teacherId', 'status']
+    const apiKey =
+      columnKey === 'name'
+        ? 'teacherName'
+        : columnKey === 'displayId' || columnKey === 'id'
+          ? 'teacherId'
+          : columnKey
 
-  const removeTeacherLocally = useCallback((teacherId) => {
-    setTeachers((prev) => prev.filter((row) => String(row.id) !== String(teacherId)))
-    setTotalItems((prev) => Math.max(0, prev - 1))
+    if (!allowed.includes(apiKey)) return
+
+    setSortBy((prev) => {
+      if (prev === apiKey) {
+        setSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortOrder('asc')
+      return apiKey
+    })
   }, [])
 
   return {
     teachers,
-    loading,
+    loading: isLoading,
+    isFetching,
+    listError: isError ? error : null,
     search,
     setSearch,
     statusFilter,
@@ -158,14 +125,21 @@ export function useTeacherManagement() {
     setSubjectFilter,
     centerFilter,
     setCenterFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     page,
     setPage,
     pageSize,
     setPageSize,
     pagination,
     controlledPagination,
-    refreshTeachers: () => fetchTeachers({ bypassCache: true }),
-    patchTeacherLocally,
-    removeTeacherLocally,
+    refreshTeachers: refetch,
+    listParams,
   }
 }
+
+/** @alias useTeacherManagement */
+export const useFacultyManagement = useTeacherManagement
+
+export default useTeacherManagement

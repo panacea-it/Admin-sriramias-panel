@@ -9,8 +9,6 @@ const DEFAULT_META = { total: 0, page: 1, pages: 1, limit: 10 }
 
 export function useBatchEnrollments(batchId, { enabled = true, initialPageSize = 10 } = {}) {
   const [search, setSearch] = useState('')
-  const [paymentFilter, setPaymentFilter] = useState('all')
-  const [accountFilter, setAccountFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(initialPageSize)
   const [students, setStudents] = useState([])
@@ -26,12 +24,10 @@ export function useBatchEnrollments(batchId, { enabled = true, initialPageSize =
   const listQuery = useCallback(
     () => ({
       search: debouncedSearch,
-      paymentFilter,
-      accountFilter,
       page,
       limit: pageSize,
     }),
-    [debouncedSearch, paymentFilter, accountFilter, page, pageSize],
+    [debouncedSearch, page, pageSize],
   )
 
   const fetchStudents = useCallback(
@@ -126,16 +122,6 @@ export function useBatchEnrollments(batchId, { enabled = true, initialPageSize =
     setPage(1)
   }, [])
 
-  const handlePaymentFilterChange = useCallback((value) => {
-    setPaymentFilter(value)
-    setPage(1)
-  }, [])
-
-  const handleAccountFilterChange = useCallback((value) => {
-    setAccountFilter(value)
-    setPage(1)
-  }, [])
-
   const handlePageChange = useCallback((nextPage) => {
     setPage(nextPage)
   }, [])
@@ -176,13 +162,9 @@ export function useBatchEnrollments(batchId, { enabled = true, initialPageSize =
     searchLoading,
     error,
     search,
-    paymentFilter,
-    accountFilter,
     page,
     pageSize,
     setSearch: handleSearchChange,
-    setPaymentFilter: handlePaymentFilterChange,
-    setAccountFilter: handleAccountFilterChange,
     setPage: handlePageChange,
     setPageSize: handlePageSizeChange,
     refetchStudents: loadStudents,

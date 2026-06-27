@@ -41,6 +41,8 @@ export function mapApiSubjectToLocal(data) {
     name: String(row.subjectName || row.name || '').trim(),
     description: String(row.description || '').trim(),
     status: mapApiStatusToUi(row.status),
+    linkedTopics: typeof row.linkedTopics === 'number' ? row.linkedTopics : 0,
+    linkedTeachers: typeof row.linkedTeachers === 'number' ? row.linkedTeachers : 0,
     createdAt: row.createdAt || row.createdOn || null,
     modifiedAt: row.updatedAt || row.modifiedAt || row.createdAt || null,
   }

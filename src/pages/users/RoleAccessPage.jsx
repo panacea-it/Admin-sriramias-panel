@@ -4,39 +4,27 @@ import { toast } from '@/utils/toast'
 import ErrorState from '../../components/feedback/ErrorState'
 import PageBanner from '../../components/figma/PageBanner'
 import CategoryBreadcrumb from '../../components/categories/CategoryBreadcrumb'
-import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import AdminRoleFormModal from '../../components/admin-management/roles/AdminRoleFormModal'
 import AdminRoleViewModal from '../../components/admin-management/roles/AdminRoleViewModal'
 import ConfirmRoleStatusModal from '../../components/admin-management/roles/ConfirmRoleStatusModal'
+import ConfirmRoleDeleteModal from '../../components/admin-management/roles/ConfirmRoleDeleteModal'
 import RoleBulkActionsBar from '../../components/admin-management/roles/RoleBulkActionsBar'
 import RoleManagementTable from '../../components/admin-management/roles/RoleManagementTable'
 import RoleTableActions from '../../components/admin-management/roles/RoleTableActions'
-import { useRoleManagement } from '../../hooks/useRoleManagement'
+import RoleAccessFilterToolbar from '../../components/role-access/RoleAccessFilterToolbar'
+import { useRoleAccessManagement } from '../../hooks/useRoleAccessManagement'
 import { useApiRolesCatalogSync, syncApiRolesCatalog } from '../../hooks/useApiRolesCatalogSync'
 import { useTableRowSelection } from '../../hooks/useTableRowSelection'
 import { useAdminRolesSafe } from '../../contexts/AdminRolesContext'
+import { useUpdateRoleAccessStatus } from '../../hooks/roleAccess/useUpdateRoleAccess'
+import { useDeleteRoleAccess } from '../../hooks/roleAccess/useDeleteRoleAccess'
 import { getApiErrorMessage } from '../../utils/apiError'
-import { deleteRole as deleteRoleApi, updateRole as updateRoleApi } from '../../services/roleService'
 
 const BREADCRUMB = [
   { label: 'Admin Management' },
   { label: 'Role Access' },
 ]
-
-const STATUS_FILTER_OPTIONS = [
-  { value: 'all', label: 'All status' },
-  { value: 'Active', label: 'Active' },
-  { value: 'In Active', label: 'Deactivated' },
-]
-
-function canToggleRoleStatus(role) {
-  return role && !role.systemProtected && !role.fullAccess
-}
-
-function canDeleteRole(role) {
-  return role && !role.systemProtected && !role.fullAccess
-}
 
 export default function RoleAccessPage() {
   useApiRolesCatalogSync()
@@ -45,20 +33,27 @@ export default function RoleAccessPage() {
   const {
     roles,
     loading,
+    fetching,
     loadError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
+    sortPreset,
+    setSortPreset,
+    sortBy,
+    sortOrder,
+    handleSort,
     page,
     setPage,
     pageSize,
     setPageSize,
     pagination,
     refreshRoles,
-    removeRoleLocally,
-    patchRoleLocally,
-  } = useRoleManagement()
+  } = useRoleAccessManagement()
+
+  const statusMutation = useUpdateRoleAccessStatus()
+  const deleteMutation = useDeleteRoleAccess()
 
   const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
 
@@ -67,10 +62,8 @@ export default function RoleAccessPage() {
   const [viewingId, setViewingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [bulkDisableIds, setBulkDisableIds] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
 
   const controlledPagination = useMemo(
@@ -93,15 +86,16 @@ export default function RoleAccessPage() {
   )
 
   const bulkDisableCount = useMemo(
-    () =>
-      selectedRoles.filter((role) => role.enabled && canToggleRoleStatus(role)).length,
+    () => selectedRoles.filter((role) => role.enabled).length,
     [selectedRoles],
   )
 
-  const bulkDeleteCount = useMemo(
-    () => selectedRoles.filter((role) => canDeleteRole(role)).length,
-    [selectedRoles],
-  )
+  const bulkDeleteCount = useMemo(() => selectedRoles.length, [selectedRoles])
+
+  const refreshRolesAndCatalog = useCallback(async () => {
+    await refreshRoles()
+    await syncApiRolesCatalog(adminRoles?.mergeApiRoles)
+  }, [refreshRoles, adminRoles?.mergeApiRoles])
 
   const openCreate = useCallback(() => {
     setEditing(null)
@@ -118,37 +112,21 @@ export default function RoleAccessPage() {
     setEditing(null)
   }, [])
 
-  const refreshRolesAndCatalog = useCallback(async () => {
-    await refreshRoles()
-    await syncApiRolesCatalog(adminRoles?.mergeApiRoles)
-  }, [refreshRoles, adminRoles?.mergeApiRoles])
-
-  const handleStatusToggleRequest = useCallback(
-    (row) => {
-      if (!canToggleRoleStatus(row) || statusUpdatingId) return
-      setStatusTarget(row)
-    },
-    [statusUpdatingId],
-  )
+  const handleStatusToggleRequest = useCallback((row) => {
+    if (statusUpdatingId || statusMutation.isPending) return
+    setStatusTarget(row)
+  }, [statusUpdatingId, statusMutation.isPending])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
 
-    const enabling = !statusTarget.enabled
-    const nextEnabled = enabling
-    const previousEnabled = statusTarget.enabled
+    const enabling = statusTarget.status === 'INACTIVE'
+    const nextStatus = enabling ? 'ACTIVE' : 'INACTIVE'
     const roleId = statusTarget.id
 
-    setStatusLoading(true)
     setStatusUpdatingId(roleId)
-    patchRoleLocally(roleId, { enabled: nextEnabled, status: enabling ? 'ACTIVE' : 'INACTIVE' })
-
     try {
-      await updateRoleApi(roleId, {
-        roleTitle: statusTarget.label,
-        roleCode: statusTarget.roleCode,
-        status: enabling ? 'ACTIVE' : 'INACTIVE',
-      })
+      await statusMutation.mutateAsync({ id: roleId, status: nextStatus })
       toast.success(enabling ? 'Role activated' : 'Role deactivated')
       setStatusTarget(null)
       await refreshRolesAndCatalog()
@@ -156,20 +134,17 @@ export default function RoleAccessPage() {
       if (import.meta.env.DEV) {
         console.error(error)
       }
-      patchRoleLocally(roleId, { enabled: previousEnabled, status: previousEnabled ? 'ACTIVE' : 'INACTIVE' })
       toast.error(getApiErrorMessage(error, 'Failed to update role status'))
     } finally {
-      setStatusLoading(false)
       setStatusUpdatingId(null)
     }
-  }, [statusTarget, patchRoleLocally, refreshRolesAndCatalog])
+  }, [statusTarget, statusMutation, refreshRolesAndCatalog])
 
   const confirmBulkDisable = useCallback(async () => {
     if (!bulkDisableIds?.length) return
 
     const targets = roles.filter(
-      (role) =>
-        bulkDisableIds.includes(role.id) && role.enabled && canToggleRoleStatus(role),
+      (role) => bulkDisableIds.includes(role.id) && role.enabled,
     )
 
     if (!targets.length) {
@@ -177,23 +152,16 @@ export default function RoleAccessPage() {
       return
     }
 
-    setStatusLoading(true)
     let successCount = 0
     let failCount = 0
 
     for (const role of targets) {
       setStatusUpdatingId(role.id)
-      patchRoleLocally(role.id, { enabled: false, status: 'INACTIVE' })
       try {
-        await updateRoleApi(role.id, {
-          roleTitle: role.label,
-          roleCode: role.roleCode,
-          status: 'INACTIVE',
-        })
+        await statusMutation.mutateAsync({ id: role.id, status: 'INACTIVE' })
         successCount += 1
       } catch (error) {
         failCount += 1
-        patchRoleLocally(role.id, { enabled: role.enabled, status: role.enabled ? 'ACTIVE' : 'INACTIVE' })
         if (import.meta.env.DEV) {
           console.error(error)
         }
@@ -216,28 +184,23 @@ export default function RoleAccessPage() {
     setBulkDisableIds(null)
     clearSelection()
     await refreshRolesAndCatalog()
-    setStatusLoading(false)
-  }, [bulkDisableIds, roles, patchRoleLocally, clearSelection, refreshRolesAndCatalog])
+  }, [bulkDisableIds, roles, statusMutation, clearSelection, refreshRolesAndCatalog])
 
   const confirmDelete = useCallback(async () => {
     if (bulkDeleteIds?.length) {
-      const targets = roles.filter(
-        (role) => bulkDeleteIds.includes(role.id) && canDeleteRole(role),
-      )
+      const targets = roles.filter((role) => bulkDeleteIds.includes(role.id))
 
       if (!targets.length) {
         setBulkDeleteIds(null)
         return
       }
 
-      setDeleteLoading(true)
       let successCount = 0
       let failCount = 0
 
       for (const role of targets) {
         try {
-          await deleteRoleApi(role.id)
-          removeRoleLocally(role.id)
+          await deleteMutation.mutateAsync(role.id)
           successCount += 1
         } catch (error) {
           failCount += 1
@@ -259,15 +222,13 @@ export default function RoleAccessPage() {
       setBulkDeleteIds(null)
       clearSelection()
       await refreshRolesAndCatalog()
-      setDeleteLoading(false)
       return
     }
 
     if (!deleteTarget) return
-    setDeleteLoading(true)
+
     try {
-      await deleteRoleApi(deleteTarget.id)
-      removeRoleLocally(deleteTarget.id)
+      await deleteMutation.mutateAsync(deleteTarget.id)
       toast.success('Role deleted')
       setDeleteTarget(null)
       await refreshRolesAndCatalog()
@@ -276,10 +237,8 @@ export default function RoleAccessPage() {
         console.error(error)
       }
       toast.error(getApiErrorMessage(error, 'Unable to delete role'))
-    } finally {
-      setDeleteLoading(false)
     }
-  }, [bulkDeleteIds, roles, deleteTarget, removeRoleLocally, clearSelection, refreshRolesAndCatalog])
+  }, [bulkDeleteIds, roles, deleteTarget, deleteMutation, clearSelection, refreshRolesAndCatalog])
 
   const renderRowActions = useCallback(
     (row) => (
@@ -289,8 +248,6 @@ export default function RoleAccessPage() {
         onEdit={() => openEdit(row)}
         onStatusToggle={() => handleStatusToggleRequest(row)}
         onDelete={() => setDeleteTarget(row)}
-        canToggle={canToggleRoleStatus(row)}
-        canDelete={canDeleteRole(row)}
       />
     ),
     [openEdit, handleStatusToggleRequest],
@@ -316,14 +273,12 @@ export default function RoleAccessPage() {
   ) : undefined
 
   const handleBulkDisable = useCallback(() => {
-    const ids = selectedRoles
-      .filter((role) => role.enabled && canToggleRoleStatus(role))
-      .map((role) => role.id)
+    const ids = selectedRoles.filter((role) => role.enabled).map((role) => role.id)
     if (ids.length) setBulkDisableIds(ids)
   }, [selectedRoles])
 
   const handleBulkDelete = useCallback(() => {
-    const ids = selectedRoles.filter((role) => canDeleteRole(role)).map((role) => role.id)
+    const ids = selectedRoles.map((role) => role.id)
     if (ids.length) setBulkDeleteIds(ids)
   }, [selectedRoles])
 
@@ -342,13 +297,13 @@ export default function RoleAccessPage() {
         </PageBanner>
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-          <CourseFilterToolbar
+          <RoleAccessFilterToolbar
             search={search}
             onSearchChange={(e) => setSearch(e.target.value)}
-            searchPlaceholder="Search roles by title or code"
-            status={statusFilter}
-            onStatusChange={(e) => setStatusFilter(e.target.value)}
-            statusOptions={STATUS_FILTER_OPTIONS}
+            statusFilter={statusFilter}
+            onStatusFilterChange={(e) => setStatusFilter(e.target.value)}
+            sortPreset={sortPreset}
+            onSortPresetChange={(e) => setSortPreset(e.target.value)}
             disabled={loading && roles.length === 0}
           />
 
@@ -366,14 +321,17 @@ export default function RoleAccessPage() {
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
             <RoleManagementTable
               roles={roles}
-              loading={loading}
+              loading={loading || fetching}
               controlledPagination={controlledPagination}
               selection={selection}
-              resetDeps={[search, statusFilter]}
+              resetDeps={[search, statusFilter, sortPreset]}
               emptyMessage={emptyMessage}
               emptyState={emptyState}
               paginationStartIndex={pagination.startIndex}
               statusUpdatingId={statusUpdatingId}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSort={handleSort}
               renderActions={renderRowActions}
             />
           </div>
@@ -391,20 +349,34 @@ export default function RoleAccessPage() {
         roleId={viewingId}
         onClose={() => setViewingId(null)}
       />
-      
+
       <ConfirmRoleStatusModal
         open={!!statusTarget || !!bulkDisableIds?.length}
         roleLabel={statusTarget?.label || 'this role'}
         bulkCount={bulkDisableIds?.length || 0}
-        enabling={bulkDisableIds?.length ? false : !statusTarget?.enabled}
-        loading={statusLoading}
+        enabling={bulkDisableIds?.length ? false : statusTarget?.status === 'INACTIVE'}
+        loading={statusMutation.isPending}
         onCancel={() => {
-          if (!statusLoading) {
+          if (!statusMutation.isPending) {
             setStatusTarget(null)
             setBulkDisableIds(null)
           }
         }}
         onConfirm={bulkDisableIds?.length ? confirmBulkDisable : confirmStatusChange}
+      />
+
+      <ConfirmRoleDeleteModal
+        open={!!deleteTarget || !!bulkDeleteIds?.length}
+        roleLabel={deleteTarget?.label || 'this role'}
+        bulkCount={bulkDeleteIds?.length || 0}
+        loading={deleteMutation.isPending}
+        onCancel={() => {
+          if (!deleteMutation.isPending) {
+            setDeleteTarget(null)
+            setBulkDeleteIds(null)
+          }
+        }}
+        onConfirm={confirmDelete}
       />
     </div>
   )

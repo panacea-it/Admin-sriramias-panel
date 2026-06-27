@@ -7,22 +7,32 @@ export function mapTeacherStatusFilterToApi(statusFilter) {
 }
 
 export function buildCreateTeacherPayload(form) {
-  const subjectId = String(form.subjectId || '').trim()
+  const subjectIds = Array.isArray(form.subjectIds)
+    ? form.subjectIds.filter(Boolean)
+    : form.subjectId
+      ? [String(form.subjectId).trim()]
+      : []
+
   return {
     centerId: String(form.centerId || '').trim(),
     teacherName: String(form.name || '').trim(),
-    subjects: subjectId ? [subjectId] : [],
+    subjects: subjectIds,
     description: String(form.description || '').trim(),
     status: mapUiStatusToApi(form.status),
   }
 }
 
 export function buildUpdateTeacherPayload(form) {
-  const subjectId = String(form.subjectId || '').trim()
+  const subjectIds = Array.isArray(form.subjectIds)
+    ? form.subjectIds.filter(Boolean)
+    : form.subjectId
+      ? [String(form.subjectId).trim()]
+      : []
+
   return {
     centerId: String(form.centerId || '').trim(),
     teacherName: String(form.name || '').trim(),
-    subjects: subjectId ? [subjectId] : [],
+    subjects: subjectIds,
     description: String(form.description || '').trim(),
     status: mapUiStatusToApi(form.status),
   }
@@ -89,6 +99,25 @@ function resolveSubjectLabel(row) {
   return labels.join(', ')
 }
 
+function rawSubjectNames(row) {
+  const raw = row?.subjects ?? row?.subject ?? []
+  if (!Array.isArray(raw)) {
+    if (raw && typeof raw === 'object') {
+      const label = String(raw.subjectName ?? raw.name ?? '').trim()
+      return label ? [label] : []
+    }
+    if (typeof raw === 'string' && raw) return [raw]
+    return []
+  }
+  return raw
+    .map((item) => {
+      if (item == null) return ''
+      if (typeof item === 'string') return item
+      return String(item.subjectName ?? item.name ?? '').trim()
+    })
+    .filter(Boolean)
+}
+
 export function mapApiTeacherToLocal(data) {
   const row =
     data?.data?.teacher ??
@@ -103,6 +132,7 @@ export function mapApiTeacherToLocal(data) {
 
   const subjectIds = resolveSubjectIds(row)
   const subjectLabel = resolveSubjectLabel(row)
+  const subjectNames = rawSubjectNames(row)
 
   return {
     id: String(id),
@@ -111,6 +141,7 @@ export function mapApiTeacherToLocal(data) {
     name: String(row.teacherName ?? row.name ?? '').trim(),
     description: String(row.description || '').trim(),
     subject: subjectLabel,
+    subjectNames,
     subjectId: subjectIds[0] || '',
     subjectIds,
     centerId: resolveCenterId(row),

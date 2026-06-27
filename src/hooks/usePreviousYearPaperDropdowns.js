@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  fetchExamCategoriesDropdown,
-  fetchPaperTypesDropdown,
-  fetchYearsDropdown,
-} from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import { createCachedRequest } from '../utils/apiRequestCache'
 import {
   normalizeExamCategoryDropdownOptions,
@@ -78,17 +74,17 @@ export function usePreviousYearPaperDropdowns(open, enabled) {
       const [examResult, paperTypeResult, yearResult] = await Promise.allSettled([
         examCache.fetch(
           EXAM_CACHE_KEY,
-          () => fetchExamCategoriesDropdown({ signal: controller.signal }),
+          () => freeResourceService.getExamCategoriesDropdown({ signal: controller.signal }),
           { bypass: bypassCache },
         ),
         paperTypeCache.fetch(
           PAPER_TYPE_CACHE_KEY,
-          () => fetchPaperTypesDropdown({ signal: controller.signal }),
+          () => freeResourceService.getPaperTypesDropdown({ signal: controller.signal }),
           { bypass: bypassCache },
         ),
         yearCache.fetch(
           YEAR_CACHE_KEY,
-          () => fetchYearsDropdown({ signal: controller.signal }),
+          () => freeResourceService.getYearsDropdown({ signal: controller.signal }),
           { bypass: bypassCache },
         ),
       ])

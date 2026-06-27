@@ -92,3 +92,15 @@ export async function deleteProgram(programId) {
     throwApiError(error)
   }
 }
+
+export async function getProgramDropdown(centerId) {
+  const key = String(centerId || '')
+  if (!key) return { success: true, count: 0, data: [] }
+
+  try {
+    const response = await axiosInstance.get(`/api/programs/by-center/${key}`)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}

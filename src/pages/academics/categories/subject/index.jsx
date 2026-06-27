@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, RefreshCw } from 'lucide-react'
 import CategoryPageHeader from '../../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../../components/categories/CategoryFilterBar'
 import ProgramsBulkActionsBar from '../../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../../components/categories/CategoryEmptyState'
 import ConfirmSubjectStatusModal from './ConfirmSubjectStatusModal'
-import ExamCategoryTableSkeleton from '../../../../components/categories/ExamCategoryTableSkeleton'
+import CategoryTableLoadingShell from '../../../../components/categories/CategoryTableLoadingShell'
 import MasterBulkConfirmModal from '../../../../components/categories/MasterBulkConfirmModal'
+import ConfirmDeleteDialog from '../../../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../../../components/feedback/ErrorState'
 import { useEditModal } from '../../../../hooks/useEditModal'
 import { useSubjectManagement } from '../../../../hooks/useSubjectManagement'
+import { useCreateSubject } from '../../../../hooks/useCreateSubject'
+import { useUpdateSubject } from '../../../../hooks/useUpdateSubject'
+import { useDeleteSubject } from '../../../../hooks/useDeleteSubject'
+import { useToggleSubjectStatus } from '../../../../hooks/useToggleSubjectStatus'
+import { useSubject } from '../../../../hooks/useSubject'
 import { toast, TOAST_DURATION } from '../../../../utils/toast'
 import {
   bulkUpdateMasterStatus,
@@ -24,17 +31,8 @@ import {
 } from '../../../../utils/masterBulkActions'
 import { getApiErrorMessage } from '../../../../utils/apiError'
 import { mapUiStatusToApi } from '../../../../utils/programHelpers'
-import {
-  createSubject,
-  deleteSubject,
-  getSubjectById,
-  updateSubject,
-  updateSubjectStatus,
-} from '../../../../services/subjectService'
-import {
-  buildSubjectApiPayload,
-  mapApiSubjectToLocal,
-} from './subjectHelpers'
+import { subjectService } from '../../../../services/subjectService'
+import { buildSubjectApiPayload, mapApiSubjectToLocal } from './subjectHelpers'
 import AddEditSubjectModal from './AddEditSubjectModal'
 import ViewSubjectModal from './ViewSubjectModal'
 import SubjectTable from './SubjectTable'
@@ -59,33 +57,66 @@ function AddButton({ onClick, children, disabled }) {
   )
 }
 
+function RefreshButton({ onClick, disabled, fetching }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+    >
+      <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
+      {fetching ? 'Refreshing…' : 'Refresh'}
+    </button>
+  )
+}
+
 export default function SubjectSection({ section }) {
   const {
     subjects,
     loading,
+    isFetching,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
     refreshSubjects,
-    patchSubjectLocally,
-    removeSubjectLocally,
   } = useSubjectManagement()
 
+  const createMutation = useCreateSubject()
+  const updateMutation = useUpdateSubject()
+  const deleteMutation = useDeleteSubject()
+  const toggleStatusMutation = useToggleSubjectStatus()
+
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
-  const [viewItem, setViewItem] = useState(null)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [editDetail, setEditDetail] = useState(null)
-  const [editDetailLoading, setEditDetailLoading] = useState(false)
-  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [viewId, setViewId] = useState(null)
+  const [editId, setEditId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+
+  const { data: viewQuery, isLoading: viewLoading } = useSubject(viewId, {
+    enabled: Boolean(viewId),
+  })
+  const viewItem = useMemo(() => {
+    if (!viewId) return null
+    return mapApiSubjectToLocal(viewQuery) || null
+  }, [viewId, viewQuery])
+
+  const { data: editQuery, isLoading: editDetailLoading } = useSubject(editId, {
+    enabled: Boolean(editId) && isOpen,
+  })
+  const editDetail = useMemo(() => {
+    if (!editId) return selectedItem
+    return mapApiSubjectToLocal(editQuery) || selectedItem
+  }, [editId, editQuery, selectedItem])
 
   const subjectsById = useMemo(
     () => new Map(subjects.map((row) => [String(row.id), row])),
@@ -102,76 +133,45 @@ export default function SubjectSection({ section }) {
     [selectedIds, subjectsById],
   )
 
-  const loadSubjectDetail = useCallback(async (row) => {
-    const data = await getSubjectById(row.id)
-    return mapApiSubjectToLocal(data)
+  const handleView = useCallback((row) => {
+    setViewId(row.id)
   }, [])
 
-  const handleView = useCallback(
-    async (row) => {
-      setViewItem(row)
-      setViewLoading(true)
-      try {
-        const detail = await loadSubjectDetail(row)
-        if (detail) setViewItem(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load subject details'))
-        setViewItem(null)
-      } finally {
-        setViewLoading(false)
-      }
-    },
-    [loadSubjectDetail],
-  )
-
   const handleEditOpen = useCallback(
-    async (row) => {
+    (row) => {
+      setEditId(row.id)
       openEdit(row)
-      setEditDetail(null)
-      setEditDetailLoading(true)
-      try {
-        const detail = await loadSubjectDetail(row)
-        setEditDetail(detail || row)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load subject for edit'))
-        close()
-      } finally {
-        setEditDetailLoading(false)
-      }
     },
-    [loadSubjectDetail, openEdit, close],
+    [openEdit],
   )
 
   useEffect(() => {
     if (!isOpen) {
-      setEditDetail(null)
-      setEditDetailLoading(false)
+      setEditId(null)
     }
   }, [isOpen])
 
+  const formSubmitting = createMutation.isPending || updateMutation.isPending
+
   const handleFormSubmit = useCallback(
     async (form, { isEdit, id }) => {
-      setFormSubmitting(true)
+      const payload = buildSubjectApiPayload(form)
       try {
-        const payload = buildSubjectApiPayload(form)
         if (isEdit && id != null) {
-          await updateSubject(id, payload)
-          toast.success('Subject updated')
+          const result = await updateMutation.mutateAsync({ id, payload })
+          toast.success(result?.message || 'Subject updated')
         } else {
-          await createSubject(payload)
-          toast.success('Subject created')
+          const result = await createMutation.mutateAsync(payload)
+          toast.success(result?.message || 'Subject created')
         }
-        await refreshSubjects()
       } catch (error) {
         toast.error(
           getApiErrorMessage(error, isEdit ? 'Failed to update subject' : 'Failed to create subject'),
         )
         throw error
-      } finally {
-        setFormSubmitting(false)
       }
     },
-    [refreshSubjects],
+    [createMutation, updateMutation],
   )
 
   const handleDelete = useCallback((row) => {
@@ -183,42 +183,34 @@ export default function SubjectSection({ section }) {
     const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
     if (!ids.length) return
 
-    setDeleteLoading(true)
     try {
-      await Promise.all(ids.map((id) => deleteSubject(id)))
-      ids.forEach((id) => removeSubjectLocally(id))
+      for (const id of ids) {
+        await deleteMutation.mutateAsync(id)
+      }
       setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
       setDeleteTarget(null)
       toast.success(ids.length > 1 ? `${ids.length} subjects deleted` : 'Subject deleted')
-      await refreshSubjects()
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to delete subject'))
-    } finally {
-      setDeleteLoading(false)
     }
-  }, [deleteTarget, removeSubjectLocally, refreshSubjects])
+  }, [deleteTarget, deleteMutation])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
     const enabling = statusTarget.status !== 'Active'
-    const nextUi = enabling ? 'Active' : 'In Active'
-    const nextApi = mapUiStatusToApi(nextUi)
-    const previousStatus = statusTarget.status
-
-    patchSubjectLocally(statusTarget.id, { status: nextUi })
-    setStatusLoading(true)
+    const nextApi = mapUiStatusToApi(enabling ? 'Active' : 'In Active')
 
     try {
-      await updateSubjectStatus(statusTarget.id, nextApi)
-      toast.success(enabling ? 'Subject enabled' : 'Subject disabled')
+      const result = await toggleStatusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApi,
+      })
+      toast.success(result?.message || (enabling ? 'Subject enabled' : 'Subject disabled'))
       setStatusTarget(null)
     } catch (error) {
-      patchSubjectLocally(statusTarget.id, { status: previousStatus })
       toast.error(getApiErrorMessage(error, 'Failed to update status'))
-    } finally {
-      setStatusLoading(false)
     }
-  }, [statusTarget, patchSubjectLocally])
+  }, [statusTarget, toggleStatusMutation])
 
   const handleBulkEnableRequest = () => {
     if (!enableableCount) return
@@ -230,11 +222,6 @@ export default function SubjectSection({ section }) {
     setBulkConfirm({ type: 'disable' })
   }
 
-  const handleBulkDeleteRequest = () => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }
-
   const confirmBulkAction = async () => {
     if (!bulkConfirm) return
     setBulkActionLoading(true)
@@ -244,29 +231,28 @@ export default function SubjectSection({ section }) {
         const ids = filterEnableableIds(selectedIds, subjectsById)
         const apiStatus = mapUiStatusToApi('Active')
         await bulkUpdateMasterStatus('subjects', ids, apiStatus, {
-          updateSingle: updateSubjectStatus,
+          updateSingle: subjectService.updateSubjectStatus,
         })
-        ids.forEach((id) => patchSubjectLocally(id, { status: 'Active' }))
         setSelectedIds([])
         toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
       } else if (bulkConfirm.type === 'disable') {
         const ids = filterDisableableIds(selectedIds, subjectsById)
         const apiStatus = mapUiStatusToApi('In Active')
         await bulkUpdateMasterStatus('subjects', ids, apiStatus, {
-          updateSingle: updateSubjectStatus,
+          updateSingle: subjectService.updateSubjectStatus,
         })
-        ids.forEach((id) => patchSubjectLocally(id, { status: 'In Active' }))
         setSelectedIds([])
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
       } else if (bulkConfirm.type === 'delete') {
         const ids = [...selectedIds]
-        await Promise.all(ids.map((id) => deleteSubject(id)))
-        ids.forEach((id) => removeSubjectLocally(id))
+        for (const id of ids) {
+          await deleteMutation.mutateAsync(id)
+        }
         setSelectedIds([])
         toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        await refreshSubjects()
       }
       setBulkConfirm(null)
+      await refreshSubjects()
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error(error)
@@ -299,8 +285,8 @@ export default function SubjectSection({ section }) {
   }, [])
 
   const showEmpty =
-    !loading && subjects.length === 0 && !search && statusFilter === 'all'
-  const showNoResults = !loading && subjects.length === 0 && !showEmpty
+    !loading && !listError && subjects.length === 0 && !search && statusFilter === 'all'
+  const showNoResults = !loading && !listError && subjects.length === 0 && !showEmpty
 
   const clearFilters = () => {
     setSearch('')
@@ -310,7 +296,7 @@ export default function SubjectSection({ section }) {
   const deleteMessage =
     deleteTarget?.ids?.length > 1
       ? `Delete ${deleteTarget.ids.length} selected subjects? This cannot be undone.`
-      : `Are you sure you want to delete "${deleteTarget?.name || 'this subject'}"? This action cannot be undone.`
+      : `Are you sure you want to delete "${deleteTarget?.name || 'this subject'}"? This cannot be undone.`
 
   if (!section) return null
 
@@ -325,9 +311,16 @@ export default function SubjectSection({ section }) {
         className="space-y-5 sm:space-y-6"
       >
         <CategoryPageHeader title="Subject">
-          <AddButton onClick={openCreate} disabled={loading}>
-            {section.addLabel}
-          </AddButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <RefreshButton
+              onClick={() => refreshSubjects()}
+              disabled={loading || isFetching}
+              fetching={isFetching}
+            />
+            <AddButton onClick={openCreate} disabled={loading}>
+              {section.addLabel}
+            </AddButton>
+          </div>
         </CategoryPageHeader>
 
         <CategoryFilterBar
@@ -349,7 +342,12 @@ export default function SubjectSection({ section }) {
         />
 
         {loading ? (
-          <ExamCategoryTableSkeleton />
+          <CategoryTableLoadingShell />
+        ) : listError ? (
+          <ErrorState
+            message={getApiErrorMessage(listError, 'Failed to load subjects')}
+            onRetry={() => refreshSubjects()}
+          />
         ) : showEmpty ? (
           <CategoryEmptyState
             title={section.emptyTitle}
@@ -367,13 +365,16 @@ export default function SubjectSection({ section }) {
         ) : (
           <SubjectTable
             subjects={subjects}
-            loading={loading || bulkActionLoading}
+            loading={loading || bulkActionLoading || isFetching}
             controlledPagination={controlledPagination}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
             onView={handleView}
             onEdit={handleEditOpen}
             onDelete={handleDelete}
             onToggleStatus={setStatusTarget}
-            resetDeps={[search, statusFilter]}
+            resetDeps={[search, statusFilter, sortBy, sortOrder]}
             selection={{
               selectedIds,
               onToggle: toggleSelect,
@@ -385,18 +386,15 @@ export default function SubjectSection({ section }) {
         <AddEditSubjectModal
           open={isOpen}
           onClose={close}
-          item={editDetail ?? selectedItem}
+          item={editDetail}
           onSubmit={handleFormSubmit}
           detailLoading={editDetailLoading}
           submitting={formSubmitting}
         />
 
         <ViewSubjectModal
-          open={Boolean(viewItem) || viewLoading}
-          onClose={() => {
-            setViewItem(null)
-            setViewLoading(false)
-          }}
+          open={Boolean(viewId)}
+          onClose={() => setViewId(null)}
           item={viewItem}
           loading={viewLoading}
         />
@@ -405,12 +403,19 @@ export default function SubjectSection({ section }) {
           open={Boolean(statusTarget)}
           subjectName={statusTarget?.name || 'this subject'}
           enabling={statusTarget?.status !== 'Active'}
-          loading={statusLoading}
+          loading={toggleStatusMutation.isPending}
           onCancel={() => setStatusTarget(null)}
           onConfirm={confirmStatusChange}
         />
 
-        
+        <ConfirmDeleteDialog
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.ids?.length > 1 ? 'Delete selected subjects?' : 'Delete subject?'}
+          message={deleteMessage}
+          loading={deleteMutation.isPending}
+          onConfirm={confirmDelete}
+          onCancel={() => !deleteMutation.isPending && setDeleteTarget(null)}
+        />
 
         <MasterBulkConfirmModal
           open={Boolean(bulkConfirm)}

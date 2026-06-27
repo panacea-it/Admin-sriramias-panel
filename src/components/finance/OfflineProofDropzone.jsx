@@ -31,8 +31,10 @@ export default function OfflineProofDropzone({
   label = 'Upload proof',
   multiple = true,
   disabled = false,
+  replaceInputRef,
 }) {
-  const inputRef = useRef(null)
+  const internalInputRef = useRef(null)
+  const inputRef = replaceInputRef || internalInputRef
   const [dragOver, setDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({})
   const [errors, setErrors] = useState({})
@@ -53,7 +55,7 @@ export default function OfflineProofDropzone({
   const addFiles = useCallback(
     (incoming) => {
       const list = Array.from(incoming)
-      const next = [...files]
+      const next = multiple ? [...files] : []
       const newErrors = { ...errors }
 
       list.forEach((file) => {

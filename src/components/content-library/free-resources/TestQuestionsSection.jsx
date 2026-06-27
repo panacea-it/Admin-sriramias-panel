@@ -19,13 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Eye, Loader2, Upload } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import {
-  createMockTestQuestion,
-  deleteMockTestQuestion,
-  duplicateMockTestQuestion,
-  fetchMockTestQuestions,
-  updateMockTestQuestion,
-} from '../../../api/freeResourcesAPI'
+import { freeResourceService } from '../../../services/freeResourceService'
 import SectionBar from '../../courses/SectionBar'
 import { QUESTION_LIST_CHUNK } from '../../../utils/freeResourceFormConstants'
 import {
@@ -96,7 +90,7 @@ export default function TestQuestionsSection({
 
     setLoadingQuestions(true)
     try {
-      const data = await fetchMockTestQuestions(mockTestId)
+      const data = await freeResourceService.getMockTestQuestions(mockTestId)
       const mapped = normalizeMockTestQuestionsResponse(data)
       replace(mapped)
       setValue('questions', mapped, { shouldDirty: false })
@@ -186,10 +180,10 @@ export default function TestQuestionsSection({
     try {
       const payload = mapMockTestQuestionUiToApi(q, index)
       if (q.apiId) {
-        await updateMockTestQuestion(mockTestId, q.apiId, payload)
+        await freeResourceService.updateMockTestQuestion(mockTestId, q.apiId, payload)
         toast.success('Question updated successfully.')
       } else {
-        const response = await createMockTestQuestion(mockTestId, payload)
+        const response = await freeResourceService.createMockTestQuestion(mockTestId, payload)
         const saved = mapMockTestQuestionApiToUi(response?.data ?? response)
         updateQuestionAt(index, { ...saved, saved: true })
         toast.success('Question saved successfully.')
@@ -224,7 +218,7 @@ export default function TestQuestionsSection({
 
     setQuestionActionId(q.apiId)
     try {
-      await duplicateMockTestQuestion(mockTestId, q.apiId)
+      await freeResourceService.duplicateMockTestQuestion(mockTestId, q.apiId)
       toast.success('Question duplicated successfully.')
       await loadQuestions()
     } catch (error) {
@@ -255,7 +249,7 @@ export default function TestQuestionsSection({
     if (!deleteTarget?.questionId || !mockTestId) return
     setDeleteLoading(true)
     try {
-      await deleteMockTestQuestion(mockTestId, deleteTarget.questionId)
+      await freeResourceService.deleteMockTestQuestion(mockTestId, deleteTarget.questionId)
       toast.success('Question deleted successfully.')
       setDeleteTarget(null)
       await loadQuestions()

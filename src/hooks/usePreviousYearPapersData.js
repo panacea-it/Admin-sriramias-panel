@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchPreviousYearPapers } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import {
   getPreviousYearPaperApiErrorMessage,
   normalizePreviousYearPapersListResponse,
@@ -29,7 +29,7 @@ export function usePreviousYearPapersData({ enabled = true, search = '', page = 
       setError(null)
 
       try {
-        const data = await fetchPreviousYearPapers(
+        const data = await freeResourceService.getPreviousYearPapers(
           {
             page: pageNo,
             limit: pageLimit,

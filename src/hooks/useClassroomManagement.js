@@ -1,115 +1,68 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isRateLimitError } from '../utils/apiError'
+import { useCallback, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
-import { clearClassroomsListCache, getClassrooms } from '../services/classroomService'
-import {
-  mapClassroomStatusFilterToApi,
-  normalizeClassroomsListResponse,
-} from '../utils/classroomApiHelpers'
-import {
-  buildFilterSignature,
-  createListFetchGuard,
-  invalidateListSession,
-  runGuardedListFetch,
-  useEffectivePage,
-} from './useMasterListQuery'
+import { useClassrooms } from './useClassrooms'
+import { mapClassroomStatusFilterToApi } from '../utils/classroomApiHelpers'
+import { buildFilterSignature, useEffectivePage } from './useMasterListQuery'
 
-const SESSION_SCOPE = 'classrooms'
 const DEFAULT_PAGE_SIZE = 10
 
-function buildListParams({ page, pageSize, statusFilter, centerFilter }) {
-  const apiStatus = mapClassroomStatusFilterToApi(statusFilter)
-  const params = {
-    page,
-    limit: pageSize,
-  }
-  if (apiStatus) params.status = apiStatus
-  if (centerFilter !== 'all') params.center = centerFilter
-  return params
-}
-
 export function useClassroomManagement() {
-  const [classrooms, setClassrooms] = useState([])
-  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 400)
-  const fetchGuardRef = useRef(null)
-
-  if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard()
-  }
-  const fetchGuard = fetchGuardRef.current
+  const [cityFilter, setCityFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   const filterSignature = buildFilterSignature([
+    debouncedSearch,
     statusFilter,
     centerFilter,
+    cityFilter,
     pageSize,
+    sortBy,
+    sortOrder,
   ])
   const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  const applyPaginated = useCallback((normalized) => {
-    setClassrooms(normalized.items)
-    setTotalItems(normalized.total)
-    setTotalPages(normalized.totalPages)
-  }, [])
-
-  const loadClassrooms = useCallback(
-    async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({
-        page: effectivePage,
-        pageSize,
-        statusFilter,
-        centerFilter,
-      })
-
-      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
-
-      await runGuardedListFetch({
-        fetchGuard,
-        sessionKey,
-        bypassCache,
-        ignoreFlag,
-        setLoading,
-        fetchFn: async () => {
-          const data = await getClassrooms(params, { bypassCache })
-          return normalizeClassroomsListResponse(data, { page: effectivePage, limit: pageSize })
-        },
-        applyData: applyPaginated,
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error)
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, 'Failed to load classrooms'),
-          )
-          if (!isRateLimitError(error) && !hydratedFromSession) {
-            setClassrooms([])
-            setTotalItems(0)
-            setTotalPages(1)
-          }
-        },
-      })
-    },
-    [effectivePage, pageSize, statusFilter, centerFilter, fetchGuard, applyPaginated],
-  )
-
-  useEffect(() => {
-    let ignore = false
-    loadClassrooms({ ignoreFlag: () => ignore })
-    return () => {
-      ignore = true
+  const listParams = useMemo(() => {
+    /** @type {import('../types/classroom.types').ClassroomListParams} */
+    const params = {
+      page: effectivePage,
+      limit: pageSize,
+      sortBy,
+      sortOrder,
     }
-  }, [loadClassrooms])
 
-  const refreshClassrooms = useCallback(async () => {
-    clearClassroomsListCache()
-    invalidateListSession(SESSION_SCOPE)
-    await loadClassrooms({ bypassCache: true })
-  }, [loadClassrooms])
+    const trimmedSearch = debouncedSearch.trim()
+    if (trimmedSearch) params.search = trimmedSearch
+
+    const apiStatus = mapClassroomStatusFilterToApi(statusFilter)
+    if (apiStatus) params.status = apiStatus
+
+    if (centerFilter !== 'all') params.center = centerFilter
+    if (cityFilter !== 'all') params.city = cityFilter
+
+    return params
+  }, [
+    effectivePage,
+    pageSize,
+    debouncedSearch,
+    statusFilter,
+    centerFilter,
+    cityFilter,
+    sortBy,
+    sortOrder,
+  ])
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useClassrooms(listParams)
+
+  const classrooms = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -140,17 +93,55 @@ export function useClassroomManagement() {
     [pagination],
   )
 
+  const handleSort = useCallback((columnKey) => {
+    const allowed = [
+      'createdAt',
+      'classroomName',
+      'classroomCode',
+      'capacity',
+      'status',
+      'centerName',
+      'cityAddress',
+    ]
+    const apiKey =
+      columnKey === 'name'
+        ? 'classroomName'
+        : columnKey === 'code'
+          ? 'classroomCode'
+          : columnKey === 'placeName'
+            ? 'cityAddress'
+            : columnKey
+
+    if (!allowed.includes(apiKey)) return
+
+    setSortBy((prev) => {
+      if (prev === apiKey) {
+        setSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortOrder('asc')
+      return apiKey
+    })
+  }, [])
+
   return {
     classrooms,
-    loading,
+    loading: isLoading,
+    isFetching,
+    listError: isError ? error : null,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
-    debouncedSearch,
+    cityFilter,
+    setCityFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
-    refreshClassrooms,
+    refreshClassrooms: refetch,
+    listParams,
   }
 }

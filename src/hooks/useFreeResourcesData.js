@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchFreeResourcesList } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import {
   getFreeResourceApiErrorMessage,
   normalizeFreeResourcesListResponse,
@@ -29,7 +29,7 @@ export function useFreeResourcesData({ enabled = true, search = '', page = 1, li
       setError(null)
 
       try {
-        const data = await fetchFreeResourcesList(
+        const data = await freeResourceService.getFreeResourcesList(
           {
             page: pageNo,
             limit: pageLimit,
@@ -84,7 +84,7 @@ export function useFreeResourcesData({ enabled = true, search = '', page = 1, li
       setError(null)
 
       try {
-        const data = await fetchFreeResourcesList(
+        const data = await freeResourceService.getFreeResourcesList(
           {
             page,
             limit,

@@ -8,13 +8,17 @@ import CenterDropdown from '../academics/CenterDropdown'
 import { CourseFormField, CourseInput } from '../courses/CourseFormField'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { EMPTY_CITY_FORM, cityToForm } from '../../utils/cityFormUtils'
-import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
 const fieldClass = cn(
   'h-11 w-full rounded-xl bg-[#d1e9f6] px-4 text-sm outline-none',
   'focus:ring-2 focus:ring-[#55ace7]/40',
 )
+
+const STATUS_FORM_OPTIONS = [
+  { value: 'Active', label: 'Active' },
+  { value: 'In Active', label: 'Inactive' },
+]
 
 export default function AddCityModal({ open, onClose, city, onSave, saving, loading = false }) {
   const isEdit = Boolean(city?.id)
@@ -47,27 +51,19 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
 
   const onSubmit = async (values) => {
     if (!values.centerId) {
-      setError('centerId', { message: 'Centre is required' })
+      setError('centerId', { message: 'Center is required' })
       return
     }
-    if (!String(values.placeName || '').trim()) {
-      setError('placeName', { message: 'Place name is required' })
-      return
-    }
-
-    if (!String(values.code || '').trim()) {
-      setError('code', { message: 'City code is required' })
+    if (!String(values.cityAddress || '').trim()) {
+      setError('cityAddress', { message: 'City address is required' })
       return
     }
 
     try {
       await onSave({
         centerId: values.centerId,
-        placeName: values.placeName,
-        code: String(values.code || '')
-          .trim()
-          .toUpperCase(),
-        status: cityRef.current?.status || 'Active',
+        cityAddress: values.cityAddress,
+        status: values.status || 'Active',
       })
     } catch {
       // Parent shows toast; keep modal open.
@@ -77,15 +73,15 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
   if (!open) return null
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title={isEdit ? 'Edit Place' : 'Add City'} showCloseButton={false}>
+    <Modal open={open} onClose={onClose} size="md" title={isEdit ? 'Edit City' : 'Add City'} showCloseButton={false}>
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="flex max-h-[min(90vh,640px)] flex-col overflow-hidden rounded-2xl bg-[#f0f4f8]"
       >
         <ModalPanelHeader
           icon={MapPin}
-          title={isEdit ? 'Edit Place' : 'Add City'}
-          subtitle="Link a branch place to a centre"
+          title={isEdit ? 'Edit City' : 'Add City'}
+          subtitle="Link a branch address to a center"
           onClose={onClose}
           closeVariant="icon"
           plainCloseIcon
@@ -107,35 +103,30 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
                   clearErrors('centerId')
                 }}
                 error={errors.centerId?.message}
-                disabled={isEdit}
               />
 
-              <CourseFormField label="City Code" required>
+              <CourseFormField label="City Address" required>
                 <CourseInput
-                  {...register('code', {
-                    required: 'City code is required',
-                    setValueAs: (value) =>
-                      String(value || '')
-                        .trim()
-                        .toUpperCase(),
-                  })}
-                  placeholder="e.g. DEL-NCR, BLR-IND"
+                  {...register('cityAddress', { required: 'City address is required' })}
+                  placeholder="e.g. Plot 12, Banjara Hills, Hyderabad - 500034"
                   className={fieldClass}
-                  autoComplete="off"
-                  spellCheck={false}
                 />
-                {errors.code && <p className="text-xs text-red-500">{errors.code.message}</p>}
+                {errors.cityAddress && (
+                  <p className="text-xs text-red-500">{errors.cityAddress.message}</p>
+                )}
               </CourseFormField>
 
-              <CourseFormField label="Place Name" required>
-                <CourseInput
-                  {...register('placeName', { required: 'Place name is required' })}
-                  placeholder="e.g. NCR, Kukatpally, Indiranagar"
+              <CourseFormField label="Status">
+                <select
+                  {...register('status')}
                   className={fieldClass}
-                />
-                {errors.placeName && (
-                  <p className="text-xs text-red-500">{errors.placeName.message}</p>
-                )}
+                >
+                  {STATUS_FORM_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </CourseFormField>
             </>
           )}
@@ -147,7 +138,6 @@ export default function AddCityModal({ open, onClose, city, onSave, saving, load
             onReset={() => {
               reset(cityToForm(cityRef.current))
               clearErrors()
-              toast.message('Form reset')
             }}
             isSubmitting={saving}
             disableSubmit={loading}

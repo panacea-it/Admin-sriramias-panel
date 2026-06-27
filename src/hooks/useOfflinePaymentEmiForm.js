@@ -36,6 +36,7 @@ const DEFAULT_EMI_CONFIG = {
   installmentCount: 6,
   durationPreset: '6',
   downPayment: '',
+  receivedBy: '',
   startDate: '',
   frequency: 'monthly',
 }
@@ -87,6 +88,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   const [proofFile, setProofFile] = useState(null)
   const [proofPreview, setProofPreview] = useState(null)
   const [proofFiles, setProofFiles] = useState([])
+  const [downPaymentProofFiles, setDownPaymentProofFiles] = useState([])
+  const [downPaymentFieldErrors, setDownPaymentFieldErrors] = useState({})
   const [editInstallment, setEditInstallment] = useState(null)
   const [collectInstallment, setCollectInstallment] = useState(null)
   const [collectDialogTitle, setCollectDialogTitle] = useState('Collect installment')
@@ -138,6 +141,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
     setProofFile(null)
     setProofPreview(null)
     setProofFiles([])
+    setDownPaymentProofFiles([])
+    setDownPaymentFieldErrors({})
     setValidationErrors([])
     setEditInstallment(null)
     setCollectInstallment(null)
@@ -235,6 +240,15 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
     setProofPreview(items[0]?.preview || null)
   }, [])
 
+  const handleDownPaymentProofFilesChange = useCallback((items) => {
+    setDownPaymentProofFiles(items)
+    setDownPaymentFieldErrors((prev) => ({ ...prev, proof: undefined }))
+  }, [])
+
+  const clearDownPaymentProof = useCallback(() => {
+    setDownPaymentProofFiles([])
+  }, [])
+
   const clearProof = useCallback(() => {
     setProofFile(null)
     setProofPreview(null)
@@ -327,6 +341,11 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
         ? Number(emiConfig.downPayment) || Number(data.amount) || 0
         : Number(data.amount) || 0
 
+      const activeProofFiles = emiEnabled ? downPaymentProofFiles : proofFiles
+      const activeProofFile = emiEnabled
+        ? downPaymentProofFiles[0]?.file || null
+        : proofFile
+
       return {
         ...data,
         submitAction,
@@ -343,9 +362,9 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
         courseName: course?.name || financials?.courseName || '',
         courseType: course?.type || financials?.courseType || 'Offline',
         amount,
-        proofFileName: proofFile?.name || proofFiles[0]?.name || null,
-        proofFile,
-        proofFiles: proofFiles.map((p) => p.file).filter(Boolean),
+        proofFileName: activeProofFile?.name || activeProofFiles[0]?.name || null,
+        proofFile: activeProofFile,
+        proofFiles: activeProofFiles.map((p) => p.file).filter(Boolean),
         modeFields,
         financials,
         emiPlan: emiEnabled
@@ -375,8 +394,24 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       proofFiles,
       modeFields,
       emiPlanStatus,
+      downPaymentProofFiles,
     ],
   )
+
+  const validateDownPaymentFields = useCallback(() => {
+    const down = Number(emiConfig.downPayment) || 0
+    const fieldErrors = {}
+    if (down > 0) {
+      if (!emiConfig.receivedBy?.trim()) {
+        fieldErrors.receivedBy = 'Employee ID is required when collecting down payment.'
+      }
+      if (!downPaymentProofFiles.length) {
+        fieldErrors.proof = 'Down payment proof upload is required.'
+      }
+    }
+    setDownPaymentFieldErrors(fieldErrors)
+    return fieldErrors
+  }, [emiConfig.downPayment, emiConfig.receivedBy, downPaymentProofFiles])
 
   const validate = useCallback(
     (data) => {
@@ -389,8 +424,11 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
 
       if (emiEnabled) {
         if (!financials?.pendingAmount && !studentProfile.customFee) {
-          errs.push('Set course fee / pending balance for EMI calculation.')
+          errs.push('Select a course with fee details for EMI calculation.')
         }
+        const dpFieldErrors = validateDownPaymentFields()
+        if (dpFieldErrors.receivedBy) errs.push(dpFieldErrors.receivedBy)
+        if (dpFieldErrors.proof) errs.push(dpFieldErrors.proof)
         errs.push(
           ...validateEmiPlan({
             financials: financials || { pendingAmount: 0, finalPayable: 0 },
@@ -414,8 +452,20 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       setValidationErrors(errs)
       return errs
     },
-    [emiEnabled, studentProfile, financials, emiConfig, installments, emiPlanStatus],
+    [emiEnabled, studentProfile, financials, emiConfig, installments, emiPlanStatus, validateDownPaymentFields],
   )
+
+  const handleEmiConfigChange = useCallback((next) => {
+    setEmiConfig(next)
+    if (Number(next.downPayment) || 0) {
+      setDownPaymentFieldErrors((prev) => ({
+        ...prev,
+        receivedBy: next.receivedBy?.trim() ? undefined : prev.receivedBy,
+      }))
+    } else {
+      setDownPaymentFieldErrors({})
+    }
+  }, [])
 
   return {
     register,
@@ -428,7 +478,7 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
     financials,
     installments,
     emiConfig,
-    setEmiConfig,
+    setEmiConfig: handleEmiConfigChange,
     emiPlanStatus,
     modeFields,
     setModeFields,
@@ -438,6 +488,10 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       handleProofChange,
       handleProofFilesChange,
       clearProof,
+      downPaymentProofFiles,
+      handleDownPaymentProofFilesChange,
+      clearDownPaymentProof,
+      downPaymentFieldErrors,
     schedulePreview,
     validationErrors,
     editInstallment,

@@ -1,110 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getSubjects } from '../services/subjectService'
-import {
-  mapSubjectStatusFilterToApi,
-  normalizeSubjectsListResponse,
-} from '../pages/academics/categories/subject/subjectHelpers'
-import {
-  buildFilterSignature,
-  createListFetchGuard,
-  getListSessionCache,
-  runGuardedListFetch,
-  useEffectivePage,
-} from './useMasterListQuery'
+import { useSubjects } from './useSubjects'
+import { mapSubjectStatusFilterToApi } from '../pages/academics/categories/subject/subjectHelpers'
+import { buildFilterSignature, useEffectivePage } from './useMasterListQuery'
 
-const SESSION_SCOPE = 'category-subjects'
 const DEFAULT_PAGE_SIZE = 10
 
-function buildSessionKey(params) {
-  return `${SESSION_SCOPE}:${JSON.stringify(params)}`
-}
-
-function getInitialPaginatedState() {
-  const params = { page: 1, limit: DEFAULT_PAGE_SIZE, search: '', status: undefined }
-  const cached = getListSessionCache(buildSessionKey(params))
-  return {
-    items: cached?.items ?? [],
-    totalItems: cached?.total ?? 0,
-    totalPages: cached?.totalPages ?? 1,
-    loading: cached == null,
-  }
-}
-
 export function useSubjectManagement() {
-  const initial = useMemo(() => getInitialPaginatedState(), [])
-  const [subjects, setSubjects] = useState(initial.items)
-  const [loading, setLoading] = useState(initial.loading)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(initial.totalItems)
-  const [totalPages, setTotalPages] = useState(initial.totalPages)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 400)
-  const fetchGuardRef = useRef(null)
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const debouncedSearch = useDebouncedValue(search, 300)
 
-  if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard()
-  }
-  const fetchGuard = fetchGuardRef.current
-
-  const filterSignature = buildFilterSignature([debouncedSearch, statusFilter, pageSize])
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    pageSize,
+    sortBy,
+    sortOrder,
+  ])
   const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  const applyPaginated = useCallback((normalized) => {
-    setSubjects(normalized.items)
-    setTotalItems(normalized.total)
-    setTotalPages(normalized.totalPages)
-  }, [])
-
-  const fetchSubjects = useCallback(
-    async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = {
-        page: effectivePage,
-        limit: pageSize,
-        search: debouncedSearch.trim(),
-      }
-
-      const apiStatus = mapSubjectStatusFilterToApi(statusFilter)
-      if (apiStatus) params.status = apiStatus
-
-      const sessionKey = buildSessionKey(params)
-
-      await runGuardedListFetch({
-        fetchGuard,
-        sessionKey,
-        bypassCache,
-        ignoreFlag,
-        setLoading,
-        fetchFn: async () => {
-          const data = await getSubjects(params)
-          return normalizeSubjectsListResponse(data, { page: effectivePage, limit: pageSize })
-        },
-        applyData: applyPaginated,
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error)
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, 'Failed to load subjects'),
-          )
-          if (!hydratedFromSession) {
-            setSubjects([])
-            setTotalItems(0)
-            setTotalPages(1)
-          }
-        },
-      })
-    },
-    [effectivePage, pageSize, debouncedSearch, statusFilter, fetchGuard, applyPaginated],
-  )
-
-  useEffect(() => {
-    let ignore = false
-    fetchSubjects({ ignoreFlag: () => ignore })
-    return () => {
-      ignore = true
+  const listParams = useMemo(() => {
+    const params = {
+      page: effectivePage,
+      limit: pageSize,
+      sortBy,
+      sortOrder,
     }
-  }, [fetchSubjects])
+
+    const trimmedSearch = debouncedSearch.trim()
+    if (trimmedSearch) params.search = trimmedSearch
+
+    const apiStatus = mapSubjectStatusFilterToApi(statusFilter)
+    if (apiStatus) params.status = apiStatus
+
+    return params
+  }, [effectivePage, pageSize, debouncedSearch, statusFilter, sortBy, sortOrder])
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useSubjects(listParams)
+
+  const subjects = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -135,32 +76,46 @@ export function useSubjectManagement() {
     [pagination],
   )
 
-  const patchSubjectLocally = useCallback((subjectId, patch) => {
-    setSubjects((prev) =>
-      prev.map((row) => (String(row.id) === String(subjectId) ? { ...row, ...patch } : row)),
-    )
-  }, [])
+  const handleSort = useCallback((columnKey) => {
+    const allowed = ['createdAt', 'subjectName', 'subjectId', 'status']
+    const apiKey =
+      columnKey === 'name'
+        ? 'subjectName'
+        : columnKey === 'displayId' || columnKey === 'id'
+          ? 'subjectId'
+          : columnKey
 
-  const removeSubjectLocally = useCallback((subjectId) => {
-    setSubjects((prev) => prev.filter((row) => String(row.id) !== String(subjectId)))
-    setTotalItems((prev) => Math.max(0, prev - 1))
+    if (!allowed.includes(apiKey)) return
+
+    setSortBy((prev) => {
+      if (prev === apiKey) {
+        setSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortOrder('asc')
+      return apiKey
+    })
   }, [])
 
   return {
     subjects,
-    loading,
+    loading: isLoading,
+    isFetching,
+    listError: isError ? error : null,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     page,
     setPage,
     pageSize,
     setPageSize,
     pagination,
     controlledPagination,
-    refreshSubjects: () => fetchSubjects({ bypassCache: true }),
-    patchSubjectLocally,
-    removeSubjectLocally,
+    refreshSubjects: refetch,
+    listParams,
   }
 }

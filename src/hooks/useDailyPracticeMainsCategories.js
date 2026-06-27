@@ -1,56 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@/utils/toast'
+import { useQuery } from '@tanstack/react-query'
 import { MAINS_CATEGORY_OPTIONS } from '../constants/currentAffairsForm'
-import { getApiErrorMessage } from '../utils/apiError'
 import { getDailyPracticeMainsCategories } from '../services/currentAffairsService'
+import { currentAffairsKeys } from './queryKeys'
 
 const FALLBACK_OPTIONS = MAINS_CATEGORY_OPTIONS.map((name) => ({ value: name, label: name }))
 
 export function useDailyPracticeMainsCategories({ enabled = true } = {}) {
-  const [options, setOptions] = useState(FALLBACK_OPTIONS)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const mountedRef = useRef(true)
+  const query = useQuery({
+    queryKey: currentAffairsKeys.mainsCategories(),
+    queryFn: getDailyPracticeMainsCategories,
+    enabled,
+    staleTime: 5 * 60_000,
+  })
 
-  const fetchOptions = useCallback(async () => {
-    if (!enabled) return
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const rows = await getDailyPracticeMainsCategories()
-      if (!mountedRef.current) return
-      setOptions(rows.length ? rows : FALLBACK_OPTIONS)
-    } catch (err) {
-      if (!mountedRef.current) return
-      if (import.meta.env.DEV) {
-        console.error('[Daily Practice] Failed to load mains categories:', err)
-      }
-      const message = getApiErrorMessage(err, 'Failed to load mains categories')
-      setError(message)
-      setOptions(FALLBACK_OPTIONS)
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [enabled])
-
-  useEffect(() => {
-    mountedRef.current = true
-    if (enabled) {
-      fetchOptions()
-    }
-    return () => {
-      mountedRef.current = false
-    }
-  }, [enabled, fetchOptions])
+  const options = query.data?.length ? query.data : FALLBACK_OPTIONS
 
   return {
     options,
-    loading,
-    error,
-    refresh: fetchOptions,
+    loading: query.isLoading,
+    error: query.error,
+    refresh: query.refetch,
   }
 }

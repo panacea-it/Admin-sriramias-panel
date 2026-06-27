@@ -1,14 +1,61 @@
 import { useMemo } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import CategoryStatusBadge from '../../../../components/categories/CategoryStatusBadge'
-import CourseTableActions from '../../../../components/categories/CourseTableActions'
-import PaginatedFigmaTable from '../../../../components/figma/PaginatedFigmaTable'
+import ExamCategoryTableActions from '../../../../components/categories/ExamCategoryTableActions'
+import CategoryStandardTable from '../../../../components/categories/CategoryStandardTable'
+import {
+  categoryActionsColumn,
+  categoryDateColumn,
+  categoryIdColumn,
+  categoryNameColumn,
+  categoryStatusColumn,
+} from '../../../../components/categories/categoryTableColumns'
 import { formatCategoryDateTime } from '../../../../utils/formatDateTime'
 import { cn } from '../../../../utils/cn'
+
+function SortableLabel({ label, columnKey, sortBy, sortOrder, onSort, sortKey }) {
+  const active = sortBy === sortKey
+  const Icon = active ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort?.(columnKey)}
+      className={cn(
+        'inline-flex items-center gap-1 font-semibold transition hover:text-white/90',
+        active && 'text-white',
+      )}
+    >
+      {label}
+      <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+    </button>
+  )
+}
+
+function withSortableLabel(column, { sortBy, sortOrder, onSort, sortKey }) {
+  return {
+    ...column,
+    label: (
+      <SortableLabel
+        label={column.label}
+        columnKey={column.key}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        sortKey={sortKey}
+      />
+    ),
+    headerTruncate: false,
+  }
+}
 
 export default function SubjectTable({
   subjects,
   loading,
   controlledPagination,
+  sortBy,
+  sortOrder,
+  onSort,
   onView,
   onEdit,
   onDelete,
@@ -16,94 +63,64 @@ export default function SubjectTable({
   resetDeps = [],
   selection,
 }) {
-  const columns = useMemo(
-    () => [
-      {
-        key: 'id',
-        label: 'ID',
-        headerClassName: 'min-w-[5rem]',
-        cellClassName: 'whitespace-nowrap font-medium tabular-nums',
-        render: (row) => row.displayId || row.subjectId || row.id,
-      },
-      {
-        key: 'name',
-        label: 'Subject',
-        render: (row) => <span className="font-semibold text-[#111]">{row.name}</span>,
-      },
-      {
-        key: 'createdAt',
-        label: 'Created On',
-        render: (row) => (
-          <span className="whitespace-nowrap text-sm text-[#444]">
-            {formatCategoryDateTime(row.createdAt)}
-          </span>
-        ),
-      },
-      {
+  const columns = useMemo(() => {
+    const base = [
+      withSortableLabel(
+        categoryIdColumn({
+          key: 'displayId',
+          label: 'ID',
+          getValue: (row) => row.displayId || row.subjectId || row.id,
+        }),
+        { sortBy, sortOrder, onSort, sortKey: 'subjectId' },
+      ),
+      withSortableLabel(categoryNameColumn({ label: 'Subject', key: 'name' }), {
+        sortBy,
+        sortOrder,
+        onSort,
+        sortKey: 'subjectName',
+      }),
+      withSortableLabel(
+        categoryDateColumn({
+          key: 'createdAt',
+          label: 'Created On',
+          formatFn: formatCategoryDateTime,
+        }),
+        { sortBy, sortOrder, onSort, sortKey: 'createdAt' },
+      ),
+      categoryDateColumn({
         key: 'modifiedAt',
         label: 'Modified On',
-        render: (row) => (
-          <span className="whitespace-nowrap text-sm text-[#444]">
-            {formatCategoryDateTime(row.modifiedAt)}
-          </span>
-        ),
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        align: 'center',
-        headerClassName: 'min-w-[6rem]',
-        render: (row) => <CategoryStatusBadge status={row.status} />,
-      },
-      {
-        key: 'actions',
-        label: 'Actions',
-        align: 'right',
-        headerClassName: 'min-w-[200px] whitespace-nowrap pr-4 sm:pr-6',
-        cellClassName: 'min-w-[200px] whitespace-nowrap align-middle pr-4 sm:pr-6',
-        render: (row) => (
-          <CourseTableActions
-            row={row}
-            status={row.status}
-            onView={() => onView(row)}
-            onEdit={() => onEdit(row)}
-            onDelete={() => onDelete(row)}
-            onToggleStatus={() => onToggleStatus(row)}
-          />
-        ),
-      },
-    ],
-    [onView, onEdit, onDelete, onToggleStatus],
-  )
+        formatFn: formatCategoryDateTime,
+      }),
+      withSortableLabel(categoryStatusColumn((row) => <CategoryStatusBadge status={row.status} />), {
+        sortBy,
+        sortOrder,
+        onSort,
+        sortKey: 'status',
+      }),
+      categoryActionsColumn((row) => (
+        <ExamCategoryTableActions
+          row={row}
+          onView={() => onView(row)}
+          onEdit={() => onEdit(row)}
+          onDelete={() => onDelete(row)}
+          onStatusToggle={() => onToggleStatus(row)}
+        />
+      )),
+    ]
+    return base
+  }, [sortBy, sortOrder, onSort, onView, onEdit, onDelete, onToggleStatus])
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-[#f0f2f5]/60 p-2 sm:p-3">
-      <PaginatedFigmaTable
-        columns={columns}
-        data={subjects}
-        loading={loading}
-        skeletonRowCount={8}
-        itemLabel="subjects"
-        resetDeps={resetDeps}
-        selection={selection}
-        density="comfortable"
-        controlledPagination={controlledPagination}
-        rowClassName={cn(
-          'bg-white shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition-shadow duration-200',
-          'hover:bg-white hover:shadow-[0_4px_16px_rgba(15,23,42,0.1)]',
-        )}
-        tableClassName={cn(
-          'rounded-xl bg-transparent shadow-none',
-          '[&_table]:border-separate [&_table]:border-spacing-y-2',
-          '[&_thead_tr]:bg-gradient-to-r [&_thead_tr]:from-[#7eb8e8] [&_thead_tr]:to-[#55ace7]',
-          '[&_thead_tr]:shadow-[0_2px_8px_rgba(85,172,231,0.25)]',
-          '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap',
-          '[&_tbody_tr]:rounded-xl [&_tbody_tr]:overflow-hidden',
-          '[&_tbody_td]:align-middle',
-          '[&_tbody_td:first-child]:rounded-l-xl [&_tbody_td:last-child]:rounded-r-xl',
-        )}
-        className="rounded-xl bg-transparent shadow-none"
-      />
-    </div>
+    <CategoryStandardTable
+      columns={columns}
+      data={subjects}
+      loading={loading}
+      skeletonRowCount={8}
+      itemLabel="subjects"
+      resetDeps={resetDeps}
+      selection={selection}
+      controlledPagination={controlledPagination}
+    />
   )
 }

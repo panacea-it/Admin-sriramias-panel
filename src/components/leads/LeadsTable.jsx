@@ -152,15 +152,7 @@ export default function LeadsTable({
         headerTruncate: false,
         headerClassName: CELL,
         cellClassName: CELL,
-        // Assuming your backend sends the full ISO string in `row.date`
-        render: (row) => {
-          const d = new Date(row.date);
-          const dateStr = !isNaN(d) ? d.toLocaleDateString() : row.date;
-          const timeStr = !isNaN(d)
-            ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : "";
-          return <DateCell time={timeStr} date={dateStr} />;
-        },
+        render: (row) => <DateCell time={row.time} date={row.date} />,
       },
       {
         key: "assignedCounselor",
@@ -173,9 +165,8 @@ export default function LeadsTable({
           <LeadTableSelect
             value={counselorById[row.id] || row.assignedCounselor || ""}
             onChange={(value) => onCounselorChange(row.id, value)}
-            // DYNAMIC LOOKUP: Grab options strictly for this row's center!
             options={
-              counselorsByCenter[row.centerId] || [
+              counselorsByCenter[row.center] || [
                 { value: "", label: "No Counselors Available", disabled: true },
               ]
             }

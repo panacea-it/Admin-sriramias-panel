@@ -31,26 +31,72 @@ export const DEFAULT_STATUS_OPTIONS = [
   { label: 'Deactivated', value: 'INACTIVE' },
 ]
 
-const FREE_RESOURCE_LIST_MAX_LIMIT = 50
+const FREE_RESOURCE_LIST_MAX_LIMIT = 100
 
-/** GET list query params — page/limit/search as strings. */
-export function buildFreeResourceListParams({ page = 1, limit = 10, search } = {}) {
-  return {
-    page: String(Math.max(1, Number(page) || 1)),
-    limit: String(
-      Math.min(FREE_RESOURCE_LIST_MAX_LIMIT, Math.max(1, Number(limit) || 10)),
-    ),
-    search: String(search ?? '').trim(),
-  }
+const FORM_CATEGORY_TO_API = {
+  [FREE_RESOURCE_CATEGORY.NCERT]: 'NCERT_BOOKS',
+  [FREE_RESOURCE_CATEGORY.PREVIOUS_YEAR]: 'PREVIOUS_YEAR_QUESTIONS',
+  [FREE_RESOURCE_CATEGORY.MOCK_TEST]: 'FREE_MOCK_TEST',
+  [FREE_RESOURCE_CATEGORY.STUDY_MATERIAL]: 'STUDY_MATERIAL',
 }
 
-/** POST /free-resources/list JSON body. */
-export function buildFreeResourceListBody({ page = 1, limit = 10, search } = {}) {
-  return {
+/** Map UI category filter label to API `category` enum. */
+export function mapFormCategoryFilterToApi(category) {
+  if (!category || category === 'all') return undefined
+  return FORM_CATEGORY_TO_API[normalizeFreeResourceCategory(category)] || undefined
+}
+
+/** Map UI status filter to API `status` enum. */
+export function mapFreeResourceStatusFilterToApi(status) {
+  if (!status || status === 'all') return undefined
+  if (status === 'Active') return 'ACTIVE'
+  if (status === 'In Active' || status === 'Deactivated') return 'INACTIVE'
+  const upper = String(status).toUpperCase()
+  if (upper === 'ACTIVE' || upper === 'INACTIVE') return upper
+  return undefined
+}
+
+function buildListCoreParams({
+  page = 1,
+  limit = 10,
+  search,
+  category,
+  status,
+  sortBy,
+  sortOrder,
+} = {}) {
+  const params = {
     page: Math.max(1, Number(page) || 1),
     limit: Math.min(FREE_RESOURCE_LIST_MAX_LIMIT, Math.max(1, Number(limit) || 10)),
     search: String(search ?? '').trim(),
   }
+
+  const apiCategory =
+    typeof category === 'string' && category.includes(' ')
+      ? mapFormCategoryFilterToApi(category)
+      : category
+  if (apiCategory) params.category = apiCategory
+
+  const apiStatus = mapFreeResourceStatusFilterToApi(status) || status
+  if (apiStatus && apiStatus !== 'all') params.status = apiStatus
+
+  if (sortBy) params.sortBy = sortBy
+  if (sortOrder) params.sortOrder = sortOrder
+
+  return params
+}
+
+/** GET list query params — page/limit/search as strings. */
+export function buildFreeResourceListParams(params = {}) {
+  const core = buildListCoreParams(params)
+  return Object.fromEntries(
+    Object.entries(core).map(([key, value]) => [key, String(value)]),
+  )
+}
+
+/** POST /free-resources/list JSON body. */
+export function buildFreeResourceListBody(params = {}) {
+  return buildListCoreParams(params)
 }
 
 export function mapResourceCategoryEnumToFormCategory(
@@ -110,7 +156,9 @@ export function mapUnifiedFreeResourceApiToRow(raw) {
   if (!id) return null
 
   const resourceCategory = String(item.resourceCategory || '').toUpperCase()
-  if (resourceCategory === 'FREE_MOCK_TEST') return null
+  if (resourceCategory === 'FREE_MOCK_TEST') {
+    return mapMockTestApiToRow(item)
+  }
 
   const category = mapResourceCategoryEnumToFormCategory(
     resourceCategory,
@@ -154,25 +202,24 @@ export function mapUnifiedFreeResourceApiToRow(raw) {
   return null
 }
 
-export function normalizeFreeResourcesListResponse(
-  data,
-  { page = 1, limit = 10, includeMockTests = false } = {},
-) {
+export function normalizeFreeResourcesListResponse(data, { page = 1, limit = 10 } = {}) {
   const itemsRaw = unwrapUnifiedFreeResourceList(data)
-  const items = itemsRaw
-    .map((row) => mapUnifiedFreeResourceApiToRow(row))
-    .filter(Boolean)
-    .filter((row) => includeMockTests || row.resourceCategory !== 'FREE_MOCK_TEST')
+  const items = itemsRaw.map((row) => mapUnifiedFreeResourceApiToRow(row)).filter(Boolean)
 
   const total = data?.total ?? data?.count ?? items.length
   const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(total / limit) || 1)
   const currentPage = data?.page ?? page
+  const hasNextPage = data?.hasNextPage ?? currentPage < totalPages
+  const hasPrevPage = data?.hasPrevPage ?? currentPage > 1
 
   return {
     items,
     total,
     totalPages,
     page: currentPage,
+    limit: data?.limit ?? limit,
+    hasNextPage,
+    hasPrevPage,
   }
 }
 
@@ -503,12 +550,12 @@ export function validateNcertBookPdf(file) {
 }
 
 export function buildNcertBookFormData(
-  { subject, className, bookName, status, bookFile },
+  { subjectId, classId, bookName, status, bookFile },
   { isEdit = false } = {},
 ) {
   const formData = new FormData()
-  formData.append('subject', String(subject || '').trim())
-  formData.append('class', normalizeNcertBookClassValue(className))
+  formData.append('subjectId', String(subjectId || '').trim())
+  formData.append('classId', String(classId || '').trim())
   formData.append('bookName', String(bookName || '').trim())
   formData.append('status', String(status || 'ACTIVE').trim().toUpperCase())
 
@@ -527,6 +574,40 @@ function unwrapNcertBookRecord(data) {
   return data?.data ?? data?.ncertBook ?? data
 }
 
+function resolveNcertBookMongoId(...candidates) {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim()
+    if (/^[a-f0-9]{24}$/i.test(value)) return value
+  }
+  return ''
+}
+
+function resolveNcertBookSubjectValue(item) {
+  if (item?.subject && typeof item.subject === 'object') {
+    const fromSubject = resolveNcertBookMongoId(item.subject._id, item.subject.id)
+    if (fromSubject) return fromSubject
+  }
+
+  return resolveNcertBookMongoId(item.subjectId, item.subject)
+}
+
+function resolveNcertBookClassValue(item) {
+  if (item?.classSection && typeof item.classSection === 'object') {
+    const fromClassSection = resolveNcertBookMongoId(
+      item.classSection._id,
+      item.classSection.id,
+    )
+    if (fromClassSection) return fromClassSection
+  }
+
+  if (item?.class && typeof item.class === 'object') {
+    const fromClass = resolveNcertBookMongoId(item.class._id, item.class.id)
+    if (fromClass) return fromClass
+  }
+
+  return resolveNcertBookMongoId(item.classId, item.class)
+}
+
 export function mapNcertBookApiToForm(raw, categoryOptions = []) {
   const item = unwrapNcertBookRecord(raw) || {}
   const status = String(item.status || 'ACTIVE').toUpperCase()
@@ -542,8 +623,8 @@ export function mapNcertBookApiToForm(raw, categoryOptions = []) {
       FREE_RESOURCE_CATEGORY.NCERT,
     ),
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-    subject: item.subject || '',
-    className: item.class || item.className || '',
+    subject: resolveNcertBookSubjectValue(item),
+    className: resolveNcertBookClassValue(item),
     bookName: item.bookName || item.resourceName || '',
     bookFileName: item.fileName || fileMeta.fileName || '',
     bookFile: null,
@@ -929,6 +1010,7 @@ export function mapMockTestApiToRow(raw) {
     category: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     status: mapFreeResourceStatusForList(item.status),
     paper: item.paper || '',
+    questionCount: Number(item.questionCount ?? item.numberOfQuestions ?? 0),
     resourceCategory: 'FREE_MOCK_TEST',
     resourceCategoryLabel: FREE_RESOURCE_CATEGORY.MOCK_TEST,
     formData: mapMockTestApiToForm(item),
@@ -1078,22 +1160,46 @@ export const STUDY_MATERIAL_MAX_FILE_BYTES = 25 * 1024 * 1024
 
 export const STUDY_MATERIAL_ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx']
 
-export const DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS = [
-  'POLITY',
-  'HISTORY',
-  'GEOGRAPHY',
-  'ECONOMY',
-  'SCIENCE',
-  'ENVIRONMENT',
-  'ART_AND_CULTURE',
-  'ETHICS',
-].map((value) => ({
-  value,
-  label: value
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' '),
-}))
+/** Backend `category` / `studyMaterialCategory` enum (validated by Joi). */
+export const STUDY_MATERIAL_CATEGORY_API_VALUES = ['PRELIMS', 'MAINS', 'INTERVIEW']
+
+const STUDY_MATERIAL_CATEGORY_LABELS = {
+  PRELIMS: 'Prelims',
+  MAINS: 'Mains',
+  INTERVIEW: 'Interview',
+}
+
+/** Map form label or mixed-case value to API enum for multipart `category` field. */
+export function mapStudyMaterialCategoryToApi(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  const upper = raw.toUpperCase().replace(/\s+/g, '_')
+  if (STUDY_MATERIAL_CATEGORY_API_VALUES.includes(upper)) return upper
+
+  if (/^prelims?$/i.test(raw)) return 'PRELIMS'
+  if (/^mains?$/i.test(raw)) return 'MAINS'
+  if (/^interview$/i.test(raw)) return 'INTERVIEW'
+
+  return upper
+}
+
+/** Map API enum to form select value (always uppercase enum). */
+export function mapStudyMaterialCategoryToForm(value) {
+  return mapStudyMaterialCategoryToApi(value)
+}
+
+export function getStudyMaterialCategoryLabel(apiValue) {
+  const key = mapStudyMaterialCategoryToApi(apiValue)
+  return STUDY_MATERIAL_CATEGORY_LABELS[key] || apiValue
+}
+
+export const DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS = STUDY_MATERIAL_CATEGORY_API_VALUES.map(
+  (value) => ({
+    value,
+    label: STUDY_MATERIAL_CATEGORY_LABELS[value],
+  }),
+)
 
 export function normalizeStudyMaterialCategoryDropdownOptions(data) {
   const fromApi = normalizeFreeResourceDropdownOptions(data, [
@@ -1103,7 +1209,21 @@ export function normalizeStudyMaterialCategoryDropdownOptions(data) {
     'items',
     'results',
   ])
-  return fromApi.length ? fromApi : DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS
+
+  if (fromApi.length) {
+    return fromApi.map((option) => {
+      const apiValue = mapStudyMaterialCategoryToApi(option.value || option.label)
+      if (!STUDY_MATERIAL_CATEGORY_API_VALUES.includes(apiValue)) {
+        return option
+      }
+      return {
+        value: apiValue,
+        label: option.label || STUDY_MATERIAL_CATEGORY_LABELS[apiValue] || apiValue,
+      }
+    })
+  }
+
+  return DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS
 }
 
 export function validateStudyMaterialFile(file) {
@@ -1128,9 +1248,13 @@ export function buildStudyMaterialFormData(
   { isEdit = false } = {},
 ) {
   const formData = new FormData()
-  const categoryValue = String(mainsCategory || '').trim()
+  const categoryValue = mapStudyMaterialCategoryToApi(mainsCategory)
   const nameValue = String(studyMaterialName || '').trim()
   const statusValue = String(status || 'ACTIVE').trim().toUpperCase()
+
+  if (!categoryValue) {
+    throw new Error('Study material category is required.')
+  }
 
   formData.append('category', categoryValue)
   formData.append('studyMaterialName', nameValue)
@@ -1177,7 +1301,7 @@ export function mapStudyMaterialApiToForm(raw) {
   return {
     category: FREE_RESOURCE_CATEGORY.STUDY_MATERIAL,
     status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
-    mainsCategory: categoryValue,
+    mainsCategory: mapStudyMaterialCategoryToForm(categoryValue),
     studyMaterialName: item.studyMaterialName || item.resourceName || item.name || '',
     studyMaterialFileName: item.fileName || fileMeta.fileName || item.originalFileName || '',
     studyMaterialFile: null,

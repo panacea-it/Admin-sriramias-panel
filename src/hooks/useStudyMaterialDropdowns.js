@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchStudyMaterialCategoriesDropdown } from '../api/freeResourcesAPI'
+import { freeResourceService } from '../services/freeResourceService'
 import { createCachedRequest } from '../utils/apiRequestCache'
 import {
   DEFAULT_STUDY_MATERIAL_CATEGORY_OPTIONS,
@@ -40,7 +40,7 @@ export function useStudyMaterialDropdowns(open, enabled) {
     try {
       const data = await categoryCache.fetch(
         CATEGORY_CACHE_KEY,
-        () => fetchStudyMaterialCategoriesDropdown({ signal: controller.signal }),
+        () => freeResourceService.getStudyMaterialCategoriesDropdown({ signal: controller.signal }),
         { bypass: bypassCache },
       )
 

@@ -70,6 +70,7 @@ export default function ViewProgramModal({
                 <dl className="grid gap-4 sm:grid-cols-2">
                   <DetailItem label="Program ID">{program.programId || program.id}</DetailItem>
                   <DetailItem label="Program Name">{program.name}</DetailItem>
+                  <DetailItem label="Linked Courses">{program.linkedCount ?? 0}</DetailItem>
                   <DetailItem label="Status">
                     <CategoryStatusBadge status={program.status} />
                   </DetailItem>

@@ -27,7 +27,7 @@ function classroomToForm(classroom) {
     cityPlaceId: classroom.cityPlaceId || '',
     name: classroom.name || '',
     code: classroom.code || '',
-    capacity: classroom.capacity ?? '',
+    capacity: classroom.capacity ?? 0,
     status: normalizeClassroomStatus(classroom.status),
   }
 }
@@ -87,19 +87,18 @@ export default function ClassroomFormModal({
     if (!validateLocationFields(values)) return
 
     const capacityRaw = String(values.capacity ?? '').trim()
-    if (!capacityRaw) {
-      setError('capacity', { message: 'Capacity is required' })
-      return
-    }
-    if (!/^\d+$/.test(capacityRaw) || Number(capacityRaw) < 1) {
-      setError('capacity', { message: 'Capacity must be a positive number' })
+    const capacity = capacityRaw === '' ? 0 : Number(capacityRaw)
+    if (!Number.isFinite(capacity) || capacity < 0 || !Number.isInteger(capacity)) {
+      setError('capacity', {
+        message: 'Capacity must be zero or a positive whole number',
+      })
       return
     }
 
     try {
       await onSave({
         ...values,
-        capacity: Number(capacityRaw),
+        capacity,
         description: classroomRef.current?.description || '',
         color: classroomRef.current?.color,
       })
@@ -184,23 +183,34 @@ export default function ClassroomFormModal({
                 {errors.code && <p className="text-xs text-red-500">{errors.code.message}</p>}
               </CourseFormField>
 
-              <CourseFormField label="Capacity" required>
+              {isEdit && classroom?.classroomId && (
+                <CourseFormField label="Classroom ID">
+                  <CourseInput
+                    value={classroom.classroomId}
+                    readOnly
+                    disabled
+                    className={cn(fieldClass, 'cursor-not-allowed opacity-70')}
+                  />
+                </CourseFormField>
+              )}
+
+              <CourseFormField label="Capacity">
                 <CourseInput
                   type="number"
-                  min={1}
+                  min={0}
                   step={1}
                   inputMode="numeric"
                   {...register('capacity', {
-                    required: 'Capacity is required',
                     validate: (v) => {
                       const raw = String(v ?? '').trim()
-                      if (!/^\d+$/.test(raw) || Number(raw) < 1) {
-                        return 'Capacity must be a positive number'
+                      if (raw === '') return true
+                      if (!/^\d+$/.test(raw) || Number(raw) < 0) {
+                        return 'Capacity must be zero or a positive number'
                       }
                       return true
                     },
                   })}
-                  placeholder="e.g. 40"
+                  placeholder="e.g. 40 (default 0)"
                   className={fieldClass}
                   onKeyDown={(e) => {
                     if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault()

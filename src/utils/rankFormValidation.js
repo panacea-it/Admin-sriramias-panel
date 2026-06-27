@@ -31,6 +31,10 @@ export function validateRankerForm(form, { editingId = null, rankers = [] } = {}
     errors.course = 'Course is required.'
   }
 
+  if (!form.year?.trim()) {
+    errors.year = 'Year is required.'
+  }
+
   if (!form.studentId?.trim()) {
     errors.studentId = 'Student ID is required.'
   }

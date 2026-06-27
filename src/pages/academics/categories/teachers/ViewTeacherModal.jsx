@@ -58,7 +58,22 @@ export default function ViewTeacherModal({ open, onClose, item, loading = false 
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailItem label="ID">{item.displayId || item.teacherId || item.id}</DetailItem>
             <DetailItem label="Faculty Name">{item.name}</DetailItem>
-            <DetailItem label="Subject">{item.subject || '—'}</DetailItem>
+            <DetailItem label="Subject">
+              {item.subjectNames?.length ? (
+                <div className="flex flex-wrap gap-1">
+                  {item.subjectNames.map((name) => (
+                    <span
+                      key={name}
+                      className="inline-flex rounded-md bg-[#e8f4fc] px-2 py-0.5 text-xs font-semibold text-[#246392]"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                item.subject || '—'
+              )}
+            </DetailItem>
             <DetailItem label="Center">{item.centerName || '—'}</DetailItem>
             <DetailItem label="Status">
               <CategoryStatusBadge status={item.status} />

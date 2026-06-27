@@ -127,6 +127,18 @@ export default function AddEditSubjectModal({
           </div>
         ) : (
           <div className="space-y-4 px-5 py-6 sm:px-6 sm:py-7">
+            {isEdit && (item?.subjectId || item?.displayId) ? (
+              <Field label="Subject ID">
+                <input
+                  type="text"
+                  value={item.subjectId || item.displayId}
+                  readOnly
+                  disabled
+                  className={cn(inputClass, 'cursor-not-allowed opacity-70')}
+                />
+              </Field>
+            ) : null}
+
             <Field label="Subject Name" required error={errors.name}>
               <input
                 type="text"

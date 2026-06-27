@@ -1,140 +1,56 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isRateLimitError } from '../utils/apiError'
+import { useCallback, useMemo, useState } from 'react'
 import { useDebouncedValue } from './useDebouncedValue'
-import { clearCitiesListCache, getCities } from '../services/cityService'
-import {
-  applyCityCodesToList,
-  mapCityStatusFilterToApi,
-  normalizeCitiesListResponse,
-} from '../utils/cityApiHelpers'
-import {
-  buildFilterSignature,
-  createListFetchGuard,
-  invalidateListSession,
-  runGuardedListFetch,
-  useEffectivePage,
-} from './useMasterListQuery'
+import { useCities } from './useCities'
+import { mapCityStatusFilterToApi } from '../utils/cityApiHelpers'
+import { buildFilterSignature, useEffectivePage } from './useMasterListQuery'
 
-const SESSION_SCOPE = 'cities'
 const DEFAULT_PAGE_SIZE = 10
 
-function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centerFilter }) {
-  const apiStatus = mapCityStatusFilterToApi(statusFilter)
-  const params = {
-    page,
-    limit: pageSize,
-    search: debouncedSearch.trim(),
-  }
-  if (apiStatus) params.status = apiStatus
-  if (centerFilter !== 'all') params.center = centerFilter
-  return params
-}
-
 export function useCityManagement() {
-  const [cities, setCities] = useState([])
-  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
-  const debouncedSearch = useDebouncedValue(search, 400)
-  const fetchGuardRef = useRef(null)
-
-  if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard()
-  }
-  const fetchGuard = fetchGuardRef.current
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   const filterSignature = buildFilterSignature([
     debouncedSearch,
     statusFilter,
     centerFilter,
     pageSize,
+    sortBy,
+    sortOrder,
   ])
   const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
-  const applyPaginated = useCallback((normalized) => {
-    setCities(normalized.items)
-    setTotalItems(normalized.total)
-    setTotalPages(normalized.totalPages)
-  }, [])
-
-  const loadCities = useCallback(
-    async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({
-        page: effectivePage,
-        pageSize,
-        debouncedSearch,
-        statusFilter,
-        centerFilter,
-      })
-
-      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
-
-      await runGuardedListFetch({
-        fetchGuard,
-        sessionKey,
-        bypassCache,
-        ignoreFlag,
-        setLoading,
-        fetchFn: async () => {
-          const data = await getCities(params, { bypassCache })
-          const normalized = normalizeCitiesListResponse(data, {
-            page: effectivePage,
-            limit: pageSize,
-          })
-          const items = applyCityCodesToList(normalized.items, {
-            page: effectivePage,
-            limit: pageSize,
-          })
-          return { ...normalized, items }
-        },
-        applyData: applyPaginated,
-        handleError: (error, { hydratedFromSession }) => {
-          if (import.meta.env.DEV) console.error(error)
-          fetchGuard.toastListError(fetchGuard.getListErrorMessage(error, 'Failed to load cities'))
-          if (!isRateLimitError(error) && !hydratedFromSession) {
-            setCities([])
-            setTotalItems(0)
-            setTotalPages(1)
-          }
-        },
-      })
-    },
-    [effectivePage, pageSize, debouncedSearch, statusFilter, centerFilter, fetchGuard, applyPaginated],
-  )
-
-  useEffect(() => {
-    let ignore = false
-    loadCities({ ignoreFlag: () => ignore })
-    return () => {
-      ignore = true
+  const listParams = useMemo(() => {
+    /** @type {import('../types/city.types').CityListParams} */
+    const params = {
+      page: effectivePage,
+      limit: pageSize,
+      sortBy,
+      sortOrder,
     }
-  }, [loadCities])
 
-  const refreshCities = useCallback(async () => {
-    clearCitiesListCache()
-    invalidateListSession(SESSION_SCOPE)
-    await loadCities({ bypassCache: true })
-  }, [loadCities])
+    const trimmedSearch = debouncedSearch.trim()
+    if (trimmedSearch) params.search = trimmedSearch
 
-  const patchCityLocally = useCallback((id, patch) => {
-    setCities((prev) =>
-      prev.map((row) => {
-        if (String(row.id) !== String(id)) return row
-        const code = patch.code ?? patch.cityCode ?? row.code
-        return {
-          ...row,
-          ...patch,
-          code,
-          cityCode: code ?? row.cityCode,
-        }
-      }),
-    )
-  }, [])
+    const apiStatus = mapCityStatusFilterToApi(statusFilter)
+    if (apiStatus) params.status = apiStatus
+
+    if (centerFilter !== 'all') params.center = centerFilter
+
+    return params
+  }, [effectivePage, pageSize, debouncedSearch, statusFilter, centerFilter, sortBy, sortOrder])
+
+  const { data, isLoading, isFetching, isError, error, refetch } = useCities(listParams)
+
+  const cities = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -165,18 +81,43 @@ export function useCityManagement() {
     [pagination],
   )
 
+  const handleSort = useCallback((columnKey) => {
+    const allowed = ['createdAt', 'cityAddress', 'status', 'centerName']
+    const apiKey =
+      columnKey === 'placeName'
+        ? 'cityAddress'
+        : columnKey === 'center'
+          ? 'centerName'
+          : columnKey
+
+    if (!allowed.includes(apiKey)) return
+
+    setSortBy((prev) => {
+      if (prev === apiKey) {
+        setSortOrder((order) => (order === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortOrder('asc')
+      return apiKey
+    })
+  }, [])
+
   return {
     cities,
-    loading,
+    loading: isLoading,
+    isFetching,
+    listError: isError ? error : null,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
-    debouncedSearch,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
-    refreshCities,
-    patchCityLocally,
+    refreshCities: refetch,
+    listParams,
   }
 }

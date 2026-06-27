@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2 } from 'lucide-react'
+import { Ban, CheckCircle2, Trash2 } from 'lucide-react'
 import AppModalWrapper from '../../ui/AppModalWrapper'
 import { cn } from '../../../utils/cn'
 import { BULK_STATUS_CONFIRM_COPY } from '../../common/ConfirmStatusChangeModal'
@@ -18,6 +18,15 @@ const COPY = {
     iconClassName: 'bg-amber-50 text-amber-600',
     buttonClassName: 'bg-amber-600 hover:bg-amber-700',
   },
+  delete: {
+    title: 'Delete Selected Resources',
+    message: 'Delete all selected free resources? This cannot be undone.',
+    confirmLabel: 'Delete',
+    loadingLabel: 'Deleting…',
+    icon: Trash2,
+    iconClassName: 'bg-red-50 text-red-600',
+    buttonClassName: 'bg-red-600 hover:bg-red-700',
+  },
 }
 
 export default function FreeResourcesBulkConfirmDialog({
@@ -28,8 +37,6 @@ export default function FreeResourcesBulkConfirmDialog({
   loading = false,
 }) {
   const resolvedType = type === 'enable' ? 'activate' : type === 'disable' ? 'deactivate' : type
-  if (resolvedType === 'delete') return null
-
   const config = COPY[resolvedType] || COPY.deactivate
   const Icon = config.icon
 

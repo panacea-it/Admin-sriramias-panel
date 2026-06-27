@@ -40,14 +40,12 @@ export function mapExamCategoryStatusFilterToApi(statusFilter) {
 }
 
 export function buildExamCategoryApiPayload(form) {
-  const centerRef = resolveCategoryRelationRef(form.centerMongoId, form.centerId)
-  const programRef = resolveCategoryRelationRef(form.programMongoId, form.programId)
+  const centerId = resolveCategoryRelationRef(form.centerMongoId, form.centerId)
+  const programId = resolveCategoryRelationRef(form.programMongoId, form.programId)
 
   return {
-    center: centerRef,
-    program: programRef,
-    centerId: centerRef,
-    programId: programRef,
+    centerId,
+    programId,
     categoryName: String(form.name || '').trim(),
     status: mapUiStatusToApi(form.status),
   }
@@ -116,7 +114,7 @@ export function mapApiExamCategoryToLocal(data) {
   }
 }
 
-export function normalizeExamCategoriesListResponse(data) {
+export function normalizeExamCategoriesListResponse(data, { page = 1, limit = 10 } = {}) {
   const payload =
     data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
   const itemsRaw =
@@ -126,8 +124,52 @@ export function normalizeExamCategoriesListResponse(data) {
     data?.categories ??
     (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
 
-  return (Array.isArray(itemsRaw) ? itemsRaw : [])
+  const items = (Array.isArray(itemsRaw) ? itemsRaw : [])
     .map((row) => mapApiExamCategoryToLocal(row))
+    .filter(Boolean)
+
+  const pagination = payload?.pagination || data?.pagination || payload?.meta || data?.meta || {}
+  const total =
+    pagination.total ??
+    payload?.total ??
+    data?.total ??
+    payload?.totalCount ??
+    data?.totalCount ??
+    data?.count ??
+    items.length
+  const totalPages =
+    pagination.totalPages ??
+    payload?.totalPages ??
+    data?.totalPages ??
+    Math.max(1, Math.ceil(total / limit) || 1)
+  const currentPage = pagination.page ?? payload?.page ?? data?.page ?? page
+
+  return {
+    items,
+    total,
+    totalPages,
+    page: currentPage,
+  }
+}
+
+export function normalizeExamCategoryDropdownResponse(data) {
+  const payload =
+    data?.data && !Array.isArray(data.data) && typeof data.data === 'object' ? data.data : data
+  const itemsRaw =
+    payload?.categories ??
+    payload?.items ??
+    (Array.isArray(payload) ? payload : Array.isArray(data?.data) ? data.data : [])
+
+  return (Array.isArray(itemsRaw) ? itemsRaw : [])
+    .map((row) => {
+      const local = mapApiExamCategoryToLocal(row)
+      if (!local) return null
+      return {
+        _id: local.id,
+        categoryId: local.categoryId,
+        categoryName: local.name,
+      }
+    })
     .filter(Boolean)
 }
 
@@ -153,24 +195,8 @@ export function formatProgramOptionLabel(program) {
   return name || code || ''
 }
 
-/** UI-only centre name for dropdowns (keeps value/metadata; strips code, city, state from label). */
-export function getCentreDropdownDisplayName(opt) {
-  const direct = String(opt?.centerName || opt?.name || '').trim()
-  if (direct) return direct
-
-  const label = String(opt?.label || '').trim()
-  if (!label) return ''
-
-  return label.split(/[(•]/)[0].trim()
-}
-
-export function mapCentreDropdownDisplayOption(opt) {
-  return {
-    ...opt,
-    label: getCentreDropdownDisplayName(opt),
-  }
-}
-
-export function mapCentreDropdownDisplayOptions(options = []) {
-  return (Array.isArray(options) ? options : []).map(mapCentreDropdownDisplayOption)
-}
+export {
+  getCentreDropdownDisplayName,
+  mapCentreDropdownDisplayOption,
+  mapCentreDropdownDisplayOptions,
+} from './centreDropdownDisplay'

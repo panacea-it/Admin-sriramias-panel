@@ -75,15 +75,25 @@ export default defineConfig(({ mode }) => {
     normalizeApiHost(env.VITE_BASE_URL) ||
     "https://sriramias-backend.onrender.com";
 
+  const explicitLocalApi = normalizeApiHost(env.VITE_LOCAL_API_URL);
+
   const localApiTarget =
-    normalizeApiHost(env.VITE_LOCAL_API_URL) ||
+    explicitLocalApi ||
     (apiTarget.includes("localhost") || apiTarget.includes("127.0.0.1")
       ? apiTarget
       : "http://localhost:5000");
 
   const isHttpsTarget = apiTarget.startsWith("https://");
 
+  // Enrollment APIs follow the remote API in dev unless a local gateway is configured.
+  const enrollmentApiTarget = explicitLocalApi ? localApiTarget : apiTarget;
+  const enrollmentProxySecure =
+    enrollmentApiTarget === apiTarget ? isHttpsTarget : false;
+
   if (mode === "development") {
+    console.log(
+      `[vite] batch-enrollments /api/batch-enrollments → ${enrollmentApiTarget}`,
+    );
     console.log(
       `[vite] bulk-status /api/* → ${localApiTarget} (optional gateway)`,
     );
@@ -152,8 +162,9 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: {
-        "/api/batch-enrollments": createDevProxy(localApiTarget, {
-          label: `${localApiTarget} (batch-enrollments)`,
+        "/api/batch-enrollments": createDevProxy(enrollmentApiTarget, {
+          secure: enrollmentProxySecure,
+          label: `${enrollmentApiTarget} (batch-enrollments)`,
         }),
         '/api/evaluation-oversight': createDevProxy(localApiTarget, {
           label: `${localApiTarget} (evaluation-oversight)`,

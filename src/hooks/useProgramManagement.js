@@ -1,65 +1,84 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isRateLimitError } from "../utils/apiError";
-import {
-  clearProgramsListCache,
-  getPrograms,
-} from "../services/programService";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isRateLimitError } from '../utils/apiError'
+import { useDebouncedValue } from './useDebouncedValue'
+import { clearProgramsListCache, getPrograms } from '../services/programService'
 import {
   mapProgramStatusFilterToApi,
-  matchesProgramSearch,
   normalizeProgramsListResponse,
-} from "../utils/programHelpers";
+} from '../utils/programHelpers'
 import {
+  buildFilterSignature,
   createListFetchGuard,
   invalidateListSession,
-  getListSessionCache,
   runGuardedListFetch,
+  useEffectivePage,
   MASTER_LIST_RATE_LIMIT_MESSAGE,
-} from "./useMasterListQuery";
+} from './useMasterListQuery'
 
-const SESSION_SCOPE = "programs";
+const SESSION_SCOPE = 'programs'
+const DEFAULT_PAGE_SIZE = 10
 
-function buildListParams({ statusFilter, centreFilter }) {
-  const params = {};
+function buildListParams({ page, pageSize, debouncedSearch, statusFilter, centreFilter }) {
+  const params = {
+    page,
+    limit: pageSize,
+    search: debouncedSearch.trim(),
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  }
 
-  const apiStatus = mapProgramStatusFilterToApi(statusFilter);
-  if (apiStatus) params.status = apiStatus;
-  if (centreFilter !== "all") params.center = centreFilter;
+  const apiStatus = mapProgramStatusFilterToApi(statusFilter)
+  if (apiStatus) params.status = apiStatus
+  if (centreFilter !== 'all') params.center = centreFilter
 
-  return params;
-}
-
-function buildSessionKey(params) {
-  return `${SESSION_SCOPE}:${JSON.stringify(params)}`;
-}
-
-function getInitialState() {
-  const params = buildListParams({ statusFilter: "all", centreFilter: "all" });
-  const cached = getListSessionCache(buildSessionKey(params));
-  return {
-    programs: cached != null ? normalizeProgramsListResponse(cached) : [],
-    loading: cached == null,
-  };
+  return params
 }
 
 export function useProgramManagement() {
-  const initial = useMemo(() => getInitialState(), []);
-  const [programs, setPrograms] = useState(initial.programs);
-  const [loading, setLoading] = useState(initial.loading);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [centreFilter, setCentreFilter] = useState("all");
-  const fetchGuardRef = useRef(null);
+  const [programs, setPrograms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [centreFilter, setCentreFilter] = useState('all')
+  const debouncedSearch = useDebouncedValue(search, 400)
+  const fetchGuardRef = useRef(null)
 
   if (!fetchGuardRef.current) {
-    fetchGuardRef.current = createListFetchGuard();
+    fetchGuardRef.current = createListFetchGuard()
   }
-  const fetchGuard = fetchGuardRef.current;
+  const fetchGuard = fetchGuardRef.current
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    centreFilter,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const applyPaginated = useCallback((normalized) => {
+    setPrograms(normalized.items)
+    setTotalItems(normalized.total)
+    setTotalPages(normalized.totalPages)
+    setListError(null)
+  }, [])
 
   const loadPrograms = useCallback(
     async ({ bypassCache = false, ignoreFlag } = {}) => {
-      const params = buildListParams({ statusFilter, centreFilter });
-      const sessionKey = buildSessionKey(params);
+      const params = buildListParams({
+        page: effectivePage,
+        pageSize,
+        debouncedSearch,
+        statusFilter,
+        centreFilter,
+      })
+
+      const sessionKey = `${SESSION_SCOPE}:${JSON.stringify(params)}`
 
       await runGuardedListFetch({
         fetchGuard,
@@ -67,83 +86,122 @@ export function useProgramManagement() {
         bypassCache,
         ignoreFlag,
         setLoading,
-        fetchFn: () => getPrograms(params, { bypassCache }),
-        applyData: (data) => setPrograms(normalizeProgramsListResponse(data)),
+        fetchFn: async () => {
+          const data = await getPrograms(params, { bypassCache })
+          return normalizeProgramsListResponse(data, {
+            page: effectivePage,
+            limit: pageSize,
+          })
+        },
+        applyData: applyPaginated,
         handleError: (error, { hydratedFromSession }) => {
           if (import.meta.env.DEV) {
-            console.error(error);
+            console.error(error)
           }
+          const message = isRateLimitError(error)
+            ? MASTER_LIST_RATE_LIMIT_MESSAGE
+            : fetchGuard.getListErrorMessage(error, 'Failed to load programs')
+
           if (isRateLimitError(error)) {
-            fetchGuard.toastListError(MASTER_LIST_RATE_LIMIT_MESSAGE);
-            return;
+            fetchGuard.toastListError(message)
+            return
           }
-          fetchGuard.toastListError(
-            fetchGuard.getListErrorMessage(error, "Failed to load programs"),
-          );
+
+          setListError(message)
+          fetchGuard.toastListError(message)
+
           if (!hydratedFromSession) {
-            setPrograms([]);
+            setPrograms([])
+            setTotalItems(0)
+            setTotalPages(1)
           }
         },
-        errorFallback: "Failed to load programs",
-      });
+        errorFallback: 'Failed to load programs',
+      })
     },
-    [statusFilter, centreFilter, fetchGuard],
-  );
+    [
+      effectivePage,
+      pageSize,
+      debouncedSearch,
+      statusFilter,
+      centreFilter,
+      fetchGuard,
+      applyPaginated,
+    ],
+  )
 
   useEffect(() => {
-    let ignore = false;
-    loadPrograms({ ignoreFlag: () => ignore });
+    let ignore = false
+    loadPrograms({ ignoreFlag: () => ignore })
     return () => {
-      ignore = true;
-    };
-  }, [loadPrograms]);
-
-  const enrichedPrograms = useMemo(
-    () =>
-      programs.map((row) => ({
-        ...row,
-        linkedCount: row.linkedCount ?? 0,
-      })),
-    [programs],
-  );
-
-  const filteredPrograms = useMemo(
-    () => enrichedPrograms.filter((row) => matchesProgramSearch(row, search)),
-    [enrichedPrograms, search],
-  );
+      ignore = true
+    }
+  }, [loadPrograms])
 
   const refreshPrograms = useCallback(async () => {
-    clearProgramsListCache();
-    invalidateListSession(SESSION_SCOPE);
-    await loadPrograms({ bypassCache: true });
-  }, [loadPrograms]);
+    clearProgramsListCache()
+    invalidateListSession(SESSION_SCOPE)
+    setListError(null)
+    await loadPrograms({ bypassCache: true })
+  }, [loadPrograms])
 
   const patchProgramLocally = useCallback((programId, patch) => {
     setPrograms((prev) =>
       prev.map((row) =>
         String(row.id) === String(programId) ? { ...row, ...patch } : row,
       ),
-    );
-  }, []);
+    )
+  }, [])
 
   const removeProgramLocally = useCallback((programId) => {
-    setPrograms((prev) =>
-      prev.filter((row) => String(row.id) !== String(programId)),
-    );
-  }, []);
+    setPrograms((prev) => prev.filter((row) => String(row.id) !== String(programId)))
+    setTotalItems((prev) => Math.max(0, prev - 1))
+  }, [])
+
+  const pagination = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages)
+    const startIndex = totalItems === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalItems)
+
+    return {
+      page: safePage,
+      pageSize,
+      totalItems,
+      totalPages,
+      startIndex,
+      endIndex,
+    }
+  }, [page, pageSize, totalItems, totalPages])
+
+  const controlledPagination = useMemo(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      startIndex: pagination.startIndex,
+      endIndex: pagination.endIndex,
+      onPageChange: setPage,
+      onPageSizeChange: setPageSize,
+    }),
+    [pagination],
+  )
 
   return {
-    programs: filteredPrograms,
-    totalPrograms: enrichedPrograms.length,
+    programs,
+    totalPrograms: totalItems,
     loading,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centreFilter,
     setCentreFilter,
+    debouncedSearch,
+    controlledPagination,
     refreshPrograms,
     patchProgramLocally,
     removeProgramLocally,
-  };
+  }
 }

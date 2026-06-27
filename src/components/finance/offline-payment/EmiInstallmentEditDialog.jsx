@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from '../../ui/Modal'
+import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
 import { getEmiMonthLabel } from '../../../utils/emiSchedule'
 

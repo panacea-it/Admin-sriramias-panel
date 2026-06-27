@@ -127,6 +127,8 @@ export function mapApiCurrentAffairToRow(data) {
     id: String(id || ''),
     name: String(data.title || data.paperName || '').trim() || 'Untitled',
     category,
+    year: data.year ?? null,
+    month: data.month || null,
     status: mapApiStatusToUi(data.status),
     pdfUrl: data.pdfUrl || null,
     uploadedOn:
@@ -135,6 +137,7 @@ export function mapApiCurrentAffairToRow(data) {
       data.createdAt ||
       data.createdOn ||
       null,
+    createdBy: data.createdBy || null,
     _raw: data,
   }
 }
@@ -146,7 +149,8 @@ export function mapApiCurrentAffairToForm(data) {
 
   const category = mapApiCategoryToUi(data.category)
   const pdfUrl = data.pdfUrl || null
-  const sampleUrl = data.sampleUrl || data.samplePdfUrl || null
+  const magazineUrl = data.uploadMagzineUrl || data.sampleUrl || data.samplePdfUrl || null
+  const isMonthlyMagazine = data.category === 'MONTHLY_MAGAZINE'
 
   return {
     category,
@@ -166,12 +170,12 @@ export function mapApiCurrentAffairToForm(data) {
     sectionFrom: data.sectionFrom != null ? String(data.sectionFrom) : '',
     sectionTo: data.sectionTo != null ? String(data.sectionTo) : '',
     questions: Array.isArray(data.questions) ? data.questions.map(mapQuestionApiToUi) : [],
-    fileName: extractPdfFileName(pdfUrl),
+    fileName: isMonthlyMagazine ? extractPdfFileName(magazineUrl) : extractPdfFileName(pdfUrl),
     file: null,
-    existingPdfUrl: pdfUrl,
-    sampleFileName: extractPdfFileName(sampleUrl),
+    existingPdfUrl: isMonthlyMagazine ? magazineUrl : pdfUrl,
+    sampleFileName: isMonthlyMagazine ? extractPdfFileName(pdfUrl) : extractPdfFileName(magazineUrl),
     sampleFile: null,
-    existingSampleUrl: sampleUrl,
+    existingSampleUrl: isMonthlyMagazine ? pdfUrl : magazineUrl,
     status: mapApiStatusToUi(data.status),
   }
 }
@@ -197,6 +201,9 @@ export function normalizeCurrentAffairsListResponse(data, { page = 1, limit = 10
     total,
     totalPages,
     page: currentPage,
+    limit: data?.limit ?? limit,
+    hasNextPage: data?.hasNextPage ?? currentPage < totalPages,
+    hasPrevPage: data?.hasPrevPage ?? currentPage > 1,
   }
 }
 
@@ -205,19 +212,28 @@ export function buildCurrentAffairFormData(form, { isEdit = false } = {}) {
   const category = form.category || ''
   const apiCategory = mapUiCategoryToApi(category)
 
-  formData.append('category', apiCategory)
+  if (!isEdit) {
+    formData.append('category', apiCategory)
+  }
   formData.append('title', String(form.name || '').trim())
   if (form.year) formData.append('year', String(form.year))
   if (form.month) formData.append('month', String(form.month))
-  if (form.file instanceof File) {
+
+  if (apiCategory === 'MONTHLY_MAGAZINE') {
+    if (form.file instanceof File) {
+      formData.append('uploadMagzine', form.file)
+    }
+    if (form.sampleFile instanceof File) {
+      formData.append('pdf', form.sampleFile)
+    }
+  } else if (form.file instanceof File) {
     formData.append('pdf', form.file)
-  }
-  if (form.sampleFile instanceof File) {
-    formData.append('sample', form.sampleFile)
   }
 
   if (isEdit) {
     formData.append('status', form.status === 'Active' ? 'true' : 'false')
+  } else if (form.status === 'In Active') {
+    formData.append('status', 'false')
   }
 
   return formData
@@ -231,8 +247,6 @@ export function buildDailyPracticePayload(form, { isEdit = false } = {}) {
     year: parseInt(String(form.year), 10) || String(form.year || ''),
     month: String(form.month || '').trim(),
     date: composedDate || String(form.date || '').trim(),
-    duration: parseInt(String(form.duration), 10) || 0,
-    totalMarks: parseInt(String(form.totalMarks), 10) || 0,
     sectionFrom: parseInt(String(form.sectionFrom), 10) || 0,
     sectionTo: parseInt(String(form.sectionTo), 10) || 0,
     questions: (form.questions || []).map(mapQuestionUiToApi),

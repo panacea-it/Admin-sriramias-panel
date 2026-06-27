@@ -50,11 +50,11 @@ function HelpSectionCard({ block, onUpdateSlot, onUpdateExtraImage }) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm">
-      <header className="border-b border-gray-100 bg-[#fafcff] px-5 py-4 sm:px-6">
+      <header className="border-b border-gray-100 bg-[#fafcff] px-4 py-3 sm:px-5">
         <h4 className="text-sm font-bold text-[#246392] sm:text-base">Help Section</h4>
       </header>
 
-      <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
         <HelpSectionMediaUpload
           variant="video"
           label="Upload Help Section Video"

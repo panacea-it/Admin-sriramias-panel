@@ -133,6 +133,15 @@ export async function deleteCurrentAffair(id) {
   }
 }
 
+export async function deleteDailyPractice(id) {
+  try {
+    const response = await api.delete(`${BASE_PATH}/daily-practice/${id}`)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
 export async function updateCurrentAffairStatus(id, active) {
   try {
     const response = await api.patch(`${BASE_PATH}/${id}/status`, { status: Boolean(active) })

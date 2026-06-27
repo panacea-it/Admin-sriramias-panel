@@ -71,9 +71,9 @@ function validateRowFields(form, rowKeys, errors, options = {}) {
       const hasExistingSample = Boolean(form.existingSampleUrl)
       const required = !options.isEdit || !hasExistingSample
       if (!form.sampleFileName) {
-        if (required) errors.sampleUpload = 'Sample PDF / Excel file is required'
-      } else if (!isSampleFileName(form.sampleFileName)) {
-        errors.sampleUpload = 'Allowed: PDF, XLS, XLSX'
+        if (required) errors.sampleUpload = 'PDF file is required'
+      } else if (!isPdfFileName(form.sampleFileName)) {
+        errors.sampleUpload = 'Only .pdf files are allowed'
       }
       continue
     }
@@ -167,10 +167,10 @@ export function validateCurrentAffairsBulkFile(file) {
 
 export function validateCurrentAffairsSampleFile(file) {
   if (!file) {
-    return { valid: false, message: 'Sample PDF / Excel file is required' }
+    return { valid: false, message: 'PDF file is required' }
   }
-  if (!isSampleFileName(file.name)) {
-    return { valid: false, message: 'Allowed: PDF, XLS, XLSX' }
+  if (!isPdfFileName(file.name)) {
+    return { valid: false, message: 'Only .pdf files are allowed' }
   }
   if (file.size > SAMPLE_FILE_MAX_BYTES) {
     return { valid: false, message: 'File size must be 10 MB or less' }

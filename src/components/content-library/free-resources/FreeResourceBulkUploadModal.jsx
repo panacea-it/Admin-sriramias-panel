@@ -1,10 +1,7 @@
 import { useRef, useState } from 'react'
 import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import {
-  fetchMockTestBulkTemplate,
-  uploadMockTestQuestions,
-} from '../../../api/freeResourcesAPI'
+import { freeResourceService } from '../../../services/freeResourceService'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import { UploadFieldHint } from '../../common/UploadFieldHint'
@@ -66,7 +63,7 @@ export default function FreeResourceBulkUploadModal({
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true)
     try {
-      const response = await fetchMockTestBulkTemplate()
+      const response = await freeResourceService.getMockTestBulkTemplate()
       triggerMockTestBulkTemplateDownload(response)
       toast.success('Template downloaded successfully.')
     } catch (error) {
@@ -119,7 +116,7 @@ export default function FreeResourceBulkUploadModal({
     setLoading(true)
     setUploadProgress(0)
     try {
-      await uploadMockTestQuestions(mockTestId, selectedFile, {
+      await freeResourceService.uploadMockTestQuestions(mockTestId, selectedFile, {
         replace: replaceExisting,
         onUploadProgress: (event) => {
           if (!event.total) return

@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, RefreshCw } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
 import ClassRoomsFilterBar from '../../../components/classrooms/ClassRoomsFilterBar'
 import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
-import PaginatedFigmaTable from '../../../components/figma/PaginatedFigmaTable'
+import CategoryStandardTable from '../../../components/categories/CategoryStandardTable'
+import CategoryTableLoadingShell from '../../../components/categories/CategoryTableLoadingShell'
 import { buildClassroomTableColumns } from '../../../components/classrooms/ClassroomTable'
 import ClassroomFormModal from '../../../components/classrooms/ClassroomFormModal'
 import ViewClassroomModal from '../../../components/classrooms/ViewClassroomModal'
 import ConfirmClassroomStatusModal from '../../../components/classrooms/ConfirmClassroomStatusModal'
 import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
+import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../../components/feedback/ErrorState'
 import { useClassroomManagement } from '../../../hooks/useClassroomManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
+import { useCitiesByCenter } from '../../../hooks/useCities'
+import {
+  useClassroom,
+  useCreateClassroom,
+  useUpdateClassroom,
+  useUpdateClassroomStatus,
+  useDeleteClassroom,
+} from '../../../hooks/useClassrooms'
 import { useTableRowSelection } from '../../../hooks/useTableRowSelection'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast, TOAST_DURATION } from '../../../utils/toast'
@@ -19,6 +30,7 @@ import {
   bulkUpdateMasterStatus,
   getMasterBulkErrorMessage,
 } from '../../../services/masterBulkStatusService'
+import { updateClassroomStatus } from '../../../services/classroomService'
 import {
   MASTER_BULK_TOAST,
   countDisableableSelected,
@@ -30,14 +42,9 @@ import {
   buildCreateClassroomPayload,
   buildUpdateClassroomPayload,
   mapApiClassroomToLocal,
+  mapUiClassroomStatusToApi,
+  normalizeCitiesByCenter,
 } from '../../../utils/classroomApiHelpers'
-import {
-  createClassroom,
-  deleteClassroom,
-  getClassroomById,
-  updateClassroom,
-  updateClassroomStatus,
-} from '../../../services/classroomService'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
@@ -45,7 +52,7 @@ const STATUS_OPTIONS = [
   { value: 'Deactivated', label: 'Deactivated' },
 ]
 
-function CreateButton({ onClick, disabled }) {
+function CreateButton({ onClick, disabled, children }) {
   return (
     <button
       type="button"
@@ -54,53 +61,59 @@ function CreateButton({ onClick, disabled }) {
       className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
       <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-      Add Class Room
+      {children}
     </button>
   )
 }
 
-function resolveCityFilterKey(row) {
-  const placeName = String(row.placeName || '').trim()
-  if (placeName) return placeName
-  const cityId = String(row.cityPlaceId || '').trim()
-  return cityId || ''
-}
-
-function matchesClassroomSearch(row, query) {
-  const fields = [row.code, row.centerName, row.placeName]
-  return fields.some((value) => String(value || '').toLowerCase().includes(query))
+function RefreshButton({ onClick, disabled, fetching }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+    >
+      <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
+      {fetching ? 'Refreshing…' : 'Refresh'}
+    </button>
+  )
 }
 
 export default function ClassRoomsPage() {
   const {
     classrooms,
     loading: tableLoading,
+    isFetching,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    cityFilter,
+    setCityFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
     refreshClassrooms,
   } = useClassroomManagement()
 
   const { options: centreDropdownOptions } = useCentersDropdownOptions()
+  const createMutation = useCreateClassroom()
+  const updateMutation = useUpdateClassroom()
+  const deleteMutation = useDeleteClassroom()
+  const statusMutation = useUpdateClassroomStatus()
   const { selectedIds, selection, clearSelection } = useTableRowSelection()
 
-  const [cityFilter, setCityFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editRow, setEditRow] = useState(null)
-  const [editDetail, setEditDetail] = useState(null)
-  const [editDetailLoading, setEditDetailLoading] = useState(false)
-  const [viewRow, setViewRow] = useState(null)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [updateLoading, setUpdateLoading] = useState(false)
+  const [editId, setEditId] = useState(null)
+  const [viewId, setViewId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
@@ -109,38 +122,41 @@ export default function ClassRoomsPage() {
     [centreDropdownOptions],
   )
 
+  const filterCenterId = centerFilter !== 'all' ? centerFilter : undefined
+  const { data: filterCitiesData } = useCitiesByCenter(
+    filterCenterId,
+    { enabled: Boolean(filterCenterId) },
+  )
+
   const cityOptions = useMemo(() => {
-    const seen = new Map()
-    classrooms.forEach((row) => {
-      const key = resolveCityFilterKey(row)
-      if (!key || seen.has(key)) return
-      seen.set(key, row.placeName?.trim() || key)
-    })
-    return [
-      { value: 'all', label: 'City' },
-      ...[...seen.entries()]
-        .sort((a, b) => a[1].localeCompare(b[1]))
-        .map(([value, label]) => ({ value, label })),
-    ]
-  }, [classrooms])
+    const cities = filterCenterId ? normalizeCitiesByCenter(filterCitiesData) : []
+    return [{ value: 'all', label: 'City' }, ...cities]
+  }, [filterCenterId, filterCitiesData])
 
-  const searchedClassrooms = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return classrooms
-    return classrooms.filter((row) => matchesClassroomSearch(row, query))
-  }, [classrooms, search])
+  useEffect(() => {
+    setCityFilter('all')
+    clearSelection()
+  }, [centerFilter, clearSelection])
 
-  const filteredClassrooms = useMemo(() => {
-    if (cityFilter === 'all') return searchedClassrooms
-    return searchedClassrooms.filter((row) => {
-      const key = resolveCityFilterKey(row)
-      return key === cityFilter || String(row.cityPlaceId || '') === cityFilter
-    })
-  }, [searchedClassrooms, cityFilter])
+  const { data: viewQuery, isLoading: viewLoading } = useClassroom(viewId, {
+    enabled: Boolean(viewId),
+  })
+  const viewRow = useMemo(() => {
+    if (!viewId) return null
+    return mapApiClassroomToLocal(viewQuery) || null
+  }, [viewId, viewQuery])
+
+  const { data: editQuery, isLoading: editDetailLoading } = useClassroom(editId, {
+    enabled: Boolean(editId) && modalOpen,
+  })
+  const editDetail = useMemo(() => {
+    if (!editId) return editRow
+    return mapApiClassroomToLocal(editQuery) || editRow
+  }, [editId, editQuery, editRow])
 
   const classroomsById = useMemo(
-    () => new Map(filteredClassrooms.map((row) => [String(row.id), row])),
-    [filteredClassrooms],
+    () => new Map(classrooms.map((row) => [String(row.id), row])),
+    [classrooms],
   )
 
   const disableableCount = useMemo(
@@ -153,144 +169,98 @@ export default function ClassRoomsPage() {
     [selectedIds, classroomsById],
   )
 
-  useEffect(() => {
-    if (cityFilter === 'all') return
-    const stillValid = cityOptions.some((opt) => opt.value === cityFilter)
-    if (!stillValid) setCityFilter('all')
-  }, [cityFilter, cityOptions])
-
-  useEffect(() => {
-    setCityFilter('all')
-    clearSelection()
-  }, [centerFilter, clearSelection])
-
-  const loadClassroomDetail = useCallback(async (row) => {
-    const data = await getClassroomById(row.id)
-    return mapApiClassroomToLocal(data) || row
-  }, [])
-
   const openCreate = useCallback(() => {
     setEditRow(null)
-    setEditDetail(null)
+    setEditId(null)
     setModalOpen(true)
   }, [])
 
-  const handleView = useCallback(
-    async (row) => {
-      setViewRow(row)
-      setViewLoading(true)
-      try {
-        const detail = await loadClassroomDetail(row)
-        if (detail) setViewRow(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load classroom details'))
-        setViewRow(null)
-      } finally {
-        setViewLoading(false)
-      }
-    },
-    [loadClassroomDetail],
-  )
+  const handleView = useCallback((row) => {
+    setViewId(row.id)
+  }, [])
 
-  const handleEdit = useCallback(
-    async (row) => {
-      setEditRow(row)
-      setEditDetail(row)
-      setEditDetailLoading(true)
-      setModalOpen(true)
-      try {
-        const detail = await loadClassroomDetail(row)
-        setEditDetail(detail || row)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load classroom for editing'))
-        setModalOpen(false)
-        setEditRow(null)
-        setEditDetail(null)
-      } finally {
-        setEditDetailLoading(false)
-      }
-    },
-    [loadClassroomDetail],
-  )
+  const handleEdit = useCallback((row) => {
+    setEditRow(row)
+    setEditId(row.id)
+    setModalOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!modalOpen) {
       setEditRow(null)
-      setEditDetail(null)
-      setEditDetailLoading(false)
+      setEditId(null)
     }
   }, [modalOpen])
 
   const handleSave = async (form) => {
     const isEdit = Boolean(editRow?.id)
-    if (isEdit) {
-      setUpdateLoading(true)
-    } else {
-      setCreateLoading(true)
-    }
 
     try {
       if (isEdit) {
-        await updateClassroom(editRow.id, buildUpdateClassroomPayload(form))
-        toast.success('Classroom updated')
+        const result = await updateMutation.mutateAsync({
+          id: editRow.id,
+          payload: buildUpdateClassroomPayload(form),
+        })
+        if (result?.success) {
+          toast.success(result.message || 'Classroom updated successfully')
+        }
       } else {
-        await createClassroom(buildCreateClassroomPayload(form))
-        toast.success('Classroom created')
+        const result = await createMutation.mutateAsync(buildCreateClassroomPayload(form))
+        if (result?.success && result?.data?._id) {
+          toast.success(result.message || 'Classroom created successfully')
+        }
       }
       setModalOpen(false)
       setEditRow(null)
-      setEditDetail(null)
-      await refreshClassrooms()
+      setEditId(null)
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(
-          error,
-          isEdit ? 'Failed to update classroom' : 'Failed to create classroom',
-        ),
-      )
       throw error
-    } finally {
-      setCreateLoading(false)
-      setUpdateLoading(false)
     }
   }
 
+  const handleDelete = useCallback((row) => {
+    setDeleteTarget({ ids: [row.id], name: row.name })
+  }, [])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget?.ids?.length) return
-    setDeleteLoading(true)
-    const ids = deleteTarget.ids
+
     try {
-      await Promise.all(ids.map((id) => deleteClassroom(id)))
+      for (const id of deleteTarget.ids) {
+        const result = await deleteMutation.mutateAsync(id)
+        if (result?.success) {
+          toast.success(result.message || 'Classroom deleted successfully')
+        }
+      }
       clearSelection()
       setDeleteTarget(null)
-      toast.success(
-        ids.length > 1 ? `${ids.length} classrooms deleted` : 'Classroom deleted',
-      )
-      await refreshClassrooms()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete classroom'))
-    } finally {
-      setDeleteLoading(false)
+    } catch {
+      // useDeleteClassroom handles error toast
     }
-  }, [deleteTarget, refreshClassrooms, clearSelection])
+  }, [deleteTarget, deleteMutation, clearSelection])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
     const activating = statusTarget.status !== 'Active'
-    const nextApiStatus = activating ? 'ACTIVE' : 'INACTIVE'
+    const nextApiStatus = mapUiClassroomStatusToApi(activating ? 'Active' : 'Deactivated')
 
-    setStatusLoading(true)
     try {
-      await updateClassroomStatus(statusTarget.id, nextApiStatus)
-      toast.success(activating ? 'Classroom activated' : 'Classroom deactivated')
+      const result = await statusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApiStatus,
+      })
+      toast.success(
+        result?.message || (activating ? 'Classroom activated' : 'Classroom deactivated'),
+      )
       setStatusTarget(null)
-      await refreshClassrooms()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to update classroom status'))
-    } finally {
-      setStatusLoading(false)
+    } catch {
+      // useUpdateClassroomStatus handles error toast
     }
-  }, [statusTarget, refreshClassrooms])
+  }, [statusTarget, statusMutation])
+
+  const handleToggle = useCallback((row) => {
+    setStatusTarget(row)
+  }, [])
 
   const handleBulkEnableRequest = useCallback(() => {
     if (!enableableCount) return
@@ -301,11 +271,6 @@ export default function ClassRoomsPage() {
     if (!disableableCount) return
     setBulkConfirm({ type: 'disable' })
   }, [disableableCount])
-
-  const handleBulkDeleteRequest = useCallback(() => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }, [selectedIds.length])
 
   const confirmBulkAction = useCallback(async () => {
     if (!bulkConfirm) return
@@ -319,7 +284,6 @@ export default function ClassRoomsPage() {
         })
         clearSelection()
         toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
-        await refreshClassrooms()
       } else if (bulkConfirm.type === 'disable') {
         const ids = filterDisableableIds(selectedIds, classroomsById)
         await bulkUpdateMasterStatus('classrooms', ids, 'INACTIVE', {
@@ -327,34 +291,16 @@ export default function ClassRoomsPage() {
         })
         clearSelection()
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-        await refreshClassrooms()
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        await Promise.all(ids.map((id) => deleteClassroom(id)))
-        clearSelection()
-        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        await refreshClassrooms()
       }
       setBulkConfirm(null)
+      await refreshClassrooms()
     } catch (error) {
-      toast.error(
-        bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected classrooms')
-          : getMasterBulkErrorMessage(error, bulkConfirm.type),
-      )
+      toast.error(getMasterBulkErrorMessage(error, bulkConfirm.type))
       await refreshClassrooms()
     } finally {
       setBulkActionLoading(false)
     }
   }, [bulkConfirm, selectedIds, classroomsById, refreshClassrooms, clearSelection])
-
-  const handleDelete = useCallback((row) => {
-    setDeleteTarget({ ids: [row.id], name: row.name })
-  }, [])
-
-  const handleToggle = useCallback((row) => {
-    setStatusTarget(row)
-  }, [])
 
   const columns = useMemo(
     () =>
@@ -363,8 +309,11 @@ export default function ClassRoomsPage() {
         onEdit: handleEdit,
         onToggle: handleToggle,
         onDelete: handleDelete,
+        sortBy,
+        sortOrder,
+        onSort: handleSort,
       }),
-    [handleView, handleEdit, handleToggle, handleDelete],
+    [handleView, handleEdit, handleToggle, handleDelete, sortBy, sortOrder, handleSort],
   )
 
   const hasActiveFilters =
@@ -374,28 +323,42 @@ export default function ClassRoomsPage() {
     cityFilter !== 'all'
 
   const showEmpty =
-    !tableLoading &&
-    filteredClassrooms.length === 0 &&
-    !hasActiveFilters
-  const showNoResults = !tableLoading && filteredClassrooms.length === 0 && !showEmpty
+    !tableLoading && !listError && classrooms.length === 0 && !hasActiveFilters
+  const showNoResults = !tableLoading && !listError && classrooms.length === 0 && !showEmpty
 
-  const saving = createLoading || updateLoading
+  const saving = createMutation.isPending || updateMutation.isPending
 
   const deleteMessage =
     deleteTarget?.ids?.length > 1
       ? `Delete ${deleteTarget.ids.length} selected classrooms? This cannot be undone.`
       : `Are you sure you want to delete "${deleteTarget?.name || 'this classroom'}"? This action cannot be undone.`
 
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setCenterFilter('all')
+    setCityFilter('all')
+  }
+
   return (
     <div className="space-y-5 sm:space-y-6">
       <CategoryPageHeader title="Class Room">
-        <CreateButton onClick={openCreate} />
+        <div className="flex flex-wrap items-center gap-2">
+          <RefreshButton
+            onClick={() => refreshClassrooms()}
+            disabled={tableLoading || isFetching}
+            fetching={isFetching}
+          />
+          <CreateButton onClick={openCreate} disabled={tableLoading}>
+            Add Class Room
+          </CreateButton>
+        </div>
       </CategoryPageHeader>
 
       <ClassRoomsFilterBar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search by Code, Center or City / Place..."
+        searchPlaceholder="Search classrooms..."
         cityFilter={cityFilter}
         onCityFilterChange={(e) => setCityFilter(e.target.value)}
         cityOptions={cityOptions}
@@ -417,18 +380,16 @@ export default function ClassRoomsPage() {
       />
 
       {tableLoading ? (
-        <div className="space-y-2 rounded-2xl border border-[#e8f4fc] bg-white p-4 shadow-sm">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded-lg bg-gradient-to-r from-[#eef6fc] via-[#f8fafc] to-[#eef6fc]"
-            />
-          ))}
-        </div>
+        <CategoryTableLoadingShell />
+      ) : listError ? (
+        <ErrorState
+          message={getApiErrorMessage(listError, 'Failed to load classrooms')}
+          onRetry={() => refreshClassrooms()}
+        />
       ) : showEmpty ? (
         <CategoryEmptyState
           title="No Classrooms Found"
-          description="Add classrooms to assign them to live classes and prevent scheduling conflicts."
+          description="Add classrooms to assign to live sessions."
           ctaLabel="Add Class Room"
           onCta={openCreate}
         />
@@ -437,28 +398,19 @@ export default function ClassRoomsPage() {
           title="No matching classrooms"
           description="Adjust search or filters to find classrooms."
           ctaLabel="Clear filters"
-          onCta={() => {
-            setSearch('')
-            setStatusFilter('all')
-            setCenterFilter('all')
-            setCityFilter('all')
-          }}
+          onCta={clearFilters}
         />
       ) : (
-        <div className="min-w-0 rounded-2xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80">
-          <PaginatedFigmaTable
-            data={filteredClassrooms}
-            columns={columns}
-            itemLabel="classrooms"
-            controlledPagination={controlledPagination}
-            density="comfortable"
-            loading={bulkActionLoading}
-            selection={selection}
-            resetDeps={[search, statusFilter, centerFilter, cityFilter]}
-            tableClassName="min-w-[1120px]"
-            stickyHeader
-          />
-        </div>
+        <CategoryStandardTable
+          data={classrooms}
+          columns={columns}
+          itemLabel="classrooms"
+          controlledPagination={controlledPagination}
+          loading={bulkActionLoading || isFetching}
+          selection={selection}
+          resetDeps={[search, statusFilter, centerFilter, cityFilter, sortBy, sortOrder]}
+          tableMinWidth={1280}
+        />
       )}
 
       <ClassroomFormModal
@@ -466,7 +418,7 @@ export default function ClassRoomsPage() {
         onClose={() => {
           setModalOpen(false)
           setEditRow(null)
-          setEditDetail(null)
+          setEditId(null)
         }}
         classroom={editDetail}
         loading={editDetailLoading}
@@ -475,8 +427,8 @@ export default function ClassRoomsPage() {
       />
 
       <ViewClassroomModal
-        open={Boolean(viewRow)}
-        onClose={() => setViewRow(null)}
+        open={Boolean(viewId)}
+        onClose={() => setViewId(null)}
         classroom={viewRow}
         loading={viewLoading}
       />
@@ -484,12 +436,19 @@ export default function ClassRoomsPage() {
       <ConfirmClassroomStatusModal
         open={Boolean(statusTarget)}
         activating={statusTarget?.status !== 'Active'}
-        loading={statusLoading}
+        loading={statusMutation.isPending}
         onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
       />
 
-      
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete classroom?"
+        message={deleteMessage}
+        loading={deleteMutation.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => !deleteMutation.isPending && setDeleteTarget(null)}
+      />
 
       <MasterBulkConfirmModal
         open={Boolean(bulkConfirm)}

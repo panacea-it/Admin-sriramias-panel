@@ -1,7 +1,11 @@
 import api from "../config/api";
-import apiClient from "./apiClient";
 import { throwApiError } from "../utils/apiError";
 import { createCachedRequest } from "../utils/apiRequestCache";
+import { mapCentreDropdownDisplayOption } from "../utils/centreDropdownDisplay";
+import {
+  mapApiStatusToLocal,
+  mapLocalStatusToApi,
+} from "../utils/centerHelpers";
 
 const centersDropdownCache = createCachedRequest({ ttlMs: 5 * 60_000 });
 
@@ -26,81 +30,60 @@ export function buildCreateCenterPayload(form) {
     city: String(form?.city || "").trim(),
     state: String(form?.state || "").trim(),
     contactNumber: String(form?.contactNumber || "").replace(/\D/g, ""),
-    email: String(form?.email || "").trim(),
+    email: String(form?.email || "").trim().toLowerCase(),
     status,
   };
 }
 
-function parseAssignedAdmins(raw) {
-  return String(raw ?? "")
-    .split(/[,;\n]/g)
-    .map((value) => String(value).trim())
-    .filter(Boolean);
-}
-
 export function buildUpdateCenterPayload(form) {
-  const assignedAdmins = parseAssignedAdmins(
-    form?.assignedAdminsText ?? form?.assignedAdmins ?? "",
-  );
-
   return {
     centerName: String(form?.centerName || "").trim(),
-    centerCode: String(form?.centerCode || "").trim(),
+    centerCode: String(form?.centerCode || "").trim().toUpperCase(),
     address: String(form?.address || "").trim(),
     city: String(form?.city || "").trim(),
     state: String(form?.state || "").trim(),
     contactNumber: String(form?.contactNumber || "").replace(/\D/g, ""),
-    email: String(form?.email || "").trim(),
+    email: String(form?.email || "").trim().toLowerCase(),
     status: normalizeCenterStatus(form?.status),
-    assignedAdmins,
   };
 }
 
 export function buildUpdateCenterPayloadFromPatch(patch) {
-  const assignedAdmins = Array.isArray(patch?.assignedAdmins)
-    ? patch.assignedAdmins.map((item) => String(item).trim()).filter(Boolean)
-    : parseAssignedAdmins(
-        patch?.assignedAdminsText ?? patch?.assignedAdmins ?? "",
-      );
-
-  return {
-    centerName: String(patch?.centerName || "").trim(),
-    centerCode: String(patch?.centerCode || "").trim(),
-    address: String(patch?.address || "").trim(),
-    city: String(patch?.city || "").trim(),
-    state: String(patch?.state || "").trim(),
-    contactNumber: String(patch?.contactNumber || "").replace(/\D/g, ""),
-    email: String(patch?.email || "").trim(),
-    status: normalizeCenterStatus(patch?.status),
-    assignedAdmins,
-  };
+  return buildUpdateCenterPayload(patch);
 }
 
-export function mapStatusFilterToApi(statusFilter) {
-  if (statusFilter === "active") return "ACTIVE";
-  if (statusFilter === "disabled") return "DISABLED";
-  return "ALL";
+export function buildPartialUpdatePayload(original, form) {
+  const next = buildUpdateCenterPayload(form);
+  const payload = {};
+
+  const originalStatus = mapLocalStatusToApi(original?.status);
+  const originalContact = String(original?.contactNumber || "").replace(/\D/g, "");
+  const originalEmail = String(original?.email || "").trim().toLowerCase();
+
+  const comparisons = [
+    ["centerName", String(original?.centerName || "").trim(), next.centerName],
+    ["centerCode", String(original?.centerCode || "").trim().toUpperCase(), next.centerCode],
+    ["address", String(original?.address || "").trim(), next.address],
+    ["city", String(original?.city || "").trim(), next.city],
+    ["state", String(original?.state || "").trim(), next.state],
+    ["contactNumber", originalContact, next.contactNumber],
+    ["email", originalEmail, next.email],
+    ["status", originalStatus, next.status],
+  ];
+
+  for (const [field, prev, value] of comparisons) {
+    if (prev !== value) {
+      payload[field] = value;
+    }
+  }
+
+  return payload;
 }
+
+export { mapStatusFilterToApi } from "../utils/centerHelpers";
 
 export function mapApiCenterToLocal(data) {
   if (!data || typeof data !== "object") return null;
-
-  const rawAdmins = data.assignedAdmins;
-  let assignedAdmins = [];
-  if (Array.isArray(rawAdmins)) {
-    assignedAdmins = rawAdmins.map(String).filter(Boolean);
-  } else if (typeof rawAdmins === "string" && rawAdmins.trim()) {
-    assignedAdmins = rawAdmins
-      .split(/[,;\n]/g)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-
-  const statusRaw = String(data.status || "ACTIVE").toUpperCase();
-
-  const assignedAdminsDisplay =
-    String(data.assignedAdminsDisplay || "").trim() ||
-    (assignedAdmins.length > 0 ? assignedAdmins.join(", ") : "");
 
   const createdBy =
     data.createdBy && typeof data.createdBy === "object"
@@ -122,9 +105,7 @@ export function mapApiCenterToLocal(data) {
     city: String(data.city || ""),
     contactNumber: String(data.contactNumber || ""),
     email: String(data.email || ""),
-    status: statusRaw === "DISABLED" ? "disabled" : "active",
-    assignedAdmins,
-    assignedAdminsDisplay,
+    status: mapApiStatusToLocal(data.status),
     linkedStudentCount: Number(data.linkedStudentCount) || 0,
     createdAt: data.createdAt || new Date().toISOString(),
     updatedAt: data.updatedAt || data.createdAt || new Date().toISOString(),
@@ -232,7 +213,7 @@ export function normalizeCentersDropdown(data) {
           .join(" ") ||
         String(item?.name || "");
 
-      return {
+      return mapCentreDropdownDisplayOption({
         label,
         value: String(
           item?.value ||
@@ -246,7 +227,7 @@ export function normalizeCentersDropdown(data) {
         centerCode,
         city,
         state,
-      };
+      });
     })
     .filter((opt) => opt.label && opt.value);
 }
@@ -265,14 +246,12 @@ export function getCreateCenterErrorMessage(error) {
   return "Failed to create center";
 }
 
-/** Create Center — unchanged integration (uses apiClient alias) */
 export const createCenter = async (payload) => {
   try {
-    const response = await apiClient.post("/api/admin/centers", payload);
-
+    const response = await api.post("/api/admin/centers", payload);
     return response.data;
   } catch (error) {
-    throw error?.response?.data || error?.message || "Something went wrong";
+    throwApiError(error);
   }
 };
 
@@ -333,3 +312,35 @@ export const getCentersDropdown = async () => {
     throwApiError(error);
   }
 };
+
+export const getIndianStates = async () => {
+  try {
+    const response = await api.get("/api/admin/centers/states");
+    return response.data;
+  } catch (error) {
+    throwApiError(error);
+  }
+};
+
+export const bulkUpdateCenterStatus = async (payload) => {
+  try {
+    const response = await api.patch("/api/admin/centers/bulk-status", payload);
+    return response.data;
+  } catch (error) {
+    throwApiError(error);
+  }
+};
+
+export const centerService = {
+  getCenters,
+  getCenterById,
+  createCenter,
+  updateCenter,
+  updateCenterStatus,
+  bulkUpdateCenterStatus,
+  deleteCenter,
+  getIndianStates,
+  getCentersDropdown,
+};
+
+export default centerService;

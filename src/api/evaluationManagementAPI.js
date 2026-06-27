@@ -1,7 +1,4 @@
-import { isFrontendOnly } from '../config/appMode'
 import {
-  fetchEvaluationFilterOptions,
-  fetchEvaluationTableData,
   fetchEvaluationPaperById,
   saveEvaluationDraft as saveOversightDraft,
   publishEvaluationResult,
@@ -112,31 +109,12 @@ function mapFilterOptionsToLookups(options = {}) {
 }
 
 export async function fetchEvaluationLookups() {
-  if (isFrontendOnly) {
-    await delay()
-    return loadLookups()
-  }
-  try {
-    const options = await fetchEvaluationFilterOptions()
-    const mapped = mapFilterOptionsToLookups(options)
-    if (mapped.tests.length || mapped.evaluators.length) return mapped
-    await delay()
-    return loadLookups()
-  } catch {
-    await delay()
-    return loadLookups()
-  }
+  await delay()
+  return loadLookups()
 }
 
 export async function fetchEvaluations(params = {}) {
-  if (isFrontendOnly) return fetchEvaluationsLocal(params)
-  try {
-    const rows = await fetchEvaluationTableData(params)
-    if (Array.isArray(rows) && rows.length) return rows
-    return fetchEvaluationsLocal(params)
-  } catch {
-    return fetchEvaluationsLocal(params)
-  }
+  return fetchEvaluationsLocal(params)
 }
 
 async function fetchEvaluationsLocal(params = {}) {
@@ -181,7 +159,6 @@ async function fetchEvaluationsLocal(params = {}) {
 }
 
 export async function fetchEvaluationById(evaluationId) {
-  if (isFrontendOnly) return fetchEvaluationByIdLocal(evaluationId)
   try {
     return await fetchEvaluationPaperById(evaluationId)
   } catch {
@@ -201,7 +178,6 @@ async function fetchEvaluationByIdLocal(evaluationId) {
 }
 
 export async function assignEvaluations(payload) {
-  if (isFrontendOnly) return assignEvaluationsLocal(payload)
   return assignEvaluationsLocal(payload)
 }
 
@@ -257,7 +233,6 @@ async function assignEvaluationsLocal(payload = {}) {
 }
 
 export async function saveEvaluationDraft(evaluationId, patch, meta = {}) {
-  if (isFrontendOnly) return saveEvaluationDraftLocal(evaluationId, patch, meta)
   try {
     return await saveOversightDraft(evaluationId, patch)
   } catch {
@@ -291,7 +266,6 @@ async function saveEvaluationDraftLocal(evaluationId, patch = {}, meta = {}) {
 }
 
 export async function publishEvaluation(evaluationId, meta = {}) {
-  if (isFrontendOnly) return publishEvaluationLocal(evaluationId, meta)
   try {
     return await publishEvaluationResult(evaluationId, meta)
   } catch {
@@ -324,7 +298,6 @@ async function publishEvaluationLocal(evaluationId, meta = {}) {
 }
 
 export async function requestRecheck(evaluationId, payload = {}, meta = {}) {
-  if (isFrontendOnly) return requestRecheckLocal(evaluationId, payload, meta)
   return requestRecheckLocal(evaluationId, payload, meta)
 }
 

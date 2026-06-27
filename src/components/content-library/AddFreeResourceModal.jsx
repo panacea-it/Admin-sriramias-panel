@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Layers, Loader2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
-import { createNcertBook, createMockTest, createMockTestQuestion, createPreviousYearPaper, createStudyMaterial, fetchMockTestById, fetchNcertBookById, fetchPreviousYearPaperById, fetchStudyMaterialById, updateMockTest, updateNcertBook, updatePreviousYearPaper, updateStudyMaterial } from '../../api/freeResourcesAPI'
+import { freeResourceService } from '../../services/freeResourceService'
 import FormModalSubmitBar from '../common/FormModalSubmitBar'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
@@ -44,7 +44,9 @@ import {
   mapNcertBookStatusForList,
   mapPreviousYearPaperApiToForm,
   mapStudyMaterialApiToForm,
+  mapStudyMaterialCategoryToApi,
   resolveFreeResourceRendererCategory,
+  STUDY_MATERIAL_CATEGORY_API_VALUES,
   validateNcertBookPdf,
   validatePreviousYearPaperPdf,
   validateStudyMaterialFile,
@@ -98,7 +100,9 @@ function validateNcertBookFields(values, { isEdit = false } = {}) {
     errors.subject = 'Select subject'
   }
   if (!String(values.className || '').trim()) {
-    errors.className = 'Class is required'
+    errors.className = String(values.subject || '').trim()
+      ? 'Please select Class.'
+      : 'Class is required'
   }
   if (!String(values.bookName || '').trim()) {
     errors.bookName = 'Book name is required'
@@ -173,8 +177,9 @@ function validateMockTestFields(values, { isEdit = false } = {}) {
 
 function validateStudyMaterialFields(values, { isEdit = false } = {}) {
   const errors = {}
-  if (!String(values.mainsCategory || '').trim()) {
-    errors.mainsCategory = 'Main category is required'
+  const categoryApi = mapStudyMaterialCategoryToApi(values.mainsCategory)
+  if (!categoryApi || !STUDY_MATERIAL_CATEGORY_API_VALUES.includes(categoryApi)) {
+    errors.mainsCategory = 'Select a valid main category'
   }
   if (!String(values.studyMaterialName || '').trim()) {
     errors.studyMaterialName = 'Study material name is required'
@@ -260,8 +265,10 @@ export default function AddFreeResourceModal({
   const category = watch('category')
   const status = watch('status')
   const paperType = watch('paperType')
+  const selectedSubject = watch('subject')
   const prevCategoryRef = useRef('')
   const prevPaperTypeRef = useRef('')
+  const prevNcertSubjectRef = useRef('')
   const rendererCategory = useMemo(
     () => resolveFreeResourceRendererCategory(category, categoryOptions),
     [category, categoryOptions],
@@ -302,7 +309,11 @@ export default function AddFreeResourceModal({
   )
   const mockTestDropdowns = useMockTestDropdowns(open, isMockTestSelected)
   const studyMaterialDropdowns = useStudyMaterialDropdowns(open, isStudyMaterialSelected)
-  const ncertBookDropdowns = useNcertBookDropdowns(open, isNcertSelected || isNcertEdit)
+  const ncertBookDropdowns = useNcertBookDropdowns(
+    open,
+    isNcertSelected || isNcertEdit,
+    selectedSubject,
+  )
   const resolvedStatusOptions =
     statusOptions.length > 0 ? statusOptions : DEFAULT_STATUS_OPTIONS
 
@@ -313,6 +324,34 @@ export default function AddFreeResourceModal({
       setValue('status', normalizedStatus, { shouldDirty: false })
     }
   }, [open, isEditMode, status, setValue])
+
+  useEffect(() => {
+    if (!open) {
+      prevNcertSubjectRef.current = ''
+      return
+    }
+
+    if (!isNcertSelected && !isNcertEdit) return
+    if (detailLoading) return
+
+    const currentSubject = String(selectedSubject || '').trim()
+    const previousSubject = prevNcertSubjectRef.current
+
+    if (previousSubject && previousSubject !== currentSubject) {
+      setValue('className', '', { shouldDirty: true })
+      clearErrors('className')
+    }
+
+    prevNcertSubjectRef.current = currentSubject
+  }, [
+    open,
+    isNcertSelected,
+    isNcertEdit,
+    selectedSubject,
+    detailLoading,
+    setValue,
+    clearErrors,
+  ])
 
   useInitOnModalOpen(open, editKey, () => {
     const seeded = freeResourceRowToForm(itemRef.current)
@@ -388,7 +427,7 @@ export default function AddFreeResourceModal({
     let canceled = false
     setDetailLoading(true)
 
-    fetchMockTestById(mockTestId)
+    freeResourceService.getMockTestById(mockTestId)
       .then((data) => {
         if (canceled) return
         const formValues = mapMockTestApiToForm(data)
@@ -417,7 +456,7 @@ export default function AddFreeResourceModal({
     let canceled = false
     setDetailLoading(true)
 
-    fetchStudyMaterialById(studyMaterialId)
+    freeResourceService.getStudyMaterialById(studyMaterialId)
       .then((data) => {
         if (canceled) return
         const formValues = mapStudyMaterialApiToForm(data)
@@ -446,11 +485,12 @@ export default function AddFreeResourceModal({
     let canceled = false
     setDetailLoading(true)
 
-    fetchNcertBookById(ncertBookId)
+    freeResourceService.getNcertBookById(ncertBookId)
       .then((data) => {
         if (canceled) return
         const formValues = mapNcertBookApiToForm(data, categoryOptions)
         prevCategoryRef.current = formValues.category || ''
+        prevNcertSubjectRef.current = String(formValues.subject || '').trim()
         reset((current) => ({
           ...current,
           ...formValues,
@@ -477,7 +517,7 @@ export default function AddFreeResourceModal({
     let canceled = false
     setDetailLoading(true)
 
-    fetchPreviousYearPaperById(previousYearPaperId)
+    freeResourceService.getPreviousYearPaperById(previousYearPaperId)
       .then((data) => {
         if (canceled) return
         const formValues = mapPreviousYearPaperApiToForm(data, categoryOptions)
@@ -681,9 +721,9 @@ export default function AddFreeResourceModal({
     setSaving(true)
     try {
       if (isNcertCreate) {
-        const response = await createNcertBook({
-          subject: values.subject,
-          className: values.className,
+        const response = await freeResourceService.createNcertBook({
+          subjectId: values.subject,
+          classId: values.className,
           bookName: values.bookName,
           status: values.status,
           bookFile: values.bookFile,
@@ -710,9 +750,9 @@ export default function AddFreeResourceModal({
       }
 
       if (isNcertEdit && ncertBookId) {
-        await updateNcertBook(ncertBookId, {
-          subject: values.subject,
-          className: values.className,
+        await freeResourceService.updateNcertBook(ncertBookId, {
+          subjectId: values.subject,
+          classId: values.className,
           bookName: values.bookName,
           status: values.status,
           bookFile: values.bookFile,
@@ -736,7 +776,7 @@ export default function AddFreeResourceModal({
       }
 
       if (isPreviousYearCreate) {
-        const response = await createPreviousYearPaper({
+        const response = await freeResourceService.createPreviousYearPaper({
           examCategory: values.examCategory,
           paperType: values.paperType,
           paper: values.paper,
@@ -767,7 +807,7 @@ export default function AddFreeResourceModal({
       }
 
       if (isPreviousYearEdit && previousYearPaperId) {
-        await updatePreviousYearPaper(previousYearPaperId, {
+        await freeResourceService.updatePreviousYearPaper(previousYearPaperId, {
           examCategory: values.examCategory,
           paperType: values.paperType,
           paper: values.paper,
@@ -795,7 +835,7 @@ export default function AddFreeResourceModal({
       }
 
       if (isMockTestEdit && mockTestId) {
-        await updateMockTest(mockTestId, {
+        await freeResourceService.updateMockTest(mockTestId, {
           ...buildMockTestUpdatePayload(values),
           bulkFile: values.bulkFile,
         })
@@ -821,7 +861,7 @@ export default function AddFreeResourceModal({
           ...buildMockTestCreatePayload(values),
           bulkFile: values.bulkFile,
         }
-        const response = await createMockTest(createPayload)
+        const response = await freeResourceService.createMockTest(createPayload)
         const createdId = extractCreatedFreeResourceId(response)
         const hasBulkFile = hasUploadedFile(values.bulkFile)
 
@@ -833,7 +873,7 @@ export default function AddFreeResourceModal({
           for (let index = 0; index < questions.length; index += 1) {
             const question = questions[index]
             if (!isFreeResourceQuestionComplete(question)) continue
-            await createMockTestQuestion(
+            await freeResourceService.createMockTestQuestion(
               createdId,
               mapMockTestQuestionUiToApi(question, index),
             )
@@ -860,7 +900,7 @@ export default function AddFreeResourceModal({
       }
 
       if (isStudyMaterialEdit && studyMaterialId) {
-        await updateStudyMaterial(studyMaterialId, {
+        await freeResourceService.updateStudyMaterial(studyMaterialId, {
           mainsCategory: values.mainsCategory,
           studyMaterialName: values.studyMaterialName,
           status: values.status,
@@ -884,7 +924,7 @@ export default function AddFreeResourceModal({
       }
 
       if (isStudyMaterialCreate) {
-        const response = await createStudyMaterial({
+        const response = await freeResourceService.createStudyMaterial({
           mainsCategory: values.mainsCategory,
           studyMaterialName: values.studyMaterialName,
           status: values.status,

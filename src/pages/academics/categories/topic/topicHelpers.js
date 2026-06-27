@@ -108,9 +108,12 @@ export function resolveTopicSubjectDisplay(row, subjectNameById = {}) {
 }
 
 function resolveSubjectId(row) {
-  if (row?.subjectId) return String(row.subjectId)
-  if (row?.subject && typeof row.subject === 'object') {
-    return String(row.subject._id ?? row.subject.id ?? '')
+  if (row?.subject) {
+    if (typeof row.subject === 'object') {
+      return String(row.subject._id ?? row.subject.id ?? '')
+    }
+    const subjectRef = String(row.subject).trim()
+    if (looksLikeObjectId(subjectRef)) return subjectRef
   }
   return ''
 }

@@ -1,48 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, RefreshCw } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
 import CategoryFilterBar from '../../../components/categories/CategoryFilterBar'
-import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import CityTable, { buildCityTableColumns } from '../../../components/cities/CityTable'
 import AddCityModal from '../../../components/cities/AddCityModal'
 import ViewCityModal from '../../../components/cities/ViewCityModal'
 import ConfirmCityStatusModal from '../../../components/cities/ConfirmCityStatusModal'
-import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
+import CategoryTableLoadingShell from '../../../components/categories/CategoryTableLoadingShell'
+import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
+import ErrorState from '../../../components/feedback/ErrorState'
 import { useCityManagement } from '../../../hooks/useCityManagement'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
+import { useCity, useCreateCity, useUpdateCity, useDeleteCity, useUpdateCityStatus } from '../../../hooks/useCities'
 import { getApiErrorMessage } from '../../../utils/apiError'
-import { toast, TOAST_DURATION } from '../../../utils/toast'
-import {
-  bulkUpdateMasterStatus,
-  getMasterBulkErrorMessage,
-} from '../../../services/masterBulkStatusService'
-import {
-  MASTER_BULK_TOAST,
-  countDisableableSelected,
-  countEnableableSelected,
-  filterDisableableIds,
-  filterEnableableIds,
-} from '../../../utils/masterBulkActions'
+import { toast } from '../../../utils/toast'
 import {
   buildCreateCityPayload,
   buildUpdateCityPayload,
   mapApiCityToLocal,
-  mergeCityWithSource,
+  mapUiCityStatusToApi,
 } from '../../../utils/cityApiHelpers'
-import { setCachedCityCode } from '../../../utils/cityCodeCache'
-import {
-  createCity,
-  deleteCity,
-  getCityById,
-  updateCity,
-  updateCityStatus,
-} from '../../../services/cityService'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Status' },
   { value: 'Active', label: 'Active' },
-  { value: 'Deactivated', label: 'Deactivated' },
+  { value: 'In Active', label: 'Inactive' },
 ]
 
 function AddCityButton({ onClick, disabled, children }) {
@@ -59,164 +42,124 @@ function AddCityButton({ onClick, disabled, children }) {
   )
 }
 
+function RefreshButton({ onClick, disabled, fetching }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#1a3a5c] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+    >
+      <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
+      {fetching ? 'Refreshing…' : 'Refresh'}
+    </button>
+  )
+}
+
 export default function CityPage() {
   const {
     cities,
     loading: tableLoading,
+    isFetching,
+    listError,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     centerFilter,
     setCenterFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
     controlledPagination,
     refreshCities,
-    patchCityLocally,
   } = useCityManagement()
 
   const { options: centreDropdownOptions } = useCentersDropdownOptions()
+  const createMutation = useCreateCity()
+  const updateMutation = useUpdateCity()
+  const deleteMutation = useDeleteCity()
+  const statusMutation = useUpdateCityStatus()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editRow, setEditRow] = useState(null)
-  const [editDetail, setEditDetail] = useState(null)
-  const [editDetailLoading, setEditDetailLoading] = useState(false)
-  const [viewRow, setViewRow] = useState(null)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [updateLoading, setUpdateLoading] = useState(false)
+  const [editId, setEditId] = useState(null)
+  const [viewId, setViewId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
-  const [bulkConfirm, setBulkConfirm] = useState(null)
-  const [bulkActionLoading, setBulkActionLoading] = useState(false)
 
   const centerOptions = useMemo(
     () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
     [centreDropdownOptions],
   )
 
-  const citiesById = useMemo(
-    () => new Map(cities.map((row) => [String(row.id), row])),
-    [cities],
-  )
+  const { data: viewQuery, isLoading: viewLoading } = useCity(viewId, {
+    enabled: Boolean(viewId),
+  })
+  const viewRow = useMemo(() => {
+    if (!viewId) return null
+    return mapApiCityToLocal(viewQuery) || null
+  }, [viewId, viewQuery])
 
-  const disableableCount = useMemo(
-    () => countDisableableSelected(selectedIds, citiesById),
-    [selectedIds, citiesById],
-  )
-
-  const enableableCount = useMemo(
-    () => countEnableableSelected(selectedIds, citiesById),
-    [selectedIds, citiesById],
-  )
+  const { data: editQuery, isLoading: editDetailLoading } = useCity(editId, {
+    enabled: Boolean(editId) && modalOpen,
+  })
+  const editDetail = useMemo(() => {
+    if (!editId) return editRow
+    return mapApiCityToLocal(editQuery) || editRow
+  }, [editId, editQuery, editRow])
 
   const openCreate = useCallback(() => {
     setEditRow(null)
-    setEditDetail(null)
+    setEditId(null)
     setModalOpen(true)
   }, [])
 
-  const loadCityDetail = useCallback(async (row) => {
-    const data = await getCityById(row.id)
-    const mapped = mapApiCityToLocal(data)
-    return mergeCityWithSource(row, mapped || row)
+  const handleView = useCallback((row) => {
+    setViewId(row.id)
   }, [])
 
-  const handleView = useCallback(
-    async (row) => {
-      setViewRow(row)
-      setViewLoading(true)
-      try {
-        const detail = await loadCityDetail(row)
-        setViewRow(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load city details'))
-        setViewRow(null)
-      } finally {
-        setViewLoading(false)
-      }
-    },
-    [loadCityDetail],
-  )
-
-  const handleEdit = useCallback(
-    async (row) => {
-      setEditRow(row)
-      setEditDetail(row)
-      setEditDetailLoading(true)
-      setModalOpen(true)
-      try {
-        const detail = await loadCityDetail(row)
-        setEditDetail(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load city for editing'))
-        setModalOpen(false)
-        setEditRow(null)
-        setEditDetail(null)
-      } finally {
-        setEditDetailLoading(false)
-      }
-    },
-    [loadCityDetail],
-  )
+  const handleEdit = useCallback((row) => {
+    setEditRow(row)
+    setEditId(row.id)
+    setModalOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!modalOpen) {
       setEditRow(null)
-      setEditDetail(null)
-      setEditDetailLoading(false)
+      setEditId(null)
     }
   }, [modalOpen])
 
   const handleSave = async (form) => {
     const isEdit = Boolean(editRow?.id)
-    const normalizedCode = String(form.code || '')
-      .trim()
-      .toUpperCase()
-
-    if (isEdit) {
-      setUpdateLoading(true)
-    } else {
-      setCreateLoading(true)
-    }
 
     try {
       if (isEdit) {
-        await updateCity(editRow.id, buildUpdateCityPayload(form))
-        setCachedCityCode(editRow.id, normalizedCode, {
-          centerId: form.centerId || editRow.centerId,
-          placeName: form.placeName,
+        const result = await updateMutation.mutateAsync({
+          id: editRow.id,
+          payload: buildUpdateCityPayload(form),
         })
-        patchCityLocally(editRow.id, { code: normalizedCode, cityCode: normalizedCode })
-        toast.success('City updated')
+        if (result?.success) {
+          toast.success(result.message || 'City updated successfully')
+        }
       } else {
-        const data = await createCity(buildCreateCityPayload(form))
-        const created = mapApiCityToLocal(data)
-        setCachedCityCode(created?.id || '', normalizedCode, {
-          centerId: form.centerId,
-          placeName: form.placeName,
-        })
-        toast.success('City added successfully')
+        const result = await createMutation.mutateAsync(buildCreateCityPayload(form))
+        if (result?.success && result?.data?._id) {
+          toast.success(result.message || 'City created successfully')
+        }
       }
       setModalOpen(false)
       setEditRow(null)
-      setEditDetail(null)
-      await refreshCities()
+      setEditId(null)
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, isEdit ? 'Failed to update city' : 'Failed to create city'),
-      )
       throw error
-    } finally {
-      setCreateLoading(false)
-      setUpdateLoading(false)
     }
   }
 
   const handleDelete = useCallback((row) => {
-    setDeleteTarget({ ids: [row.id], name: row.placeName })
+    setDeleteTarget({ ids: [row.id], name: row.cityAddress || row.placeName })
   }, [])
 
   const confirmDelete = useCallback(async () => {
@@ -224,110 +167,36 @@ export default function CityPage() {
     const ids = deleteTarget.ids ?? (deleteTarget.id ? [deleteTarget.id] : [])
     if (!ids.length) return
 
-    setDeleteLoading(true)
     try {
-      await Promise.all(ids.map((id) => deleteCity(id)))
-      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
+      for (const id of ids) {
+        await deleteMutation.mutateAsync(id)
+      }
+      toast.success('City deleted successfully')
       setDeleteTarget(null)
-      toast.success(ids.length > 1 ? `${ids.length} cities deleted` : 'City deleted')
-      await refreshCities()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete city'))
-    } finally {
-      setDeleteLoading(false)
+    } catch {
+      // useDeleteCity handles error toast
     }
-  }, [deleteTarget, refreshCities])
+  }, [deleteTarget, deleteMutation])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
     const activating = statusTarget.status !== 'Active'
-    const nextApiStatus = activating ? 'ACTIVE' : 'INACTIVE'
+    const nextApiStatus = mapUiCityStatusToApi(activating ? 'Active' : 'In Active')
 
-    setStatusLoading(true)
     try {
-      await updateCityStatus(statusTarget.id, nextApiStatus)
-      toast.success(activating ? 'City activated' : 'City deactivated')
+      const result = await statusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApiStatus,
+      })
+      toast.success(result?.message || (activating ? 'City activated' : 'City deactivated'))
       setStatusTarget(null)
-      await refreshCities()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to update city status'))
-    } finally {
-      setStatusLoading(false)
+    } catch {
+      // useUpdateCityStatus handles error toast
     }
-  }, [statusTarget, refreshCities])
-
-  const handleBulkEnableRequest = useCallback(() => {
-    if (!enableableCount) return
-    setBulkConfirm({ type: 'enable' })
-  }, [enableableCount])
-
-  const handleBulkDisableRequest = useCallback(() => {
-    if (!disableableCount) return
-    setBulkConfirm({ type: 'disable' })
-  }, [disableableCount])
-
-  const handleBulkDeleteRequest = useCallback(() => {
-    if (!selectedIds.length) return
-    setBulkConfirm({ type: 'deactivate' })
-  }, [selectedIds.length])
-
-  const confirmBulkAction = useCallback(async () => {
-    if (!bulkConfirm) return
-    setBulkActionLoading(true)
-
-    try {
-      if (bulkConfirm.type === 'enable') {
-        const ids = filterEnableableIds(selectedIds, citiesById)
-        await bulkUpdateMasterStatus('cities', ids, 'ACTIVE', {
-          updateSingle: updateCityStatus,
-        })
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
-        await refreshCities()
-      } else if (bulkConfirm.type === 'disable') {
-        const ids = filterDisableableIds(selectedIds, citiesById)
-        await bulkUpdateMasterStatus('cities', ids, 'INACTIVE', {
-          updateSingle: updateCityStatus,
-        })
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
-        await refreshCities()
-      } else if (bulkConfirm.type === 'delete') {
-        const ids = [...selectedIds]
-        await Promise.all(ids.map((id) => deleteCity(id)))
-        setSelectedIds([])
-        toast.success(MASTER_BULK_TOAST.deleted, { duration: TOAST_DURATION.short })
-        await refreshCities()
-      }
-      setBulkConfirm(null)
-    } catch (error) {
-      toast.error(
-        bulkConfirm.type === 'delete'
-          ? getApiErrorMessage(error, 'Failed to delete selected cities')
-          : getMasterBulkErrorMessage(error, bulkConfirm.type),
-      )
-      await refreshCities()
-    } finally {
-      setBulkActionLoading(false)
-    }
-  }, [bulkConfirm, selectedIds, citiesById, refreshCities])
+  }, [statusTarget, statusMutation])
 
   const handleToggle = useCallback((row) => {
     setStatusTarget(row)
-  }, [])
-
-  const toggleSelect = useCallback((id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }, [])
-
-  const toggleSelectPage = useCallback((pageIds, select) => {
-    setSelectedIds((prev) => {
-      if (!select) return prev.filter((id) => !pageIds.includes(id))
-      const merged = new Set([...prev, ...pageIds])
-      return [...merged]
-    })
   }, [])
 
   const columns = useMemo(
@@ -337,37 +206,51 @@ export default function CityPage() {
         onEdit: handleEdit,
         onToggle: handleToggle,
         onDelete: handleDelete,
+        sortBy,
+        sortOrder,
+        onSort: handleSort,
       }),
-    [handleView, handleEdit, handleToggle, handleDelete],
+    [handleView, handleEdit, handleToggle, handleDelete, sortBy, sortOrder, handleSort],
   )
 
   const showEmpty =
     !tableLoading &&
+    !listError &&
     cities.length === 0 &&
     !search &&
     statusFilter === 'all' &&
     centerFilter === 'all'
-  const showNoResults = !tableLoading && cities.length === 0 && !showEmpty
+  const showNoResults = !tableLoading && !listError && cities.length === 0 && !showEmpty
 
-  const saving = createLoading || updateLoading
+  const saving = createMutation.isPending || updateMutation.isPending
 
-  const deleteMessage =
-    deleteTarget?.ids?.length > 1
-      ? `Delete ${deleteTarget.ids.length} selected cities? This cannot be undone.`
-      : 'This action cannot be undone.'
+  const deleteMessage = `Are you sure you want to delete "${deleteTarget?.name || 'this city'}"? This cannot be undone.`
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setCenterFilter('all')
+  }
 
   return (
     <div className="space-y-5 sm:space-y-6">
       <CategoryPageHeader title="City">
-        <AddCityButton onClick={openCreate} disabled={tableLoading}>
-          Add City
-        </AddCityButton>
+        <div className="flex flex-wrap items-center gap-2">
+          <RefreshButton
+            onClick={() => refreshCities()}
+            disabled={tableLoading || isFetching}
+            fetching={isFetching}
+          />
+          <AddCityButton onClick={openCreate} disabled={tableLoading}>
+            Add City
+          </AddCityButton>
+        </div>
       </CategoryPageHeader>
 
       <CategoryFilterBar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search city..."
+        searchPlaceholder="Search by address or center..."
         status={statusFilter}
         onStatusChange={(e) => setStatusFilter(e.target.value)}
         statusOptions={STATUS_OPTIONS}
@@ -376,24 +259,13 @@ export default function CityPage() {
         centerOptions={centerOptions}
       />
 
-      <ProgramsBulkActionsBar
-        count={selectedIds.length}
-        enableCount={enableableCount}
-        disableCount={disableableCount}
-        onClearSelection={() => setSelectedIds([])}
-        onEnable={handleBulkEnableRequest}
-        onDisable={handleBulkDisableRequest}
-      />
-
       {tableLoading ? (
-        <div className="space-y-2 rounded-2xl border border-[#e8f4fc] bg-white p-4 shadow-sm">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded-lg bg-gradient-to-r from-[#eef6fc] via-[#f8fafc] to-[#eef6fc]"
-            />
-          ))}
-        </div>
+        <CategoryTableLoadingShell />
+      ) : listError ? (
+        <ErrorState
+          message={getApiErrorMessage(listError, 'Failed to load cities')}
+          onRetry={() => refreshCities()}
+        />
       ) : showEmpty ? (
         <CategoryEmptyState
           title="No Cities Found"
@@ -406,24 +278,15 @@ export default function CityPage() {
           title="No matching cities"
           description="Try clearing search or filters to see all cities."
           ctaLabel="Clear filters"
-          onCta={() => {
-            setSearch('')
-            setStatusFilter('all')
-            setCenterFilter('all')
-          }}
+          onCta={clearFilters}
         />
       ) : (
         <CityTable
           cities={cities}
           columns={columns}
-          loading={tableLoading || bulkActionLoading}
+          loading={tableLoading || isFetching}
           controlledPagination={controlledPagination}
-          resetDeps={[search, statusFilter, centerFilter]}
-          selection={{
-            selectedIds,
-            onToggle: toggleSelect,
-            onTogglePage: toggleSelectPage,
-          }}
+          resetDeps={[search, statusFilter, centerFilter, sortBy, sortOrder]}
         />
       )}
 
@@ -432,7 +295,7 @@ export default function CityPage() {
         onClose={() => {
           setModalOpen(false)
           setEditRow(null)
-          setEditDetail(null)
+          setEditId(null)
         }}
         city={editDetail}
         loading={editDetailLoading}
@@ -441,8 +304,8 @@ export default function CityPage() {
       />
 
       <ViewCityModal
-        open={Boolean(viewRow)}
-        onClose={() => setViewRow(null)}
+        open={Boolean(viewId)}
+        onClose={() => setViewId(null)}
         city={viewRow}
         loading={viewLoading}
       />
@@ -450,19 +313,18 @@ export default function CityPage() {
       <ConfirmCityStatusModal
         open={Boolean(statusTarget)}
         activating={statusTarget?.status !== 'Active'}
-        loading={statusLoading}
+        loading={statusMutation.isPending}
         onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
       />
 
-      
-
-      <MasterBulkConfirmModal
-        open={Boolean(bulkConfirm)}
-        type={bulkConfirm?.type}
-        loading={bulkActionLoading}
-        onConfirm={confirmBulkAction}
-        onCancel={() => !bulkActionLoading && setBulkConfirm(null)}
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete city?"
+        message={deleteMessage}
+        loading={deleteMutation.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => !deleteMutation.isPending && setDeleteTarget(null)}
       />
     </div>
   )

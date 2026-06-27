@@ -59,7 +59,7 @@ export function generateEmiSchedule({
   planDiscount = 0,
   customCharge = 0,
 }) {
-  const count = Math.max(1, Math.min(24, Number(installmentCount) || 1))
+  const count = Math.max(0, Number(installmentCount) || 0)
   const down = Math.max(0, Number(downPayment) || 0)
   const pending = Math.max(0, Number(pendingBalance) || 0)
   const principal = Math.max(0, pending - down)
@@ -274,8 +274,8 @@ export function validateEmiPlan({ financials, downPayment, installmentCount, sch
   }
 
   const count = Number(installmentCount)
-  if (count < 1 || count > 24) {
-    errors.push('Installment count must be between 1 and 24.')
+  if (count < 0) {
+    errors.push('Installment count cannot be negative.')
   }
 
   return errors

@@ -11,7 +11,7 @@ export const DASHBOARD_ROUTES = {
   testCbt: '/test-management/cbt',
   testMains: '/test-management/mains',
   analytics: '/analytics',
-  teachers: '/academics/categories/teachers',
+  teachers: '/academics/categories/faculty',
   batches: '/academics/batch',
   auditLogs: '/operations/audit-logs',
   receipts: '/finance/receipts',
