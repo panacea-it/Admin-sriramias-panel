@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Trophy, TrendingDown, TrendingUp } from 'lucide-react'
 import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import StatCard from '../../dashboard/StatCard'
@@ -33,10 +33,13 @@ export default function MainsEvaluationResultsView({
   facultyLabel,
   summary: summaryProp,
   rows: rowsProp,
+  loading = false,
+  search = '',
+  onSearchChange,
+  statusFilter = 'all',
+  onStatusFilterChange,
+  controlledPagination,
 }) {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-
   const allRows = useMemo(() => rowsProp ?? [], [rowsProp])
 
   const summary = useMemo(() => {
@@ -56,22 +59,7 @@ export default function MainsEvaluationResultsView({
     }
   }, [summaryProp])
 
-  const filtered = useMemo(() => {
-    let rows = [...allRows]
-    const q = search.trim().toLowerCase()
-    if (q) {
-      rows = rows.filter(
-        (r) =>
-          r.studentName.toLowerCase().includes(q) ||
-          r.registerNumber.toLowerCase().includes(q),
-      )
-    }
-    if (statusFilter === 'Evaluated') rows = rows.filter((r) => r.filterEvaluated === 'Evaluated')
-    else if (statusFilter === 'Pending') rows = rows.filter((r) => r.filterEvaluated === 'Pending')
-    return rows
-  }, [allRows, search, statusFilter])
-
-  const hasActiveFilters = Boolean(search.trim() || statusFilter !== 'all')
+  const hasActiveFilters = Boolean(String(search).trim() || statusFilter !== 'all')
 
   const emptyMessage = hasActiveFilters
     ? 'No students match your filters.'
@@ -163,19 +151,22 @@ export default function MainsEvaluationResultsView({
       <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
         <CourseFilterToolbar
           search={search}
-          onSearchChange={(e) => setSearch(e.target.value)}
+          onSearchChange={(e) => onSearchChange?.(e.target.value)}
           searchPlaceholder="Search name or register number…"
           status={statusFilter}
-          onStatusChange={(e) => setStatusFilter(e.target.value)}
+          onStatusChange={(e) => onStatusFilterChange?.(e.target.value)}
           statusOptions={FILTER_OPTIONS}
           searchFullWidth
+          disabled={loading && allRows.length === 0}
         />
 
         <div className="mt-5 w-full overflow-hidden rounded-xl border border-slate-100">
           <MainsStudentResultsTable
-            rows={filtered}
-            resetDeps={[search, statusFilter, test.id]}
+            rows={allRows}
+            loading={loading}
+            resetDeps={[search, statusFilter, test.id, controlledPagination?.page]}
             emptyMessage={emptyMessage}
+            controlledPagination={controlledPagination}
           />
         </div>
       </div>

@@ -35,6 +35,7 @@ export default function MainsTestsManagementTable({
   resetDeps = [],
   emptyMessage,
   renderActions,
+  controlledPagination,
 }) {
   const columns = useMemo(
     () => [
@@ -143,6 +144,7 @@ export default function MainsTestsManagementTable({
       tableClassName="rounded-none border-0 shadow-none"
       tableMinWidth={MAINS_TESTS_TABLE_MIN_WIDTH}
       tableLayoutFixed
+      controlledPagination={controlledPagination}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',

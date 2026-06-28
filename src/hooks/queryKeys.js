@@ -196,6 +196,17 @@ export const subjectPdfKeys = {
   dashboard: (filters) => [...subjectPdfKeys.all, 'dashboard', filters ?? {}],
 }
 
+export const mainsManagementKeys = {
+  all: ['mains-management'],
+  dashboard: (progressLimit = 5) => [...mainsManagementKeys.all, 'dashboard', progressLimit],
+  facultySubjects: (params) => [...mainsManagementKeys.all, 'faculty-subjects', params ?? {}],
+  facultySubject: (id) => [...mainsManagementKeys.all, 'faculty-subject', id ?? ''],
+  topicTests: (topicId, params) =>
+    [...mainsManagementKeys.all, 'topic-tests', topicId ?? '', params ?? {}],
+  testResults: (testId, params) =>
+    [...mainsManagementKeys.all, 'test-results', testId ?? '', params ?? {}],
+}
+
 export const omrExamKeys = {
   all: ['omr-exams'],
   lists: () => [...omrExamKeys.all, 'list'],

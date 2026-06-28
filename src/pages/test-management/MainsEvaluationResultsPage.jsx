@@ -1,38 +1,76 @@
-import { useMemo } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ListChecks } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import MainsBreadcrumbNav from '../../components/test-management/mains/MainsBreadcrumbNav'
 import MainsEvaluationResultsView from '../../components/test-management/mains/MainsEvaluationResultsView'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { useMainsTestResults } from '../../hooks/useMainsTestResults'
+import { useMainsTestResultsManagement } from '../../hooks/useMainsTestResultsManagement'
+import { mmSession } from '../../utils/mmSessionStorage'
+import { toast } from '../../utils/toast'
 
 export default function MainsEvaluationResultsPage() {
   const { subjectId, topicId, testItemId } = useParams()
+  const { state } = useLocation()
   const navigate = useNavigate()
-  const { test, summary, rows, loading } = useMainsTestResults(testItemId)
 
-  const facultyLabel = test?.facultySubjectName || ''
+  const facultySubjectId =
+    state?.facultySubjectId || mmSession.get('facultySubjectId') || subjectId
+  const resolvedTopicId = state?.topicId || mmSession.get('topicId') || topicId
+  const testId = state?.testId || mmSession.get('testId') || testItemId
+
+  const {
+    test,
+    summary,
+    rows,
+    loading,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    controlledPagination,
+  } = useMainsTestResultsManagement(testId)
+
+  const facultyLabel =
+    test?.facultySubjectName ||
+    state?.facultySubjectName ||
+    mmSession.get('facultySubjectName') ||
+    ''
 
   const testView = useMemo(
-    () => (test ? { id: testItemId, title: test.testName || 'Results' } : null),
-    [test, testItemId],
+    () => (test ? { id: testId, title: test.testName || 'Results' } : null),
+    [test, testId],
   )
+
+  useEffect(() => {
+    if (!testId) {
+      toast.error('Test not found')
+      navigate(
+        resolvedTopicId
+          ? TEST_MANAGEMENT_ROUTES.mainsTopic(facultySubjectId, resolvedTopicId)
+          : TEST_MANAGEMENT_ROUTES.mains,
+        { replace: true },
+      )
+    }
+  }, [testId, facultySubjectId, resolvedTopicId, navigate])
 
   const breadcrumbs = test
     ? [
         {
           key: 'faculty',
           label: facultyLabel || 'Faculty Subject',
-          to: TEST_MANAGEMENT_ROUTES.mainsFaculty(subjectId),
+          to: TEST_MANAGEMENT_ROUTES.mainsFaculty(facultySubjectId),
         },
         {
           key: 'topic',
-          label: test?.topicName || 'Topic',
-          to: TEST_MANAGEMENT_ROUTES.mainsTopic(subjectId, topicId),
+          label: test?.topicName || state?.topicName || mmSession.get('topicName') || 'Topic',
+          to: TEST_MANAGEMENT_ROUTES.mainsTopic(facultySubjectId, resolvedTopicId),
         },
-        { key: 'test', label: test?.testName || 'Results' },
+        {
+          key: 'test',
+          label: test?.testName || state?.testName || mmSession.get('testName') || 'Results',
+        },
       ]
     : []
 
@@ -42,7 +80,7 @@ export default function MainsEvaluationResultsPage() {
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm text-slate-600">Test or evaluation results not found.</p>
           <Link
-            to={TEST_MANAGEMENT_ROUTES.mainsTopic(subjectId, topicId)}
+            to={TEST_MANAGEMENT_ROUTES.mainsTopic(facultySubjectId, resolvedTopicId)}
             className="mt-4 inline-block"
           >
             <BannerButton type="button">Go Back</BannerButton>
@@ -55,12 +93,12 @@ export default function MainsEvaluationResultsPage() {
   return (
     <TestManagementPageShell
       icon={ListChecks}
-      title={test?.testName || 'Evaluation Results'}
+      title={test?.testName || state?.testName || mmSession.get('testName') || 'Evaluation Results'}
       actions={
         <BannerButton
           type="button"
           variant="secondary"
-          onClick={() => navigate(TEST_MANAGEMENT_ROUTES.mainsTopic(subjectId, topicId))}
+          onClick={() => navigate(TEST_MANAGEMENT_ROUTES.mainsTopic(facultySubjectId, resolvedTopicId))}
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Tests
@@ -71,7 +109,7 @@ export default function MainsEvaluationResultsPage() {
         <MainsBreadcrumbNav items={breadcrumbs} />
         <p className="mt-2 text-xs text-slate-500">{facultyLabel}</p>
       </div>
-      {loading ? (
+      {loading && !test ? (
         <div className="flex min-h-[320px] items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
         </div>
@@ -81,6 +119,12 @@ export default function MainsEvaluationResultsPage() {
           facultyLabel={facultyLabel}
           summary={summary}
           rows={rows}
+          loading={loading}
+          search={search}
+          onSearchChange={setSearch}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          controlledPagination={controlledPagination}
         />
       )}
     </TestManagementPageShell>

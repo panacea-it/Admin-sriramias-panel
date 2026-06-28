@@ -13,13 +13,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { asArray } from '../../utils/testManagementDashboardHelpers'
 
 const COLORS = ['#55ace7', '#1a3a5c', '#10b981', '#f59e0b', '#8b5cf6']
 
 export function ParticipationAreaChart({ data }) {
+  const chartData = asArray(data)
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={data}>
+      <AreaChart data={chartData}>
         <defs>
           <linearGradient id="tmPart" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#55ace7" stopOpacity={0.35} />
@@ -37,11 +39,12 @@ export function ParticipationAreaChart({ data }) {
 }
 
 export function TestTypePieChart({ data }) {
+  const chartData = asArray(data)
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-          {data.map((_, i) => (
+        <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
+          {chartData.map((_, i) => (
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}
         </Pie>
@@ -53,9 +56,10 @@ export function TestTypePieChart({ data }) {
 }
 
 export function FacultyBarChart({ data }) {
+  const chartData = asArray(data)
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data}>
+      <BarChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e8" />
         <XAxis dataKey="faculty" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 12 }} />

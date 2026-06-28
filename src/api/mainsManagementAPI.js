@@ -1,117 +1,79 @@
 import {
-  buildLatestMainsEvaluationCards,
-  buildMainsFacultyRows,
-  getMainsFacultyBySubjectId,
-  getMainsTestsForTopic,
-  getMainsTopic,
-  mapMainsFacultySubjectsForTable,
-} from '../utils/mainsEvaluationHierarchy'
+  getMainsDashboard,
+  getMainsFacultySubjectDetails,
+  getMainsFacultySubjects,
+  getMainsTestResults,
+  getMainsTopicTests,
+} from '../services/mainsManagementService'
 import {
-  generateMainsStudentResults,
-  summarizeMainsResults,
-} from '../data/mainsStudentResultsSeed'
-
-const DELAY_MS = 120
-
-function delay(ms = DELAY_MS) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+  mapDashboardResponse,
+  mapFacultySubjectDetails,
+  normalizeFacultySubjectsResponse,
+  normalizeTestResultsResponse,
+  normalizeTopicTestsResponse,
+} from '../utils/mainsManagementApiHelpers'
 
 export function mapMainsEvaluationCard(item = {}) {
   return item
 }
 
-export async function fetchMainsDashboard({ progressLimit = 3 } = {}, _signal) {
-  await delay()
-  return buildLatestMainsEvaluationCards(progressLimit)
+export async function fetchMainsDashboard({ progressLimit = 5 } = {}, signal) {
+  const data = await getMainsDashboard(progressLimit, { signal })
+  return mapDashboardResponse(data)
 }
 
 export function mapMainsFacultyRow(item = {}) {
   return item
 }
 
-export async function fetchMainsFacultySubjects(_params = {}, _signal) {
-  await delay()
-  return mapMainsFacultySubjectsForTable()
+export async function fetchMainsFacultySubjects(params = {}, signal) {
+  const data = await getMainsFacultySubjects(params, { signal })
+  const normalized = normalizeFacultySubjectsResponse(data, {
+    page: params.page ?? 1,
+    limit: params.limit ?? 10,
+  })
+  return normalized.items
 }
 
 export function mapMainsTopicRow(item = {}) {
   return item
 }
 
-export async function fetchMainsFacultyDetails(facultySubjectId, _signal) {
-  await delay()
-  const faculty = getMainsFacultyBySubjectId(facultySubjectId)
-  if (!faculty) {
-    return { faculty: null, topics: [] }
-  }
-
-  return {
-    faculty: {
-      subjectId: faculty.subjectId,
-      facultySubjectCode: faculty.subjectId,
-      subjectName: faculty.subjectName,
-      facultyName: faculty.facultyName,
-      totalTopics: faculty.totalTopics,
-      totalTests: faculty.totalTests,
-    },
-    topics: (faculty.topics || []).map((topic) => ({
-      id: topic.id,
-      topicCode: topic.id,
-      title: topic.title,
-      testCount: topic.testCount,
-    })),
-  }
+export async function fetchMainsFacultyDetails(facultySubjectId, signal) {
+  const response = await getMainsFacultySubjectDetails(facultySubjectId, { signal })
+  const payload = response?.data ?? response
+  return mapFacultySubjectDetails(payload)
 }
 
 export function mapMainsTestRow(item = {}) {
   return item
 }
 
-export async function fetchMainsTopicTests({ topicId } = {}, _signal) {
-  await delay()
-  return getMainsTestsForTopic(topicId)
+export async function fetchMainsTopicTests({ topicId, ...params } = {}, signal) {
+  const data = await getMainsTopicTests(topicId, params, { signal })
+  const normalized = normalizeTopicTestsResponse(data, topicId, {
+    page: params.page ?? 1,
+    limit: params.limit ?? 10,
+  })
+  return {
+    tests: normalized.items,
+    topic: normalized.topic,
+  }
 }
 
 export function mapMainsResultRow(item = {}) {
   return item
 }
 
-export async function fetchMainsTestResults({ testId } = {}, _signal) {
-  await delay()
-  const rows = generateMainsStudentResults(testId, 'Mains Test')
-  const summary = summarizeMainsResults(rows)
-
-  let testTitle = 'Mains Test'
-  for (const faculty of buildMainsFacultyRows()) {
-    for (const topic of faculty.topics || []) {
-      const match = topic.tests?.find((test) => String(test.id) === String(testId))
-      if (match) {
-        testTitle = match.title
-        break
-      }
-    }
-  }
-
+export async function fetchMainsTestResults({ testId, ...params } = {}, signal) {
+  const data = await getMainsTestResults(testId, params, { signal })
+  const normalized = normalizeTestResultsResponse(data, {
+    page: params.page ?? 1,
+    limit: params.limit ?? 20,
+  })
   return {
-    test: { testId, testName: testTitle },
-    summary: {
-      studentsAssigned: rows.length,
-      totalDownloads: summary.totalDownloads,
-      totalUploaded: summary.totalUploaded,
-      totalEvaluated: summary.totalEvaluated,
-      pendingEvaluations: summary.pendingEvaluations,
-      evaluationPct: summary.evaluationPct,
-      totalStudents: summary.totalStudents,
-      passed: summary.totalPassed,
-      failed: summary.totalFailed,
-      highestMarks: summary.highestMarks,
-      lowestMarks: summary.lowestMarks,
-      averageMarks: summary.averageMarks,
-      topRanker: summary.topRanker,
-      passMarks: 50,
-      totalMarks: 100,
-    },
-    rows,
+    test: normalized.test,
+    summary: normalized.summary,
+    rows: normalized.rows,
   }
 }

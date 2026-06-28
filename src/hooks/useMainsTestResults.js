@@ -1,49 +1,34 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchMainsTestResults } from '../api/mainsManagementAPI'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useEffect } from 'react'
+import { useMainsTestResultsQuery } from './useMainsManagement'
 import { toast } from '../utils/toast'
+import { getApiErrorMessage } from '../utils/apiError'
 
-const RESULTS_LIMIT = 100
+const DEFAULT_LIMIT = 100
 
 const EMPTY = { test: null, summary: null, rows: [] }
 
 export function useMainsTestResults(testId) {
-  const [data, setData] = useState(EMPTY)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
-
-  const refresh = useCallback(
-    async (signal) => {
-      if (!testId) {
-        setData(EMPTY)
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setLoadError(null)
-
-      try {
-        const result = await fetchMainsTestResults({ testId, limit: RESULTS_LIMIT }, signal)
-        setData(result)
-      } catch (error) {
-        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load evaluation results')
-        setLoadError(message)
-        toast.error(message)
-        setData(EMPTY)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [testId],
-  )
+  const { data, isLoading, isFetching, error, refetch } = useMainsTestResultsQuery(testId, {
+    page: 1,
+    limit: DEFAULT_LIMIT,
+    status: 'all',
+  })
 
   useEffect(() => {
-    const controller = new AbortController()
-    refresh(controller.signal)
-    return () => controller.abort()
-  }, [refresh])
+    if (error) {
+      console.error('[MainsManagement]', error)
+      toast.error(getApiErrorMessage(error, 'Failed to load evaluation results'))
+    }
+  }, [error])
 
-  return { ...data, loading, loadError, refresh }
+  const result = data ?? EMPTY
+
+  return {
+    test: result.test,
+    summary: result.summary,
+    rows: result.rows,
+    loading: isLoading || (isFetching && !data),
+    loadError: error ? getApiErrorMessage(error, 'Failed to load evaluation results') : null,
+    refresh: refetch,
+  }
 }

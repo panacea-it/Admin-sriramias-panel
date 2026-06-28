@@ -11,6 +11,12 @@ import {
 } from "../../components/test-management/TestManagementDashboardCharts";
 import TestManagementAnalyticsSection from "../../components/test-management/TestManagementAnalyticsSection";
 import { fetchLiveTMData } from "../../api/tmDashboardAPI";
+import {
+  asArray,
+  normalizeDashboardAnalytics,
+  normalizeFacultyOverview,
+  normalizeRecentActivities,
+} from "../../utils/testManagementDashboardHelpers";
 
 export default function TestManagementDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -73,21 +79,22 @@ export default function TestManagementDashboardPage() {
     );
   }
 
-  const stats = data.summary;
-  const participation = data.studentParticipation;
+  const stats = data.summary ?? {};
+  const participation = asArray(data.studentParticipation);
+  const facultyPerformance = asArray(data.facultyPerformance);
+  const facultyOverview = normalizeFacultyOverview(data.facultyOverview);
   const testTypeSplit = [
     { name: "CBT", value: data.testTypeSplit?.cbt || 0 },
     { name: "Mains", value: data.testTypeSplit?.mains || 0 },
   ];
-
-  // Map API keys to the expected Table keys
-  const recentActivities = (data.recentActivities || []).map((act) => ({
-    test: act.testName,
-    faculty: act.faculty,
-    action: act.activity,
-    time: act.timeAgo,
-    status: act.status,
-  }));
+  const recentActivities = normalizeRecentActivities(data.recentActivities);
+  const analyticsData = normalizeDashboardAnalytics({
+    summary: stats,
+    subjectWisePerformance: data.subjectWisePerformance,
+    accuracyHeatmap: data.accuracyHeatmap,
+    topScorers: data.topScorers,
+    weakAreas: data.weakAreas,
+  });
 
   return (
     <TestManagementPageShell
@@ -168,14 +175,14 @@ export default function TestManagementDashboardPage() {
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">
             Faculty Performance
           </h3>
-          <FacultyBarChart data={data.facultyPerformance} />
+          <FacultyBarChart data={facultyPerformance} />
         </article>
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">
             Faculty Overview
           </h3>
           <ul className="space-y-3">
-            {data.facultyOverview.map((f, i) => (
+            {facultyOverview.map((f, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3"
@@ -212,15 +219,7 @@ export default function TestManagementDashboardPage() {
         </div>
       </section>
 
-      <TestManagementAnalyticsSection
-        analyticsData={{
-          summary: stats,
-          subjectWisePerformance: data.subjectWisePerformance,
-          accuracyHeatmap: data.accuracyHeatmap,
-          topScorers: data.topScorers,
-          weakAreas: data.weakAreas,
-        }}
-      />
+      <TestManagementAnalyticsSection analyticsData={analyticsData} />
     </TestManagementPageShell>
   );
 }

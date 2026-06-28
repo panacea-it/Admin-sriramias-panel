@@ -4,6 +4,7 @@ import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import MainsTopicsManagementTable from './MainsTopicsManagementTable'
 import MainsTopicsTableActions from './MainsTopicsTableActions'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
+import { mmSession } from '../../../utils/mmSessionStorage'
 
 export default function MainsTopicsTable({ faculty, topics: topicsProp, loading }) {
   const navigate = useNavigate()
@@ -14,13 +15,24 @@ export default function MainsTopicsTable({ faculty, topics: topicsProp, loading 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return topics
-    return topics.filter((t) => t.title.toLowerCase().includes(q))
+    return topics.filter((t) => (t.title || '').toLowerCase().includes(q))
   }, [topics, search])
 
   const openTopic = useCallback(
     (topic) => {
       if (!faculty) return
-      navigate(TEST_MANAGEMENT_ROUTES.mainsTopic(faculty.subjectId, topic.id))
+      const facultySubjectId = faculty.facultySubjectId || faculty.subjectId
+      const topicId = topic.topicId || topic.id
+      navigate(TEST_MANAGEMENT_ROUTES.mainsTopic(facultySubjectId, topicId), {
+        state: {
+          topicId,
+          topicName: topic.title,
+          facultySubjectId,
+          facultySubjectName: faculty.facultySubjectName,
+        },
+      })
+      mmSession.save('topicId', topicId)
+      mmSession.save('topicName', topic.title)
     },
     [faculty, navigate],
   )

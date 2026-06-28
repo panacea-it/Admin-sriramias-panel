@@ -10,6 +10,7 @@ export default function MainsFacultySubjectsTable({
   resetDeps = [],
   emptyMessage,
   renderActions,
+  controlledPagination,
 }) {
   const columns = useMemo(
     () => [
@@ -83,6 +84,7 @@ export default function MainsFacultySubjectsTable({
       rowClassName="hover:bg-[#eef6fc]/70"
       tableClassName="rounded-none border-0 shadow-none"
       tableMinWidth={880}
+      controlledPagination={controlledPagination}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',

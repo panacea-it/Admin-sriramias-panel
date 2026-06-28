@@ -5,14 +5,9 @@ import TestManagementPageShell from '../../components/test-management/TestManage
 import TestManagementAnalyticsSection from '../../components/test-management/TestManagementAnalyticsSection'
 import ErrorState from '../../components/feedback/ErrorState'
 import { fetchLiveTMData } from '../../api/tmDashboardAPI'
+import { normalizeDashboardAnalytics } from '../../utils/testManagementDashboardHelpers'
 
-const EMPTY_ANALYTICS = {
-  summary: { avgAttemptRate: 0, topScorerAvg: 0, accuracyIndex: 0 },
-  subjectWisePerformance: [],
-  accuracyHeatmap: [],
-  topScorers: [],
-  weakAreas: [],
-}
+const EMPTY_ANALYTICS = normalizeDashboardAnalytics()
 
 export default function TestManagementAnalyticsPage() {
   const [loading, setLoading] = useState(true)
@@ -30,13 +25,7 @@ export default function TestManagementAnalyticsPage() {
           setAnalyticsData(EMPTY_ANALYTICS)
           return
         }
-        setAnalyticsData({
-          summary: result.summary ?? EMPTY_ANALYTICS.summary,
-          subjectWisePerformance: result.subjectWisePerformance ?? [],
-          accuracyHeatmap: result.accuracyHeatmap ?? [],
-          topScorers: result.topScorers ?? [],
-          weakAreas: result.weakAreas ?? [],
-        })
+        setAnalyticsData(normalizeDashboardAnalytics(result))
       } catch (error) {
         if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
         setLoadError(error?.message || 'Failed to load analytics')

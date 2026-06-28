@@ -6,12 +6,13 @@ import EvaluationProgressCards from '../../components/test-management/Evaluation
 import MainsFacultySubjectsTable from '../../components/test-management/mains/MainsFacultySubjectsTable'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import ViewButton from '../../components/common/ViewButton'
-import { useMainsEvaluationHierarchy } from '../../hooks/useMainsEvaluationHierarchy'
+import { useMainsDashboardManagement } from '../../hooks/useMainsDashboardManagement'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { TABLE_ACTIONS_WRAP_CENTER } from '../../utils/tableColumnHelpers'
+import { mmSession } from '../../utils/mmSessionStorage'
 
 function FacultySubjectTableActions({ row, onView }) {
-  const label = `${row.subjectName} by ${row.facultyName}`
+  const label = row.facultySubject || `${row.subjectName} by ${row.facultyName}`
 
   return (
     <div className={TABLE_ACTIONS_WRAP_CENTER}>
@@ -22,28 +23,32 @@ function FacultySubjectTableActions({ row, onView }) {
 
 export default function MainsManagementPage() {
   const navigate = useNavigate()
-  const { facultyRows, latestEvaluations, loading } = useMainsEvaluationHierarchy()
-  const [search, setSearch] = useState('')
-
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return facultyRows
-    return facultyRows.filter(
-      (row) =>
-        row.subjectName.toLowerCase().includes(q) ||
-        row.facultyName.toLowerCase().includes(q),
-    )
-  }, [facultyRows, search])
-
-  const openEvaluation = (card, nav) => {
-    if (card.subjectId && card.topicId) {
-      nav(TEST_MANAGEMENT_ROUTES.mainsResults(card.subjectId, card.topicId, card.id))
-    }
-  }
+  const {
+    latestEvaluations,
+    dashboardLoading,
+    facultyRows,
+    facultySubjectsLoading,
+    search,
+    setSearch,
+    controlledPagination,
+  } = useMainsDashboardManagement()
 
   const openFaculty = useCallback(
     (row) => {
-      navigate(TEST_MANAGEMENT_ROUTES.mainsFaculty(row.subjectId))
+      const facultySubjectId = row.facultySubjectId || row.subjectId
+      navigate(TEST_MANAGEMENT_ROUTES.mainsFaculty(facultySubjectId), {
+        state: {
+          facultySubjectId,
+          facultySubjectName: row.facultySubject || `${row.subjectName} by ${row.facultyName}`,
+          subjectName: row.subjectName,
+        },
+      })
+      mmSession.save('facultySubjectId', facultySubjectId)
+      mmSession.save(
+        'facultySubjectName',
+        row.facultySubject || `${row.subjectName} by ${row.facultyName}`,
+      )
+      mmSession.save('subjectName', row.subjectName)
     },
     [navigate],
   )
@@ -58,14 +63,18 @@ export default function MainsManagementPage() {
     ? 'No faculty subjects match your search.'
     : 'No faculty subjects with Mains tests available.'
 
+  const tableResetDeps = useMemo(
+    () => [search, controlledPagination.page, controlledPagination.pageSize, facultyRows.length],
+    [search, controlledPagination.page, controlledPagination.pageSize, facultyRows.length],
+  )
+
   return (
     <TestManagementPageShell icon={ListChecks} title="Mains Management">
       <EvaluationProgressCards
         cards={latestEvaluations}
-        loading={loading}
+        loading={dashboardLoading}
         emptyMessage="No evaluations completed yet."
         heading="Latest Test Series"
-        onCardClick={openEvaluation}
       />
 
       <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
@@ -77,16 +86,17 @@ export default function MainsManagementPage() {
           onStatusChange={() => {}}
           showStatusFilter={false}
           searchFullWidth
-          disabled={loading && facultyRows.length === 0}
+          disabled={facultySubjectsLoading && facultyRows.length === 0}
         />
 
         <div className="mt-5 w-full overflow-hidden rounded-xl border border-slate-100">
           <MainsFacultySubjectsTable
-            rows={filteredRows}
-            loading={loading}
-            resetDeps={[search, facultyRows.length]}
+            rows={facultyRows}
+            loading={facultySubjectsLoading}
+            resetDeps={tableResetDeps}
             emptyMessage={emptyMessage}
             renderActions={renderRowActions}
+            controlledPagination={controlledPagination}
           />
         </div>
       </div>

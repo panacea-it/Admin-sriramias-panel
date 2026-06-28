@@ -1,54 +1,28 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchMainsTopicTests } from '../api/mainsManagementAPI'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useEffect } from 'react'
+import { useMainsTopicTestsQuery } from './useMainsManagement'
 import { toast } from '../utils/toast'
+import { getApiErrorMessage } from '../utils/apiError'
 
-const TEST_LIMIT = 100
+const DEFAULT_LIMIT = 100
 
 export function useMainsTopicTests(topicId) {
-  const [tests, setTests] = useState([])
-  const [topic, setTopic] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
-
-  const refresh = useCallback(
-    async (signal) => {
-      if (!topicId) {
-        setTests([])
-        setTopic(null)
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setLoadError(null)
-
-      try {
-        const { tests: rows, topic: header } = await fetchMainsTopicTests(
-          { topicId, limit: TEST_LIMIT },
-          signal,
-        )
-        setTests(rows)
-        setTopic(header)
-      } catch (error) {
-        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load topic tests')
-        setLoadError(message)
-        toast.error(message)
-        setTests([])
-        setTopic(null)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [topicId],
-  )
+  const { data, isLoading, isFetching, error, refetch } = useMainsTopicTestsQuery(topicId, {
+    page: 1,
+    limit: DEFAULT_LIMIT,
+  })
 
   useEffect(() => {
-    const controller = new AbortController()
-    refresh(controller.signal)
-    return () => controller.abort()
-  }, [refresh])
+    if (error) {
+      console.error('[MainsManagement]', error)
+      toast.error(getApiErrorMessage(error, 'Failed to load topic tests'))
+    }
+  }, [error])
 
-  return { tests, topic, loading, loadError, refresh }
+  return {
+    tests: data?.items ?? [],
+    topic: data?.topic ?? null,
+    loading: isLoading || (isFetching && !data),
+    loadError: error ? getApiErrorMessage(error, 'Failed to load topic tests') : null,
+    refresh: refetch,
+  }
 }

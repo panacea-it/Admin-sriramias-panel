@@ -1,49 +1,23 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchMainsFacultyDetails } from '../api/mainsManagementAPI'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useEffect } from 'react'
+import { useMainsFacultySubject } from './useMainsManagement'
 import { toast } from '../utils/toast'
+import { getApiErrorMessage } from '../utils/apiError'
 
-export function useMainsFacultyTopics(subjectId) {
-  const [faculty, setFaculty] = useState(null)
-  const [topics, setTopics] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
-
-  const refresh = useCallback(
-    async (signal) => {
-      if (!subjectId) {
-        setFaculty(null)
-        setTopics([])
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setLoadError(null)
-
-      try {
-        const { faculty: header, topics: rows } = await fetchMainsFacultyDetails(subjectId, signal)
-        setFaculty(header)
-        setTopics(rows)
-      } catch (error) {
-        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return
-        const message = getApiErrorMessage(error, 'Failed to load faculty subject')
-        setLoadError(message)
-        toast.error(message)
-        setFaculty(null)
-        setTopics([])
-      } finally {
-        setLoading(false)
-      }
-    },
-    [subjectId],
-  )
+export function useMainsFacultyTopics(facultySubjectId) {
+  const { data, isLoading, error, refetch } = useMainsFacultySubject(facultySubjectId)
 
   useEffect(() => {
-    const controller = new AbortController()
-    refresh(controller.signal)
-    return () => controller.abort()
-  }, [refresh])
+    if (error) {
+      console.error('[MainsManagement]', error)
+      toast.error(getApiErrorMessage(error, 'Failed to load faculty subject'))
+    }
+  }, [error])
 
-  return { faculty, topics, loading, loadError, refresh }
+  return {
+    faculty: data?.faculty ?? null,
+    topics: data?.topics ?? [],
+    loading: isLoading,
+    loadError: error ? getApiErrorMessage(error, 'Failed to load faculty subject') : null,
+    refresh: refetch,
+  }
 }

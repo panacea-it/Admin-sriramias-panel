@@ -11,7 +11,10 @@ import {
 import PaginatedFigmaTable from "../figma/PaginatedFigmaTable";
 import StatCard from "../dashboard/StatCard";
 import { Target, TrendingDown, Trophy, Zap } from 'lucide-react';
-import { cn } from "../../utils/cn";
+import {
+  asArray,
+  normalizeDashboardAnalytics,
+} from "../../utils/testManagementDashboardHelpers";
 
 const HEAT_COLORS = ["#fee2e2", "#fef3c7", "#d1fae5", "#6ee7b7", "#059669"];
 
@@ -23,33 +26,17 @@ function heatColor(value) {
   return HEAT_COLORS[0];
 }
 
-const EMPTY_ANALYTICS = {
-  summary: { avgAttemptRate: 0, topScorerAvg: 0, accuracyIndex: 0 },
-  subjectWisePerformance: [],
-  accuracyHeatmap: [],
-  topScorers: [],
-  weakAreas: [],
-}
+const EMPTY_ANALYTICS = normalizeDashboardAnalytics()
 
 export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_ANALYTICS }) {
-  const data = analyticsData ?? EMPTY_ANALYTICS
+  const data = useMemo(
+    () => normalizeDashboardAnalytics(analyticsData ?? EMPTY_ANALYTICS),
+    [analyticsData],
+  )
+
   const { subjectWisePerformance, accuracyHeatmap, topScorers, weakAreas } = data
+  const heatmap = accuracyHeatmap
 
-  // 1. Process Heatmap data for the table
-  const heatmap = useMemo(() => {
-    if (!accuracyHeatmap || accuracyHeatmap.length === 0)
-      return { subjects: [], difficulties: [], values: [] };
-    const subjects = accuracyHeatmap.map((item) => item.subject);
-    const difficulties = ["easy", "medium", "hard"];
-    const values = accuracyHeatmap.map((item) => [
-      item.easy,
-      item.medium,
-      item.hard,
-    ]);
-    return { subjects, difficulties, values };
-  }, [accuracyHeatmap]);
-
-  // 2. Map Top Scorers to table columns
   const scorerColumns = [
     { key: "rank", label: "Rank" },
     { key: "studentName", label: "Student" },
@@ -62,7 +49,6 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
     <div className="flex flex-col gap-4">
       <h2 className="text-base font-bold text-[#1a3a5c]">Analytics</h2>
 
-      {/* Stats Cards wired to the summary data */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Avg Attempt Rate"
@@ -78,7 +64,7 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
         />
         <StatCard
           title="Weak Topics"
-          value={weakAreas?.length || 0}
+          value={weakAreas.length}
           color="#ef4444"
           icon={TrendingDown}
         />
@@ -91,7 +77,6 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Subject-wise Performance Chart */}
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">
             Subject-wise Performance
@@ -118,52 +103,56 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
           </ResponsiveContainer>
         </article>
 
-        {/* Accuracy Heatmap */}
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">
             Accuracy Heatmap
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[320px] text-center text-xs">
-              <thead>
-                <tr>
-                  <th className="p-2 text-left font-semibold text-slate-600" />
-                  {heatmap.difficulties.map((d) => (
-                    <th
-                      key={d}
-                      className="p-2 font-semibold text-slate-600 uppercase"
-                    >
-                      {d}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {heatmap.subjects.map((sub, ri) => (
-                  <tr key={sub}>
-                    <td className="p-2 text-left font-medium text-[#333]">
-                      {sub}
-                    </td>
-                    {heatmap.values[ri].map((val, ci) => (
-                      <td key={ci} className="p-1">
-                        <span
-                          className="inline-flex min-w-[48px] justify-center rounded-md px-2 py-2 font-semibold text-[#1a3a5c]"
-                          style={{ backgroundColor: heatColor(val) }}
-                        >
-                          {val}%
-                        </span>
-                      </td>
+            {heatmap.subjects.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-400">
+                No heatmap data available.
+              </p>
+            ) : (
+              <table className="w-full min-w-[320px] text-center text-xs">
+                <thead>
+                  <tr>
+                    <th className="p-2 text-left font-semibold text-slate-600" />
+                    {asArray(heatmap.difficulties).map((d) => (
+                      <th
+                        key={d}
+                        className="p-2 font-semibold text-slate-600 uppercase"
+                      >
+                        {d}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {heatmap.subjects.map((sub, ri) => (
+                    <tr key={`${sub}-${ri}`}>
+                      <td className="p-2 text-left font-medium text-[#333]">
+                        {sub}
+                      </td>
+                      {asArray(heatmap.values[ri]).map((val, ci) => (
+                        <td key={ci} className="p-1">
+                          <span
+                            className="inline-flex min-w-[48px] justify-center rounded-md px-2 py-2 font-semibold text-[#1a3a5c]"
+                            style={{ backgroundColor: heatColor(val) }}
+                          >
+                            {val}%
+                          </span>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </article>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Top Scorers Table */}
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">Top Scorers</h3>
           <PaginatedFigmaTable
@@ -174,14 +163,13 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
           />
         </article>
 
-        {/* Weak Areas List */}
         <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
           <h3 className="mb-3 text-sm font-bold text-[#1a3a5c]">Weak Areas</h3>
           <ul className="space-y-2">
             {weakAreas.length > 0 ? (
               weakAreas.map((w, i) => (
                 <li
-                  key={i}
+                  key={`${w.topic}-${w.subject}-${i}`}
                   className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3"
                 >
                   <div>

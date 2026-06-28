@@ -27,6 +27,7 @@ export default function MainsStudentResultsTable({
   loading = false,
   resetDeps = [],
   emptyMessage,
+  controlledPagination,
 }) {
   const columns = useMemo(
     () => [
@@ -129,6 +130,7 @@ export default function MainsStudentResultsTable({
       tableClassName="rounded-none border-0 shadow-none"
       tableMinWidth={0}
       tableLayoutFixed
+      controlledPagination={controlledPagination}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',
