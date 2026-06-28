@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '../utils/apiError'
 import {
   buildBlogListRequestBody,
   buildBlogSaveFormData,
+  buildBlogUpdateFormData,
   isBlogApiSuccess,
   mapApiBlogToRow,
   normalizeBlogDropdownList,
@@ -96,32 +97,6 @@ export async function fetchBlogDropdowns() {
   return { languages, categories, readTimes }
 }
 
-export async function fetchBlogListPage(params = {}, languageLookup = {}) {
-  if (USE_MOCK) {
-    return {
-      items: [],
-      total: 0,
-      page: 1,
-      limit: params.limit ?? 10,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPrevPage: false,
-      pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
-    }
-  }
-
-  try {
-    const response = await api.post(`${BLOG_BASE}/list`, buildBlogListRequestBody(params))
-    const body = response?.data ?? {}
-    if (!isBlogApiSuccess(body)) {
-      throw toBlogError(body, body.message || 'Unable to fetch blogs.')
-    }
-    return normalizeBlogListResponse(body, languageLookup)
-  } catch (error) {
-    throw toBlogError(error, 'Unable to fetch blogs.')
-  }
-}
-
 export async function fetchBlogDetails(blogId, languageLookup = {}) {
   const trimmedId = String(blogId || '').trim()
   if (!trimmedId) {
@@ -144,12 +119,67 @@ export async function fetchBlogDetails(blogId, languageLookup = {}) {
   }
 }
 
+async function enrichBlogListRows(items, languageLookup = {}) {
+  if (!Array.isArray(items) || items.length === 0) return items
+
+  return Promise.all(
+    items.map(async (row) => {
+      const needsLanguage = !String(row.language || '').trim()
+      const needsReadTime = !String(row.readTime || '').trim()
+      if ((!needsLanguage && !needsReadTime) || !row.blogId) return row
+
+      try {
+        const details = await fetchBlogDetails(row.blogId, languageLookup)
+        if (!details) return row
+
+        return {
+          ...row,
+          languageId: details.languageId || row.languageId,
+          language: details.language || row.language,
+          readTime: details.readTime || row.readTime,
+          category: row.category || details.category,
+        }
+      } catch {
+        return row
+      }
+    }),
+  )
+}
+
+export async function fetchBlogListPage(params = {}, languageLookup = {}) {
+  if (USE_MOCK) {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: params.limit ?? 10,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
+    }
+  }
+
+  try {
+    const response = await api.post(`${BLOG_BASE}/list`, buildBlogListRequestBody(params))
+    const body = response?.data ?? {}
+    if (!isBlogApiSuccess(body)) {
+      throw toBlogError(body, body.message || 'Unable to fetch blogs.')
+    }
+    const normalized = normalizeBlogListResponse(body, languageLookup)
+    const items = await enrichBlogListRows(normalized.items, languageLookup)
+    return { ...normalized, items }
+  } catch (error) {
+    throw toBlogError(error, 'Unable to fetch blogs.')
+  }
+}
+
 export async function saveBlog(form, options = {}) {
   if (USE_MOCK) {
     return {
       success: true,
       statusCode: 10000,
-      message: options.isEdit ? 'Blog updated successfully' : 'Blog saved successfully',
+      message: 'Blog created successfully',
       data: form,
     }
   }
@@ -163,7 +193,30 @@ export async function saveBlog(form, options = {}) {
     }
     return body
   } catch (error) {
-    throw toBlogError(error, options.isEdit ? 'Unable to update blog.' : 'Unable to save blog.')
+    throw toBlogError(error, 'Unable to save blog.')
+  }
+}
+
+export async function updateBlog(form, options = {}) {
+  if (USE_MOCK) {
+    return {
+      success: true,
+      statusCode: 10000,
+      message: 'Blog updated successfully',
+      data: form,
+    }
+  }
+
+  try {
+    const formData = buildBlogUpdateFormData(form, options)
+    const response = await api.put(`${BLOG_BASE}/update`, formData)
+    const body = response?.data ?? {}
+    if (!isBlogApiSuccess(body)) {
+      throw toBlogError(body, body.message || 'Unable to update blog.')
+    }
+    return body
+  } catch (error) {
+    throw toBlogError(error, 'Unable to update blog.')
   }
 }
 

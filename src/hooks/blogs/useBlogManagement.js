@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteBlog, fetchBlogDetails, fetchBlogListPage, removeBlogFromMain, saveBlog, setBlogAsMain, updateBlogStatus } from '../../api/blogAPI'
-import { applyBlogMainUpdateToRow, applyBlogStatusUpdateToRow, mapSavedBlogToRow } from '../../utils/blogApiHelpers'
+import { deleteBlog, fetchBlogDetails, fetchBlogListPage, removeBlogFromMain, saveBlog, setBlogAsMain, updateBlog, updateBlogStatus } from '../../api/blogAPI'
+import { applyBlogMainUpdateToRow, applyBlogStatusUpdateToRow, applyBlogUpdateToRow, mapSavedBlogToRow } from '../../utils/blogApiHelpers'
 import { blogDropdownKeys } from './useBlogDropdowns'
 
 export const blogManagementKeys = {
@@ -45,14 +45,47 @@ export function useSaveBlog() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ form, backgroundFile, isEdit = false, languageLookup = {} }) =>
-      saveBlog(form, { backgroundFile, isEdit }).then((response) =>
-        mapSavedBlogToRow(response?.data ?? response, form, languageLookup),
-      ),
-    onSuccess: (_data, variables) => {
+    mutationFn: ({ form, backgroundFile, isEdit = false, languageLookup = {} }) => {
+      const requestOptions = { backgroundFile, languageLookup }
+      const request = isEdit
+        ? updateBlog(form, requestOptions)
+        : saveBlog(form, requestOptions)
+
+      return request.then((response) => ({
+        message: response?.message || '',
+        data: mapSavedBlogToRow(response?.data ?? response, form, languageLookup),
+        response,
+      }))
+    },
+    onSuccess: (result, variables) => {
+      const apiData = result?.response?.data
+      const blogId = apiData?.blogId || variables?.form?.blogId
+
+      if (variables?.isEdit && apiData && blogId) {
+        const listQueries = queryClient.getQueriesData({
+          queryKey: blogManagementKeys.all,
+          predicate: (query) => query.queryKey?.[1] === 'list',
+        })
+
+        listQueries.forEach(([queryKey, old]) => {
+          if (!old?.items) return
+
+          const items = old.items.map((item) =>
+            item.blogId === blogId
+              ? applyBlogUpdateToRow(item, apiData, variables.languageLookup || {})
+              : item,
+          )
+
+          queryClient.setQueryData(queryKey, {
+            ...old,
+            items,
+          })
+        })
+      }
+
       queryClient.invalidateQueries({ queryKey: blogManagementKeys.all })
       queryClient.invalidateQueries({ queryKey: blogDropdownKeys.all })
-      const blogId = variables?.form?.blogId
+
       if (blogId) {
         queryClient.invalidateQueries({ queryKey: blogManagementKeys.detail(blogId) })
       }
@@ -172,7 +205,7 @@ export function useDeleteBlog() {
         const nextItems = old.items.filter((item) => item.blogId !== blogId)
         const removedCount = old.items.length - nextItems.length
         const total = Math.max(0, (old.total ?? old.items.length) - removedCount)
-        const limit = old.limit ?? old.pagination?.limit ?? nextItems.length || 10
+        const limit = old.limit ?? old.pagination?.limit ?? (nextItems.length || 10)
         const totalPages = limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1
 
         queryClient.setQueryData(queryKey, {
@@ -192,6 +225,7 @@ export function useDeleteBlog() {
       })
 
       queryClient.removeQueries({ queryKey: blogManagementKeys.detail(blogId) })
+      queryClient.invalidateQueries({ queryKey: blogManagementKeys.all })
     },
   })
 }

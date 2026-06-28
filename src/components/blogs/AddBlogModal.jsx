@@ -52,7 +52,7 @@ function getSelectPlaceholder(isLoading, hasOptions, defaultText) {
 }
 
 export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoading = false }) {
-  const isEdit = Boolean(blog?.id)
+  const isEdit = Boolean(blog?.blogId)
   const [form, setForm] = useState(createEmptyBlog)
   const [initialSnapshot, setInitialSnapshot] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -60,7 +60,9 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
   useEffect(() => {
     blogRef.current = blog
   }, [blog])
-  const editKey = getModalEditKey(blog)
+  const formInitKey = isEdit
+    ? `${getModalEditKey(blog)}:${detailsLoading ? 'loading' : `ready-${blog?.sections?.length ?? 0}`}`
+    : getModalEditKey(blog)
 
   const {
     data: dropdownData,
@@ -79,7 +81,9 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     [open],
   )
 
-  useInitOnModalOpen(open, editKey, () => {
+  useInitOnModalOpen(open, formInitKey, () => {
+    if (isEdit && detailsLoading) return
+
     const next = blogRef.current ? cloneBlog(blogRef.current) : createEmptyBlog()
     if (!next.sections?.length) {
       next.sections = [emptySection(next.id)]
@@ -178,6 +182,8 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     const status = form.status === 'published' ? 'published' : 'draft'
     return {
       ...form,
+      blogId: form.blogId || '',
+      mongoId: form.mongoId || '',
       title: form.title.trim(),
       status,
       slug: form.slug?.trim() || slugifyTitle(form.title),
@@ -212,6 +218,16 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     toast.message('Form reset')
   }
 
+  const hasSectionContent = (html) => {
+    if (!html?.trim()) return false
+    const text = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return text.length > 0
+  }
+
   const validate = () => {
     if (!form.title.trim()) {
       toast.error('Blog title is required')
@@ -225,6 +241,10 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
       toast.error('Please select a language')
       return false
     }
+    if (!resolveBlogLanguageId(form, languageLookup)) {
+      toast.error('Please select a valid language from the dropdown')
+      return false
+    }
     if (!form.readTime) {
       toast.error('Please select read time')
       return false
@@ -232,6 +252,14 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     if (!form.backgroundImageName && !form.backgroundImage && !form.backgroundImageFile) {
       toast.error('Background image is required')
       return false
+    }
+    for (let index = 0; index < (form.sections || []).length; index += 1) {
+      const section = form.sections[index]
+      const topicLabel = section.topic?.trim() || `Section ${index + 1}`
+      if (!hasSectionContent(section.content)) {
+        toast.error(`Content is required for topic '${topicLabel}'`)
+        return false
+      }
     }
     return true
   }
@@ -243,12 +271,15 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     setSubmitting(true)
     try {
       const payload = buildPayload()
-      await onSave?.(payload, {
+      const result = await onSave?.(payload, {
         isEdit,
         backgroundFile: form.backgroundImageFile,
         languageLookup,
       })
-      toast.success(isEdit ? 'Blog updated successfully' : 'Blog saved successfully')
+      toast.success(
+        result?.message ||
+          (isEdit ? 'Blog updated successfully' : 'Blog created successfully'),
+      )
       handleClose()
     } catch (err) {
       toast.error(err?.message || 'Failed to save blog')
@@ -322,7 +353,7 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
                     {getSelectPlaceholder(dropdownsLoading, languages.length, 'Select language')}
                   </option>
                   {languages.map((lang) => (
-                    <option key={lang.languageId} value={lang.languageId}>
+                    <option key={lang.languageId || lang.publicLanguageId} value={lang.languageId}>
                       {lang.languageName}
                     </option>
                   ))}
@@ -484,9 +515,18 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
               type="submit"
               disabled={submitting}
               aria-busy={submitting}
-              className="min-w-[120px] rounded-full bg-[#55ace7] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#3d96d4] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-full bg-[#55ace7] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#3d96d4] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? 'Saving…' : 'Save'}
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  {isEdit ? 'Updating…' : 'Saving…'}
+                </>
+              ) : isEdit ? (
+                'Update'
+              ) : (
+                'Save'
+              )}
             </button>
           </div>
         </div>

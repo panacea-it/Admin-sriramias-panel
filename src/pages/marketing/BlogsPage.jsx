@@ -111,7 +111,7 @@ export default function BlogsPage() {
   })
 
   const activeViewTarget = useLiveApi ? viewDetail : viewTarget
-  const activeEditingBlog = useLiveApi ? editDetail : editingBlog
+  const activeEditingBlog = useLiveApi ? (editDetail ?? editingBlog) : editingBlog
   const editDetailsLoading = useLiveApi && modalOpen && Boolean(editingBlog?.blogId) && editDetailLoading
   const viewDetailsLoading = useLiveApi && Boolean(viewTarget?.blogId) && viewDetailLoading
 
@@ -176,6 +176,11 @@ export default function BlogsPage() {
           isEdit,
           languageLookup: lookup || languageLookup,
         })
+
+        if (!isEdit) {
+          listManagement.setPage(1)
+        }
+
         await refetchBlogs()
         return saved
       }
@@ -186,9 +191,9 @@ export default function BlogsPage() {
       } else {
         persistLocal([payload, ...localBlogs])
       }
-      return payload
+      return { message: isEdit ? 'Blog updated successfully' : 'Blog created successfully', data: payload }
     },
-    [useLiveApi, localBlogs, saveBlogMutation, languageLookup, refetchBlogs],
+    [useLiveApi, localBlogs, saveBlogMutation, languageLookup, refetchBlogs, listManagement],
   )
 
   const filtered = useMemo(() => {
@@ -372,6 +377,11 @@ export default function BlogsPage() {
     const wasOnlyItemOnPage = useLiveApi ? blogs.length === 1 : false
     const currentPage = listManagement.page
 
+    if (useLiveApi && !blogId) {
+      toast.error('Blog ID is missing.')
+      return
+    }
+
     setDeleting(true)
     if (!useLiveApi) {
       setLocalBlogs((prev) => prev.filter((b) => b.id !== id))
@@ -379,17 +389,14 @@ export default function BlogsPage() {
 
     try {
       if (useLiveApi) {
-        if (!blogId) {
-          toast.error('Blog ID is missing.')
-          return
-        }
-
         const response = await deleteBlogMutation.mutateAsync({ blogId })
         toast.success(response?.message || 'Blog deleted successfully')
 
         if (wasOnlyItemOnPage && currentPage > 1) {
           listManagement.setPage(currentPage - 1)
         }
+
+        await refetchBlogs()
       } else {
         saveBlogs(snapshot.filter((b) => b.id !== id))
         toast.success('Blog deleted')
@@ -430,6 +437,20 @@ export default function BlogsPage() {
         headerClassName: 'min-w-[140px]',
         cellClassName: 'min-w-[140px] align-middle text-[13px] font-medium text-[#111]',
         render: (row) => <span className="block truncate">{row.category || '—'}</span>,
+      },
+      {
+        key: 'language',
+        label: 'Language',
+        headerClassName: 'min-w-[120px]',
+        cellClassName: 'min-w-[120px] align-middle text-[13px] font-medium text-[#111]',
+        render: (row) => <span className="block truncate">{row.language || '—'}</span>,
+      },
+      {
+        key: 'readTime',
+        label: 'Read Time',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        render: (row) => row.readTime || '—',
       },
       {
         key: 'date',
@@ -636,7 +657,11 @@ export default function BlogsPage() {
         onClose={cancelDelete}
         onConfirm={handleConfirmDelete}
         title="Delete Blog"
-        description="Are you sure you want to delete this blog?"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete "${deleteTarget.title || deleteTarget.blogId || 'this blog'}"? This will remove it from the customer website if published.`
+            : 'Are you sure you want to delete this blog?'
+        }
         confirmLabel="Delete"
         cancelLabel="Cancel"
         loading={deleting}

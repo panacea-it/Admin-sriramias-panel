@@ -7,6 +7,7 @@ export function getModalEditKey(record) {
   if (record == null) return '__create__'
   const key =
     record.id ??
+    record.blogId ??
     record.programId ??
     record.courseId ??
     record.categoryId ??

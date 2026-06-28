@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import Button from '../ui/Button'
@@ -8,7 +8,6 @@ import ProductFormSection from './product-form/ProductFormSection'
 import CoverImageUpload from './product-form/CoverImageUpload'
 import SampleImagesSortable from './product-form/SampleImagesSortable'
 import KeywordsSortable from './product-form/KeywordsSortable'
-import { useBookstoreExamCategories } from '../../hooks/bookstore/useBookstoreProducts'
 import { cn } from '../../utils/cn'
 import {
   BOOKSTORE_DESCRIPTION_MAX,
@@ -128,28 +127,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
   const onPublish = handleSubmit((values) => submit(values, { isDraft: false }))
 
   const isEdit = Boolean(initial)
-  const { data: examCategories = [], isLoading: categoriesLoading } = useBookstoreExamCategories({
-    enabled: open,
-  })
-
-  const examCategoryOptions = useMemo(() => {
-    const options = examCategories.map((category) => ({
-      value: category._id,
-      label: category.categoryName,
-    }))
-
-    if (
-      initial?.examCategoryId &&
-      !options.some((option) => option.value === initial.examCategoryId)
-    ) {
-      options.unshift({
-        value: initial.examCategoryId,
-        label: initial.examCategory || initial.examCategoryId,
-      })
-    }
-
-    return options
-  }, [examCategories, initial?.examCategoryId, initial?.examCategory])
 
   const inputClass = (field) =>
     cn(BOOKSTORE_INPUT_CLASS, fieldErrors[field] && 'border-red-400 ring-1 ring-red-200')
@@ -227,24 +204,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
                 placeholder="e.g. UPSC Prelims GS Manual 2026"
               />
               <FieldError message={fieldErrors.name} />
-            </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Exam Category *</span>
-              <select
-                className={inputClass('examCategory')}
-                {...register('examCategory')}
-                disabled={categoriesLoading}
-              >
-                <option value="">
-                  {categoriesLoading ? 'Loading categories…' : 'Select exam category'}
-                </option>
-                {examCategoryOptions.map((category) => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={fieldErrors.examCategory} />
             </label>
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>Author Name *</span>

@@ -138,10 +138,6 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
     errors.name = 'Product name is required.'
   }
 
-  if (!String(values.examCategory || '').trim()) {
-    errors.examCategory = 'Exam category is required.'
-  }
-
   if (!String(values.authorName || '').trim()) {
     errors.authorName = 'Author name is required.'
   }
