@@ -39,11 +39,17 @@ export default function BlogSeoPanel({
   tagSuggestions = [],
   keywordSuggestions = [],
 }) {
-  const previewTitle = form.metaTitle?.trim() || form.title?.trim() || 'Meta Title'
+  const previewTitle =
+    form.searchPreview?.title?.trim() ||
+    form.metaTitle?.trim() ||
+    form.title?.trim() ||
+    'Meta Title'
   const previewDesc =
+    form.searchPreview?.description?.trim() ||
     form.metaDescription?.trim() ||
     'Add a meta description to preview how this post may appear in search results.'
-  const previewUrl = buildSeoPreviewUrl(form.slug)
+  const previewUrl =
+    form.searchPreview?.url?.trim() || buildSeoPreviewUrl(form.slug)
 
   return (
     <div className="space-y-5">

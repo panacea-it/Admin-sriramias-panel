@@ -293,11 +293,13 @@ export default function RankManagementTab() {
         ),
       },
       {
-        key: 'course',
-        label: 'Course',
+        key: 'program',
+        label: 'Program',
         headerClassName: 'min-w-[150px]',
         cellClassName: 'min-w-[150px] align-middle text-[13px] text-[#686868]',
-        render: (row) => <span className="block truncate">{row.course}</span>,
+        render: (row) => (
+          <span className="block truncate">{row.program || row.course || '—'}</span>
+        ),
       },
       {
         key: 'image',
@@ -526,8 +528,7 @@ export default function RankManagementTab() {
 
               <dl className="grid gap-4 sm:grid-cols-2">
                 {[
-                  ['Program', viewTarget.program],
-                  ['Course', viewTarget.course],
+                  ['Program', viewTarget.program || viewTarget.course],
                   ['Rank', viewTarget.rank],
                   ...(isActiveTop10Ranker(viewTarget)
                     ? [['Display Order', viewTarget.displayOrder ?? '—']]

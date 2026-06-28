@@ -4,10 +4,12 @@ import { cn } from '../../utils/cn'
 export default function BlogManagementTable({
   columns,
   data,
-  emptyMessage = 'No blogs match your filters.',
+  emptyMessage = 'No Blogs Found',
   itemLabel = 'blogs',
-  initialPageSize = 6,
+  initialPageSize = 10,
   resetDeps = [],
+  loading = false,
+  controlledPagination,
 }) {
   return (
     <PaginatedFigmaTable
@@ -17,6 +19,8 @@ export default function BlogManagementTable({
       itemLabel={itemLabel}
       initialPageSize={initialPageSize}
       resetDeps={resetDeps}
+      loading={loading}
+      controlledPagination={controlledPagination}
       skeletonRowCount={8}
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"

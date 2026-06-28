@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Edit3, Globe, ImageIcon } from 'lucide-react'
 import { StatusBadge } from '../academics/AcademicsUi'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
@@ -6,7 +6,9 @@ import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
 import {
   isResolvableRankerImageUrl,
+  optimizeRankerThumbnailUrl,
   PLACEHOLDER_IMAGE_LABEL,
+  resolveRankerImagePreviewSrc,
 } from '../../utils/rankerImageUtils'
 
 export const websiteInputClass =
@@ -86,13 +88,34 @@ export function WebsiteUrlInput({ value, onChange, id }) {
 export function WebsiteImageInput({ value, onChange, id, invalid }) {
   const [uploadError, setUploadError] = useState(null)
   const [fileLabel, setFileLabel] = useState('')
-  const hasPreview = isResolvableRankerImageUrl(value)
+  const [previewError, setPreviewError] = useState(false)
+  const [localPreviewUrl, setLocalPreviewUrl] = useState(null)
+  const localPreviewRef = useRef(null)
+
+  const revokeLocalPreview = () => {
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current)
+      localPreviewRef.current = null
+    }
+    setLocalPreviewUrl(null)
+  }
+
+  useEffect(() => () => revokeLocalPreview(), [])
 
   useEffect(() => {
     if (!value) {
       setFileLabel('')
+      revokeLocalPreview()
     }
+    setPreviewError(false)
   }, [value])
+
+  const hasPreview = Boolean(localPreviewUrl) || isResolvableRankerImageUrl(value)
+
+  const previewSrc = useMemo(() => {
+    if (localPreviewUrl) return localPreviewUrl
+    return resolveRankerImagePreviewSrc(value)
+  }, [localPreviewUrl, value])
 
   const openFilePicker = () => document.getElementById(`${id}-file`)?.click()
 
@@ -105,8 +128,15 @@ export function WebsiteImageInput({ value, onChange, id, invalid }) {
       e.target.value = ''
       return
     }
+
     setUploadError(null)
+    setPreviewError(false)
     setFileLabel(file.name)
+    revokeLocalPreview()
+
+    const blobUrl = URL.createObjectURL(file)
+    localPreviewRef.current = blobUrl
+    setLocalPreviewUrl(blobUrl)
 
     const reader = new FileReader()
     reader.onload = () => {
@@ -114,6 +144,7 @@ export function WebsiteImageInput({ value, onChange, id, invalid }) {
     }
     reader.onerror = () => {
       setUploadError('Could not read image file.')
+      revokeLocalPreview()
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -128,18 +159,35 @@ export function WebsiteImageInput({ value, onChange, id, invalid }) {
   return (
     <div>
       <div className="relative">
-        {hasPreview ? (
+        {hasPreview && previewSrc && !previewError ? (
           <button
             type="button"
             id={id}
             onClick={openFilePicker}
-            className={cn(inputClassName, 'overflow-hidden p-0')}
+            className={cn(
+              'block w-full rounded-lg bg-[#eef6fc] text-left transition focus:outline-none focus:ring-2 focus:ring-[#55ace7]/40',
+              invalid && 'ring-2 ring-[#EF4444]/60 bg-red-50/40',
+            )}
           >
-            <img
-              src={value}
-              alt={fileLabel || 'Uploaded image'}
-              className="h-full w-full object-cover object-center"
-            />
+            <div className="flex min-h-[240px] max-h-[360px] items-center justify-center p-4">
+              <img
+                key={previewSrc}
+                src={previewSrc}
+                alt={fileLabel || 'Uploaded image preview'}
+                onError={() => setPreviewError(true)}
+                onLoad={() => setPreviewError(false)}
+                className="max-h-[320px] w-full object-contain object-bottom"
+              />
+            </div>
+          </button>
+        ) : hasPreview && previewError ? (
+          <button
+            type="button"
+            id={id}
+            onClick={openFilePicker}
+            className={cn(inputClassName, 'flex min-h-[240px] items-center justify-center text-sm text-[#686868]')}
+          >
+            Preview unavailable. Click to choose another image.
           </button>
         ) : (
           <input
@@ -156,12 +204,22 @@ export function WebsiteImageInput({ value, onChange, id, invalid }) {
         <input
           id={`${id}-file`}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="sr-only"
           onChange={handleFile}
         />
-        <ImageIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#55ace7]" />
+        <ImageIcon
+          className={cn(
+            'pointer-events-none absolute h-5 w-5 text-[#55ace7]',
+            hasPreview && previewSrc && !previewError
+              ? 'right-3 top-3'
+              : 'right-3 top-1/2 -translate-y-1/2',
+          )}
+        />
       </div>
+      {fileLabel ? (
+        <p className="mt-2 text-xs font-medium text-[#246392]">{fileLabel}</p>
+      ) : null}
       <UploadFieldHint profile="IMAGE_STANDARD" />
       <UploadValidationMessage message={uploadError} />
     </div>
@@ -209,7 +267,11 @@ export function RankerImageCell({ name, imageUrl }) {
   const [uploadFailed, setUploadFailed] = useState(false)
   const placeholderSrc = useMemo(() => rankerPlaceholderSrc(name), [name])
   const canUseUpload = isResolvableImageUrl(imageUrl) && !uploadFailed
-  const src = canUseUpload ? imageUrl.trim() : placeholderSrc
+  const rawSrc = canUseUpload ? imageUrl.trim() : placeholderSrc
+  const src =
+    canUseUpload && !imageUrl.trim().startsWith('data:') && !imageUrl.trim().startsWith('blob:')
+      ? optimizeRankerThumbnailUrl(rawSrc)
+      : rawSrc
 
   return (
     <img
@@ -219,7 +281,7 @@ export function RankerImageCell({ name, imageUrl }) {
       onError={() => {
         if (canUseUpload) setUploadFailed(true)
       }}
-      className="h-12 w-12 rounded-lg border border-slate-200/80 object-cover shadow-sm"
+      className="h-12 w-12 rounded-lg border border-slate-200/80 object-cover object-[center_20%] shadow-sm"
     />
   )
 }

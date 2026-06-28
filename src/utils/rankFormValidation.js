@@ -25,7 +25,7 @@ export function validateRankerForm(form, { editingId = null, rankers = [] } = {}
   const isEditing = Boolean(editingId)
 
   if (!form.course?.trim()) {
-    errors.course = 'Course / Program is required.'
+    errors.course = 'Program is required.'
   }
 
   if (!form.year?.trim()) {

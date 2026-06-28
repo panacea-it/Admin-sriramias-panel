@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
-import { FileText } from 'lucide-react'
+import { FileText, Loader2 } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
@@ -9,17 +9,17 @@ import {
   CourseAddMoreLink,
   CourseFormField,
   CourseInput,
-  CourseMediaSlot,
   CourseSelect,
 } from '../courses/CourseFormField'
 import { cn } from '../../utils/cn'
 import { slugifyTitle } from '../../utils/blogSlug'
 import {
-  BLOG_FORM_CATEGORIES,
-  BLOG_LANGUAGES,
-  BLOG_READ_TIMES,
-  isBlogActive,
-} from '../../constants/blogManagementConstants'
+  buildBlogLanguageLookup,
+  resolveBlogLanguageId,
+  resolveBlogLanguageName,
+} from '../../utils/blogApiHelpers'
+import { useBlogDropdowns } from '../../hooks/blogs/useBlogDropdowns'
+import { isBlogActive } from '../../constants/blogManagementConstants'
 import {
   createEmptyBlog,
   createEmptySection,
@@ -29,12 +29,14 @@ import {
 } from '../../data/blogsData'
 import BlogRichEditor from './BlogRichEditor'
 import BlogSeoPanel from './BlogSeoPanel'
+import BlogBackgroundImageUpload from './BlogBackgroundImageUpload'
 
 function cloneBlog(blog) {
   return {
     ...blog,
     focusKeywords: [...(blog.focusKeywords || [])],
     tags: [...(blog.tags || [])],
+    searchPreview: { ...(blog.searchPreview || {}) },
     sections: (blog.sections || []).map((s) => ({ ...s })),
   }
 }
@@ -43,7 +45,13 @@ function emptySection(blogId) {
   return createEmptySection(blogId)
 }
 
-export default function AddBlogModal({ open, onClose, blog, onSave }) {
+function getSelectPlaceholder(isLoading, hasOptions, defaultText) {
+  if (isLoading) return `Loading ${defaultText.toLowerCase()}...`
+  if (!hasOptions) return 'No data available'
+  return defaultText
+}
+
+export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoading = false }) {
   const isEdit = Boolean(blog?.id)
   const [form, setForm] = useState(createEmptyBlog)
   const [initialSnapshot, setInitialSnapshot] = useState(null)
@@ -53,6 +61,18 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
     blogRef.current = blog
   }, [blog])
   const editKey = getModalEditKey(blog)
+
+  const {
+    data: dropdownData,
+    isLoading: dropdownsLoading,
+    isError: dropdownsError,
+    error: dropdownsQueryError,
+  } = useBlogDropdowns({ enabled: open })
+
+  const languages = dropdownData?.languages ?? []
+  const categories = dropdownData?.categories ?? []
+  const readTimes = dropdownData?.readTimes ?? []
+  const languageLookup = useMemo(() => buildBlogLanguageLookup(languages), [languages])
 
   const tagSuggestions = useMemo(
     () => (open ? collectTagSuggestions(loadBlogs()) : []),
@@ -68,6 +88,26 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
     setForm(next)
     setInitialSnapshot(cloneBlog(next))
   })
+
+  useEffect(() => {
+    if (!open || !languages.length) return
+
+    setForm((current) => {
+      const resolvedLanguageId = resolveBlogLanguageId(current, languageLookup)
+      if (!resolvedLanguageId || current.languageId === resolvedLanguageId) {
+        return current
+      }
+
+      return {
+        ...current,
+        languageId: resolvedLanguageId,
+        language: resolveBlogLanguageName(
+          { ...current, languageId: resolvedLanguageId },
+          languageLookup,
+        ),
+      }
+    })
+  }, [open, languages, languageLookup])
 
   const setField = (key, value) => {
     setForm((f) => {
@@ -99,24 +139,28 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
     }))
   }
 
-  const handleSectionFile = (sectionId, e) => {
-    const file = e.target.files?.[0]
+  const handleSectionFile = (sectionId, file) => {
     if (!file) return
     setForm((f) => ({
       ...f,
       sections: f.sections.map((s) =>
         s.id === sectionId
-          ? { ...s, image: file.name, imageName: file.name }
+          ? {
+              ...s,
+              imageFile: file,
+              image: file.name,
+              imageName: file.name,
+            }
           : s,
       ),
     }))
   }
 
-  const handleBackgroundFile = (e) => {
-    const file = e.target.files?.[0]
+  const handleBackgroundFile = (file) => {
     if (!file) return
     setForm((f) => ({
       ...f,
+      backgroundImageFile: file,
       backgroundImage: file.name,
       backgroundImageName: file.name,
     }))
@@ -142,7 +186,8 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
       focusKeywords: form.focusKeywords || [],
       tags: form.tags || [],
       category: form.category || '',
-      language: form.language || 'English',
+      languageId: form.languageId || '',
+      language: resolveBlogLanguageName(form, languageLookup),
       readTime: form.readTime || '',
       isMainBlog: Boolean(form.isMainBlog),
       youtubeVideoUrl: (form.youtubeVideoUrl || '').trim(),
@@ -176,11 +221,15 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
       toast.error('Please select a category')
       return false
     }
+    if (!form.languageId) {
+      toast.error('Please select a language')
+      return false
+    }
     if (!form.readTime) {
       toast.error('Please select read time')
       return false
     }
-    if (!form.backgroundImageName && !form.backgroundImage) {
+    if (!form.backgroundImageName && !form.backgroundImage && !form.backgroundImageFile) {
       toast.error('Background image is required')
       return false
     }
@@ -194,7 +243,11 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
     setSubmitting(true)
     try {
       const payload = buildPayload()
-      await onSave?.(payload, { isEdit })
+      await onSave?.(payload, {
+        isEdit,
+        backgroundFile: form.backgroundImageFile,
+        languageLookup,
+      })
       toast.success(isEdit ? 'Blog updated successfully' : 'Blog saved successfully')
       handleClose()
     } catch (err) {
@@ -228,8 +281,20 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
         </div>
 
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {detailsLoading ? (
+            <div className="flex min-h-[320px] items-center justify-center gap-3 px-6 py-12 text-sm font-medium text-[#246392]">
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+              Loading blog details…
+            </div>
+          ) : (
           <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-5">
             <SectionBar title="Blog Details" />
+
+            {dropdownsError ? (
+              <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {dropdownsQueryError?.message || 'Unable to load blog dropdown options.'}
+              </p>
+            ) : null}
 
             <div className="grid gap-5 sm:grid-cols-2">
               <CourseFormField label="Title" required className="sm:col-span-2">
@@ -242,12 +307,23 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
 
               <CourseFormField label="Language" required>
                 <CourseSelect
-                  value={form.language || 'English'}
-                  onChange={(e) => setField('language', e.target.value)}
+                  value={form.languageId || ''}
+                  disabled={dropdownsLoading}
+                  onChange={(e) => {
+                    const languageId = e.target.value
+                    setForm((current) => ({
+                      ...current,
+                      languageId,
+                      language: resolveBlogLanguageName({ languageId }, languageLookup),
+                    }))
+                  }}
                 >
-                  {BLOG_LANGUAGES.map((lang) => (
-                    <option key={lang.value} value={lang.value}>
-                      {lang.label}
+                  <option value="">
+                    {getSelectPlaceholder(dropdownsLoading, languages.length, 'Select language')}
+                  </option>
+                  {languages.map((lang) => (
+                    <option key={lang.languageId} value={lang.languageId}>
+                      {lang.languageName}
                     </option>
                   ))}
                 </CourseSelect>
@@ -266,12 +342,15 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
               <CourseFormField label="Read Time" required>
                 <CourseSelect
                   value={form.readTime || ''}
+                  disabled={dropdownsLoading}
                   onChange={(e) => setField('readTime', e.target.value)}
                 >
-                  <option value="">Select read time</option>
-                  {BLOG_READ_TIMES.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
+                  <option value="">
+                    {getSelectPlaceholder(dropdownsLoading, readTimes.length, 'Select read time')}
+                  </option>
+                  {readTimes.map((time) => (
+                    <option key={time.value} value={time.value}>
+                      {time.label}
                     </option>
                   ))}
                 </CourseSelect>
@@ -280,23 +359,27 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
               <CourseFormField label="Category" required>
                 <CourseSelect
                   value={form.category || ''}
+                  disabled={dropdownsLoading}
                   onChange={(e) => setField('category', e.target.value)}
                 >
-                  <option value="">Select category</option>
-                  {BLOG_FORM_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                  <option value="">
+                    {getSelectPlaceholder(dropdownsLoading, categories.length, 'Select category')}
+                  </option>
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
                     </option>
                   ))}
                 </CourseSelect>
               </CourseFormField>
 
               <CourseFormField label="Background Image" required className="sm:col-span-2">
-                <CourseMediaSlot
-                  placeholder="312*214 Kb"
+                <BlogBackgroundImageUpload
+                  file={form.backgroundImageFile}
+                  imageUrl={form.backgroundImageFile ? '' : form.backgroundImage}
                   fileName={form.backgroundImageName || form.backgroundImage}
+                  cacheKey={form.lastSavedAt || form.publishedAt}
                   onFileChange={handleBackgroundFile}
-                  accept="image/*"
                 />
               </CourseFormField>
 
@@ -344,11 +427,12 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
                       />
                     </CourseFormField>
                     <CourseFormField label="Image (optional)">
-                      <CourseMediaSlot
-                        placeholder="Upload image (optional)"
+                      <BlogBackgroundImageUpload
+                        file={section.imageFile}
+                        imageUrl={section.imageFile ? '' : section.image}
                         fileName={section.imageName || section.image}
-                        onFileChange={(e) => handleSectionFile(section.id, e)}
-                        accept="image/*"
+                        cacheKey={form.lastSavedAt}
+                        onFileChange={(file) => handleSectionFile(section.id, file)}
                       />
                     </CourseFormField>
                   </div>
@@ -378,6 +462,7 @@ export default function AddBlogModal({ open, onClose, blog, onSave }) {
               />
             </CourseFormField>
           </div>
+          )}
         </div>
 
         <div className="shrink-0 border-t border-slate-200/80 bg-[#f0f4f8] px-4 py-4 sm:px-6">

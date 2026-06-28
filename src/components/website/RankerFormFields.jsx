@@ -119,7 +119,7 @@ export default function RankerFormFields({
 
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <WebsiteField label="Course / Program" required>
+      <WebsiteField label="Program" required>
         <input
           type="text"
           value={form.course}
@@ -129,7 +129,7 @@ export default function RankerFormFields({
           }}
           aria-invalid={Boolean(formErrors.course)}
           className={cn(websiteInputClass, formErrors.course && inputErrorClass)}
-          placeholder="e.g. UPSC Foundation"
+          placeholder="e.g. G.S Foundation"
         />
         <FieldError message={formErrors.course} />
       </WebsiteField>

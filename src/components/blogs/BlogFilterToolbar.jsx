@@ -4,16 +4,18 @@ import CrmDateFilterPicker from '../crm/CrmDateFilterPicker'
 
 const controlHeight = 'h-10 min-h-[40px]'
 
-function FilterSelect({ label, value, onChange, options, className }) {
+function FilterSelect({ label, value, onChange, options, className, disabled }) {
   return (
     <div className={cn('relative w-full sm:w-auto sm:min-w-[118px]', className)}>
       <select
         value={value}
         onChange={onChange}
+        disabled={disabled}
         aria-label={label}
         className={cn(
           controlHeight,
           'w-full cursor-pointer appearance-none rounded-lg border-0 bg-gradient-to-b from-[#55ace7] to-[#3d8fd4] pl-4 pr-9 text-sm font-semibold text-white shadow-sm outline-none transition hover:from-[#4a9fd8] hover:to-[#3589c8] focus:ring-2 focus:ring-[#246392]/40',
+          disabled && 'cursor-not-allowed opacity-60',
         )}
       >
         {options.map((opt) => (
@@ -43,6 +45,7 @@ export default function BlogFilterToolbar({
   onDateChange,
   status,
   onStatusChange,
+  disabled = false,
 }) {
   return (
     <div className="flex min-h-[56px] flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.07)] sm:gap-4">
@@ -52,10 +55,12 @@ export default function BlogFilterToolbar({
           type="search"
           value={search}
           onChange={onSearchChange}
+          disabled={disabled}
           placeholder="Search blog"
           className={cn(
             controlHeight,
             'w-full rounded-lg bg-[#eef2fc] pl-10 pr-3 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7]/45',
+            disabled && 'cursor-not-allowed opacity-60',
           )}
         />
       </div>
@@ -65,6 +70,7 @@ export default function BlogFilterToolbar({
           label="Status"
           value={status}
           onChange={onStatusChange}
+          disabled={disabled}
           options={[
             { value: 'all', label: 'Status' },
             { value: 'published', label: 'Active' },

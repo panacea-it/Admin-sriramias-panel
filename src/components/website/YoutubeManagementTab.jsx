@@ -6,7 +6,6 @@ import WebsiteFormShell from './WebsiteFormShell'
 import WebsiteFormModal from './WebsiteFormModal'
 import YoutubeIcon from './YoutubeIcon'
 import YoutubeVideoRowActions from './YoutubeVideoRowActions'
-import YoutubeRankAssignCell from './YoutubeRankAssignCell'
 import YoutubePriorityUpdateCell from './YoutubePriorityUpdateCell'
 import YoutubeRankManagementSection from './YoutubeRankManagementSection'
 import YoutubeRankedVideosSection from './YoutubeRankedVideosSection'
@@ -23,7 +22,6 @@ import {
 import { buildYoutubePriorityFilterOptions } from '../../constants/youtubeVideoConstants'
 import { useYoutubeVideoManagement } from '../../hooks/useYoutubeVideoManagement'
 import {
-  useAssignYoutubeRank,
   useCreateYoutubeVideo,
   useDeleteYoutubeVideo,
   useUpdateYoutubePriority,
@@ -222,7 +220,6 @@ export default function YoutubeManagementTab() {
   const updateVideoMutation = useUpdateYoutubeVideo()
   const deleteVideoMutation = useDeleteYoutubeVideo()
   const updateStatusMutation = useUpdateYoutubeStatus()
-  const assignRankMutation = useAssignYoutubeRank()
   const updatePriorityMutation = useUpdateYoutubePriority()
 
   const [formOpen, setFormOpen] = useState(false)
@@ -231,7 +228,6 @@ export default function YoutubeManagementTab() {
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteError, setDeleteError] = useState('')
-  const [assigningVideoId, setAssigningVideoId] = useState(null)
   const [updatingPriorityVideoId, setUpdatingPriorityVideoId] = useState(null)
   const [activeSection, setActiveSection] = useState('all')
   const [form, setForm] = useState(emptyYoutubeForm)
@@ -359,26 +355,6 @@ export default function YoutubeManagementTab() {
     setDeleteError('')
   }
 
-  const handleAssignRank = useCallback(
-    async (videoId, rank) => {
-      setAssigningVideoId(videoId)
-      try {
-        const response = await assignRankMutation.mutateAsync({ videoId, rank })
-        if (!isYoutubeMutationSuccess(response)) {
-          throw new Error(response?.message || 'Unable to assign video rank. Please try again.')
-        }
-        toast.success(response?.message || 'Video rank assigned successfully')
-      } catch (error) {
-        const message = getApiErrorMessage(error, 'Unable to assign video rank. Please try again.')
-        toast.error(message)
-        throw new Error(message)
-      } finally {
-        setAssigningVideoId(null)
-      }
-    },
-    [assignRankMutation],
-  )
-
   const handleUpdatePriority = useCallback(
     async (videoId, priority) => {
       setUpdatingPriorityVideoId(videoId)
@@ -492,20 +468,6 @@ export default function YoutubeManagementTab() {
         render: (row) => <WebsiteStatusBadge status={row.status} />,
       },
       {
-        key: 'rank',
-        label: 'Rank',
-        headerClassName: 'min-w-[160px] whitespace-nowrap',
-        cellClassName: 'min-w-[160px] align-middle whitespace-nowrap',
-        render: (row) => (
-          <YoutubeRankAssignCell
-            videoId={row.id}
-            currentRank={row.rank ?? row.priorityOrder}
-            onAssign={handleAssignRank}
-            assigning={assigningVideoId === row.id && assignRankMutation.isPending}
-          />
-        ),
-      },
-      {
         key: 'priority',
         label: 'Priority',
         headerClassName: 'min-w-[160px] whitespace-nowrap',
@@ -563,7 +525,7 @@ export default function YoutubeManagementTab() {
         ),
       },
     ],
-    [assigningVideoId, assignRankMutation.isPending, handleAssignRank, handleUpdatePriority, updatingPriorityVideoId, updatePriorityMutation.isPending],
+    [handleUpdatePriority, updatingPriorityVideoId, updatePriorityMutation.isPending],
   )
 
   const listErrorMessage = listError

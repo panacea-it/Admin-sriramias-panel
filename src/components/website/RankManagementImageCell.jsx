@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { cn } from '../../utils/cn'
-import { isResolvableRankerImageUrl } from '../../utils/rankerImageUtils'
+import {
+  isResolvableRankerImageUrl,
+  optimizeRankerThumbnailUrl,
+} from '../../utils/rankerImageUtils'
 
 function rankerPlaceholderSrc(name) {
   const safeName = encodeURIComponent(name?.trim() || 'Ranker')
@@ -11,11 +14,11 @@ export default function RankManagementImageCell({ name, imageUrl, size = 'md' })
   const [uploadFailed, setUploadFailed] = useState(false)
   const placeholderSrc = useMemo(() => rankerPlaceholderSrc(name), [name])
   const canUseUpload = isResolvableRankerImageUrl(imageUrl) && !uploadFailed
-  const src = canUseUpload ? imageUrl.trim() : placeholderSrc
+  const src = canUseUpload ? optimizeRankerThumbnailUrl(imageUrl.trim()) : placeholderSrc
 
   const sizeClass =
     size === 'lg'
-      ? 'h-14 w-14'
+      ? 'h-28 w-28'
       : 'h-11 w-11'
 
   return (
@@ -32,7 +35,7 @@ export default function RankManagementImageCell({ name, imageUrl, size = 'md' })
         onError={() => {
           if (canUseUpload) setUploadFailed(true)
         }}
-        className="h-full w-full object-cover"
+        className="h-full w-full object-cover object-[center_20%]"
       />
     </div>
   )
