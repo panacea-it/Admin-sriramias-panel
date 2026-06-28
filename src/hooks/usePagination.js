@@ -5,7 +5,7 @@ const DEFAULT_PAGE_SIZE = 10
 /**
  * Client-side pagination — ready to swap slice logic for API offset/limit later.
  */
-export function usePagination(items, { initialPageSize = DEFAULT_PAGE_SIZE, resetDeps = [] } = {}) {
+export function usePagination(items = [], { initialPageSize = DEFAULT_PAGE_SIZE, resetDeps = [] } = {}) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(initialPageSize)
 

@@ -6,27 +6,26 @@ import AdminDataPanel from '../../admin/AdminDataPanel'
 import TestConfigDataTable from '../TestConfigDataTable'
 import TestConfigStatusBadge from '../TestConfigStatusBadge'
 import { BannerButton } from '../../academics/AcademicsUi'
+import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   ExamPatternTableActions,
   createTestConfigActionsColumn,
   testConfigStatusColumn,
 } from '../TestConfigTableActions'
 import { useExamPatternManagement } from '../../../hooks/useExamPatternManagement'
-import { getApiErrorMessage } from '../../../utils/apiError'
+import {
+  useCreateExamPattern,
+  useDeleteExamPattern,
+  useExamPattern,
+  useUpdateExamPattern,
+  useUpdateExamPatternStatus,
+} from '../../../hooks/useExamPatterns'
 import {
   buildCreateExamPatternPayload,
   buildUpdateExamPatternPayload,
   EXAM_PATTERN_SORT_OPTIONS,
   formatExamPatternDateTime,
-  mapApiExamPatternToLocal,
 } from '../../../utils/examPatternApiHelpers'
-import {
-  createExamPattern,
-  deleteExamPattern,
-  getExamPatternById,
-  updateExamPattern,
-  updateExamPatternStatus,
-} from '../../../services/examPatternService'
 import ConfigFilterToolbar, { FilterSelect } from '../ConfigFilterToolbar'
 import ExamPatternFormModal from './ExamPatternFormModal'
 import ExamPatternViewModal from './ExamPatternViewModal'
@@ -43,138 +42,88 @@ export default function ExamPatternTab() {
     sortPreset,
     setSortPreset,
     controlledPagination,
-    refreshExamPatterns,
   } = useExamPatternManagement()
+
+  const createMutation = useCreateExamPattern()
+  const updateMutation = useUpdateExamPattern()
+  const statusMutation = useUpdateExamPatternStatus()
+  const deleteMutation = useDeleteExamPattern()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editRow, setEditRow] = useState(null)
-  const [editDetail, setEditDetail] = useState(null)
-  const [editDetailLoading, setEditDetailLoading] = useState(false)
-  const [viewRow, setViewRow] = useState(null)
-  const [viewLoading, setViewLoading] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [updateLoading, setUpdateLoading] = useState(false)
+  const [viewRowId, setViewRowId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
 
-  const loadExamPatternDetail = useCallback(async (row) => {
-    const data = await getExamPatternById(row.id)
-    return mapApiExamPatternToLocal(data) || row
+  const editDetailId = modalOpen && editRow?.id ? editRow.id : null
+  const { data: editDetail, isLoading: editDetailLoading } = useExamPattern(editDetailId, {
+    enabled: Boolean(editDetailId),
+  })
+
+  const viewDetailId = viewRowId || null
+  const { data: viewDetail, isLoading: viewLoading } = useExamPattern(viewDetailId, {
+    enabled: Boolean(viewDetailId),
+  })
+
+  const handleView = useCallback((row) => {
+    setViewRowId(row.id)
   }, [])
 
-  const handleView = useCallback(
-    async (row) => {
-      setViewRow(row)
-      setViewLoading(true)
-      try {
-        const detail = await loadExamPatternDetail(row)
-        if (detail) setViewRow(detail)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load instruction details'))
-        setViewRow(null)
-      } finally {
-        setViewLoading(false)
-      }
-    },
-    [loadExamPatternDetail],
-  )
-
-  const handleEdit = useCallback(
-    async (row) => {
-      setEditRow(row)
-      setEditDetail(row)
-      setEditDetailLoading(true)
-      setModalOpen(true)
-      try {
-        const detail = await loadExamPatternDetail(row)
-        setEditDetail(detail || row)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load instruction for editing'))
-        setModalOpen(false)
-        setEditRow(null)
-        setEditDetail(null)
-      } finally {
-        setEditDetailLoading(false)
-      }
-    },
-    [loadExamPatternDetail],
-  )
+  const handleEdit = useCallback((row) => {
+    setEditRow(row)
+    setModalOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!modalOpen) {
       setEditRow(null)
-      setEditDetail(null)
-      setEditDetailLoading(false)
     }
   }, [modalOpen])
 
   const handleSave = async (form) => {
     const isEdit = Boolean(editRow?.id)
-    if (isEdit) {
-      setUpdateLoading(true)
-    } else {
-      setCreateLoading(true)
-    }
 
-    try {
-      if (isEdit) {
-        await updateExamPattern(editRow.id, buildUpdateExamPatternPayload(form))
-        toast.success('Instruction updated successfully')
-      } else {
-        await createExamPattern(buildCreateExamPatternPayload(form))
-        toast.success('Instruction created successfully')
-      }
-      setModalOpen(false)
-      setEditRow(null)
-      setEditDetail(null)
-      await refreshExamPatterns()
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, isEdit ? 'Failed to update instruction' : 'Failed to create instruction'),
-      )
-      throw error
-    } finally {
-      setCreateLoading(false)
-      setUpdateLoading(false)
+    if (isEdit) {
+      const response = await updateMutation.mutateAsync({
+        id: editRow.id,
+        payload: buildUpdateExamPatternPayload(form),
+      })
+      toast.success(response?.message || 'Exam instruction updated successfully')
+    } else {
+      const response = await createMutation.mutateAsync(buildCreateExamPatternPayload(form))
+      toast.success(response?.message || 'Exam instruction created successfully')
     }
+    setModalOpen(false)
+    setEditRow(null)
   }
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
-    setDeleteLoading(true)
     try {
-      await deleteExamPattern(deleteTarget.id)
-      toast.success('Instruction deleted successfully')
+      const response = await deleteMutation.mutateAsync(deleteTarget.id)
+      toast.success(response?.message || 'Exam instruction deleted successfully')
       setDeleteTarget(null)
-      await refreshExamPatterns()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete instruction'))
-    } finally {
-      setDeleteLoading(false)
+    } catch {
+      // Error toast handled by mutation onError
     }
-  }, [deleteTarget, refreshExamPatterns])
+  }, [deleteTarget, deleteMutation])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
     const activating = statusTarget.status !== 'Active'
     const nextApiStatus = activating ? 'ACTIVE' : 'INACTIVE'
 
-    setStatusLoading(true)
     try {
-      await updateExamPatternStatus(statusTarget.id, nextApiStatus)
-      toast.success(
-        activating ? 'Instruction enabled successfully' : 'Instruction disabled successfully',
-      )
+      const response = await statusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApiStatus,
+      })
+      toast.success(response?.message || 'Exam instruction status updated')
       setStatusTarget(null)
-      await refreshExamPatterns()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to update instruction status'))
-    } finally {
-      setStatusLoading(false)
+    } catch {
+      // Error toast handled by mutation onError
     }
-  }, [statusTarget, refreshExamPatterns])
+  }, [statusTarget, statusMutation])
 
   const columns = useMemo(
     () => [
@@ -227,7 +176,8 @@ export default function ExamPatternTab() {
     [handleView, handleEdit],
   )
 
-  const saving = createLoading || updateLoading
+  const formItem = editDetail || editRow
+  const saving = createMutation.isPending || updateMutation.isPending
 
   return (
     <TestManagementPageShell
@@ -237,7 +187,6 @@ export default function ExamPatternTab() {
         <BannerButton
           onClick={() => {
             setEditRow(null)
-            setEditDetail(null)
             setModalOpen(true)
           }}
         >
@@ -283,27 +232,39 @@ export default function ExamPatternTab() {
         onClose={() => {
           setModalOpen(false)
           setEditRow(null)
-          setEditDetail(null)
         }}
-        item={editDetail}
-        loading={editDetailLoading}
+        item={formItem}
+        loading={editDetailLoading && Boolean(editRow)}
         onSubmit={handleSave}
         saving={saving}
       />
 
       <ExamPatternViewModal
-        open={Boolean(viewRow)}
-        onClose={() => setViewRow(null)}
-        row={viewRow}
+        open={Boolean(viewRowId)}
+        onClose={() => setViewRowId(null)}
+        row={viewDetail}
         loading={viewLoading}
       />
 
       <ConfirmExamPatternStatusModal
         open={Boolean(statusTarget)}
         activating={statusTarget?.status !== 'Active'}
-        loading={statusLoading}
+        loading={statusMutation.isPending}
         onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete instruction?"
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete instruction "${deleteTarget.instructionId || deleteTarget.id}"? This action cannot be undone.`
+            : ''
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleteMutation.isPending}
       />
     </TestManagementPageShell>
   )

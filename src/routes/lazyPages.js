@@ -6,8 +6,9 @@ export const BatchManagementLayout = lazyRoute(() => import('../layouts/BatchMan
 export const SubjectsPage = lazyRoute(() => import('../pages/academics/SubjectsPage'))
 export const SubjectViewListPage = lazyRoute(() => import('../pages/academics/SubjectViewListPage'))
 export const SubjectContentManagementPage = lazyRoute(
-  () => import('../pages/academics/SubjectContentManagementPage'),
+  () => import('../modules/academics/facultySubjects/pages/FacultySubjectContentPage'),
 )
+export const FacultySubjectContentPage = SubjectContentManagementPage
 export const CoursesPage = BatchesPage
 export const LiveClassesPage = lazyRoute(() => import('../pages/academics/LiveClassesPage'))
 export const LiveClassesLayout = lazyRoute(() => import('../layouts/LiveClassesLayout'))

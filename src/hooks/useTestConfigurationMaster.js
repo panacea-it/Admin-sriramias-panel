@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { TEST_CONFIG_UPDATED_EVENT, fetchExamPatterns } from '../api/testConfigurationAPI'
+import { getLanguages, getLanguagesDropdown } from '../services/testConfigLanguageService'
+import { getSections, getSectionsDropdown } from '../services/testConfigSectionService'
+import { normalizeTestConfigLanguagesDropdownResponse, normalizeTestConfigLanguagesListResponse } from '../utils/testConfigLanguageApiHelpers'
 import {
-  TEST_CONFIG_UPDATED_EVENT,
-  fetchExamPatterns,
-  fetchLanguages,
-  fetchSectionConfigs,
-} from '../api/testConfigurationAPI'
+  normalizeTestConfigSectionsDropdownResponse,
+  normalizeTestConfigSectionsListResponse,
+} from '../utils/testConfigSectionApiHelpers'
 
 function truncateText(value, max = 72) {
   const text = String(value || '').trim()
@@ -31,9 +33,21 @@ export function useTestConfigurationMaster({ activeOnly = true } = {}) {
     setError(null)
     const statusFilter = activeOnly ? { status: 'Active' } : {}
     try {
+      const sectionRequest = activeOnly
+        ? getSectionsDropdown().then((data) => normalizeTestConfigSectionsDropdownResponse(data))
+        : getSections({ page: 1, limit: 100, sortPreset: 'sectionName_az' }).then((data) =>
+            normalizeTestConfigSectionsListResponse(data, { page: 1, limit: 100 }).items,
+          )
+
+      const languageRequest = activeOnly
+        ? getLanguagesDropdown().then((data) => normalizeTestConfigLanguagesDropdownResponse(data))
+        : getLanguages({ page: 1, limit: 100, sortPreset: 'languageName_az' }).then((data) =>
+            normalizeTestConfigLanguagesListResponse(data, { page: 1, limit: 100 }).items,
+          )
+
       const [langRows, sectionRows, instructionRows] = await Promise.all([
-        fetchLanguages({ ...statusFilter, sortBy: 'languageName', sortDir: 'asc' }),
-        fetchSectionConfigs({ ...statusFilter, sortBy: 'sectionName', sortDir: 'asc' }),
+        languageRequest,
+        sectionRequest,
         fetchExamPatterns({ ...statusFilter, sortBy: 'createdOn', sortDir: 'desc' }),
       ])
       setLanguages(Array.isArray(langRows) ? langRows : [])

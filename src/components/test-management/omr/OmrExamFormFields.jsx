@@ -5,9 +5,14 @@ import { validateOmrExamForm } from '../../../utils/omrApiHelpers'
 
 export function buildOmrForm(item) {
   if (item) {
+    const examDate = item.examDate
+      ? String(item.examDate).includes('T')
+        ? String(item.examDate).slice(0, 10)
+        : item.examDate
+      : ''
     return {
       examName: item.examName || '',
-      examDate: item.examDate || '',
+      examDate,
       status: item.status || 'Active',
     }
   }

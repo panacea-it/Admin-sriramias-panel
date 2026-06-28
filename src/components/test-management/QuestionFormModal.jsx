@@ -32,7 +32,14 @@ function ErrorHint({ message }) {
   return <p className="mt-1 text-xs font-semibold text-red-600">{message}</p>
 }
 
-export default function QuestionFormModal({ open, onClose, item, duplicateSource, onSubmit }) {
+export default function QuestionFormModal({
+  open,
+  onClose,
+  item,
+  duplicateSource,
+  onSubmit,
+  lockTypeOnEdit = false,
+}) {
   const forceCreateMode = Boolean(duplicateSource)
   const baseItem = duplicateSource ? { ...duplicateSource, id: '' } : item
   const { form, setForm, isEditMode, reset } = useModalForm(
@@ -45,9 +52,13 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
 
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const [removeImage, setRemoveImage] = useState(false)
 
   useEffect(() => {
-    if (open) setErrors({})
+    if (open) {
+      setErrors({})
+      setRemoveImage(false)
+    }
   }, [open])
 
   const content = form.content || {}
@@ -93,6 +104,7 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
         category: resolvedCategory,
         type,
         status: form.status === 'In Active' ? 'Deactivated' : form.status,
+        removeImage: removeImage && isEditMode,
         content: {
           question: String(content.question || ''),
           explanation: String(content.explanation || ''),
@@ -125,6 +137,10 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
       toast.success(isEditMode ? 'Question updated successfully' : 'Question saved successfully')
       close()
     } catch (err) {
+      const apiErrors = err?.fieldErrors
+      if (apiErrors && typeof apiErrors === 'object') {
+        setErrors((prev) => ({ ...prev, ...apiErrors }))
+      }
       toast.error(err?.message || 'Failed to save question')
     } finally {
       setSaving(false)
@@ -176,6 +192,7 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
                   <CourseSelect
                     value={form.type || ''}
                     onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                    disabled={lockTypeOnEdit && isEditMode}
                     className={cn(errors.type && 'ring-2 ring-red-400')}
                   >
                     {QUESTION_BANK_TYPES.map((t) => (
@@ -424,20 +441,46 @@ export default function QuestionFormModal({ open, onClose, item, duplicateSource
                 </CourseFormField>
                 <CourseFormField label="Image (optional)">
                   <CourseFileInput
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     uploadProfile="IMAGE_STANDARD"
                     placeholder={content.imageDataUrl ? 'Image attached' : 'Choose image'}
                     onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
+                      const nextFile = e.target.files?.[0]
+                      if (!nextFile) return
+                      if (nextFile.size > 5 * 1024 * 1024) {
+                        toast.error('Image must be 5 MB or less')
+                        return
+                      }
                       try {
-                        const dataUrl = await readFileAsDataUrl(file)
+                        const dataUrl = await readFileAsDataUrl(nextFile)
+                        setRemoveImage(false)
+                        setForm((f) => ({ ...f, imageFile: nextFile }))
                         setContent({ imageDataUrl: dataUrl })
                       } catch (err) {
                         toast.error(err?.message || 'Failed to attach image')
                       }
                     }}
                   />
+                  {content.imageDataUrl ? (
+                    <div className="mt-3 space-y-2">
+                      <img
+                        src={content.imageDataUrl}
+                        alt="Question preview"
+                        className="max-h-40 rounded-xl border border-slate-200 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoveImage(true)
+                          setForm((f) => ({ ...f, imageFile: null }))
+                          setContent({ imageDataUrl: '' })
+                        }}
+                        className="text-xs font-semibold text-red-600 hover:text-red-700"
+                      >
+                        Remove image
+                      </button>
+                    </div>
+                  ) : null}
                 </CourseFormField>
               </div>
             </div>

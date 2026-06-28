@@ -6,7 +6,8 @@ import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import BatchFormStickyFooter from '../../courses/batch-form/BatchFormStickyFooter'
 import { CourseFormField, CourseInput, CourseSelect } from '../../courses/CourseFormField'
 import { useModalForm } from '../../../hooks/useModalForm'
-import { validateDuplicateName, validateRequired } from '../../../utils/testConfigurationValidation'
+import { validateName } from '../../../utils/testConfigurationValidation'
+import { getApiErrorMessage } from '../../../utils/apiError'
 
 function emptyForm() {
   return {
@@ -23,21 +24,23 @@ function rowToForm(row) {
   }
 }
 
-function validate(form, existingRows, currentId) {
+function validate(form) {
   const errors = {}
-  const nameErr = validateRequired(form.languageName, 'Language')
+  const nameErr = validateName(form.languageName, 'Language')
   if (nameErr) errors.languageName = nameErr
-  else {
-    const dup = validateDuplicateName(form.languageName, existingRows, 'languageName', currentId)
-    if (dup) errors.languageName = dup
-  }
   return errors
 }
 
-export default function LanguageFormModal({ open, onClose, item, existingRows = [], onSubmit }) {
+export default function LanguageFormModal({
+  open,
+  onClose,
+  item,
+  loading = false,
+  onSubmit,
+  saving = false,
+}) {
   const { form, setForm, isEditMode, reset } = useModalForm(open, item, rowToForm, emptyForm)
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) setErrors({})
@@ -47,28 +50,28 @@ export default function LanguageFormModal({ open, onClose, item, existingRows = 
 
   const submit = async (e) => {
     e.preventDefault()
-    const nextErrors = validate(form, existingRows, item?.id)
+    const nextErrors = validate(form)
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
       toast.error('Please fix the highlighted fields')
       return
     }
 
-    setSaving(true)
     try {
-      await onSubmit?.(
-        {
-          languageName: String(form.languageName).trim(),
-          status: form.status,
-        },
-        { isEdit: isEditMode, id: item?.id },
-      )
-      toast.success(isEditMode ? 'Language updated' : 'Language added')
+      await onSubmit?.({
+        languageName: String(form.languageName).trim(),
+        status: form.status,
+      })
       close()
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to save language')
-    } finally {
-      setSaving(false)
+      const message = getApiErrorMessage(err, 'Failed to save language')
+      if (/already exists/i.test(message)) {
+        setErrors({ languageName: message })
+        return
+      }
+      if (/language name/i.test(message)) {
+        setErrors({ languageName: message })
+      }
     }
   }
 
@@ -86,28 +89,37 @@ export default function LanguageFormModal({ open, onClose, item, existingRows = 
           icon={Languages}
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <div className="grid gap-5">
-              <CourseFormField label="Enter Language" required>
-                <CourseInput
-                  value={form.languageName}
-                  onChange={(e) => setForm((f) => ({ ...f, languageName: e.target.value }))}
-                  className={errors.languageName ? 'ring-2 ring-red-400' : undefined}
-                  placeholder="e.g., English"
-                />
-                {errors.languageName && (
-                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.languageName}</p>
-                )}
-              </CourseFormField>
+          {loading ? (
+            <div className="rounded-2xl bg-white p-8 text-center text-sm text-[#6b7280]">Loading language…</div>
+          ) : (
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="grid gap-5">
+                <CourseFormField label="Enter Language" required>
+                  <CourseInput
+                    value={form.languageName}
+                    onChange={(e) => setForm((f) => ({ ...f, languageName: e.target.value }))}
+                    className={errors.languageName ? 'ring-2 ring-red-400' : undefined}
+                    placeholder="e.g., English"
+                    disabled={saving}
+                  />
+                  {errors.languageName && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.languageName}</p>
+                  )}
+                </CourseFormField>
 
-              <CourseFormField label="Status">
-                <CourseSelect value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                  <option value="Active">Active</option>
-                  <option value="Deactivated">Inactive</option>
-                </CourseSelect>
-              </CourseFormField>
+                <CourseFormField label="Status">
+                  <CourseSelect
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    disabled={saving}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Deactivated">Inactive</option>
+                  </CourseSelect>
+                </CourseFormField>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <BatchFormStickyFooter
           isEditMode={isEditMode}

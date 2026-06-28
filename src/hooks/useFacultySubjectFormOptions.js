@@ -68,7 +68,8 @@ export function useFacultySubjectFormOptions({ open, enabled = true }) {
     if (
       useCache &&
       isCacheFresh(baseOptionsCache.at, BASE_CACHE_TTL_MS) &&
-      baseOptionsCache.subjects.length
+      baseOptionsCache.subjects.length &&
+      baseOptionsCache.categories.length
     ) {
       setSubjectOptions(baseOptionsCache.subjects)
       setCategoryOptions(baseOptionsCache.categories)

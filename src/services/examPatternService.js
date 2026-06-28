@@ -67,6 +67,15 @@ async function getExamPatternDropdownApi() {
   }
 }
 
+async function postExamPatternDropdownApi() {
+  try {
+    const response = await api.post(`${BASE_PATH}/dropdown`)
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
 export const getExamPatterns = getExamPatternsApi
 export const getExamPatternById = getExamPatternByIdApi
 export const createExamPattern = createExamPatternApi
@@ -74,3 +83,4 @@ export const updateExamPattern = updateExamPatternApi
 export const updateExamPatternStatus = updateExamPatternStatusApi
 export const deleteExamPattern = deleteExamPatternApi
 export const getExamPatternDropdown = getExamPatternDropdownApi
+export const postExamPatternDropdown = postExamPatternDropdownApi

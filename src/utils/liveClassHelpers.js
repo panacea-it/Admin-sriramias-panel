@@ -107,12 +107,14 @@ function normalizeApiDate(value) {
   return raw
 }
 
-/** Prefer route/API Mongo id over legacy local seed ids (e.g. "001"). */
+/** Prefer Mongo id from route/API; fall back to any id the CMS route uses. */
 export function resolveFacultySubjectApiId(subject, routeSubjectId) {
-  if (isMongoObjectId(routeSubjectId)) return String(routeSubjectId)
-  if (isMongoObjectId(subject?.id)) return String(subject.id)
-  if (isMongoObjectId(subject?.apiId)) return String(subject.apiId)
-  return ''
+  const route = String(routeSubjectId || '').trim()
+  if (isMongoObjectId(route)) return route
+  if (isMongoObjectId(subject?.id)) return String(subject.id).trim()
+  if (isMongoObjectId(subject?.apiId)) return String(subject.apiId).trim()
+  if (route) return route
+  return String(subject?.id || subject?.apiId || '').trim()
 }
 
 export function normalizeCentersDropdownResponse(data) {

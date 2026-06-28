@@ -4,12 +4,14 @@ import { Layers, Plus } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useInitOnModalOpen } from '../../hooks/modalFormSync'
 import { useAuth } from '../../contexts/AuthContext'
-import { useBatchesData } from '../../hooks/useBatchesData'
+import { useLiveClassFormOptions } from '../../hooks/useLiveClassFormOptions'
+import { useRecordingFormOptions } from '../../hooks/useRecordingFormOptions'
+import { useFacultySubjectBatchesDropdown } from '../../hooks/useFacultySubjectBatchesDropdown'
+import { resolveRecordingFacultySubjectId } from '../../utils/recordingFacultySubject'
 import { toast } from '../../utils/toast'
 import {
   createRecurrenceFromSubjectForm,
   flattenSubjectsLiveClassesForConflicts,
-  formAnchorTime,
   getExcludeLessonIds,
 } from '../../utils/academicsSubjectsRecurrence'
 import {
@@ -35,7 +37,6 @@ export default function SubjectAddContentModal({
 }) {
   const { user } = useAuth()
   const actorName = user?.name || user?.email || 'Admin'
-  const { sourceRows: batches, loading: batchesLoading } = useBatchesData()
   const [saving, setSaving] = useState(false)
   const [recordingUploadError, setRecordingUploadError] = useState(null)
   const [testSeriesErrors, setTestSeriesErrors] = useState({})
@@ -66,9 +67,77 @@ export default function SubjectAddContentModal({
   const subjectRef = useRef(subject)
   subjectRef.current = subject
 
+  const facultySubjectMongoId = resolveRecordingFacultySubjectId(subject, subject?.id)
+  const watchedCenterId = watch('centerId')
+  const watchedRecordingCenterId = watch('recordingCenter')
+  const watchedBatchId = watch('batchId')
+
+  const liveFormOptions = useLiveClassFormOptions({
+    centerId: watchedCenterId,
+    facultySubjectId: facultySubjectMongoId,
+    enabled: open && activeType === 'live' && Boolean(facultySubjectMongoId),
+  })
+
+  const recordingFormOptions = useRecordingFormOptions({
+    facultySubjectId: facultySubjectMongoId,
+    centerId: watchedRecordingCenterId,
+    batchId: watchedBatchId,
+    enabled: open && activeType === 'recording',
+    formOpen: open && activeType === 'recording',
+    loadCreateForm: false,
+  })
+
+  const scopedBatches = useFacultySubjectBatchesDropdown({
+    facultySubjectId: facultySubjectMongoId,
+    centerId: watchedCenterId || watchedRecordingCenterId,
+    enabled:
+      open &&
+      Boolean(facultySubjectMongoId) &&
+      ['test', 'pdf', 'mainsAnswerWriting'].includes(activeType),
+    requireCenter: false,
+  })
+
+  const batchFieldProps = useMemo(() => {
+    if (activeType === 'live') {
+      return {
+        batches: liveFormOptions.batches,
+        batchesLoading: liveFormOptions.loadingBatches,
+        batchesError: liveFormOptions.batchesError,
+        centerOptions: liveFormOptions.centers,
+        centersLoading: liveFormOptions.loadingCenters,
+        classroomOptions: liveFormOptions.classrooms,
+        classroomsLoading: liveFormOptions.loadingClassrooms,
+      }
+    }
+    if (activeType === 'recording') {
+      return {
+        batches: recordingFormOptions.batches,
+        batchesLoading: recordingFormOptions.loadingBatches,
+        batchesFetched: recordingFormOptions.batchesFetched,
+        batchesError: recordingFormOptions.batchesError,
+        recordingCenterOptions: recordingFormOptions.centers,
+        recordingCentersLoading: recordingFormOptions.loadingCenters,
+        recordingCentersError: recordingFormOptions.centersError,
+        recordingTopicOptions: recordingFormOptions.topics,
+        recordingTopicsLoading: recordingFormOptions.loadingTopics,
+        recordingTeacherOptions: recordingFormOptions.teachers,
+        recordingTeachersLoading: recordingFormOptions.loadingTeachers,
+      }
+    }
+    return {
+      batches: scopedBatches.batches,
+      batchesLoading: scopedBatches.loading,
+      batchesError: scopedBatches.error,
+    }
+  }, [activeType, liveFormOptions, recordingFormOptions, scopedBatches])
+
   useInitOnModalOpen(open, `add-content:${subject?.id}`, () => {
     const seeded = subjectToForm(subjectRef.current)
-    reset({ ...seeded, contentType: contentTypes[0] || 'live' })
+    reset({
+      ...seeded,
+      contentType: contentTypes[0] || 'live',
+      recordingDescription: '',
+    })
     setActiveType(contentTypes[0] || 'live')
     setRecurring(false)
     setRecurrence(null)
@@ -173,6 +242,14 @@ export default function SubjectAddContentModal({
                     onClick={() => {
                       setActiveType(type)
                       setValue('contentType', type)
+                      setValue('centerId', '', { shouldValidate: true })
+                      setValue('recordingCenter', '', { shouldValidate: true })
+                      setValue('batchId', '', { shouldValidate: true })
+                      setValue('batchIds', [], { shouldValidate: true })
+                      setValue('recordingTopic', '', { shouldValidate: true })
+                      if (type === 'recording') {
+                        setValue('recordingDescription', '', { shouldValidate: true })
+                      }
                       clearErrors()
                       setTestSeriesErrors({})
                     }}
@@ -208,8 +285,23 @@ export default function SubjectAddContentModal({
                     clearErrors={clearErrors}
                     subject={subject}
                     subjects={subjects}
-                    batches={batches}
-                    batchesLoading={batchesLoading}
+                    facultySubjectId={facultySubjectMongoId}
+                    {...batchFieldProps}
+                    onCenterChange={() => {
+                      setValue('batchId', '', { shouldValidate: true })
+                      setValue('batchIds', [], { shouldValidate: true })
+                      setValue('classroomId', '', { shouldValidate: true })
+                      setValue('classRoom', '', { shouldValidate: true })
+                    }}
+                    onRecordingCenterChange={() => {
+                      setValue('batchId', '', { shouldValidate: true })
+                      setValue('batchIds', [], { shouldValidate: true })
+                      setValue('recordingTopic', '', { shouldValidate: true })
+                      recordingFormOptions.reloadBatches()
+                    }}
+                    onRecordingBatchChange={() => {
+                      setValue('recordingTopic', '', { shouldValidate: true })
+                    }}
                     recurring={recurring}
                     onRecurringToggle={handleRecurringToggle}
                     recurrence={recurrence}
@@ -237,7 +329,11 @@ export default function SubjectAddContentModal({
               saving={saving}
               onReset={() => {
                 const seeded = subjectToForm(subject)
-                reset({ ...seeded, contentType: activeType })
+                reset({
+                  ...seeded,
+                  contentType: activeType,
+                  recordingDescription: activeType === 'recording' ? '' : seeded.recordingDescription,
+                })
               }}
             />
           </>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layers } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import TestManagementPageShell from '../../test-management/TestManagementPageShell'
@@ -6,36 +6,29 @@ import AdminDataPanel from '../../admin/AdminDataPanel'
 import TestConfigDataTable from '../TestConfigDataTable'
 import TestConfigStatusBadge from '../TestConfigStatusBadge'
 import { BannerButton } from '../../academics/AcademicsUi'
+import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   SectionManagementTableActions,
   createTestConfigActionsColumn,
   testConfigStatusColumn,
 } from '../TestConfigTableActions'
 import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
-import { useEditModal } from '../../../hooks/useEditModal'
+import { useTestConfigSectionManagement } from '../../../hooks/useTestConfigSectionManagement'
 import {
-  deleteSectionConfig,
-  fetchSectionConfigs,
-  upsertSectionConfig,
-} from '../../../api/testConfigurationAPI'
+  useCreateTestConfigSection,
+  useDeleteTestConfigSection,
+  useTestConfigSection,
+  useUpdateTestConfigSection,
+  useUpdateTestConfigSectionStatus,
+} from '../../../hooks/useTestConfigSections'
+import {
+  buildCreateTestConfigSectionPayload,
+  buildUpdateTestConfigSectionPayload,
+  TEST_CONFIG_SECTION_SORT_OPTIONS,
+} from '../../../utils/testConfigSectionApiHelpers'
 import ConfigFilterToolbar, { FilterSelect } from '../ConfigFilterToolbar'
 import SectionConfigFormModal from './SectionConfigFormModal'
 import SectionViewModal from './SectionViewModal'
-import { purgeLegacySectionStorage } from '../../../utils/sectionManagementStorage'
-
-const SORT_OPTIONS = [
-  { value: 'createdOn:desc', label: 'Created On (Newest)' },
-  { value: 'createdOn:asc', label: 'Created On (Oldest)' },
-  { value: 'modifiedOn:desc', label: 'Modified On (Newest)' },
-  { value: 'modifiedOn:asc', label: 'Modified On (Oldest)' },
-  { value: 'sectionName:asc', label: 'Section Name (A–Z)' },
-  { value: 'sectionName:desc', label: 'Section Name (Z–A)' },
-]
-
-function parseSort(value) {
-  const [sortBy, sortDir] = String(value || 'createdOn:desc').split(':')
-  return { sortBy, sortDir }
-}
 
 function displayDate(row, key) {
   return row?.[key] || row?.createdAt || '—'
@@ -46,98 +39,103 @@ function displaySectionName(row) {
 }
 
 export default function SectionManagementTab() {
-  const modal = useEditModal()
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
-  const [sort, setSort] = useState('createdOn:desc')
-  const [viewRow, setViewRow] = useState(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteRow, setDeleteRow] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+  const {
+    rows,
+    tableLoading,
+    search,
+    setSearch,
+    status,
+    setStatus,
+    sortPreset,
+    setSortPreset,
+    controlledPagination,
+  } = useTestConfigSectionManagement()
+
+  const createMutation = useCreateTestConfigSection()
+  const updateMutation = useUpdateTestConfigSection()
+  const statusMutation = useUpdateTestConfigSectionStatus()
+  const deleteMutation = useDeleteTestConfigSection()
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editRow, setEditRow] = useState(null)
+  const [viewRowId, setViewRowId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
 
-  const { sortBy, sortDir } = parseSort(sort)
+  const editDetailId = modalOpen && editRow?.id ? editRow.id : null
+  const { data: editDetail, isLoading: editDetailLoading } = useTestConfigSection(editDetailId, {
+    enabled: Boolean(editDetailId),
+  })
 
-  const reload = async () => {
-    setLoading(true)
-    try {
-      const list = await fetchSectionConfigs({ search, status, sortBy, sortDir })
-      setRows(list || [])
-    } catch (err) {
-      toast.error(err?.message || 'Failed to load sections')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const viewDetailId = viewRowId || null
+  const { data: viewDetail, isLoading: viewLoading } = useTestConfigSection(viewDetailId, {
+    enabled: Boolean(viewDetailId),
+  })
 
-  useEffect(() => {
-    purgeLegacySectionStorage()
+  const handleView = useCallback((row) => {
+    setViewRowId(row.id)
+  }, [])
+
+  const handleEdit = useCallback((row) => {
+    setEditRow(row)
+    setModalOpen(true)
   }, [])
 
   useEffect(() => {
-    reload()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status, sort])
-
-  const handleSave = async (form, meta) => {
-    const saved = await upsertSectionConfig(form, meta)
-    setRows((prev) => {
-      if (meta.isEdit) {
-        return prev.map((r) => (String(r.id) === String(meta.id) ? { ...r, ...saved } : r))
-      }
-      return [saved, ...prev]
-    })
-  }
-
-  const handleDelete = async () => {
-    if (!deleteRow) return
-    setDeleting(true)
-    try {
-      await deleteSectionConfig(deleteRow.id)
-      setRows((prev) => prev.filter((r) => String(r.id) !== String(deleteRow.id)))
-      toast.success('Section deleted')
-      setDeleteOpen(false)
-      setDeleteRow(null)
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete section')
-    } finally {
-      setDeleting(false)
+    if (!modalOpen) {
+      setEditRow(null)
     }
+  }, [modalOpen])
+
+  const handleSave = async (form) => {
+    const isEdit = Boolean(editRow?.id)
+
+    if (isEdit) {
+      const response = await updateMutation.mutateAsync({
+        id: editRow.id,
+        payload: buildUpdateTestConfigSectionPayload(form),
+      })
+      toast.success(response?.message || 'Section updated successfully')
+    } else {
+      const response = await createMutation.mutateAsync(buildCreateTestConfigSectionPayload(form))
+      toast.success(response?.message || 'Section created successfully')
+    }
+    setModalOpen(false)
+    setEditRow(null)
   }
 
-  const confirmStatusChange = async () => {
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    try {
+      const response = await deleteMutation.mutateAsync(deleteTarget.id)
+      toast.success(response?.message || 'Section deleted successfully')
+      setDeleteTarget(null)
+    } catch {
+      // Error toast handled by mutation onError
+    }
+  }, [deleteTarget, deleteMutation])
+
+  const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
-    const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'Deactivated'
+    const activating = statusTarget.status !== 'Active'
+    const nextApiStatus = activating ? 'ACTIVE' : 'INACTIVE'
 
-    setStatusLoading(true)
     try {
-      const saved = await upsertSectionConfig(
-        {
-          sectionName: statusTarget.sectionName || statusTarget.configurationName,
-          status: nextStatus,
-        },
-        { id: statusTarget.id, isEdit: true },
-      )
-      setRows((prev) =>
-        prev.map((row) => (String(row.id) === String(statusTarget.id) ? { ...row, ...saved } : row)),
-      )
-      toast.success(enabling ? 'Section enabled' : 'Section disabled')
+      const response = await statusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApiStatus,
+      })
+      toast.success(response?.message || 'Section status updated')
       setStatusTarget(null)
-    } catch (err) {
-      toast.error(err?.message || 'Failed to update section status')
-    } finally {
-      setStatusLoading(false)
+    } catch {
+      // Error toast handled by mutation onError
     }
-  }
+  }, [statusTarget, statusMutation])
 
   const columns = useMemo(
     () => [
       {
-        key: 'id',
+        key: 'sectionId',
         label: 'Section ID',
         headerClassName: 'pl-6 sm:pl-10',
         cellClassName: 'pl-6 sm:pl-10',
@@ -171,24 +169,33 @@ export default function SectionManagementTab() {
       createTestConfigActionsColumn((row) => (
         <SectionManagementTableActions
           row={row}
-          onView={() => setViewRow(row)}
-          onEdit={() => modal.openEdit(row)}
+          onView={() => handleView(row)}
+          onEdit={() => handleEdit(row)}
           onToggleStatus={() => setStatusTarget(row)}
-          onDelete={() => {
-            setDeleteRow(row)
-            setDeleteOpen(true)
-          }}
+          onDelete={() => setDeleteTarget(row)}
         />
       )),
     ],
-    [modal],
+    [handleView, handleEdit],
   )
+
+  const formItem = editDetail || editRow
+  const saving = createMutation.isPending || updateMutation.isPending
 
   return (
     <TestManagementPageShell
       icon={Layers}
       title="Section Management"
-      actions={<BannerButton onClick={modal.openCreate}>Add Section</BannerButton>}
+      actions={
+        <BannerButton
+          onClick={() => {
+            setEditRow(null)
+            setModalOpen(true)
+          }}
+        >
+          Add Section
+        </BannerButton>
+      }
     >
       <AdminDataPanel
         toolbar={
@@ -200,12 +207,14 @@ export default function SectionManagementTab() {
             onStatusChange={setStatus}
             extraFilters={
               <FilterSelect
-                value={sort}
-                onChange={setSort}
+                value={sortPreset}
+                onChange={setSortPreset}
                 label="Sort By"
                 includeAll={false}
-                options={SORT_OPTIONS.map((o) => o.value)}
-                optionLabels={Object.fromEntries(SORT_OPTIONS.map((o) => [o.value, o.label]))}
+                options={TEST_CONFIG_SECTION_SORT_OPTIONS.map((o) => o.value)}
+                optionLabels={Object.fromEntries(
+                  TEST_CONFIG_SECTION_SORT_OPTIONS.map((o) => [o.value, o.label]),
+                )}
               />
             }
           />
@@ -214,35 +223,53 @@ export default function SectionManagementTab() {
         <TestConfigDataTable
           columns={columns}
           data={rows}
-          loading={loading}
+          loading={tableLoading}
           emptyMessage="No sections found."
           itemLabel="sections"
-          resetDeps={[search, status, sort]}
+          controlledPagination={controlledPagination}
+          resetDeps={[search, status, sortPreset]}
           tableMinWidth={980}
         />
       </AdminDataPanel>
 
       <SectionConfigFormModal
-        open={modal.isOpen}
-        onClose={modal.close}
-        item={modal.selectedItem}
-        existingRows={rows}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setEditRow(null)
+        }}
+        item={formItem}
+        loading={editDetailLoading && Boolean(editRow)}
         onSubmit={handleSave}
+        saving={saving}
       />
 
-      <SectionViewModal open={Boolean(viewRow)} onClose={() => setViewRow(null)} row={viewRow} />
-
-      
+      <SectionViewModal
+        open={Boolean(viewRowId)}
+        onClose={() => setViewRowId(null)}
+        row={viewDetail}
+        loading={viewLoading}
+      />
 
       <ConfirmTestConfigStatusModal
         open={Boolean(statusTarget)}
-        entityLabel="Section"
         enabling={statusTarget?.status !== 'Active'}
-        loading={statusLoading}
-        onCancel={() => {
-          if (!statusLoading) setStatusTarget(null)
-        }}
+        loading={statusMutation.isPending}
+        onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete section?"
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete section "${displaySectionName(deleteTarget)}"? This action cannot be undone.`
+            : ''
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleteMutation.isPending}
       />
     </TestManagementPageShell>
   )

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import RouteErrorBoundary from '../components/feedback/RouteErrorBoundary'
 import NestedRouteRedirect from '../components/feedback/NestedRouteRedirect'
 import OmrRouteGuard from '../components/test-management/omr/OmrRouteGuard'
+import QuestionBankRouteGuard from '../components/questionBank/QuestionBankRouteGuard'
 import CbtTestRouteGuard from '../components/test-management/cbt-tests/CbtTestRouteGuard'
 import { TEST_MANAGEMENT_ROUTES } from '../constants/testManagementNav'
 import { lazyRoute } from '../routes/lazyRoute'
@@ -59,8 +60,8 @@ const CbtTopicDetailPage = lazyRoute(
   () => import('../pages/test-management/CbtTopicDetailPage'),
   'CBT topic detail',
 )
-const QuestionManagementPage = lazyRoute(
-  () => import('../pages/test-management/QuestionManagementPage'),
+const QuestionBankPage = lazyRoute(
+  () => import('../pages/testManagement/QuestionBankPage'),
   'Question bank',
 )
 const EvaluationOversightPage = lazyRoute(
@@ -196,7 +197,14 @@ export default function TestManagementLayout() {
                 path="mains/faculty/:subjectId/topic/:topicId/results/:testItemId"
                 element={<MainsEvaluationResultsPage />}
               />
-              <Route path="question-bank" element={<QuestionManagementPage />} />
+              <Route
+                path="question-bank"
+                element={
+                  <QuestionBankRouteGuard>
+                    <QuestionBankPage />
+                  </QuestionBankRouteGuard>
+                }
+              />
               <Route path="test-configuration" element={<TestConfigurationLayout />}>
                 <Route index element={<Navigate to="exam-pattern" replace />} />
                 <Route path="exam-pattern" element={<ExamPatternSectionPage />} />

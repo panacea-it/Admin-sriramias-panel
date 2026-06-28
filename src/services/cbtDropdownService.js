@@ -3,12 +3,14 @@ import {
   getCbtFacultyBySubjectId,
   getCbtTopics,
 } from '../utils/cbtTestSeriesHierarchy'
-import { SEED_EXAM_PATTERNS, SEED_LANGUAGES } from '../data/testConfigurationSeed'
+import { SEED_LANGUAGES } from '../data/testConfigurationSeed'
 import {
   CBT_CREATE_FORM_ENUMS,
   CBT_DROPDOWN_BATCHES,
   CBT_DROPDOWN_LANGUAGES,
 } from '../data/cbtPrelimsTestsSeed'
+import { getExamPatternDropdown } from './examPatternService'
+import { normalizeExamPatternDropdownResponse } from '../utils/examPatternApiHelpers'
 
 const DELAY_MS = 120
 
@@ -65,11 +67,13 @@ export const cbtDropdownService = {
   },
 
   async examPatterns() {
-    await delay()
+    const data = await getExamPatternDropdown()
+    const items = normalizeExamPatternDropdownResponse(data)
     return {
-      data: SEED_EXAM_PATTERNS.filter((row) => row.status === 'Active').map((row) => ({
-        value: row.id,
-        label: row.instructionDescription?.slice(0, 48) || row.id,
+      data: items.map((item) => ({
+        _id: item.id,
+        instructionId: item.instructionId,
+        instructionDescription: item.instructionDescription,
       })),
     }
   },

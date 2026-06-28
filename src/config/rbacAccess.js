@@ -33,6 +33,7 @@ const ROLE_ROUTE_PREFIXES = {
   [ROLES.OPERATION_ADMIN]: [
     '/dashboard',
     '/academics/batch',
+    '/academics/faculty-subjects',
     '/academics/subjects',
     '/courses',
     '/users/manage',

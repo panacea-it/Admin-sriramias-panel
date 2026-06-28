@@ -41,7 +41,7 @@ export const SIDEBAR_GROUPS = [
     icon: Bookmark,
     children: [
       { label: 'Batch', path: '/academics/batch', icon: BookOpen },
-      { label: 'Faculty Subjects', path: '/academics/subjects', icon: Layers3 },
+      { label: 'Faculty Subjects', path: '/academics/faculty-subjects', icon: Layers3 },
       ACADEMICS_LIVE_CLASSES_SUBMENU,
       ACADEMICS_CONTENT_LIBRARY_SUBMENU,
       { label: 'Free Resources', path: '/free-resources', icon: Gift },

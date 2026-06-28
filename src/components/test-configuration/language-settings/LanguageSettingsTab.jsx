@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Globe } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import TestManagementPageShell from '../../test-management/TestManagementPageShell'
@@ -6,15 +6,27 @@ import TestConfigDataTable from '../TestConfigDataTable'
 import TestConfigStatusBadge from '../TestConfigStatusBadge'
 import AdminDataPanel from '../../admin/AdminDataPanel'
 import { BannerButton } from '../../academics/AcademicsUi'
+import ConfirmDeleteDialog from '../../subjects/ConfirmDeleteDialog'
 import {
   LanguageSettingsTableActions,
   createTestConfigActionsColumn,
   testConfigStatusColumn,
 } from '../TestConfigTableActions'
 import ConfirmTestConfigStatusModal from '../ConfirmTestConfigStatusModal'
-import { useEditModal } from '../../../hooks/useEditModal'
-import { deleteLanguage, fetchLanguages, upsertLanguage } from '../../../api/testConfigurationAPI'
-import ConfigFilterToolbar from '../ConfigFilterToolbar'
+import { useTestConfigLanguageManagement } from '../../../hooks/useTestConfigLanguageManagement'
+import {
+  useCreateTestConfigLanguage,
+  useDeleteTestConfigLanguage,
+  useTestConfigLanguage,
+  useUpdateTestConfigLanguage,
+  useUpdateTestConfigLanguageStatus,
+} from '../../../hooks/useTestConfigLanguages'
+import {
+  buildCreateTestConfigLanguagePayload,
+  buildUpdateTestConfigLanguagePayload,
+  TEST_CONFIG_LANGUAGE_SORT_OPTIONS,
+} from '../../../utils/testConfigLanguageApiHelpers'
+import ConfigFilterToolbar, { FilterSelect } from '../ConfigFilterToolbar'
 import LanguageFormModal from './LanguageFormModal'
 import LanguageViewModal from './LanguageViewModal'
 
@@ -23,91 +35,103 @@ function displayDate(row, key) {
 }
 
 export default function LanguageSettingsTab() {
-  const modal = useEditModal()
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteRow, setDeleteRow] = useState(null)
-  const [deleting, setDeleting] = useState(false)
-  const [viewRow, setViewRow] = useState(null)
-  const [statusTarget, setStatusTarget] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
+  const {
+    rows,
+    tableLoading,
+    search,
+    setSearch,
+    status,
+    setStatus,
+    sortPreset,
+    setSortPreset,
+    controlledPagination,
+  } = useTestConfigLanguageManagement()
 
-  const reload = async () => {
-    setLoading(true)
-    try {
-      const list = await fetchLanguages({ search, status, sortBy: 'createdOn', sortDir: 'desc' })
-      setRows(list || [])
-    } catch (err) {
-      toast.error(err?.message || 'Failed to load languages')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const createMutation = useCreateTestConfigLanguage()
+  const updateMutation = useUpdateTestConfigLanguage()
+  const statusMutation = useUpdateTestConfigLanguageStatus()
+  const deleteMutation = useDeleteTestConfigLanguage()
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editRow, setEditRow] = useState(null)
+  const [viewRowId, setViewRowId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [statusTarget, setStatusTarget] = useState(null)
+
+  const editDetailId = modalOpen && editRow?.id ? editRow.id : null
+  const { data: editDetail, isLoading: editDetailLoading } = useTestConfigLanguage(editDetailId, {
+    enabled: Boolean(editDetailId),
+  })
+
+  const viewDetailId = viewRowId || null
+  const { data: viewDetail, isLoading: viewLoading } = useTestConfigLanguage(viewDetailId, {
+    enabled: Boolean(viewDetailId),
+  })
+
+  const handleView = useCallback((row) => {
+    setViewRowId(row.id)
+  }, [])
+
+  const handleEdit = useCallback((row) => {
+    setEditRow(row)
+    setModalOpen(true)
+  }, [])
 
   useEffect(() => {
-    reload()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status])
-
-  const handleSave = async (form, meta) => {
-    const saved = await upsertLanguage(form, meta)
-    setRows((prev) => {
-      if (meta.isEdit) {
-        return prev.map((r) => (String(r.id) === String(meta.id) ? { ...r, ...saved } : r))
-      }
-      return [saved, ...prev]
-    })
-  }
-
-  const handleDelete = async () => {
-    if (!deleteRow) return
-    setDeleting(true)
-    try {
-      await deleteLanguage(deleteRow.id)
-      setRows((prev) => prev.filter((r) => String(r.id) !== String(deleteRow.id)))
-      toast.success('Language deleted')
-      setDeleteOpen(false)
-      setDeleteRow(null)
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to delete language')
-    } finally {
-      setDeleting(false)
+    if (!modalOpen) {
+      setEditRow(null)
     }
+  }, [modalOpen])
+
+  const handleSave = async (form) => {
+    const isEdit = Boolean(editRow?.id)
+
+    if (isEdit) {
+      const response = await updateMutation.mutateAsync({
+        id: editRow.id,
+        payload: buildUpdateTestConfigLanguagePayload(form),
+      })
+      toast.success(response?.message || 'Language updated successfully')
+    } else {
+      const response = await createMutation.mutateAsync(buildCreateTestConfigLanguagePayload(form))
+      toast.success(response?.message || 'Language created successfully')
+    }
+    setModalOpen(false)
+    setEditRow(null)
   }
 
-  const confirmStatusChange = async () => {
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    try {
+      const response = await deleteMutation.mutateAsync(deleteTarget.id)
+      toast.success(response?.message || 'Language deleted successfully')
+      setDeleteTarget(null)
+    } catch {
+      // Error toast handled by mutation onError
+    }
+  }, [deleteTarget, deleteMutation])
+
+  const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
-    const enabling = statusTarget.status !== 'Active'
-    const nextStatus = enabling ? 'Active' : 'Deactivated'
+    const activating = statusTarget.status !== 'Active'
+    const nextApiStatus = activating ? 'ACTIVE' : 'INACTIVE'
 
-    setStatusLoading(true)
     try {
-      const saved = await upsertLanguage(
-        {
-          languageName: statusTarget.languageName,
-          status: nextStatus,
-        },
-        { id: statusTarget.id, isEdit: true },
-      )
-      setRows((prev) =>
-        prev.map((row) => (String(row.id) === String(statusTarget.id) ? { ...row, ...saved } : row)),
-      )
-      toast.success(enabling ? 'Language enabled' : 'Language disabled')
+      const response = await statusMutation.mutateAsync({
+        id: statusTarget.id,
+        status: nextApiStatus,
+      })
+      toast.success(response?.message || 'Language status updated')
       setStatusTarget(null)
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to update language status')
-    } finally {
-      setStatusLoading(false)
+    } catch {
+      // Error toast handled by mutation onError
     }
-  }
+  }, [statusTarget, statusMutation])
 
   const columns = useMemo(
     () => [
       {
-        key: 'id',
+        key: 'languageId',
         label: 'Language ID',
         headerClassName: 'pl-6 sm:pl-10',
         cellClassName: 'pl-6 sm:pl-10',
@@ -141,24 +165,33 @@ export default function LanguageSettingsTab() {
       createTestConfigActionsColumn((row) => (
         <LanguageSettingsTableActions
           row={row}
-          onView={() => setViewRow(row)}
-          onEdit={() => modal.openEdit(row)}
+          onView={() => handleView(row)}
+          onEdit={() => handleEdit(row)}
           onToggleStatus={() => setStatusTarget(row)}
-          onDelete={() => {
-            setDeleteRow(row)
-            setDeleteOpen(true)
-          }}
+          onDelete={() => setDeleteTarget(row)}
         />
       )),
     ],
-    [modal],
+    [handleView, handleEdit],
   )
+
+  const formItem = editDetail || editRow
+  const saving = createMutation.isPending || updateMutation.isPending
 
   return (
     <TestManagementPageShell
       icon={Globe}
       title="Language Settings"
-      actions={<BannerButton onClick={modal.openCreate}>Add Language</BannerButton>}
+      actions={
+        <BannerButton
+          onClick={() => {
+            setEditRow(null)
+            setModalOpen(true)
+          }}
+        >
+          Add Language
+        </BannerButton>
+      }
     >
       <AdminDataPanel
         toolbar={
@@ -168,41 +201,72 @@ export default function LanguageSettingsTab() {
             searchPlaceholder="Search by language name…"
             status={status}
             onStatusChange={setStatus}
+            extraFilters={
+              <FilterSelect
+                value={sortPreset}
+                onChange={setSortPreset}
+                label="Sort By"
+                includeAll={false}
+                options={TEST_CONFIG_LANGUAGE_SORT_OPTIONS.map((o) => o.value)}
+                optionLabels={Object.fromEntries(
+                  TEST_CONFIG_LANGUAGE_SORT_OPTIONS.map((o) => [o.value, o.label]),
+                )}
+              />
+            }
           />
         }
       >
         <TestConfigDataTable
           columns={columns}
           data={rows}
-          loading={loading}
+          loading={tableLoading}
           emptyMessage="No languages found."
           itemLabel="languages"
-          resetDeps={[search, status]}
+          controlledPagination={controlledPagination}
+          resetDeps={[search, status, sortPreset]}
           tableMinWidth={920}
         />
       </AdminDataPanel>
 
       <LanguageFormModal
-        open={modal.isOpen}
-        onClose={modal.close}
-        item={modal.selectedItem}
-        existingRows={rows}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setEditRow(null)
+        }}
+        item={formItem}
+        loading={editDetailLoading && Boolean(editRow)}
         onSubmit={handleSave}
+        saving={saving}
       />
 
-      <LanguageViewModal open={Boolean(viewRow)} onClose={() => setViewRow(null)} row={viewRow} />
-
-      
+      <LanguageViewModal
+        open={Boolean(viewRowId)}
+        onClose={() => setViewRowId(null)}
+        row={viewDetail}
+        loading={viewLoading}
+      />
 
       <ConfirmTestConfigStatusModal
         open={Boolean(statusTarget)}
         entityLabel="Language"
         enabling={statusTarget?.status !== 'Active'}
-        loading={statusLoading}
-        onCancel={() => {
-          if (!statusLoading) setStatusTarget(null)
-        }}
+        loading={statusMutation.isPending}
+        onCancel={() => setStatusTarget(null)}
         onConfirm={confirmStatusChange}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        title="Delete language?"
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete language "${deleteTarget.languageName}"? This action cannot be undone.`
+            : ''
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleteMutation.isPending}
       />
     </TestManagementPageShell>
   )

@@ -8,9 +8,17 @@ import OmrExamFormFields, {
 } from './OmrExamFormFields'
 import OmrTableSkeleton from './OmrTableSkeleton'
 import { getModalEditKey, useInitOnModalOpen } from '../../../hooks/modalFormSync'
-import { createOmrExam, getOmrExamById, updateOmrExam } from '../../../services/omrService'
-import { mapApiOmrExamToLocal } from '../../../utils/omrApiHelpers'
-import { getApiErrorMessage } from '../../../utils/apiError'
+import {
+  useCreateOmrExam,
+  useOmrExamDetail,
+  useUpdateOmrExam,
+  getOmrMutationErrorMessage,
+} from '../../../hooks/useOmrExams'
+import {
+  buildOmrExamApiPayload,
+  buildUpdateOmrExamPayload,
+  mapApiOmrExamToLocal,
+} from '../../../utils/omrApiHelpers'
 import { toast } from '../../../utils/toast'
 
 export default function OmrExamFormModal({ open, onClose, examId, onSuccess }) {
@@ -18,67 +26,62 @@ export default function OmrExamFormModal({ open, onClose, examId, onSuccess }) {
   const editKey = getModalEditKey(examId ? { id: examId } : null)
 
   const [form, setForm] = useState(buildOmrForm(null))
+  const [originalForm, setOriginalForm] = useState(null)
   const { errors, setErrors, validate } = useOmrExamFormValidation()
-  const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+
+  const createMutation = useCreateOmrExam()
+  const updateMutation = useUpdateOmrExam()
+  const { data: detail, isLoading: loading } = useOmrExamDetail(examId, {
+    enabled: open && isEdit,
+  })
 
   useInitOnModalOpen(open, editKey, () => {
     setErrors({})
     if (!isEdit) {
       setForm(buildOmrForm(null))
+      setOriginalForm(null)
     }
   })
 
   useEffect(() => {
-    if (!open || !examId) return undefined
+    if (!open || !isEdit || !detail) return
+    const mapped = mapApiOmrExamToLocal(detail) || detail
+    const nextForm = buildOmrForm(mapped)
+    setForm(nextForm)
+    setOriginalForm(nextForm)
+  }, [open, isEdit, detail])
 
-    let ignore = false
-    setLoading(true)
-    getOmrExamById(examId)
-      .then((data) => {
-        if (ignore) return
-        const mapped = mapApiOmrExamToLocal(data) || data
-        setForm(buildOmrForm(mapped))
-      })
-      .catch((err) => {
-        if (!ignore) {
-          toast.error(getApiErrorMessage(err, 'Failed to load OMR exam'))
-          onClose?.()
-        }
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [open, examId, onClose])
+  const submitting = createMutation.isPending || updateMutation.isPending
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate(form)) return
 
-    setSubmitting(true)
     try {
       if (isEdit) {
-        const updated = await updateOmrExam(examId, form)
-        const mapped = mapApiOmrExamToLocal(updated) || updated
-        toast.success('OMR exam updated')
+        const payload = buildUpdateOmrExamPayload(form, originalForm)
+        if (!Object.keys(payload).length) {
+          toast.error('Change at least one field before saving')
+          return
+        }
+        const response = await updateMutation.mutateAsync({ id: examId, payload })
+        const mapped = mapApiOmrExamToLocal(response) || mapApiOmrExamToLocal(response?.data)
+        toast.success(response?.message || 'OMR exam updated successfully')
         onSuccess?.(mapped)
       } else {
-        const created = await createOmrExam(form)
-        const mapped = mapApiOmrExamToLocal(created) || created
-        toast.success('OMR exam created')
+        const response = await createMutation.mutateAsync(buildOmrExamApiPayload(form))
+        const mapped = mapApiOmrExamToLocal(response) || mapApiOmrExamToLocal(response?.data)
+        toast.success(response?.message || 'OMR exam created successfully')
         onSuccess?.(mapped)
       }
       onClose?.()
     } catch (err) {
       toast.error(
-        getApiErrorMessage(err, isEdit ? 'Failed to update OMR exam' : 'Failed to create OMR exam'),
+        getOmrMutationErrorMessage(
+          err,
+          isEdit ? 'Failed to update OMR exam' : 'Failed to create OMR exam',
+        ),
       )
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -115,7 +118,7 @@ export default function OmrExamFormModal({ open, onClose, examId, onSuccess }) {
         />
 
         <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-          {loading ? (
+          {loading && isEdit ? (
             <OmrTableSkeleton />
           ) : (
             <OmrExamFormFields
@@ -139,7 +142,7 @@ export default function OmrExamFormModal({ open, onClose, examId, onSuccess }) {
           </button>
           <button
             type="submit"
-            disabled={submitting || loading}
+            disabled={submitting || (loading && isEdit)}
             className="inline-flex h-11 min-w-[120px] items-center justify-center rounded-xl bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 text-sm font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
           >
             {submitting ? (isEdit ? 'Updating…' : 'Saving…') : isEdit ? 'Update' : 'Save'}

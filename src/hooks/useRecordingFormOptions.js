@@ -1,24 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  getCentersDropdown,
   getAllTeachersDropdown,
   getRecordingTopicsDropdown,
   getRecordingsCreateForm,
-  postBatchesDropdown,
 } from '../api/recordingsAPI'
-import { isMongoObjectId } from '../utils/facultySubjectHelpers'
-import {
-  normalizeCentersDropdownResponse,
-  normalizeBatchesDropdownResponse,
-} from '../utils/liveClassHelpers'
+import { getCentersDropdown, getBatchDropdown } from '../services/recording.service'
+import { getFacultySubjectId } from '../utils/sessionStorage'
+import { normalizeBatchesDropdownResponse, normalizeCentersDropdownResponse } from '../utils/liveClassHelpers'
 import {
   normalizeRecordingsCreateFormResponse,
   normalizeTeachersDropdownResponse,
   normalizeTopicsDropdownResponse,
   resolveBatchMongoId,
-  resolveCenterOptionId,
 } from '../utils/recordingHelpers'
 import { withRateLimitRetry } from '../utils/rateLimitRetry'
+import { resolveCenterOptionId } from '../utils/recordingHelpers'
 
 export function useRecordingFormOptions({
   facultySubjectId,
@@ -31,24 +27,33 @@ export function useRecordingFormOptions({
   const [createFormDefaults, setCreateFormDefaults] = useState(null)
   const [teachers, setTeachers] = useState([])
   const [centers, setCenters] = useState([])
-  const [batches, setBatches] = useState([])
   const [topics, setTopics] = useState([])
   const [loadingCreateForm, setLoadingCreateForm] = useState(false)
   const [loadingTeachers, setLoadingTeachers] = useState(false)
   const [loadingCenters, setLoadingCenters] = useState(false)
+  const [centersError, setCentersError] = useState(null)
+  const [batches, setBatches] = useState([])
   const [loadingBatches, setLoadingBatches] = useState(false)
+  const [batchesError, setBatchesError] = useState(null)
+  const [batchesFetched, setBatchesFetched] = useState(false)
+  const [batchReloadToken, setBatchReloadToken] = useState(0)
   const [loadingTopics, setLoadingTopics] = useState(false)
 
-  const batchesRequestRef = useRef(0)
   const topicsRequestRef = useRef(0)
   const createFormRequestRef = useRef(0)
   const baseLoadedRef = useRef(false)
+  const centersRef = useRef([])
 
-  const resolvedSubjectId = isMongoObjectId(facultySubjectId)
-    ? String(facultySubjectId)
-    : ''
+  centersRef.current = centers
 
-  const resolvedCenterId = resolveCenterOptionId(centerId, centers)
+  const resolvedSubjectId = String(facultySubjectId || getFacultySubjectId() || '').trim()
+  const batchesEmpty =
+    Boolean(centerId) &&
+    Boolean(resolvedSubjectId) &&
+    batchesFetched &&
+    !loadingBatches &&
+    !batchesError &&
+    batches.length === 0
 
   const loadCreateFormDefaults = useCallback(async ({ signal } = {}) => {
     if (!resolvedSubjectId) return null
@@ -87,58 +92,31 @@ export function useRecordingFormOptions({
 
   const loadCenters = useCallback(async ({ signal } = {}) => {
     setLoadingCenters(true)
+    setCentersError(null)
     try {
       const data = await withRateLimitRetry(() => getCentersDropdown({ signal }))
       setCenters(normalizeCentersDropdownResponse(data))
     } catch {
-      if (!signal?.aborted) setCenters([])
+      if (!signal?.aborted) {
+        setCenters([])
+        setCentersError('Unable to load centers')
+      }
     } finally {
       if (!signal?.aborted) setLoadingCenters(false)
     }
   }, [])
-
-  const loadBatches = useCallback(
-    async (selectedCenterId, subjectId, { signal } = {}) => {
-      const requestId = ++batchesRequestRef.current
-      const resolvedCenter = resolveCenterOptionId(selectedCenterId, centers)
-
-      if (!resolvedCenter || !subjectId || !isMongoObjectId(subjectId)) {
-        if (requestId === batchesRequestRef.current) setBatches([])
-        return
-      }
-
-      setLoadingBatches(true)
-      try {
-        const data = await withRateLimitRetry(() =>
-          postBatchesDropdown({
-            facultySubjectId: subjectId,
-            centerId: resolvedCenter,
-            signal,
-          }),
-        )
-        if (requestId !== batchesRequestRef.current) return
-        setBatches(normalizeBatchesDropdownResponse(data))
-      } catch {
-        if (requestId !== batchesRequestRef.current) return
-        setBatches([])
-      } finally {
-        if (requestId === batchesRequestRef.current) {
-          setLoadingBatches(false)
-        }
-      }
-    },
-    [centers],
-  )
 
   const loadTopics = useCallback(
     async (selectedBatchId, subjectId, batchRows, { signal } = {}) => {
       const requestId = ++topicsRequestRef.current
       const mongoBatchId = resolveBatchMongoId(selectedBatchId, batchRows)
       const businessBatchId = batchRows.find(
-        (b) => String(b.id) === String(selectedBatchId) || String(b.batchId) === String(selectedBatchId),
+        (b) =>
+          String(b.id) === String(selectedBatchId) ||
+          String(b.batchId) === String(selectedBatchId),
       )?.batchId
 
-      if (!mongoBatchId || !subjectId || !isMongoObjectId(subjectId)) {
+      if (!mongoBatchId || !subjectId) {
         if (requestId === topicsRequestRef.current) setTopics([])
         return
       }
@@ -213,20 +191,75 @@ export function useRecordingFormOptions({
     loadCreateFormDefaults,
   ])
 
+  const loadBatchesForCenter = useCallback(
+    async (centerIdValue, { signal } = {}) => {
+      const selectedCenterId =
+        resolveCenterOptionId(centerIdValue, centersRef.current) ||
+        String(centerIdValue || '').trim()
+      const facultySubjectIdForApi = String(getFacultySubjectId() || resolvedSubjectId || '').trim()
+
+      if (!selectedCenterId || !facultySubjectIdForApi) {
+        setBatches([])
+        setBatchesFetched(false)
+        setBatchesError(null)
+        setLoadingBatches(false)
+        return
+      }
+
+      setBatches([])
+      setBatchesFetched(false)
+      setLoadingBatches(true)
+      setBatchesError(null)
+
+      try {
+        const data = await withRateLimitRetry(() =>
+          getBatchDropdown({
+            facultySubjectId: facultySubjectIdForApi,
+            centerId: selectedCenterId,
+            signal,
+          }),
+        )
+        if (signal?.aborted) return
+        setBatches(normalizeBatchesDropdownResponse(data))
+        setBatchesFetched(true)
+      } catch (error) {
+        if (signal?.aborted || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+          return
+        }
+        setBatches([])
+        setBatchesError('Unable to load batches')
+        setBatchesFetched(true)
+      } finally {
+        if (!signal?.aborted) {
+          setLoadingBatches(false)
+        }
+      }
+    },
+    [resolvedSubjectId],
+  )
+
   useEffect(() => {
     if (!enabled || !formOpen) {
       setBatches([])
       setLoadingBatches(false)
+      setBatchesError(null)
+      setBatchesFetched(false)
+      return undefined
+    }
+
+    const centerIdValue = String(centerId || '').trim()
+    if (!centerIdValue) {
+      setBatches([])
+      setLoadingBatches(false)
+      setBatchesError(null)
+      setBatchesFetched(false)
       return undefined
     }
 
     const controller = new AbortController()
-    loadBatches(centerId, resolvedSubjectId, { signal: controller.signal })
-    return () => {
-      controller.abort()
-      batchesRequestRef.current += 1
-    }
-  }, [enabled, formOpen, centerId, resolvedSubjectId, centers, loadBatches])
+    loadBatchesForCenter(centerIdValue, { signal: controller.signal })
+    return () => controller.abort()
+  }, [enabled, formOpen, centerId, batchReloadToken, loadBatchesForCenter])
 
   useEffect(() => {
     if (!enabled || !formOpen) {
@@ -240,13 +273,18 @@ export function useRecordingFormOptions({
       return undefined
     }
 
+    const facultySubjectIdForApi = String(getFacultySubjectId() || resolvedSubjectId || '').trim()
     const controller = new AbortController()
-    loadTopics(batchId, resolvedSubjectId, batches, { signal: controller.signal })
+    loadTopics(batchId, facultySubjectIdForApi, batches, { signal: controller.signal })
     return () => {
       controller.abort()
       topicsRequestRef.current += 1
     }
   }, [enabled, formOpen, batchId, resolvedSubjectId, batches, loadTopics])
+
+  const reloadBatches = useCallback(() => {
+    setBatchReloadToken((token) => token + 1)
+  }, [])
 
   return {
     createFormDefaults,
@@ -257,12 +295,16 @@ export function useRecordingFormOptions({
     loadingCreateForm,
     loadingTeachers,
     loadingCenters,
+    centersError,
     loadingBatches,
     loadingTopics,
+    batchesError,
+    batchesEmpty,
+    batchesFetched,
     reloadCreateForm: loadCreateFormDefaults,
     reloadTeachers: loadTeachers,
     reloadCenters: loadCenters,
-    reloadBatches: () => loadBatches(centerId, resolvedSubjectId),
+    reloadBatches,
     reloadTopics: () => loadTopics(batchId, resolvedSubjectId, batches),
   }
 }

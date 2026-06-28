@@ -29,11 +29,16 @@ export default function SubjectContentFormModal({
   onSave,
   saving = false,
   saveLabel = 'Save',
+  formId,
 }) {
+  const requestClose = () => {
+    if (!saving) onClose?.()
+  }
+
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => {
-      if (e.key === 'Escape' && !saving) onClose?.()
+      if (e.key === 'Escape') requestClose()
     }
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKey)
@@ -52,14 +57,12 @@ export default function SubjectContentFormModal({
           <motion.button
             type="button"
             aria-label="Close dialog"
-            className="fixed inset-0 bg-slate-900/55 backdrop-blur-md"
+            className="absolute inset-0 bg-slate-900/55 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            onClick={() => {
-              if (!saving) onClose?.()
-            }}
+            onClick={requestClose}
           />
           <motion.div
             role="dialog"
@@ -69,8 +72,9 @@ export default function SubjectContentFormModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 16 }}
             transition={{ duration: 0.28, ease: [0.21, 1.02, 0.48, 1] }}
+            onClick={(e) => e.stopPropagation()}
             className={cn(
-              'relative flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80',
+              'relative z-[1] flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80',
               'sm:max-h-[92dvh] sm:w-[90vw] sm:max-w-[min(100%,1400px)] sm:rounded-2xl',
               'lg:w-[85vw]',
             )}
@@ -85,9 +89,7 @@ export default function SubjectContentFormModal({
               </h2>
               <button
                 type="button"
-                onClick={() => {
-                  if (!saving) onClose?.()
-                }}
+                onClick={requestClose}
                 disabled={saving}
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1a3a5c] disabled:opacity-60"
                 aria-label="Close"
@@ -105,15 +107,16 @@ export default function SubjectContentFormModal({
             <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-3 border-t border-slate-200/80 bg-white/95 px-5 py-4 backdrop-blur-sm sm:px-6">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 disabled={saving}
                 className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={onSave}
+                type={formId ? 'submit' : 'button'}
+                form={formId || undefined}
+                onClick={formId ? undefined : onSave}
                 disabled={saving}
                 className="inline-flex h-11 min-w-[100px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.3)] transition hover:opacity-90 disabled:opacity-60"
               >

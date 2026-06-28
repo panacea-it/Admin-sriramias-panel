@@ -7,31 +7,30 @@ import OmrExamFormFields, {
   useOmrExamFormValidation,
 } from '../../../components/test-management/omr/OmrExamFormFields'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { createOmrExam } from '../../../services/omrService'
-import { getApiErrorMessage } from '../../../utils/apiError'
+import { useCreateOmrExam, getOmrMutationErrorMessage } from '../../../hooks/useOmrExams'
+import { buildOmrExamApiPayload } from '../../../utils/omrApiHelpers'
 import { toast } from '../../../utils/toast'
 
 export default function CreateOmrExamPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildOmrForm(null))
   const { errors, setErrors, validate } = useOmrExamFormValidation()
-  const [submitting, setSubmitting] = useState(false)
+  const createMutation = useCreateOmrExam()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate(form)) return
 
-    setSubmitting(true)
     try {
-      await createOmrExam(form)
-      toast.success('OMR exam created')
+      const response = await createMutation.mutateAsync(buildOmrExamApiPayload(form))
+      toast.success(response?.message || 'OMR exam created successfully')
       navigate(TEST_MANAGEMENT_ROUTES.omr)
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to create OMR exam'))
-    } finally {
-      setSubmitting(false)
+      toast.error(getOmrMutationErrorMessage(err, 'Failed to create OMR exam'))
     }
   }
+
+  const submitting = createMutation.isPending
 
   return (
     <TestManagementPageShell

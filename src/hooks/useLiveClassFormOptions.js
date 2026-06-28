@@ -1,57 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { postBatchesDropdown } from '../api/batchesAPI'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getCentersDropdown,
   getClassroomsDropdown,
 } from '../api/liveClassesHttpAPI'
-import { isMongoObjectId } from '../utils/facultySubjectHelpers'
 import {
-  normalizeBatchesDropdownResponse,
   normalizeCentersDropdownResponse,
   normalizeClassroomsDropdownResponse,
 } from '../utils/liveClassHelpers'
+import { useFacultySubjectBatchesDropdown } from './useFacultySubjectBatchesDropdown'
 
 export function useLiveClassFormOptions({
   centerId,
   facultySubjectId,
   enabled = true,
 } = {}) {
-  const [batches, setBatches] = useState([])
   const [centers, setCenters] = useState([])
   const [classrooms, setClassrooms] = useState([])
-  const [loadingBatches, setLoadingBatches] = useState(false)
   const [loadingCenters, setLoadingCenters] = useState(false)
   const [loadingClassrooms, setLoadingClassrooms] = useState(false)
-  const batchesRequestRef = useRef(0)
 
-  const loadBatches = useCallback(
-    async (selectedCenterId, subjectId, { signal } = {}) => {
-      const requestId = ++batchesRequestRef.current
-      if (!selectedCenterId || !subjectId || !isMongoObjectId(subjectId)) {
-        if (requestId === batchesRequestRef.current) setBatches([])
-        return
-      }
+  const resolvedSubjectId = String(facultySubjectId || '').trim()
 
-      setLoadingBatches(true)
-      try {
-        const data = await postBatchesDropdown({
-          facultySubjectId: subjectId,
-          centerId: selectedCenterId,
-          signal,
-        })
-        if (requestId !== batchesRequestRef.current) return
-        setBatches(normalizeBatchesDropdownResponse(data))
-      } catch {
-        if (requestId !== batchesRequestRef.current) return
-        setBatches([])
-      } finally {
-        if (requestId === batchesRequestRef.current) {
-          setLoadingBatches(false)
-        }
-      }
-    },
-    [],
-  )
+  const {
+    batches,
+    loading: loadingBatches,
+    error: batchesError,
+    isEmpty: batchesEmpty,
+    refetch: reloadBatches,
+  } = useFacultySubjectBatchesDropdown({
+    facultySubjectId: resolvedSubjectId,
+    centerId,
+    centerOptions: centers,
+    enabled: enabled && Boolean(resolvedSubjectId),
+    requireCenter: true,
+  })
 
   const loadCenters = useCallback(async ({ signal } = {}) => {
     setLoadingCenters(true)
@@ -82,21 +64,6 @@ export function useLiveClassFormOptions({
   }, [])
 
   useEffect(() => {
-    if (!enabled) {
-      setBatches([])
-      setLoadingBatches(false)
-      return undefined
-    }
-
-    const controller = new AbortController()
-    loadBatches(centerId, facultySubjectId, { signal: controller.signal })
-    return () => {
-      controller.abort()
-      batchesRequestRef.current += 1
-    }
-  }, [enabled, centerId, facultySubjectId, loadBatches])
-
-  useEffect(() => {
     if (!enabled) return undefined
     const controller = new AbortController()
     loadCenters({ signal: controller.signal })
@@ -117,7 +84,9 @@ export function useLiveClassFormOptions({
     loadingBatches,
     loadingCenters,
     loadingClassrooms,
-    reloadBatches: () => loadBatches(centerId, facultySubjectId),
+    batchesError,
+    batchesEmpty,
+    reloadBatches,
     reloadClassrooms: () => loadClassrooms(centerId),
   }
 }

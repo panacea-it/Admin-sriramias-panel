@@ -8,8 +8,12 @@ import OmrExamFormFields, {
 } from '../../../components/test-management/omr/OmrExamFormFields'
 import OmrTableSkeleton from '../../../components/test-management/omr/OmrTableSkeleton'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { getOmrExamById, updateOmrExam } from '../../../services/omrService'
-import { mapApiOmrExamToLocal } from '../../../utils/omrApiHelpers'
+import {
+  useOmrExamDetail,
+  useUpdateOmrExam,
+  getOmrMutationErrorMessage,
+} from '../../../hooks/useOmrExams'
+import { buildUpdateOmrExamPayload } from '../../../utils/omrApiHelpers'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
 
@@ -17,49 +21,46 @@ export default function EditOmrExamPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [form, setForm] = useState(buildOmrForm(null))
+  const [originalForm, setOriginalForm] = useState(null)
   const { errors, setErrors, validate } = useOmrExamFormValidation()
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
+
+  const { data: detail, isLoading: loading, error } = useOmrExamDetail(id, { enabled: Boolean(id) })
+  const updateMutation = useUpdateOmrExam()
 
   useEffect(() => {
-    let ignore = false
-    async function load() {
-      setLoading(true)
-      try {
-        const data = await getOmrExamById(id)
-        if (ignore) return
-        const mapped = mapApiOmrExamToLocal(data) || data
-        setForm(buildOmrForm(mapped))
-      } catch (err) {
-        if (!ignore) {
-          toast.error(getApiErrorMessage(err, 'Failed to load OMR exam'))
-          navigate(TEST_MANAGEMENT_ROUTES.omr)
-        }
-      } finally {
-        if (!ignore) setLoading(false)
-      }
+    if (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load OMR exam'))
+      navigate(TEST_MANAGEMENT_ROUTES.omr)
     }
-    load()
-    return () => {
-      ignore = true
-    }
-  }, [id, navigate])
+  }, [error, navigate])
+
+  useEffect(() => {
+    if (!detail) return
+    const nextForm = buildOmrForm(detail)
+    setForm(nextForm)
+    setOriginalForm(nextForm)
+  }, [detail])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate(form)) return
 
-    setSubmitting(true)
+    const payload = buildUpdateOmrExamPayload(form, originalForm)
+    if (!Object.keys(payload).length) {
+      toast.error('Change at least one field before saving')
+      return
+    }
+
     try {
-      await updateOmrExam(id, form)
-      toast.success('OMR exam updated')
+      const response = await updateMutation.mutateAsync({ id, payload })
+      toast.success(response?.message || 'OMR exam updated successfully')
       navigate(TEST_MANAGEMENT_ROUTES.omr)
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to update OMR exam'))
-    } finally {
-      setSubmitting(false)
+      toast.error(getOmrMutationErrorMessage(err, 'Failed to update OMR exam'))
     }
   }
+
+  const submitting = updateMutation.isPending
 
   return (
     <TestManagementPageShell

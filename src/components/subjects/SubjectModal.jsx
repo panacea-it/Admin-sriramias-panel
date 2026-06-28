@@ -10,7 +10,8 @@ import SubjectCourseDetailsSection from './SubjectCourseDetailsSection'
 import SubjectContentFields from './SubjectContentFields'
 import { FormFooter } from './subjectFormUi'
 import { useAuth } from '../../contexts/AuthContext'
-import { useBatchesData } from '../../hooks/useBatchesData'
+import { useLiveClassFormOptions } from '../../hooks/useLiveClassFormOptions'
+import { resolveFacultySubjectApiId } from '../../utils/liveClassHelpers'
 import { useFacultySubjectFormOptions } from '../../hooks/useFacultySubjectFormOptions'
 import {
   facultySubjectFormSchema,
@@ -84,7 +85,7 @@ export default function SubjectModal({
   const liveClassOnly = context === 'liveClass'
   const subjectOnly = context === 'subject'
   const useApiForm = subjectOnly && apiIntegrated
-  const { sourceRows: batches, loading: batchesLoading } = useBatchesData({ enabled: liveClassOnly })
+  const facultySubjectMongoId = resolveFacultySubjectApiId(subject, subject?.id)
   const [saving, setSaving] = useState(false)
   const [recordingUploadError, setRecordingUploadError] = useState(null)
   const [testSeriesErrors, setTestSeriesErrors] = useState({})
@@ -204,7 +205,22 @@ export default function SubjectModal({
 
   const watchedDate = watch('date')
   const watchedSubjectId = watch('subject')
+  const watchedCenterId = watch('centerId')
   const isRecurringEdit = isEdit && Boolean(liveClass?.recurrenceSeriesId)
+
+  const {
+    batches,
+    centers,
+    classrooms,
+    loadingBatches: batchesLoading,
+    loadingCenters: centersLoading,
+    loadingClassrooms: classroomsLoading,
+    batchesError,
+  } = useLiveClassFormOptions({
+    centerId: watchedCenterId,
+    facultySubjectId: facultySubjectMongoId,
+    enabled: liveClassOnly && open && Boolean(facultySubjectMongoId),
+  })
 
   const handleSubjectChange = (subjectId) => {
     const id = String(subjectId || '')
@@ -361,8 +377,20 @@ export default function SubjectModal({
                 subject={subject}
                 liveClass={liveClass}
                 subjects={subjects}
+                facultySubjectId={facultySubjectMongoId}
                 batches={batches}
                 batchesLoading={batchesLoading}
+                batchesError={batchesError}
+                centerOptions={centers}
+                centersLoading={centersLoading}
+                classroomOptions={classrooms}
+                classroomsLoading={classroomsLoading}
+                onCenterChange={() => {
+                  setValue('batchId', '', { shouldValidate: true })
+                  setValue('batchIds', [], { shouldValidate: true })
+                  setValue('classroomId', '', { shouldValidate: true })
+                  setValue('classRoom', '', { shouldValidate: true })
+                }}
                 recurring={recurring}
                 onRecurringToggle={handleRecurringToggle}
                 recurrence={recurrence}

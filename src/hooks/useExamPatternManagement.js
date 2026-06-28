@@ -1,66 +1,53 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from '@/utils/toast'
-import { getApiErrorMessage } from '../utils/apiError'
 import { useDebouncedValue } from './useDebouncedValue'
-import { getExamPatterns } from '../services/examPatternService'
-import {
-  mapExamPatternStatusFilterToApi,
-  normalizeExamPatternsListResponse,
-} from '../utils/examPatternApiHelpers'
+import { useExamPatterns } from './useExamPatterns'
+import { mapExamPatternStatusFilterToApi } from '../utils/examPatternApiHelpers'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const DEFAULT_PAGE_SIZE = 10
 const DEFAULT_SORT_PRESET = 'createdOn_newest'
 
 export function useExamPatternManagement() {
-  const [rows, setRows] = useState([])
-  const [tableLoading, setTableLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [sortPreset, setSortPreset] = useState(DEFAULT_SORT_PRESET)
   const debouncedSearch = useDebouncedValue(search, 500)
 
-  const fetchExamPatterns = useCallback(async () => {
-    setTableLoading(true)
-    try {
-      const apiStatus = mapExamPatternStatusFilterToApi(status)
-      const params = {
-        page,
-        limit: pageSize,
-        search: debouncedSearch.trim(),
-        sortPreset,
-      }
-      if (apiStatus) params.status = apiStatus
-
-      const data = await getExamPatterns(params)
-      const normalized = normalizeExamPatternsListResponse(data, { page, limit: pageSize })
-
-      setRows(normalized.items)
-      setTotalItems(normalized.total)
-      setTotalPages(normalized.totalPages)
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error(error)
-      }
-      toast.error(getApiErrorMessage(error, 'Failed to load instructions'))
-      setRows([])
-      setTotalItems(0)
-      setTotalPages(1)
-    } finally {
-      setTableLoading(false)
+  const listParams = useMemo(() => {
+    const apiStatus = mapExamPatternStatusFilterToApi(status)
+    /** @type {import('../types/examPattern.types').ExamPatternListParams} */
+    const params = {
+      page,
+      limit: pageSize,
+      search: debouncedSearch.trim(),
+      sortPreset,
     }
+    if (apiStatus) params.status = apiStatus
+    return params
   }, [page, pageSize, debouncedSearch, status, sortPreset])
 
-  useEffect(() => {
-    fetchExamPatterns()
-  }, [fetchExamPatterns])
+  const { data, isLoading, isFetching, error, refetch } = useExamPatterns(listParams)
 
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, status, sortPreset, pageSize])
+
+  useEffect(() => {
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error(error)
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to load instructions'))
+    }
+  }, [error])
+
+  const rows = data?.items ?? []
+  const totalItems = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
+  const tableLoading = isLoading || (isFetching && !data)
 
   const pagination = useMemo(() => {
     const safePage = Math.min(Math.max(1, page), totalPages)
@@ -94,6 +81,7 @@ export function useExamPatternManagement() {
   return {
     rows,
     tableLoading,
+    isFetching,
     search,
     setSearch,
     status,
@@ -101,6 +89,6 @@ export function useExamPatternManagement() {
     sortPreset,
     setSortPreset,
     controlledPagination,
-    refreshExamPatterns: fetchExamPatterns,
+    refreshExamPatterns: refetch,
   }
 }

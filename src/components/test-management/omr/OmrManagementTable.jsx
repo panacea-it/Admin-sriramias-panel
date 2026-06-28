@@ -3,37 +3,8 @@ import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { cn } from '../../../utils/cn'
 import { createActionsColumn } from '../../../utils/tableColumnHelpers'
-
-function StatusPill({ status }) {
-  const active = status === 'Active'
-  return (
-    <span
-      className={cn(
-        'inline-flex min-w-[92px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset',
-        active
-          ? 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25'
-          : 'bg-slate-200/80 text-slate-700 ring-slate-300/50',
-      )}
-    >
-      {active ? 'Active' : 'Deactivated'}
-    </span>
-  )
-}
-
-function ResultSheetPill({ value }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex min-w-[92px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset',
-        value
-          ? 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25'
-          : 'bg-slate-200/80 text-slate-700 ring-slate-300/50',
-      )}
-    >
-      {value ? 'Yes' : 'No'}
-    </span>
-  )
-}
+import OmrStatusBadge from './OmrStatusBadge'
+import { OmrYesNoBadge } from './OmrSortableHeader'
 
 function formatExamDate(value) {
   if (!value) return '—'
@@ -53,12 +24,14 @@ export default function OmrManagementTable({
   emptyMessage,
   emptyState,
   renderActions,
+  controlledPagination,
+  onRowClick,
 }) {
   const columns = useMemo(
     () => [
       {
         key: 'examName',
-        label: 'Name',
+        label: 'Exam Name',
         headerClassName: 'min-w-[180px]',
         cellClassName: 'min-w-[180px] align-middle',
         render: (row) => (
@@ -84,14 +57,14 @@ export default function OmrManagementTable({
         label: 'Status',
         headerClassName: 'min-w-[110px] whitespace-nowrap',
         cellClassName: 'min-w-[110px] align-middle',
-        render: (row) => <StatusPill status={row.status} />,
+        render: (row) => <OmrStatusBadge status={row.status} />,
       },
       {
         key: 'resultSheetUploaded',
         label: 'Result Sheet',
         headerClassName: 'min-w-[120px] whitespace-nowrap',
         cellClassName: 'min-w-[120px] align-middle',
-        render: (row) => <ResultSheetPill value={row.resultSheetUploaded} />,
+        render: (row) => <OmrYesNoBadge value={row.resultSheetUploaded} />,
       },
       {
         key: 'uploadDate',
@@ -100,25 +73,27 @@ export default function OmrManagementTable({
         cellClassName: 'min-w-[150px] whitespace-nowrap align-middle',
         render: (row) => (
           <span className="font-medium text-[#686868]">
-            {row.resultSheet?.uploadedAt
-              ? formatCategoryDateTime(row.resultSheet.uploadedAt)
+            {row.uploadDate || row.resultSheet?.uploadedAt
+              ? formatCategoryDateTime(row.uploadDate || row.resultSheet?.uploadedAt)
               : '—'}
           </span>
         ),
       },
       {
         key: 'createdAt',
-        label: 'Created Date',
+        label: 'Created',
         headerClassName: 'min-w-[150px] whitespace-nowrap',
         cellClassName: 'min-w-[150px] whitespace-nowrap align-middle',
         render: (row) => (
           <span className="font-medium text-[#686868]">
-            {row.createdAt ? formatCategoryDateTime(row.createdAt) : '—'}
+            {row.createdDate || row.createdAt
+              ? formatCategoryDateTime(row.createdDate || row.createdAt)
+              : '—'}
           </span>
         ),
       },
       createActionsColumn({
-        buttonCount: 2,
+        buttonCount: 3,
         align: 'right',
         render: (row) => renderActions(row),
       }),
@@ -138,7 +113,9 @@ export default function OmrManagementTable({
       resetDeps={resetDeps}
       density="comfortable"
       zebraStriping
-      rowClassName="hover:bg-[#eef6fc]/70"
+      rowClassName="hover:bg-[#eef6fc]/70 cursor-pointer"
+      onRowClick={onRowClick}
+      controlledPagination={controlledPagination}
       tableClassName="rounded-none border-0 shadow-none"
       tableMinWidth={960}
       paginationClassName={cn(

@@ -30,7 +30,10 @@ export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 export const SEARCH_DEBOUNCE_MS = 300
 
 export const FACULTY_SUBJECT_ROUTES = {
-  list: '/academics/subjects',
-  content: (id) => `/academics/subjects/${encodeURIComponent(id)}/content`,
-  detail: (id) => `/academics/subjects/${encodeURIComponent(id)}`,
+  list: '/academics/faculty-subjects',
+  legacyList: '/academics/subjects',
+  content: (id) => `/academics/faculty-subjects/${encodeURIComponent(id)}/content`,
+  legacyContent: (id) => `/academics/subjects/${encodeURIComponent(id)}/content`,
+  detail: (id) => `/academics/faculty-subjects/${encodeURIComponent(id)}`,
+  legacyDetail: (id) => `/academics/subjects/${encodeURIComponent(id)}`,
 }

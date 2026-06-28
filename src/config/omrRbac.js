@@ -13,13 +13,10 @@ export function canAccessOmrPermission(role, permission) {
 export function canAccessOmrRoute(role, pathname) {
   if (!pathname.startsWith(OMR_ROUTE_PREFIX)) return true
   if (roleHasFullAccess(role)) return true
-  if (!getOmrPermissionsForRole(role).includes(OMR_PERMS.VIEW)) return false
+  if (!canAccessOmrPermission(role, OMR_PERMS.VIEW)) return false
 
-  if (pathname.includes('/create')) {
-    return canAccessOmrPermission(role, OMR_PERMS.CREATE)
-  }
-  if (pathname.includes('/edit/')) {
-    return canAccessOmrPermission(role, OMR_PERMS.EDIT)
+  if (pathname.includes('/create') || pathname.includes('/edit/')) {
+    return roleHasFullAccess(role)
   }
   if (pathname.includes('/upload-results')) {
     return canAccessOmrPermission(role, OMR_PERMS.UPLOAD_RESULT)

@@ -36,8 +36,11 @@ export default function SubjectContentFields({
   subject,
   liveClass,
   subjects = [],
+  facultySubjectId = '',
   batches = [],
   batchesLoading = false,
+  batchesFetched = false,
+  batchesError = null,
   centerOptions = [],
   centersLoading = false,
   classroomOptions = [],
@@ -60,6 +63,7 @@ export default function SubjectContentFields({
   testSeriesErrors,
   recordingCenterOptions = [],
   recordingCentersLoading = false,
+  recordingCentersError = null,
   recordingTopicOptions = [],
   recordingTopicsLoading = false,
   recordingTeacherOptions = [],
@@ -83,11 +87,32 @@ export default function SubjectContentFields({
   const batchId = watch('batchId')
   const batchIds = watch('batchIds') || []
   const selectedCenterId = showRecording ? watchedRecordingCenterId : watchedCenterId
+  const noBatchesAvailable =
+    Boolean(selectedCenterId) &&
+    batchesFetched &&
+    !batchesLoading &&
+    !batchesError &&
+    batches.length === 0
+  const batchSelectDisabled =
+    !facultySubjectId ||
+    !selectedCenterId ||
+    batchesLoading ||
+    noBatchesAvailable ||
+    (showRecording ? recordingCentersLoading : centersLoading)
+
+  const batchEmptyHint = !facultySubjectId
+    ? 'Select a faculty subject first'
+    : !selectedCenterId
+      ? 'Select a center first'
+      : batchesLoading
+        ? 'Loading batches…'
+        : batchesError || (noBatchesAvailable ? 'No batches available' : 'Search and select batches…')
 
   const liveBatchField = (
     <BatchMultiSearchSelect
       batches={batches}
       loading={batchesLoading}
+      disabled={batchSelectDisabled}
       value={batchIds.length ? batchIds : batchId ? [batchId] : []}
       onChange={(ids) => {
         setValue('batchIds', ids, { shouldValidate: true, shouldDirty: true })
@@ -96,13 +121,7 @@ export default function SubjectContentFields({
       }}
       error={errors.batchIds?.message || errors.batchId?.message}
       required
-      emptyHint={
-        !selectedCenterId
-          ? 'Select a center first'
-          : batchesLoading
-            ? 'Loading batches…'
-            : 'No batches available'
-      }
+      emptyHint={batchEmptyHint}
     />
   )
 
@@ -308,6 +327,7 @@ export default function SubjectContentFields({
       <BatchMultiSearchSelect
         batches={batches}
         loading={batchesLoading}
+        disabled={batchSelectDisabled}
         value={batchIds}
         onChange={(ids) => {
           setValue('batchIds', ids, { shouldValidate: true, shouldDirty: true })
@@ -315,6 +335,8 @@ export default function SubjectContentFields({
         }}
         error={errors.batchIds?.message || errors.batchId?.message}
         required
+        label="Batches"
+        emptyHint={batchEmptyHint}
       />
     </div>
   )
@@ -367,7 +389,6 @@ export default function SubjectContentFields({
       {showRecording && (
         <section className="space-y-4">
           <SectionTitle>Recording Class Details</SectionTitle>
-          {batchBlock}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <FieldLabel required>Lesson Name</FieldLabel>
@@ -381,11 +402,26 @@ export default function SubjectContentFields({
                 name="recordingCenter"
                 error={errors.recordingCenter}
                 options={recordingCenterOptions}
-                placeholder={recordingCentersLoading ? 'Loading centers…' : 'Choose Center'}
-                disabled={recordingCentersLoading}
-                onChange={() => onRecordingCenterChange?.()}
+                placeholder={
+                  recordingCentersLoading
+                    ? 'Loading centers…'
+                    : recordingCentersError
+                      ? recordingCentersError
+                      : 'Choose Center'
+                }
+                disabled={recordingCentersLoading || Boolean(recordingCentersError)}
+                onChange={() => {
+                  setValue('batchId', '', { shouldValidate: true, shouldDirty: true })
+                  setValue('batchIds', [], { shouldValidate: true, shouldDirty: true })
+                  setValue('recordingTopic', '', { shouldValidate: true, shouldDirty: true })
+                  onRecordingCenterChange?.()
+                }}
               />
+              {recordingCentersError && !errors.recordingCenter ? (
+                <p className="mt-1 text-xs text-red-500">{recordingCentersError}</p>
+              ) : null}
             </div>
+            <div className="max-w-md">{liveBatchField}</div>
             <div>
               <FieldLabel required>Topic</FieldLabel>
               <FormSelect

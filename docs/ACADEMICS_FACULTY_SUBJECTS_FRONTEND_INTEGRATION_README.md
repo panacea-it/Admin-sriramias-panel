@@ -1,326 +1,166 @@
-# Academics → Faculty Subjects — Frontend Integration Guide
+# Academics → Faculty Subjects — Complete Frontend Integration Guide
 
-**Audience:** React + Vite frontend developers integrating the **Faculty Subjects** module in the LMS Admin Panel.
+**Audience:** Frontend engineers implementing the Super Admin **Faculty Subjects** section (list, CRUD, and child content tabs).
 
-**Backend module:** `FacultySubject` model · `facultySubjectController` · `facultySubjectRoutes`
+**Backend source of truth:** This document is derived entirely from the current backend implementation. Do not invent routes, payloads, or enums beyond what is documented here.
 
-**Base path:** `{VITE_API_BASE_URL}/api/faculty-subjects`
+**Base URL:** `{VITE_API_BASE_URL}/api`
 
-**Auth:** `Authorization: Bearer <token>` — **Super Admin only**
+**Authentication (all endpoints in this guide):** Super Admin — `Authorization: Bearer <JWT>`
 
-**Document status:** Official integration reference. Backend is the source of truth — do not change API contracts from the frontend.
+| Middleware | Applied on |
+|------------|------------|
+| `protect` + `requireSuperAdmin` | `/api/faculty-subjects`, `/api/subject-pdfs`, `/api/prelims-tests` |
+| `protect` + `requireSuperAdmin` (inside router) | `/api/mains-answer-writing` CMS routes only |
 
----
-
-## Critical naming distinction
-
-| Layer | Name | Notes |
-|-------|------|-------|
-| Admin navigation | **Academics → Faculty Subjects** | Product label in sidebar |
-| Backend model | **FacultySubject** | MongoDB collection `facultysubjects` |
-| Backend URL | `/api/faculty-subjects` | All CRUD + CMS helper routes |
-| Display code | `facultySubjectId` | Auto-generated, e.g. `FSU001` |
-| Master catalog | **Subject** (`/api/subjects`) | Dependency — not Faculty Subjects |
-| Instructor record | **Teacher** (`Teacher` model) | Form label "Faculty"; API field `teacherId` |
-| Marketing profiles | **Faculty** (`/api/centers/:id/faculty`) | **Different module — do not use here** |
-
-A **Faculty Subject** is **not** a Course. It links one master Subject + one Teacher + optional Topics + delivery categories. Batches reference Faculty Subjects via `Batch.facultySubjects[]`.
+**401:** Missing/invalid token — `{ success: false, message: "Not authorized, no token" }`  
+**403:** Authenticated but not Super Admin — `{ success: false, message: "Access denied. Super Admin only." }`
 
 ---
 
-## 1. Module Overview
+## Table of contents
 
-### What is Faculty Subjects?
+1. [Resource hierarchy](#1-resource-hierarchy)
+2. [Shared enums and constants](#2-shared-enums-and-constants)
+3. [Module 1 — Faculty Subjects](#3-module-1--faculty-subjects)
+4. [Module 2 — Subject Prelims Tests](#4-module-2--subject-prelims-tests)
+5. [Module 3 — Subject Mains Answer Writings](#5-module-3--subject-mains-answer-writings)
+6. [Module 4 — Subject PDFs](#6-module-4--subject-pdfs)
+7. [Frontend data flow](#7-frontend-data-flow)
+8. [Screen flow (Mermaid)](#8-screen-flow-mermaid)
+9. [API dependency flow](#9-api-dependency-flow)
+10. [Frontend folder structure](#10-frontend-folder-structure)
+11. [Service layer mapping](#11-service-layer-mapping)
+12. [React Query mapping](#12-react-query-mapping)
+13. [Axios integration](#13-axios-integration)
+14. [UI state flow](#14-ui-state-flow)
+15. [Validation reference](#15-validation-reference)
+16. [File uploads](#16-file-uploads)
+17. [Table integration](#17-table-integration)
+18. [Integration checklist](#18-integration-checklist)
 
-A **Faculty Subject** is a CMS content assignment that binds:
+---
 
-- One **master Subject** (`Subject._id`)
-- One **Teacher / Faculty** (`Teacher._id`)
-- Zero or more **Topics** (`Topic._id[]`) — must belong to the selected subject
-- One or more **delivery categories** — flags for enabled content modules
-- A display name (`subjectName`) — e.g. "Indian Polity – Dr Kumar"
-- Lifecycle **status**: `ACTIVE` | `INACTIVE`
-- Server-generated code (`facultySubjectId`, format `FSU001`, `FSU002`, …)
+## 1. Resource hierarchy
 
-### Why does it exist?
-
-| Business need | How Faculty Subjects solve it |
-|---------------|-------------------------------|
-| Same subject taught by different faculty | Separate row per teacher assignment |
-| Different delivery modes per assignment | `categories[]` controls which CMS tabs appear |
-| Batch composition | `Batch.facultySubjects[]` references Faculty Subject `_id` |
-| Content organization | Folders and items live under Faculty Subject + category |
-| Operational control | `INACTIVE` hides from dropdowns without deleting data |
-
-### How is it used in the LMS?
+Faculty Subjects are the **parent**. Child content is **not nested under `/api/faculty-subjects/:id/...`** — each child module has its own top-level route and references `facultySubjectId` + `folderId`.
 
 ```text
-Subject (master) + Teacher + Topics
-              ↓
-        FacultySubject  ← categories[] (LIVE_CLASS, RECORDING, …)
-              ↓
-   SubjectContentFolder (per category)
-              ↓
-   Content items (Live Class, Recording, PDF, Prelims Test, Mains AW)
-              ↓
-        Batch.facultySubjects[] → student enrollment
+FacultySubject (_id, facultySubjectId)
+├── categories[]  → enables content tabs (PRELIMS_TEST, MAINS_ANSWER_WRITING, PDF, …)
+├── SubjectContentFolder (per category)  → folderId
+│   ├── SubjectPrelimsTest      → facultySubjectId + folderId + batchIds[]
+│   ├── SubjectMainsAnswerWriting → facultySubjectId + folderId + batchIds[] + topicId?
+│   └── SubjectPdf              → facultySubjectId + folderId + batchIds[]
+└── Batch.facultySubjects[]     → link enforced on create; blocks hard delete if linked
 ```
 
-### Navigation
+**Category → tab mapping**
 
-```text
-Admin Panel
-└── Academics
-    ├── Batch                          ← consumes Faculty Subjects via dropdown
-    ├── Faculty Subjects               ← THIS MODULE
-    ├── Live Classes / Recordings / …  ← content modules scoped by Faculty Subject
-    └── Categories
-        ├── Subject                    ← master catalog (form dependency)
-        ├── Topic                      ← form dependency
-        └── Faculty                    ← Teacher records (form dependency)
-```
+| Category value | Admin tab | Child API base |
+|----------------|-----------|----------------|
+| `PRELIMS_TEST` | Prelims Tests | `/api/prelims-tests` |
+| `MAINS_ANSWER_WRITING` | Mains Answer Writing | `/api/mains-answer-writing` |
+| `PDF` | PDFs | `/api/subject-pdfs` |
 
-**Suggested frontend route:** `/academics/faculty-subjects` or `/academics/subjects` (match existing admin routing).
+A faculty subject must include the relevant category in `categories[]` before child content can be created for that tab.
 
-### Delivery categories (`categories[]`)
+**Supporting APIs (referenced by create forms, not owned by this module)**
 
-| API value | UI label | Purpose |
-|-----------|----------|---------|
-| `LIVE_CLASS` | Live Class | Live class CMS under this assignment |
-| `RECORDING` | Recording | Recorded sessions |
-| `PRELIMS_TEST` | Prelims Test | CBT / prelims tests |
-| `MAINS_ANSWER_WRITING` | Mains Answer Writing | Mains answer writing content |
-| `PDF` | PDF | PDF resources |
-
-Legacy stored value `TEST` is auto-mapped to `PRELIMS_TEST` on save via `normalizeFacultyCategories()`.
-
-### Data hierarchy
-
-```mermaid
-flowchart TB
-  subgraph masters [Content Masters]
-    S[Subject]
-    T[Topic]
-    TE[Teacher]
-  end
-  subgraph bridge [Faculty Subjects Module]
-    FS[FacultySubject]
-  end
-  subgraph erp [Academic ERP]
-    B[Batch]
-  end
-  S --> FS
-  TE --> FS
-  T --> FS
-  FS --> B
-```
+| Purpose | Route |
+|---------|-------|
+| Content folders list | `GET /api/folders?facultySubjectId={id}&category={CATEGORY}` |
+| Create folder | `POST /api/faculty-subjects/content/folders` |
+| Batch picker | `POST /api/batches/dropdown` body `{ facultySubjectId }` |
+| Test languages | `POST /api/test-configuration/languages/dropdown` |
+| Exam patterns | `POST /api/test-configuration/exam-patterns/dropdown` |
 
 ---
 
-## 2. User Flow
+## 2. Shared enums and constants
 
-Complete frontend journey from page open through CRUD:
+### Faculty subject categories (`categories[]`)
 
-```text
-Super Admin logs in (POST /api/auth/login-super-admin)
-        ↓
-Opens sidebar → Academics → Faculty Subjects
-        ↓
-Page mounts — parallel prefetch (optional):
-  GET /api/faculty-subjects/categories
-        ↓
-List hook fires:
-  GET /api/faculty-subjects?page=1&limit=10&sortBy=createdAt&sortOrder=desc
-        ↓
-Table renders rows (or skeleton while loading)
-        ↓
-[Search] User types in search box (debounce ~300ms)
-        ↓
-Refetch with ?search=<term>  (also accepts ?q=)
-        ↓
-[Filter] User selects Status and/or Category
-        ↓
-Refetch with ?status=ACTIVE&category=LIVE_CLASS
-        ↓
-[Pagination] User changes page or page size
-        ↓
-Refetch with ?page=2&limit=25
-        ↓
-[Sort] User clicks column header
-        ↓
-Refetch with ?sortBy=subjectName&sortOrder=asc
-        ↓
-[Add] User clicks "Add Faculty Subject"
-        ↓
-Modal opens → GET /api/faculty-subjects/create-form
-        ↓
-User selects master Subject
-        ↓
-GET /api/faculty-subjects/create-form?subjectId=<id>
-  → loads topics[] + teachers[] for that subject
-        ↓
-User fills subjectName, topics, teacher, categories, status
-        ↓
-POST /api/faculty-subjects
-        ↓
-Toast success → invalidate list cache → table refreshes
-        ↓
-[View] User clicks View on row
-        ↓
-GET /api/faculty-subjects/:id (if row not fully hydrated)
-        ↓
-Read-only detail modal / drawer
-        ↓
-[Edit] User clicks Edit
-        ↓
-Populate form from row or GET /api/faculty-subjects/:id
-        ↓
-Reload create-form for selected subject (topics + teachers)
-        ↓
-PUT /api/faculty-subjects/:id
-        ↓
-Toast success → invalidate cache → table refreshes
-        ↓
-[Status] User toggles Active / Inactive
-        ↓
-PATCH /api/faculty-subjects/status/:id { "status": "INACTIVE" }
-        ↓
-Toast success → table refreshes
-        ↓
-[Delete] User confirms delete
-        ↓
-DELETE /api/faculty-subjects/:id
-        ↓
-200 → toast + refresh
-409 → toast: linked to N batch(es) — cannot delete
-        ↓
-[Manage Content] User navigates to content CMS
-        ↓
-GET /api/faculty-subjects/:id/content-tree
-  → left nav grouped by category + folders
+`LIVE_CLASS` | `RECORDING` | `PRELIMS_TEST` | `MAINS_ANSWER_WRITING` | `PDF`
+
+Legacy alias: `TEST` → normalized to `PRELIMS_TEST`.
+
+### Faculty subject status
+
+`ACTIVE` | `INACTIVE`
+
+### Publish status (Prelims Tests & Mains Answer Writing)
+
+`DRAFT` | `PUBLISHED` | `UNPUBLISHED`
+
+### PDF visibility (Subject PDFs)
+
+`VISIBILITY` | `PUBLISHED` | `DRAFT` | `PRIVATE`
+
+### Pagination (all list endpoints)
+
+| Param | Default | Range |
+|-------|---------|-------|
+| `page` | `1` | ≥ 1 |
+| `limit` | `10` | 1–100 (dropdown: up to 200) |
+| `sortBy` | `createdAt` | Per-endpoint allowed fields |
+| `sortOrder` | `desc` | `asc` or `desc` |
+
+### Batch IDs in requests
+
+Accept either:
+
+- `batchIds`: array of Mongo `_id` strings, **or**
+- `batchId`: single Mongo `_id` string
+
+At least one batch is required on create for all child resources.
+
+### Structured validation errors (child modules)
+
+CMS child modules return structured 400/404 bodies:
+
+```json
+{
+  "success": false,
+  "errorCode": "FACULTY_SUBJECT_NOT_ACTIVE",
+  "message": "Invalid or inactive faculty subject",
+  "reason": "...",
+  "field": "facultySubjectId",
+  "httpStatus": 400,
+  "suggestions": ["..."]
+}
 ```
 
-**Note:** There is **no bulk delete** or **bulk status** endpoint. Bulk UI must loop individual `PATCH` / `DELETE` calls or be omitted.
+Faculty Subject CRUD uses simpler `{ success: false, message: "..." }` for most 400s.
 
 ---
 
-## 3. Folder Structure (Frontend)
+## 3. Module 1 — Faculty Subjects
 
-Recommended React + Vite module layout:
+**Base route:** `/api/faculty-subjects`  
+**Mount:** `app.use('/api/faculty-subjects', ...superAdminAuth, facultySubjectRoutes)`
 
-```text
-src/
-├── modules/
-│   └── academics/
-│       └── facultySubjects/
-│           ├── components/
-│           │   ├── FacultySubjectsTable.tsx
-│           │   ├── FacultySubjectFilters.tsx
-│           │   ├── FacultySubjectModal.tsx
-│           │   ├── FacultySubjectForm.tsx
-│           │   ├── FacultySubjectDeleteDialog.tsx
-│           │   ├── FacultySubjectDetails.tsx
-│           │   ├── FacultySubjectStatusBadge.tsx
-│           │   ├── FacultySubjectActions.tsx
-│           │   └── FacultySubjectEmptyState.tsx
-│           ├── pages/
-│           │   ├── FacultySubjectsPage.tsx
-│           │   └── FacultySubjectContentPage.tsx   ← optional CMS shell
-│           ├── hooks/
-│           │   ├── useFacultySubjects.ts
-│           │   ├── useFacultySubject.ts
-│           │   ├── useFacultySubjectManagement.ts
-│           │   ├── useFacultySubjectFormOptions.ts
-│           │   ├── useCreateFacultySubject.ts
-│           │   ├── useUpdateFacultySubject.ts
-│           │   ├── useDeleteFacultySubject.ts
-│           │   └── useToggleFacultySubjectStatus.ts
-│           ├── services/
-│           │   └── facultySubjectService.ts
-│           ├── types/
-│           │   └── facultySubject.types.ts
-│           ├── utils/
-│           │   └── facultySubjectHelpers.ts
-│           ├── constants/
-│           │   └── facultySubject.constants.ts
-│           └── validators/
-│               └── facultySubject.schema.ts
-├── services/
-│   └── api.ts                          ← shared Axios instance
-└── hooks/
-    └── queryKeys.ts                    ← facultySubjectKeys
-```
+### 3.1 GET `/api/faculty-subjects` — List
 
-| Folder | Responsibility |
-|--------|----------------|
-| `components/` | Presentational UI — table, filters, modals, badges. No direct HTTP. |
-| `pages/` | Route entry — orchestrates hooks and modals. |
-| `hooks/` | TanStack Query wrappers, list management, form option loading. |
-| `services/` | Pure HTTP functions — one function per backend endpoint. |
-| `types/` | TypeScript interfaces for API payloads, table rows, filters. |
-| `utils/` | Mappers (`mapApiToRow`), payload builders, formatters. |
-| `constants/` | Status enums, sort fields, column defs, UI copy. |
-| `validators/` | Zod/Yup schemas mirroring backend validation rules. |
-
----
-
-## 4. API Inventory
-
-All routes mount at `app.use('/api/faculty-subjects', ...superAdminAuth, facultySubjectRoutes)`.
-
-Middleware chain: `protect` → `requireSuperAdmin`.
-
-### Summary table
-
-| # | Method | Endpoint | Purpose |
-|---|--------|----------|---------|
-| 1 | `GET` | `/api/faculty-subjects/create-form` | Form dropdowns (subjects; topics + teachers when `subjectId` set) |
-| 2 | `GET` | `/api/faculty-subjects/categories` | Delivery category options for multi-select |
-| 3 | `GET` | `/api/faculty-subjects/dropdown` | Lightweight picker list |
-| 4 | `POST` | `/api/faculty-subjects/dropdown` | Same as GET — params in body |
-| 5 | `GET` | `/api/faculty-subjects/summary/:id` | Lightweight single record |
-| 6 | `GET` | `/api/faculty-subjects/:id/content-tree` | CMS left-nav folder tree by category |
-| 7 | `POST` | `/api/faculty-subjects/content/categories` | List folder content for a category |
-| 8 | `POST` | `/api/faculty-subjects/content/folders` | Create content folder |
-| 9 | `PUT` | `/api/faculty-subjects/content/folders/:id` | Update content folder |
-| 10 | `PATCH` | `/api/faculty-subjects/status/:id` | Update status only |
-| 11 | `POST` | `/api/faculty-subjects` | Create faculty subject |
-| 12 | `GET` | `/api/faculty-subjects` | Paginated list with search, filter, sort |
-| 13 | `GET` | `/api/faculty-subjects/:id` | Full detail by MongoDB `_id` |
-| 14 | `PUT` | `/api/faculty-subjects/:id` | Update faculty subject |
-| 15 | `DELETE` | `/api/faculty-subjects/:id` | Hard delete (cascade) |
-
-**Auth login (prerequisite):**
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `POST` | `/api/auth/login-super-admin` | Obtain JWT for Super Admin |
-
----
-
-### 4.1 GET `/api/faculty-subjects` — List
-
-| Property | Value |
-|----------|-------|
-| **Purpose** | Paginated list with search, status filter, category filter, sorting |
-| **Authentication** | Required — Bearer token |
-| **Permission** | Super Admin only |
-
-**Headers:** `Authorization: Bearer <token>`
+| | |
+|---|---|
+| **Method** | GET |
+| **Auth** | Super Admin, Bearer token |
+| **Content-Type** | `application/json` |
 
 **Query parameters**
 
-| Param | Type | Required | Default | Validation |
-|-------|------|----------|---------|------------|
-| `search` | string | No | `""` | Case-insensitive regex on `subjectName`. Alias: `q` |
-| `status` | string | No | — | `ACTIVE` or `INACTIVE` |
-| `category` | string | No | — | Must match a `FACULTY_CATEGORIES` value (uppercased server-side) |
-| `page` | number | No | `1` | Integer ≥ 1 |
-| `limit` | number | No | `10` | Integer 1–100 |
-| `sortBy` | string | No | `createdAt` | One of: `createdAt`, `subjectName`, `facultySubjectId`, `status` |
-| `sortOrder` | string | No | `desc` | `asc` or `desc` |
+| Param | Required | Description |
+|-------|----------|-------------|
+| `search` / `q` | No | Case-insensitive regex on `subjectName` |
+| `status` | No | `ACTIVE` or `INACTIVE` |
+| `category` | No | Filter subjects that include this delivery category |
+| `page` | No | Default `1` |
+| `limit` | No | Default `10`, max `100` |
+| `sortBy` | No | `createdAt`, `subjectName`, `facultySubjectId`, `status` |
+| `sortOrder` | No | `asc` or `desc` |
 
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
@@ -332,184 +172,158 @@ Middleware chain: `protect` → `requireSuperAdmin`.
   "count": 10,
   "data": [
     {
-      "_id": "674a1b2c3d4e5f6789012345",
+      "_id": "665a1b2c3d4e5f6789012345",
       "facultySubjectId": "FSU001",
-      "subjectName": "Indian Polity – Live & Test",
-      "subject": "674a1b2c3d4e5f6789012340",
-      "teacher": "674a1b2c3d4e5f6789012341",
+      "subjectName": "Polity — Dr. Sharma",
+      "subject": "665a00000000000000000001",
+      "teacher": "665a00000000000000000002",
       "teacherDetails": {
-        "_id": "674a1b2c3d4e5f6789012341",
+        "_id": "665a00000000000000000002",
         "teacherId": "TCH001",
-        "teacherName": "Dr Rajesh Kumar",
-        "centerId": "674a1b2c3d4e5f6789012342"
+        "teacherName": "Dr. Sharma",
+        "centerId": "665a00000000000000000003"
       },
       "topics": [
-        { "_id": "674a1b2c3d4e5f6789012343", "topicId": "TOP001", "topicName": "Fundamental Rights" }
+        { "_id": "665a00000000000000000004", "topicId": "TOP001", "topicName": "Constitution" }
       ],
-      "categories": ["LIVE_CLASS", "PRELIMS_TEST"],
+      "categories": ["PRELIMS_TEST", "PDF"],
       "status": "ACTIVE",
-      "createdAt": "2026-06-26T10:00:00.000Z",
-      "updatedAt": "2026-06-26T10:00:00.000Z"
+      "createdAt": "2026-01-15T10:00:00.000Z",
+      "updatedAt": "2026-01-15T10:00:00.000Z"
     }
   ]
 }
 ```
 
-**Errors:** `401`, `403`, `500`
-
-**Frontend usage:** Primary table data source. Refetch on search/filter/pagination/sort change.
-
-**Loading:** Show table skeleton. **Error:** Banner + retry. **Success:** Render rows + pagination footer.
-
 ---
 
-### 4.2 GET `/api/faculty-subjects/:id` — Detail
+### 3.2 POST `/api/faculty-subjects` — Create
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Full record for view/edit forms |
-| **Path param** | `:id` — MongoDB ObjectId of FacultySubject |
-
-**Success — `200 OK`:** `{ "success": true, "data": { ...formatFacultySubject } }`
-
-**Errors:** `404` FacultySubject not found · `401` · `403` · `500`
-
-**When to call:** Edit modal if list row lacks populated topics/categories; view detail drawer.
-
----
-
-### 4.3 POST `/api/faculty-subjects` — Create
-
-| Property | Value |
-|----------|-------|
-| **Purpose** | Create a new faculty subject |
+| | |
+|---|---|
+| **Method** | POST |
 | **Content-Type** | `application/json` |
 
 **Request body**
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `subjectName` | string | **Yes** | Trimmed, non-empty |
-| `subjectId` | string | **Yes** | Valid ObjectId; ACTIVE, non-deleted Subject |
-| `teacherId` | string | **Yes** | Valid ObjectId; ACTIVE, non-deleted Teacher |
-| `topicIds` | string[] | No | Each valid ObjectId; must belong to selected subject; ACTIVE |
-| `categories` | string[] | **Yes** | Min 1; allowed enum values (legacy `TEST` → `PRELIMS_TEST`) |
-| `status` | string | No | `ACTIVE` (default) or `INACTIVE` |
+| Field | Required | Type | Validation |
+|-------|----------|------|------------|
+| `subjectName` | Yes | string | Non-empty trim |
+| `subjectId` | Yes | ObjectId | Active, non-deleted Subject |
+| `teacherId` | Yes | ObjectId | Active, non-deleted Teacher |
+| `topicIds` | No | ObjectId[] | Each topic active and belongs to `subjectId` |
+| `categories` | Yes | string[] | At least one valid category |
+| `status` | No | string | `ACTIVE` (default) or `INACTIVE` |
 
-**Success — `201 Created`**
+**Example**
+
+```json
+{
+  "subjectName": "Polity — Dr. Sharma",
+  "subjectId": "665a00000000000000000001",
+  "teacherId": "665a00000000000000000002",
+  "topicIds": ["665a00000000000000000004"],
+  "categories": ["PRELIMS_TEST", "MAINS_ANSWER_WRITING", "PDF"],
+  "status": "ACTIVE"
+}
+```
+
+**Response `201`**
 
 ```json
 {
   "success": true,
   "message": "FacultySubject created successfully",
-  "data": { "...full formatted record..." }
+  "data": { /* same shape as list item */ }
 }
 ```
 
-**Errors — `400`:** Validation messages (see §10). **`500`:** Server error.
-
-**Dependencies:** Call `GET /create-form` and `GET /categories` before showing form.
+`facultySubjectId` (e.g. `FSU001`) is auto-generated server-side.
 
 ---
 
-### 4.4 PUT `/api/faculty-subjects/:id` — Update
+### 3.3 GET `/api/faculty-subjects/:id` — Get by ID
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Partial or full update |
-| **Path param** | `:id` — MongoDB ObjectId |
+**Path param:** `id` — FacultySubject Mongo `_id`
 
-**Request body** (all optional — omitted fields retain existing values)
-
-| Field | Type | Validation |
-|-------|------|------------|
-| `subjectName` | string | Same as create |
-| `subjectId` | string | Same as create |
-| `teacherId` | string | Same as create |
-| `topicIds` | string[] | Same as create |
-| `categories` | string[] | Same as create |
-| `status` | string | `ACTIVE` or `INACTIVE` |
-
-**Success — `200 OK`:** `{ "success": true, "message": "FacultySubject updated successfully", "data": {...} }`
-
-**Errors:** `400`, `404`, `401`, `403`, `500`
+**Response `200`:** `{ success: true, data: { /* full faculty subject */ } }`  
+**Response `404`:** `{ success: false, message: "FacultySubject not found" }`
 
 ---
 
-### 4.5 PATCH `/api/faculty-subjects/status/:id` — Status Update
+### 3.4 PUT `/api/faculty-subjects/:id` — Update
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Toggle Active / Inactive without full edit |
+Partial update supported — only send changed fields.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `subjectName` | No | Non-empty if sent |
+| `subjectId` | No | Re-validates subject |
+| `teacherId` | No | Re-validates teacher |
+| `topicIds` | No | Replaces entire topics array |
+| `categories` | No | Re-validates categories |
+| `status` | No | `ACTIVE` or `INACTIVE` |
+
+**Response `200`:** `{ success: true, message: "FacultySubject updated successfully", data: { ... } }`
+
+---
+
+### 3.5 PATCH `/api/faculty-subjects/status/:id` — Update status only
 
 **Request body**
 
-| Field | Type | Required |
-|-------|------|----------|
-| `status` | string | **Yes** — `ACTIVE` or `INACTIVE` |
+```json
+{ "status": "INACTIVE" }
+```
 
-**Success — `200 OK`:** `{ "success": true, "message": "FacultySubject status updated", "data": {...} }`
+Must be exactly `ACTIVE` or `INACTIVE`.
 
-**Errors:** `400` invalid status · `404` not found
-
-**Frontend:** Status toggle, bulk enable/disable (loop per id — no bulk endpoint).
+**Response `200`:** `{ success: true, message: "FacultySubject status updated", data: { ... } }`
 
 ---
 
-### 4.6 DELETE `/api/faculty-subjects/:id` — Delete
+### 3.6 DELETE `/api/faculty-subjects/:id` — Hard delete (cascade)
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | **Hard delete** with cascade (folders, live classes, recordings, tests, PDFs, etc.) |
-| **Path param** | `:id` — MongoDB ObjectId |
+Permanently deletes the faculty subject and **all** linked content (folders, prelims tests, mains entries, PDFs, live classes, recordings, submissions, etc.).
 
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
   "success": true,
   "message": "FacultySubject permanently deleted",
-  "data": {
-    "_id": "...",
-    "facultySubjectId": "FSU001",
-    "subjectName": "Indian Polity – Live & Test"
-  }
+  "data": { "_id": "...", "facultySubjectId": "FSU001", "subjectName": "..." }
 }
 ```
 
-**Errors**
+**Response `409`** — linked to batches:
 
-| Code | Message pattern |
-|------|-----------------|
-| `404` | FacultySubject not found |
-| `409` | `Cannot delete faculty subject linked to N batch(es). Remove it from batches first.` |
-
-**Frontend:** Show backend `message` on 409. Do not auto-retry.
+```json
+{
+  "success": false,
+  "message": "Cannot delete faculty subject linked to 3 batch(es). Remove it from batches first."
+}
+```
 
 ---
 
-### 4.7 GET `/api/faculty-subjects/create-form` — Form Dropdowns
-
-| Property | Value |
-|----------|-------|
-| **Purpose** | Single endpoint for create/edit dependent dropdowns |
+### 3.7 GET `/api/faculty-subjects/create-form` — Create/edit form dropdowns
 
 **Query parameters**
 
-| Param | Required | Effect |
-|-------|----------|--------|
-| *(none)* | — | Returns `subjects[]` only |
-| `subjectId` | No | Also returns `topics[]`, `teachers[]`, `selectedSubject` |
-| `centerId` | No | When set with `subjectId`, filters teachers by center |
+| Param | Required | Behavior |
+|-------|----------|----------|
+| `subjectId` | No | Without: returns `subjects` only. With: adds `topics`, `teachers`, `selectedSubject` |
+| `centerId` | No | When `subjectId` set, filters teachers by center |
 
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
   "success": true,
   "message": "Form options loaded (subjects)",
   "data": {
-    "subjects": [{ "_id": "...", "subjectId": "SUB001", "subjectName": "Indian Polity" }],
+    "subjects": [{ "_id": "...", "subjectId": "SUB001", "subjectName": "Polity" }],
     "topics": [],
     "teachers": [],
     "selectedSubject": null
@@ -522,33 +336,22 @@ With `?subjectId=...`:
 ```json
 {
   "data": {
-    "subjects": [...],
-    "topics": [{ "_id": "...", "topicId": "TOP001", "topicName": "..." }],
+    "subjects": [ /* all active subjects */ ],
+    "topics": [{ "_id": "...", "topicId": "TOP001", "topicName": "Constitution" }],
     "teachers": [{
-      "_id": "...",
-      "teacherId": "TCH001",
-      "teacherName": "Dr Kumar",
-      "centerId": "...",
-      "centerName": "Delhi Center"
+      "_id": "...", "teacherId": "TCH001", "teacherName": "Dr. Sharma",
+      "centerId": "...", "centerName": "Delhi"
     }],
-    "selectedSubject": { "_id": "...", "subjectId": "SUB001", "subjectName": "Indian Polity" }
+    "selectedSubject": { "_id": "...", "subjectId": "SUB001", "subjectName": "Polity" }
   }
 }
 ```
 
-**Errors:** `400` Invalid or inactive subject · `401` · `403` · `500`
-
-**Loading order:** Step 1 — call without `subjectId`. Step 2 — on subject select, call with `subjectId`.
-
 ---
 
-### 4.8 GET `/api/faculty-subjects/categories` — Delivery Categories
+### 3.8 GET `/api/faculty-subjects/categories` — Delivery category options
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Options for categories multi-select in create/edit forms |
-
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
@@ -556,7 +359,6 @@ With `?subjectId=...`:
   "message": "Faculty subject categories loaded",
   "data": [
     { "value": "LIVE_CLASS", "label": "Live Class" },
-    { "value": "RECORDING", "label": "Recording" },
     { "value": "PRELIMS_TEST", "label": "Prelims Test" },
     { "value": "MAINS_ANSWER_WRITING", "label": "Mains Answer Writing" },
     { "value": "PDF", "label": "PDF" }
@@ -566,39 +368,34 @@ With `?subjectId=...`:
 
 ---
 
-### 4.9 GET / POST `/api/faculty-subjects/dropdown` — Picker Dropdown
+### 3.9 GET or POST `/api/faculty-subjects/dropdown` — Lightweight picker
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Lightweight list for Batch forms and other pickers |
-| **Methods** | `GET` (query params) or `POST` (body params — same fields) |
+Used by child-module create forms. Accepts params via **query (GET)** or **body (POST)**.
 
-**Parameters** (query or body)
-
-| Param | Default | Notes |
-|-------|---------|-------|
+| Param | Default | Description |
+|-------|---------|-------------|
+| `category` | — | Filter by delivery category (e.g. `PRELIMS_TEST`) |
 | `search` | `""` | Regex on `subjectName` |
-| `status` | `ACTIVE` | `ACTIVE` or `INACTIVE`; defaults to ACTIVE if invalid |
-| `category` | — | Filter by delivery category |
+| `status` | `ACTIVE` | `ACTIVE` or `INACTIVE` |
 | `page` | `1` | |
-| `limit` | `100` | Max 200 |
+| `limit` | `100` | Max `200` |
 
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
   "success": true,
-  "count": 10,
-  "total": 45,
+  "count": 5,
+  "total": 5,
   "page": 1,
   "limit": 100,
   "totalPages": 1,
   "data": [
     {
-      "_id": "...",
+      "_id": "665a1b2c3d4e5f6789012345",
       "facultySubjectId": "FSU001",
-      "subjectName": "Indian Polity – Live",
-      "teacherName": "Dr Kumar"
+      "subjectName": "Polity — Dr. Sharma",
+      "teacherName": "Dr. Sharma"
     }
   ]
 }
@@ -606,979 +403,1589 @@ With `?subjectId=...`:
 
 ---
 
-### 4.10 GET `/api/faculty-subjects/summary/:id` — Lightweight Summary
+### 3.10 GET `/api/faculty-subjects/summary/:id` — Minimal single record
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | Minimal record — no topics/categories |
-| **Path param** | `:id` — MongoDB `_id` **or** `facultySubjectId` code (e.g. `FSU001`) |
+**Path param:** `id` — Mongo `_id` **or** `facultySubjectId` code (e.g. `FSU001`)
 
-**Success:** `{ "success": true, "data": { "_id", "facultySubjectId", "subjectName", "teacherName" } }`
-
-**Errors:** `404`
+**Response `200`:** `{ success: true, data: { _id, facultySubjectId, subjectName, teacherName } }`
 
 ---
 
-### 4.11 GET `/api/faculty-subjects/:id/content-tree` — Content Tree
+### 3.11 GET `/api/faculty-subjects/:id/content-tree` — Left nav content tree
 
-| Property | Value |
-|----------|-------|
-| **Purpose** | CMS left navigation — folders grouped by category |
-| **Path param** | MongoDB `_id` or `facultySubjectId` code |
+**Path param:** `id` — Mongo `_id` or `facultySubjectId` code
 
-**Success — `200 OK`**
+**Response `200`**
 
 ```json
 {
   "success": true,
-  "facultySubjectId": "...",
-  "subjectName": "Indian Polity – Live",
-  "categories": ["LIVE_CLASS", "PDF"],
+  "facultySubjectId": "665a1b2c3d4e5f6789012345",
+  "subjectName": "Polity — Dr. Sharma",
+  "categories": ["PRELIMS_TEST", "PDF"],
   "data": {
-    "LIVE_CLASS": [{ "_id": "...", "folderId": "FLD001", "folderName": "Module 1" }],
-    "RECORDING": [],
-    "PRELIMS_TEST": [],
+    "PRELIMS_TEST": [
+      { "_id": "...", "folderId": "FLD001", "folderName": "Mock Tests" }
+    ],
     "MAINS_ANSWER_WRITING": [],
-    "PDF": []
+    "PDF": [],
+    "LIVE_CLASS": [],
+    "RECORDING": []
   }
 }
 ```
 
 ---
 
-### 4.12 POST `/api/faculty-subjects/content/categories` — List Folder Content
-
-| Property | Value |
-|----------|-------|
-| **Purpose** | List content items inside a folder for a delivery category |
-| **Content-Type** | `application/json` |
+### 3.12 POST `/api/faculty-subjects/content/categories` — List content in a category tab
 
 **Request body**
 
-| Field | Required | Validation |
-|-------|----------|------------|
-| `facultySubjectId` | **Yes** | Valid ObjectId |
-| `folderId` | **Yes** | Valid ObjectId; must belong to faculty subject |
-| `category` | **Yes** | Valid `FACULTY_CATEGORIES` value; must be enabled on faculty subject |
-| `page` | No | Pagination |
-| `limit` | No | Pagination |
-| `sortBy` | No | Passed to content list service |
-| `sortOrder` | No | `asc` / `desc` |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `facultySubjectId` | Yes | Mongo `_id` |
+| `category` | Yes | e.g. `PRELIMS_TEST` |
+| `folderId` | No | Filter to one folder |
+| `page`, `limit`, `sortBy`, `sortOrder` | No | Pagination |
 
-**Success — `200 OK`:** Returns `folders`, `content.data[]`, pagination metadata, `selectedFolder`, etc.
-
-**Errors:** `400`, `404`
-
-**Scope:** Content CMS page — not required for main Faculty Subjects list CRUD.
+**Response `200`:** Returns folder list + paginated content items for the category (delegates to `listContentCategories` service). Use this on the **Subject detail → category tab** view to render folder sidebar + content table without calling each child list API separately when browsing by folder.
 
 ---
 
-### 4.13 POST `/api/faculty-subjects/content/folders` — Create Folder
+### 3.13 POST `/api/faculty-subjects/content/folders` — Create folder
+
+**Request body:** `{ facultySubjectId, folderName, category }`  
+Category must match an enabled faculty-subject category.
+
+---
+
+### 3.14 PUT `/api/faculty-subjects/content/folders/:id` — Update folder
+
+**Path param:** `id` — folder Mongo `_id`  
+**Body:** `{ folderName?, status? }` — `status`: `ACTIVE` | `INACTIVE`
+
+---
+
+## 4. Module 2 — Subject Prelims Tests
+
+**Base route:** `/api/prelims-tests`  
+**Mount:** `app.use('/api/prelims-tests', ...superAdminAuth, subjectPrelimsTestRoutes)`
+
+> **Important:** Most **read** operations use **POST with JSON body** (not GET query strings). Only create/update/delete/publish use path params as documented.
+
+### 4.1 POST `/api/prelims-tests/create-form` — Create form metadata
+
+**Request body (optional)**
+
+```json
+{
+  "facultySubjectId": "665a1b2c3d4e5f6789012345",
+  "folderId": "665a1b2c3d4e5f6789012346"
+}
+```
+
+When `facultySubjectId` is provided, response includes `facultySubject`, `folders`, `batches`, and optionally `selectedFolder`.
+
+**Response `200` — key fields in `data`**
+
+| Key | Purpose |
+|-----|---------|
+| `defaults` | Default values for new test |
+| `enums.publishStatuses` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` |
+| `enums.durationMinutesPresets` | `[30, 60, 90, 120, 180]` |
+| `enums.negativeMarkingPresets` | `0.25`, `0.50`, `1.00`, `CUSTOM` |
+| `enums.attemptRestrictionTypes` | `LIFETIME`, `DAILY`, `WEEKLY` |
+| `enums.duplicateModes` | `SKIP`, `REPLACE`, `ALLOW` |
+| `enums.reuploadModes` | `REPLACE_ALL`, `MERGE`, `REPLACE` |
+| `allowedUpload` | File field rules (see [File uploads](#16-file-uploads)) |
+| `dependencyFlow` | Ordered API steps for the form |
+| `dropdownApis` | Paths for faculty subjects, folders, batches, languages, exam patterns |
+| `listFilters` | Documented filter fields for list API |
+
+---
+
+### 4.2 POST `/api/prelims-tests/dashboard-summary` — Dashboard counts
+
+**Request body (optional filters)**
+
+```json
+{
+  "facultySubjectId": "665a1b2c3d4e5f6789012345",
+  "folderId": "665a1b2c3d4e5f6789012346"
+}
+```
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalTests": 12,
+    "publishedCount": 8,
+    "draftCount": 3,
+    "unpublishedCount": 1,
+    "totalQuestions": 450
+  }
+}
+```
+
+---
+
+### 4.3 POST `/api/prelims-tests/list` — Paginated list
 
 **Request body**
 
+| Field | Required | Description |
+|-------|----------|-------------|
+| `facultySubjectId` | No | Filter by faculty subject |
+| `folderId` | No | Filter by folder |
+| `batchId` | No | Match any assigned `batchIds[]` |
+| `language` | No | Tests containing this language |
+| `publishStatus` | No | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` |
+| `search` | No | Matches `testName`, `prelimsTestId` |
+| `scheduleDateFrom` | No | ISO date, `scheduleDate >=` |
+| `scheduleDateTo` | No | ISO date, `scheduleDate <=` |
+| `page`, `limit`, `sortBy`, `sortOrder` | No | Pagination |
+
+**Sort fields:** `createdAt`, `testName`, `prelimsTestId`, `scheduleDate`, `resultDate`, `totalQuestions`
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "total": 12,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 2,
+  "count": 10,
+  "data": [
+    {
+      "_id": "665b...",
+      "prelimsTestId": "SPT001",
+      "facultySubjectId": "665a...",
+      "folderId": "665c...",
+      "batchIds": ["665d..."],
+      "batches": [{ "_id": "665d...", "batchId": "BAT001", "batchName": "GS Batch A" }],
+      "assignedBatches": [ /* same as batches */ ],
+      "batchNamesLabel": "GS Batch A (+1 More)",
+      "testName": "Polity Mock 1",
+      "languages": ["English", "Hindi"],
+      "durationPreset": "60",
+      "durationMinutes": 60,
+      "durationLabel": "1 hr",
+      "totalMarks": 100,
+      "marksPerCorrectAnswer": 2,
+      "negativeMarking": { "enabled": true, "preset": "0.25", "value": 0.5 },
+      "scheduleDate": "2026-07-01T00:00:00.000Z",
+      "scheduleTime": "10:00",
+      "resultDate": "2026-07-02T00:00:00.000Z",
+      "rankingEnabled": false,
+      "examPatternId": null,
+      "instructionsHtml": "",
+      "attemptSettings": {
+        "enabled": false,
+        "attempts": 1,
+        "restrictionType": "LIFETIME",
+        "showRemainingAttempts": false
+      },
+      "shuffleQuestions": false,
+      "shuffleOptions": false,
+      "totalQuestions": 50,
+      "languageStats": [
+        {
+          "language": "English",
+          "questionCount": 50,
+          "uploadFile": {
+            "url": "https://...",
+            "publicId": "...",
+            "viewUrl": "https://...",
+            "downloadUrl": "https://..."
+          }
+        }
+      ],
+      "publishStatus": "DRAFT",
+      "folderName": "Mock Tests",
+      "facultySubjectName": "Polity — Dr. Sharma",
+      "createdAt": "...",
+      "updatedAt": "..."
+    }
+  ]
+}
+```
+
+---
+
+### 4.4 POST `/api/prelims-tests/view` — Get single test
+
+**Request body**
+
+```json
+{ "id": "665b1b2c3d4e5f6789012345" }
+```
+
+Also accepts `prelimsTestId` field name.
+
+**Response `200`:** `{ success: true, data: { /* test row + optional examPattern */ } }`
+
+When `examPatternId` is set, `data.examPattern`:
+
+```json
+{
+  "instructionId": "EP001",
+  "instructionDescription": "..."
+}
+```
+
+---
+
+### 4.5 POST `/api/prelims-tests` — Create (multipart)
+
+**Content-Type:** `multipart/form-data`
+
+**Required metadata fields**
+
 | Field | Required | Validation |
 |-------|----------|------------|
-| `facultySubjectId` | **Yes** | ACTIVE faculty subject with matching category enabled |
-| `category` | **Yes** | Valid enum |
-| `folderName` | **Yes** | Non-empty; unique per faculty subject + category |
+| `facultySubjectId` | Yes | Active FS with `PRELIMS_TEST` category |
+| `folderId` | Yes | Active folder for FS + `PRELIMS_TEST` |
+| `batchIds` | Yes | ≥1 active/upcoming batch |
+| `testName` | Yes | Non-empty |
+| `languages` | Yes | JSON array string or array; each language active in test config |
+| `scheduleDate` | Yes | Valid date |
+| `scheduleTime` | Yes | `HH:mm` or `HH:mm:ss` |
+| `durationMinutes` | Yes | Positive integer; presets 30/60/90/120/180 auto-set `durationPreset` |
+| `totalMarks` | Yes | ≥ 1 |
+| `marksPerCorrectAnswer` | Yes | ≥ 0 |
+| `resultDate` | Yes | ≥ `scheduleDate` |
+| `questionFile` | Yes | One sheet per selected language (see uploads) |
+
+**Optional fields**
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| `publishStatus` | `DRAFT` | `PUBLISHED` requires questions for all languages |
+| `duplicateMode` | `SKIP` | `SKIP`, `REPLACE`, `ALLOW` |
+| `negativeMarking` | `{ enabled: false, preset: "0.25", value: 0 }` | JSON string in form |
+| `attemptSettings` | see defaults | JSON string in form |
+| `rankingEnabled` | `false` | |
+| `examPatternId` | `null` | Active exam pattern ObjectId |
+| `instructionsHtml` | `""` | |
+| `shuffleQuestions` | `false` | |
+| `shuffleOptions` | `false` | |
+
+**Response `201`**
+
+```json
+{
+  "success": true,
+  "message": "Prelims test created with questions for all languages",
+  "languageUploads": [
+    {
+      "language": "English",
+      "sheetStats": { "totalRows": 50, "validRows": 50 },
+      "uploadStats": { "inserted": 50, "replaced": 0, "skipped": 0 }
+    }
+  ],
+  "data": { /* full test object */ }
+}
+```
+
+On validation failure during create, the test is **rolled back** (soft-deleted).
+
+---
+
+### 4.6 PUT `/api/prelims-tests/:id` — Update metadata
+
+**Content-Type:** `application/json`
+
+Partial update — send only changed fields. Same validation as create (partial mode). Does **not** accept question file uploads; use question upload endpoints separately.
+
+Removing a language soft-deletes its questions.
+
+**Response `200`:** `{ success: true, message: "Prelims test updated successfully", data: { ... } }`
+
+---
+
+### 4.7 PATCH `/api/prelims-tests/:id/publish-status` — Publish toggle
+
+**Request body**
+
+```json
+{ "publishStatus": "PUBLISHED" }
+```
+
+Publishing requires active questions for **every** configured language.
+
+**Response `200`:** `{ success: true, message: "Publish status set to PUBLISHED", data: { ... } }`
+
+---
+
+### 4.8 DELETE `/api/prelims-tests/:id` — Soft delete
+
+Soft-deletes test and all its questions.
+
+**Response `200`:** `{ success: true, message: "Prelims test deleted successfully" }`
+
+---
+
+### 4.9 POST `/api/prelims-tests/:id/duplicate` — Duplicate as draft
+
+**Request body (optional)**
+
+```json
+{ "testName": "Copy of Polity Mock 1" }
+```
+
+Default name: `Copy of {source.testName}`. Copies questions; upload file metadata is **not** copied. New test always `DRAFT`.
+
+**Response `201`:** `{ success: true, message: "Prelims test duplicated as draft", data: { ... } }`
+
+---
+
+### 4.10 POST `/api/prelims-tests/questions/upload` — Upload questions
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Required |
+|-------|----------|
+| `questionFile` | Yes — `.xlsx` or `.csv`, max 10 MB |
+| `prelimsTestId` | Yes |
+| `language` | Yes — must match a test language |
+| `duplicateMode` | No — default `SKIP` |
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "message": "Questions uploaded successfully",
+  "valid": true,
+  "stats": { "totalRows": 50, "validRows": 50 },
+  "uploadStats": { "inserted": 10, "replaced": 0, "skipped": 40 },
+  "data": { /* updated test */ }
+}
+```
+
+Sheet validation failure `400`:
+
+```json
+{
+  "success": false,
+  "message": "Question sheet validation failed",
+  "valid": false,
+  "errors": [{ "row": 5, "field": "correctAnswer", "message": "..." }],
+  "stats": { ... }
+}
+```
+
+---
+
+### 4.11 POST `/api/prelims-tests/questions/reupload` — Re-upload questions
+
+Same as upload plus:
+
+| Field | Required | Values |
+|-------|----------|--------|
+| `reuploadMode` | No | `REPLACE_ALL` (wipe language), `MERGE` (skip dupes), `REPLACE` (replace dupes) |
+
+---
+
+### 4.12 POST `/api/prelims-tests/questions/list` — List questions
+
+**Request body**
+
+| Field | Required |
+|-------|----------|
+| `prelimsTestId` | Yes |
+| `language` | No |
+| `search` | No — regex on `questionText` |
+| `page`, `limit` | No |
+
+**Response `200`:** Paginated array of question documents sorted by `language`, `questionNo`.
+
+**Question shape**
+
+```json
+{
+  "_id": "...",
+  "prelimsTestQuestionId": "SPQ001",
+  "prelimsTestId": "...",
+  "language": "English",
+  "questionNo": 1,
+  "questionText": "...",
+  "option1": "...",
+  "option2": "...",
+  "option3": "...",
+  "option4": "...",
+  "correctAnswer": 2,
+  "explanation": "...",
+  "status": "ACTIVE"
+}
+```
+
+---
+
+### 4.13 POST `/api/prelims-tests/questions/view` — Get single question
+
+**Body:** `{ "prelimsTestId": "...", "questionId": "..." }`
+
+---
+
+### 4.14 PUT `/api/prelims-tests/:id/questions/:questionId` — Update question
+
+**Body (all optional):** `questionText`, `option1`–`option4`, `correctAnswer` (1–4), `explanation`
+
+---
+
+### 4.15 DELETE `/api/prelims-tests/:id/questions/:questionId` — Delete question
+
+Soft-deletes question; syncs test `totalQuestions`.
+
+---
+
+### 4.16 POST `/api/prelims-tests/questions/sheet/view` — View uploaded sheet
+
+**Body:** `{ "prelimsTestId": "...", "language": "English" }`
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "prelimsTestId": "...",
+    "language": "English",
+    "questionCount": 50,
+    "uploadFile": { "url": "...", "viewUrl": "...", "downloadUrl": "..." },
+    "viewUrl": "...",
+    "downloadUrl": "...",
+    "questionsCount": 50,
+    "questions": [ /* full question array */ ]
+  }
+}
+```
+
+---
+
+### 4.17 DELETE `/api/prelims-tests/questions/sheet` — Remove sheet + all questions for language
+
+**Body:** `{ "prelimsTestId": "...", "language": "English" }`
+
+Removes Cloudinary file and soft-deletes all questions for that language.
+
+---
+
+## 5. Module 3 — Subject Mains Answer Writings
+
+**Base route:** `/api/mains-answer-writing`  
+Super Admin CMS routes require `protect` + `requireSuperAdmin` (applied per-route inside the router).
+
+> Student-facing routes (`/published`, `/my-submissions`, etc.) exist on the same base path but are **out of scope** for this admin integration guide.
+
+### 5.1 GET `/api/mains-answer-writing/create-form` — Create form metadata
+
+**Query:** `facultySubjectId`, `folderId` (optional)
+
+Returns `defaults`, `enums`, `allowedUpload`, `dependencyFlow`, `dropdownApis`, `listFilters`, and when `facultySubjectId` is set: `facultySubject`, `folders`, `topics`, `batches`.
+
+---
+
+### 5.2 GET `/api/mains-answer-writing/dashboard-summary` — Dashboard counts
+
+**Query (optional):** `facultySubjectId`, `folderId`
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalEntries": 8,
+    "publishedCount": 5,
+    "draftCount": 2,
+    "unpublishedCount": 1
+  }
+}
+```
+
+---
+
+### 5.3 GET `/api/mains-answer-writing` — Paginated list
+
+**Query parameters**
+
+| Param | Description |
+|-------|-------------|
+| `facultySubjectId` | Mongo `_id` |
+| `folderId` | Folder filter |
+| `batchId` | Match assigned batch |
+| `topicId` | Topic Mongo `_id` |
+| `topicName` | Partial topic name |
+| `subjectId` | Master subject Mongo `_id` |
+| `subjectName` | Partial faculty subject name |
+| `publishStatus` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` |
+| `search` | `testName`, folder, subject, topic |
+| `page`, `limit`, `sortBy`, `sortOrder` | Pagination |
+
+**Sort fields:** `createdAt`, `testName`, `mainsAnswerWritingId`, `scheduleDate`, `resultDate`
+
+**Response row shape**
+
+```json
+{
+  "_id": "...",
+  "mainsAnswerWritingId": "SMAW001",
+  "facultySubjectId": "...",
+  "folderId": "...",
+  "batchIds": ["..."],
+  "batches": [{ "_id": "...", "batchId": "BAT001", "batchName": "GS Batch A" }],
+  "batchNamesLabel": "GS Batch A",
+  "topicId": "...",
+  "topicName": "Constitution",
+  "testName": "Essay Test 1",
+  "scheduleDate": "2026-07-01T00:00:00.000Z",
+  "durationPreset": "60",
+  "durationMinutes": 60,
+  "durationLabel": "1 hr",
+  "totalMarks": 200,
+  "resultDate": "2026-07-05T00:00:00.000Z",
+  "questionsText": "Q1. Discuss...",
+  "pdf": { "url": "https://...", "publicId": "...", "format": "pdf", "bytes": 102400 },
+  "publishStatus": "DRAFT",
+  "folderName": "Answer Writing",
+  "facultySubjectName": "Polity — Dr. Sharma",
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+Note: `passMarks` is stored but not included in list row format; available on detail/update responses via model.
+
+---
+
+### 5.4 GET `/api/mains-answer-writing/:id` — Get by ID
+
+**Response `200`:** `{ success: true, data: { /* row + folderName, facultySubjectName, topicName */ } }`
+
+---
+
+### 5.5 POST `/api/mains-answer-writing` — Create
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Required | Validation |
+|-------|----------|------------|
+| `pdf` | Yes | PDF only, max 20 MB |
+| `facultySubjectId` | Yes | Active FS with `MAINS_ANSWER_WRITING` |
+| `folderId` | Yes | Active folder for category |
+| `batchIds` | Yes | ≥1 batch |
+| `testName` | Yes | Non-empty |
+| `scheduleDate` | Yes | Valid date |
+| `durationPreset` | Yes | `30`, `60`, `90`, `120`, `180`, or `CUSTOM` |
+| `durationMinutes` | Yes* | Required if `CUSTOM`; derived from preset otherwise |
+| `totalMarks` | Yes | ≥ 1 |
+| `resultDate` | Yes | ≥ `scheduleDate` |
+| `questionsText` | Yes | Non-empty |
+| `topicId` | No | Must belong to faculty subject topics |
+| `passMarks` | No | ≥ 0, ≤ `totalMarks`; null = no pass marks |
+| `publishStatus` | No | Default `DRAFT` |
+
+**Response `201`:** `{ success: true, message: "Mains answer writing entry created successfully", data: { ... } }`
+
+---
+
+### 5.6 PUT `/api/mains-answer-writing/:id` — Update
+
+**Content-Type:** `multipart/form-data` (if replacing PDF) or `application/json`
+
+All create fields optional. New `pdf` file replaces existing (old Cloudinary asset deleted).
+
+---
+
+### 5.7 PATCH `/api/mains-answer-writing/:id/publish-status` — Publish toggle
+
+**Body:** `{ "publishStatus": "PUBLISHED" }`
+
+---
+
+### 5.8 DELETE `/api/mains-answer-writing/:id` — Soft delete
+
+Deletes Cloudinary PDF and soft-deletes record.
+
+**Response `200`:** `{ success: true, message: "Mains answer writing entry deleted successfully", data: { _id } }`
+
+---
+
+### 5.9 GET `/api/mains-answer-writing/filter/subjects-dropdown` — Subjects filter
+
+Faculty subjects with `MAINS_ANSWER_WRITING` category.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "count": 3,
+  "data": [
+    {
+      "_id": "...",
+      "facultySubjectId": "FSU001",
+      "subjectName": "Polity — Dr. Sharma",
+      "masterSubjectId": "...",
+      "masterSubjectName": "Polity"
+    }
+  ]
+}
+```
+
+---
+
+### 5.10 GET `/api/mains-answer-writing/filter/topics-dropdown` — Topics filter
+
+**Query:** `facultySubjectId` (required)
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "facultySubject": { "_id": "...", "facultySubjectId": "FSU001", "subjectName": "..." },
+  "count": 2,
+  "data": [{ "_id": "...", "topicId": "TOP001", "topicName": "Constitution" }]
+}
+```
+
+---
+
+## 6. Module 4 — Subject PDFs
+
+**Base route:** `/api/subject-pdfs`  
+**Mount:** `app.use('/api/subject-pdfs', ...superAdminAuth, subjectPdfRoutes)`
+
+### 6.1 GET `/api/subject-pdfs/create-form` — Create form metadata
+
+**Query:** `facultySubjectId`, `folderId` (optional)
+
+Returns `defaults`, `enums.visibility`, `allowedUpload`, `dependencyFlow`, `dropdownApis`, and scoped `folders`/`batches` when `facultySubjectId` provided.
+
+---
+
+### 6.2 GET `/api/subject-pdfs/dashboard-summary` — Dashboard counts
+
+**Query (optional):** `facultySubjectId`, `folderId`, `batchId`
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalPdfs": 15,
+    "totalViews": 320,
+    "visibilityCount": 2,
+    "publishedCount": 10,
+    "draftCount": 2,
+    "privateCount": 1
+  }
+}
+```
+
+---
+
+### 6.3 GET `/api/subject-pdfs` — Paginated list
+
+**Query parameters**
+
+| Param | Description |
+|-------|-------------|
+| `facultySubjectId` | Mongo `_id` |
+| `folderId` | Folder filter |
+| `batchId` | Match assigned batch |
+| `visibility` | `VISIBILITY`, `PUBLISHED`, `DRAFT`, `PRIVATE` |
+| `search` | `pdfTitle`, folder name, subject name, batch name |
+| `page`, `limit`, `sortBy`, `sortOrder` | Pagination |
+
+**Sort fields:** `createdAt`, `pdfTitle`, `subjectPdfId`, `viewCount`
+
+**Response row shape**
+
+```json
+{
+  "_id": "...",
+  "subjectPdfId": "SPD001",
+  "facultySubjectId": "...",
+  "folderId": "...",
+  "batchIds": ["..."],
+  "batches": [{ "_id": "...", "batchId": "BAT001", "batchName": "GS Batch A" }],
+  "batchNamesLabel": "GS Batch A",
+  "pdfTitle": "Polity Notes Ch. 1",
+  "tags": ["notes", "polity"],
+  "visibility": "PUBLISHED",
+  "pdf": { "url": "https://...", "publicId": "...", "format": "pdf", "bytes": 512000 },
+  "description": "Chapter 1 summary",
+  "viewCount": 42,
+  "folderName": "Study Material",
+  "facultySubjectName": "Polity — Dr. Sharma",
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+---
+
+### 6.4 GET `/api/subject-pdfs/:id` — Get by ID
+
+---
+
+### 6.5 POST `/api/subject-pdfs` — Create
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Required | Validation |
+|-------|----------|------------|
+| `pdf` | Yes | PDF only, max 10 MB |
+| `facultySubjectId` | Yes | Active FS with `PDF` category |
+| `folderId` | Yes | Active PDF folder |
+| `batchIds` | Yes | ≥1 batch |
+| `pdfTitle` | Yes | Non-empty |
+| `visibility` | Yes | Valid visibility enum |
+| `tags` | No | Array or JSON string |
 | `description` | No | String |
 
-**Success — `201 Created`**
-
-**Errors:** `400` validation · `409` duplicate folder name
+**Response `201`:** `{ success: true, message: "PDF created successfully", data: { ... } }`
 
 ---
 
-### 4.14 PUT `/api/faculty-subjects/content/folders/:id` — Update Folder
+### 6.6 PUT `/api/subject-pdfs/:id` — Update
 
-**Request body** (optional fields)
-
-| Field | Validation |
-|-------|------------|
-| `folderName` | Non-empty; unique per category |
-| `description` | String |
-| `status` | `ACTIVE` or `INACTIVE` |
-
-**Errors:** `400`, `404`, `409`
+Multipart if replacing file; JSON otherwise. Optional `pdf` file replaces existing.
 
 ---
 
-## 5. API Integration Order
+### 6.7 PATCH `/api/subject-pdfs/:id/visibility` — Visibility toggle
 
-Integrate in this sequence for the main list page:
+**Body:** `{ "visibility": "PUBLISHED" }`
+
+---
+
+### 6.8 POST `/api/subject-pdfs/:id/download` — Track download / get URL
+
+Increments `viewCount` by 1.
+
+**Response `200`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "subjectPdfId": "SPD001",
+    "pdfTitle": "Polity Notes Ch. 1",
+    "pdfUrl": "https://res.cloudinary.com/.../file.pdf",
+    "viewCount": 43
+  }
+}
+```
+
+Use `pdfUrl` to open/download in the browser.
+
+---
+
+### 6.9 DELETE `/api/subject-pdfs/:id` — Soft delete
+
+Deletes Cloudinary asset and soft-deletes record.
+
+---
+
+## 7. Frontend data flow
+
+### 7.1 Faculty Subject list page load
 
 ```text
-Step 1 — Auth
-  POST /api/auth/login-super-admin → store JWT
+Login (Super Admin JWT)
+        ↓
+GET /api/faculty-subjects/categories        → cache enum labels
+GET /api/faculty-subjects?page=1&limit=10   → render table
+        ↓
+User searches/filters/sorts                 → refetch list
+User clicks row                             → navigate to detail
+```
 
-Step 2 — Configure Axios
-  Authorization: Bearer <token> on all requests
+### 7.2 Create faculty subject
 
-Step 3 — Categories (prefetch, cache long TTL)
-  GET /api/faculty-subjects/categories
+```text
+GET /api/faculty-subjects/create-form
+        ↓
+User selects subject
+GET /api/faculty-subjects/create-form?subjectId={id}&centerId={optional}
+        ↓
+Populate topics (multi-select) + teachers + categories checkboxes
+        ↓
+POST /api/faculty-subjects
+        ↓
+Invalidate facultySubjects list → redirect to detail or list
+```
 
-Step 4 — List (primary table)
-  GET /api/faculty-subjects?page=1&limit=10
+### 7.3 View faculty subject + content tabs
 
-Step 5 — Render table + pagination + empty/loading states
-
-Step 6 — Wire search / filters / sort → refetch list
-
-Step 7 — Create form dropdowns (on modal open)
-  GET /api/faculty-subjects/create-form
-  GET /api/faculty-subjects/categories
-
-Step 8 — Dependent dropdowns (on subject select)
-  GET /api/faculty-subjects/create-form?subjectId=<id>
-
-Step 9 — Create mutation
-  POST /api/faculty-subjects
-
-Step 10 — Edit flow
-  GET /api/faculty-subjects/:id (if needed)
-  PUT /api/faculty-subjects/:id
-
-Step 11 — Status toggle
-  PATCH /api/faculty-subjects/status/:id
-
-Step 12 — Delete
-  DELETE /api/faculty-subjects/:id
-
-Step 13 — Content CMS (optional separate page)
-  GET /api/faculty-subjects/:id/content-tree
-  POST /api/faculty-subjects/content/folders
+```text
+GET /api/faculty-subjects/:id               → header (name, teacher, categories, status)
+GET /api/faculty-subjects/:id/content-tree  → left folder nav per category
+        ↓
+User selects category tab (e.g. PRELIMS_TEST)
+        ↓
+Option A — unified CMS list:
   POST /api/faculty-subjects/content/categories
+  { facultySubjectId, category, folderId?, page, limit }
+        ↓
+Option B — dedicated module list (recommended for full CRUD features):
+  POST /api/prelims-tests/list { facultySubjectId, folderId?, ... }
+  GET  /api/mains-answer-writing?facultySubjectId=...&folderId=...
+  GET  /api/subject-pdfs?facultySubjectId=...&folderId=...
 ```
 
-For **Batch module integration** (separate page): use `GET /api/faculty-subjects/dropdown?status=ACTIVE&category=LIVE_CLASS` after list page is stable.
-
----
-
-## 6. API Service Layer
-
-Recommended file: `src/services/facultySubjectService.ts`
-
-Use exact backend paths — do not rename endpoints.
-
-```typescript
-// src/services/facultySubjectService.ts
-import api from './api';
-
-const BASE = '/api/faculty-subjects';
-
-export const facultySubjectService = {
-  /** GET / — paginated list */
-  getFacultySubjects: (params: FacultySubjectListParams) =>
-    api.get(BASE, { params }),
-
-  /** GET /:id — full detail */
-  getFacultySubject: (id: string) =>
-    api.get(`${BASE}/${id}`),
-
-  /** POST / — create */
-  createFacultySubject: (payload: CreateFacultySubjectPayload) =>
-    api.post(BASE, payload),
-
-  /** PUT /:id — update */
-  updateFacultySubject: (id: string, payload: UpdateFacultySubjectPayload) =>
-    api.put(`${BASE}/${id}`, payload),
-
-  /** DELETE /:id — hard delete */
-  deleteFacultySubject: (id: string) =>
-    api.delete(`${BASE}/${id}`),
-
-  /** PATCH /status/:id */
-  changeStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
-    api.patch(`${BASE}/status/${id}`, { status }),
-
-  /** GET /create-form — form dropdowns */
-  getCreateForm: (params?: { subjectId?: string; centerId?: string }) =>
-    api.get(`${BASE}/create-form`, { params }),
-
-  /** GET /categories */
-  getCategories: () =>
-    api.get(`${BASE}/categories`),
-
-  /** GET or POST /dropdown */
-  getDropdown: (params?: FacultySubjectDropdownParams) =>
-    api.get(`${BASE}/dropdown`, { params }),
-
-  /** GET /summary/:id */
-  getSummary: (id: string) =>
-    api.get(`${BASE}/summary/${id}`),
-
-  /** GET /:id/content-tree */
-  getContentTree: (id: string) =>
-    api.get(`${BASE}/${id}/content-tree`),
-
-  /** POST /content/categories */
-  listContentCategories: (body: ContentCategoriesPayload) =>
-    api.post(`${BASE}/content/categories`, body),
-
-  /** POST /content/folders */
-  createFolder: (body: CreateFolderPayload) =>
-    api.post(`${BASE}/content/folders`, body),
-
-  /** PUT /content/folders/:id */
-  updateFolder: (id: string, body: UpdateFolderPayload) =>
-    api.put(`${BASE}/content/folders/${id}`, body),
-};
-```
-
-| Method | Backend endpoint | Notes |
-|--------|------------------|-------|
-| `getFacultySubjects` | `GET /` | Supports search, status, category, pagination, sort |
-| `getFacultySubject` | `GET /:id` | Use Mongo `_id` |
-| `createFacultySubject` | `POST /` | Returns `201` |
-| `updateFacultySubject` | `PUT /:id` | Partial body supported |
-| `deleteFacultySubject` | `DELETE /:id` | Handle `409` for batch links |
-| `changeStatus` | `PATCH /status/:id` | Not `PUT` |
-| `getCreateForm` | `GET /create-form` | Two-step dependent loading |
-| `getCategories` | `GET /categories` | Static-ish — cache aggressively |
-| `getDropdown` | `GET /dropdown` | For pickers / other modules |
-| `getSummary` | `GET /summary/:id` | Accepts `_id` or `FSU###` code |
-| `getContentTree` | `GET /:id/content-tree` | CMS navigation |
-| `listContentCategories` | `POST /content/categories` | CMS content list |
-| `createFolder` / `updateFolder` | folder routes | CMS folder management |
-
-**Not available in backend:** `bulkDelete()`, `bulkChangeStatus()` — implement client-side loops if bulk UI is required, or omit bulk actions.
-
----
-
-## 7. React Query Integration
-
-### Query keys
-
-```typescript
-export const facultySubjectKeys = {
-  all: ['facultySubjects'] as const,
-  lists: () => [...facultySubjectKeys.all, 'list'] as const,
-  list: (params: FacultySubjectListParams) =>
-    [...facultySubjectKeys.lists(), params] as const,
-  details: () => [...facultySubjectKeys.all, 'detail'] as const,
-  detail: (id: string) => [...facultySubjectKeys.details(), id] as const,
-  categories: () => [...facultySubjectKeys.all, 'categories'] as const,
-  createForm: (subjectId?: string, centerId?: string) =>
-    [...facultySubjectKeys.all, 'createForm', { subjectId, centerId }] as const,
-  dropdown: (params: FacultySubjectDropdownParams) =>
-    [...facultySubjectKeys.all, 'dropdown', params] as const,
-  contentTree: (id: string) =>
-    [...facultySubjectKeys.all, 'contentTree', id] as const,
-};
-```
-
-### Recommended hooks
-
-| Hook | Type | Service call | staleTime suggestion |
-|------|------|--------------|---------------------|
-| `useFacultySubjects(params)` | query | `getFacultySubjects` | `0` (list — always fresh on mount) |
-| `useFacultySubject(id)` | query | `getFacultySubject` | `30_000` |
-| `useFacultySubjectCategories()` | query | `getCategories` | `Infinity` |
-| `useFacultySubjectCreateForm(subjectId?)` | query | `getCreateForm` | `60_000` |
-| `useFacultySubjectDropdown(params)` | query | `getDropdown` | `30_000` |
-| `useCreateFacultySubject()` | mutation | `createFacultySubject` | — |
-| `useUpdateFacultySubject()` | mutation | `updateFacultySubject` | — |
-| `useDeleteFacultySubject()` | mutation | `deleteFacultySubject` | — |
-| `useToggleFacultySubjectStatus()` | mutation | `changeStatus` | — |
-
-### Cache invalidation
-
-```typescript
-// After create / update / delete / status change:
-queryClient.invalidateQueries({ queryKey: facultySubjectKeys.lists() });
-queryClient.invalidateQueries({ queryKey: facultySubjectKeys.dropdown({}) });
-
-// After delete or update of specific row:
-queryClient.removeQueries({ queryKey: facultySubjectKeys.detail(id) });
-```
-
-### Mutations — success / error
-
-```typescript
-useCreateFacultySubject({
-  onSuccess: () => {
-    toast.success('Faculty subject created');
-    queryClient.invalidateQueries({ queryKey: facultySubjectKeys.lists() });
-  },
-  onError: (err) => toast.error(getApiErrorMessage(err)),
-});
-```
-
-### Optimistic updates (optional — status toggle only)
-
-```typescript
-onMutate: async ({ id, status }) => {
-  await queryClient.cancelQueries({ queryKey: facultySubjectKeys.lists() });
-  // snapshot + patch list cache row.status
-},
-onError: (_e, _v, context) => { /* rollback from context */ },
-onSettled: () => {
-  queryClient.invalidateQueries({ queryKey: facultySubjectKeys.lists() });
-},
-```
-
----
-
-## 8. UI Mapping
-
-| UI Element | Backend integration |
-|------------|---------------------|
-| **Search box** | `GET /api/faculty-subjects?search=` (debounced 300ms). Alias `q` also works. |
-| **Status filter tabs** | `?status=ACTIVE` or `?status=INACTIVE`. Omit for all. |
-| **Category filter** | `?category=LIVE_CLASS` (etc.) |
-| **Faculty filter** | **No backend param** — filter client-side on `teacherDetails.teacherName` or extend UI to filter loaded page only |
-| **Pagination** | `?page=` and `?limit=` (max 100) |
-| **Sort column click** | `?sortBy=` + `?sortOrder=asc\|desc` |
-| **Add button** | Opens modal → `GET /create-form` + `GET /categories` |
-| **Subject select (form)** | Triggers `GET /create-form?subjectId=` |
-| **Create submit** | `POST /api/faculty-subjects` |
-| **Edit button** | `GET /:id` (if needed) → `PUT /:id` |
-| **View button** | `GET /:id` or use list row data |
-| **Status toggle** | `PATCH /status/:id` |
-| **Delete button** | `DELETE /:id` — handle `409` |
-| **Manage Content link** | Navigate → `GET /:id/content-tree` |
-| **Refresh button** | `queryClient.invalidateQueries` or `refetch()` on list query |
-| **Batch picker (other module)** | `GET /dropdown?status=ACTIVE` |
-| **Page load** | `GET /` list + optional `GET /categories` |
-
----
-
-## 9. Table Integration
-
-### Recommended columns
-
-| Column | Source field | Sortable (`sortBy`) |
-|--------|--------------|---------------------|
-| ID | `facultySubjectId` | `facultySubjectId` |
-| Faculty Subject Name | `subjectName` | `subjectName` |
-| Master Subject | `teacherDetails` N/A — use populated subject ref or separate column from list | No |
-| Faculty | `teacherDetails.teacherName` | No |
-| Status | `status` | `status` |
-| Topics | `topics[]` — chip popover | No |
-| Categories | `categories[]` — chips with labels from `/categories` | No |
-| Created | `createdAt` | `createdAt` |
-| Actions | — | No |
-
-> List response returns `subject` as ObjectId string when not fully expanded in `formatFacultySubject` — use `teacherDetails` for faculty name. For master subject name, rely on populated data in list response or add client mapping if subject name is needed (backend populates `subject` with `subjectId subjectName` in query).
-
-### Searching
-
-- Server-side on `subjectName` only
-- Debounce input 300ms before updating query key
-- Reset `page` to `1` on search change
-
-### Filtering
-
-- **Status / Category:** server-side query params
-- **Faculty / Date:** client-side on current result set unless backend is extended (not in scope)
-
-### Pagination
-
-```typescript
-{
-  page: response.page,
-  limit: response.limit,
-  total: response.total,
-  totalPages: response.totalPages,
-  count: response.count,
-}
-```
-
-Default `limit: 10`. Options: `[10, 25, 50, 100]`.
-
-### States
-
-| State | UX |
-|-------|-----|
-| **Loading** | 8-row skeleton; disable actions |
-| **Empty (no filters)** | Illustration + "Add Faculty Subject" CTA |
-| **Empty (filtered)** | "No faculty subjects match your filters" + reset |
-| **Error** | Alert banner with retry; preserve filter state |
-| **Refreshing** | Subtle `isFetching` indicator; keep existing rows visible |
-
-### Selection / bulk actions
-
-Backend has **no bulk endpoints**. If UI supports multi-select:
-
-- Bulk status → sequential `PATCH /status/:id` per selected row
-- Bulk delete → sequential `DELETE /:id`; stop or continue on `409` per product decision
-
----
-
-## 10. Form Integration
-
-### Required fields (create)
-
-| Field | API key | Backend rule |
-|-------|---------|----------------|
-| Faculty Subject Name | `subjectName` | Non-empty trimmed string |
-| Master Subject | `subjectId` | Valid ACTIVE Subject ObjectId |
-| Faculty / Teacher | `teacherId` | Valid ACTIVE Teacher ObjectId |
-| Delivery Categories | `categories` | Array with ≥ 1 valid enum value |
-
-### Optional fields
-
-| Field | API key | Notes |
-|-------|---------|-------|
-| Topics | `topicIds` | Empty array allowed; each topic must belong to subject |
-| Status | `status` | Defaults to `ACTIVE` |
-
-### Do not send on create
-
-`facultySubjectId`, `_id` — auto-generated server-side.
-
-### Dependent dropdowns
+### 7.4 Create prelims test (within subject context)
 
 ```text
-Modal opens
-  → GET /create-form (subjects)
-  → GET /categories
-User selects subjectId
-  → GET /create-form?subjectId=<id>
-  → populate topicIds multi-select + teacherId select
-  → clear incompatible topic selections
-Optional: append ?centerId= to filter teachers by center
+POST /api/prelims-tests/create-form { facultySubjectId, folderId? }
+        ↓
+Load dropdowns: batches (from response), languages, exam patterns
+        ↓
+User fills form + uploads questionFile per language
+        ↓
+POST /api/prelims-tests (multipart)
+        ↓
+Invalidate prelimsTests list + dashboard summary
 ```
 
-### Reset / cancel
+### 7.5 Create mains answer writing
 
-- **Cancel:** close modal; reset RHF; do not invalidate list cache
-- **Re-open create:** reset form; refetch create-form without subjectId
+```text
+GET /api/mains-answer-writing/create-form?facultySubjectId={id}
+        ↓
+Select folder, batches, topic, fill fields, attach pdf
+        ↓
+POST /api/mains-answer-writing (multipart)
+        ↓
+Invalidate mains list + dashboard summary
+```
 
-### Success / error toasts
+### 7.6 Create subject PDF
 
-| Action | Success message | Error |
-|--------|-----------------|-------|
-| Create | "Faculty subject created" | Show `response.data.message` from `400` |
-| Update | "Faculty subject updated" | Same |
-| Status | "Status updated" | Same |
-| Delete | "Faculty subject deleted" | `409`: show full backend message |
+```text
+GET /api/subject-pdfs/create-form?facultySubjectId={id}
+        ↓
+Select folder, batches, attach pdf, set visibility
+        ↓
+POST /api/subject-pdfs (multipart)
+        ↓
+Invalidate pdfs list + dashboard summary
+```
 
-### Duplicate handling
+### 7.7 Edit / delete / refresh pattern (all child modules)
 
-- **Folder names:** `409` on duplicate folder per category (CMS)
-- **Faculty Subject rows:** no uniqueness constraint on subject+teacher combo in backend — duplicates allowed unless business rules added later
-
-### Backend validation messages (mirror in frontend)
-
-| Condition | Backend `message` |
-|-----------|-------------------|
-| Missing name | `subjectName is required` |
-| Invalid subject | `Invalid subject id` / `Invalid or inactive subject` |
-| Invalid teacher | `Invalid faculty id` / `Invalid or inactive faculty` |
-| Invalid topic | `Invalid topic id in topics array` / topics don't belong to subject |
-| No categories | `At least one category is required` |
-| Invalid category | `Invalid categories. Allowed: LIVE_CLASS, RECORDING, ...` |
-| Invalid status (PATCH) | `status must be ACTIVE or INACTIVE` |
-
-### Field mapping (form → API)
-
-```typescript
-{
-  subjectName: form.subjectName.trim(),
-  subjectId: form.subjectId,       // from create-form subjects
-  teacherId: form.teacherId,       // from create-form teachers
-  topicIds: form.topicIds ?? [],   // from create-form topics
-  categories: form.categories,     // from /categories
-  status: form.status ?? 'ACTIVE',
-}
+```text
+Load detail (GET or POST view)
+        ↓
+Edit → PUT (multipart if file change)
+        ↓
+Toggle publish/visibility → PATCH
+        ↓
+Delete → DELETE → confirm modal
+        ↓
+invalidateQueries + refetch list
 ```
 
 ---
 
-## 11. Dropdown Dependencies
+## 8. Screen flow (Mermaid)
 
-### Primary form dropdowns (Faculty Subjects create/edit)
+### 8.1 Top-level navigation
 
-| Dropdown | Source API | When to load |
-|----------|------------|--------------|
-| Master Subjects | `GET /api/faculty-subjects/create-form` → `data.subjects` | Modal open |
-| Topics | `GET /api/faculty-subjects/create-form?subjectId=` → `data.topics` | After subject selected |
-| Teachers / Faculty | Same → `data.teachers` | After subject selected |
-| Delivery Categories | `GET /api/faculty-subjects/categories` → `data[]` | Modal open (cache) |
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Faculty Subject List]
+    B --> C[Create Subject]
+    B --> D[View / Edit Subject]
+    C --> B
+    D --> E{Category enabled?}
+    E -->|PRELIMS_TEST| F[Prelims Tests Tab]
+    E -->|MAINS_ANSWER_WRITING| G[Mains Answer Writing Tab]
+    E -->|PDF| H[PDFs Tab]
+    F --> I[Create / Edit Prelims Test]
+    G --> J[Create / Edit Mains Entry]
+    H --> K[Create / Edit PDF]
+    I --> D
+    J --> D
+    K --> D
+    D --> L[Delete Subject]
+    L --> B
+```
 
-### Optional center filter for teachers
+### 8.2 Subject detail — tab content load
 
-| Dropdown | Source | When |
-|----------|--------|------|
-| Center (optional) | Separate Centers module if UI needs center-scoped faculty | Before or with subject select |
-| Teachers filtered | `GET /create-form?subjectId=&centerId=` | When center selected |
+```mermaid
+flowchart TD
+    A[Open Subject Detail] --> B[GET /faculty-subjects/:id]
+    B --> C[GET /:id/content-tree]
+    C --> D[Render category tabs + folder sidebar]
+    D --> E{Active tab}
+    E -->|Prelims| F[POST /prelims-tests/list]
+    E -->|Mains| G[GET /mains-answer-writing]
+    E -->|PDF| H[GET /subject-pdfs]
+    F --> I[Render table + actions]
+    G --> I
+    H --> I
+```
 
-### Picker dropdown (other modules — Batch, CMS)
+### 8.3 Prelims test — question management
 
-| Dropdown | Source API |
+```mermaid
+flowchart TD
+    A[Open Prelims Test] --> B[POST /prelims-tests/view]
+    B --> C[POST /questions/list]
+    C --> D{Action}
+    D -->|Upload sheet| E[POST /questions/upload]
+    D -->|Re-upload| F[POST /questions/reupload]
+    D -->|Edit row| G[PUT /:id/questions/:questionId]
+    D -->|Delete row| H[DELETE /:id/questions/:questionId]
+    D -->|View sheet| I[POST /questions/sheet/view]
+    D -->|Remove sheet| J[DELETE /questions/sheet]
+    E --> K[Invalidate test + questions]
+    F --> K
+    G --> K
+    H --> K
+    J --> K
+```
+
+### 8.4 Create child content dependency chain
+
+```mermaid
+flowchart LR
+    FS[facultySubjectId] --> CAT{categories includes tab?}
+    CAT -->|Yes| FLD[folderId from content-tree or folders API]
+    FLD --> BAT[batchIds from batches dropdown]
+    BAT --> CREATE[POST create endpoint]
+```
+
+---
+
+## 9. API dependency flow
+
+### 9.1 IDs required across modules
+
+| Step | ID obtained from | Used in |
+|------|------------------|---------|
+| 1 | Faculty subject list or dropdown | `facultySubjectId` on all child APIs |
+| 2 | Content tree or folders API | `folderId` on child create/list |
+| 3 | Batches dropdown | `batchIds[]` on child create |
+| 4 | Prelims create-form | `languages[]`, `examPatternId` |
+| 5 | Mains topics dropdown | `topicId` (optional) |
+| 6 | Child create response | `_id` for edit/delete/publish |
+
+### 9.2 Prelims test create — ordered calls
+
+```text
+1. POST /api/faculty-subjects/dropdown          { category: "PRELIMS_TEST" }
+2. POST /api/folders/list OR GET /api/folders   { facultySubjectId, category: "PRELIMS_TEST" }
+3. POST /api/batches/dropdown                   { facultySubjectId }
+4. POST /api/test-configuration/languages/dropdown
+5. POST /api/test-configuration/exam-patterns/dropdown
+6. POST /api/prelims-tests/create-form          { facultySubjectId, folderId? }  ← validate selections
+7. POST /api/prelims-tests                      multipart create
+```
+
+### 9.3 Mains answer writing create — ordered calls
+
+```text
+1. GET /api/faculty-subjects/dropdown?category=MAINS_ANSWER_WRITING
+2. GET /api/mains-answer-writing/filter/topics-dropdown?facultySubjectId={id}
+3. GET /api/folders?facultySubjectId={id}&category=MAINS_ANSWER_WRITING
+4. POST /api/batches/dropdown                   { facultySubjectId }
+5. POST /api/mains-answer-writing               multipart create
+```
+
+### 9.4 Subject PDF create — ordered calls
+
+```text
+1. GET /api/faculty-subjects/dropdown?category=PDF
+2. GET /api/folders?facultySubjectId={id}&category=PDF
+3. POST /api/batches/dropdown                   { facultySubjectId }
+4. POST /api/subject-pdfs                       multipart create
+```
+
+### 9.5 Filtering child lists from subject detail
+
+When user picks folder `F` on subject `S`:
+
+| Tab | API | Filter body/query |
+|-----|-----|-------------------|
+| Prelims | `POST /prelims-tests/list` | `{ facultySubjectId: S, folderId: F }` |
+| Mains | `GET /mains-answer-writing` | `?facultySubjectId=S&folderId=F` |
+| PDF | `GET /subject-pdfs` | `?facultySubjectId=S&folderId=F` |
+
+---
+
+## 10. Frontend folder structure
+
+Recommended React + Vite architecture:
+
+```text
+src/
+  services/
+    api.ts                              # Axios instance + interceptors
+    facultySubjectService.ts
+    subjectPrelimsTestService.ts
+    subjectMainsAnswerWritingService.ts
+    subjectPdfService.ts
+  hooks/
+    useFacultySubjects.ts
+    useSubjectPrelimsTests.ts
+    useSubjectMainsAnswerWriting.ts
+    useSubjectPDFs.ts
+  types/
+    facultySubject.types.ts
+    prelimsTest.types.ts
+    mainsAnswerWriting.types.ts
+    subjectPdf.types.ts
+    api.types.ts                        # PaginatedResponse, ApiError
+  pages/
+    Academics/
+      FacultySubjects/
+        FacultySubjectListPage.tsx
+        FacultySubjectCreatePage.tsx
+        FacultySubjectDetailPage.tsx
+        tabs/
+          PrelimsTestsTab.tsx
+          MainsAnswerWritingTab.tsx
+          SubjectPdfsTab.tsx
+  components/
+    Academics/
+      FacultySubjects/
+        FacultySubjectTable.tsx
+        FacultySubjectForm.tsx
+        ContentTreeSidebar.tsx
+        modals/
+          DeleteFacultySubjectModal.tsx
+          PublishStatusModal.tsx
+        tables/
+          PrelimsTestTable.tsx
+          MainsAnswerWritingTable.tsx
+          SubjectPdfTable.tsx
+        forms/
+          PrelimsTestForm.tsx
+          MainsAnswerWritingForm.tsx
+          SubjectPdfForm.tsx
+          QuestionSheetUpload.tsx
+  routes/
+    academicsRoutes.tsx
+  providers/
+    QueryProvider.tsx
+    AuthProvider.tsx
+  utils/
+    formatDate.ts
+    parseApiError.ts
+    buildMultipartFormData.ts
+```
+
+---
+
+## 11. Service layer mapping
+
+### facultySubjectService.ts
+
+| Method | HTTP | Route |
+|--------|------|-------|
+| `getFacultySubjects(params)` | GET | `/faculty-subjects` |
+| `getFacultySubject(id)` | GET | `/faculty-subjects/:id` |
+| `getFacultySubjectSummary(id)` | GET | `/faculty-subjects/summary/:id` |
+| `getFacultySubjectCreateForm(params)` | GET | `/faculty-subjects/create-form` |
+| `getFacultySubjectCategories()` | GET | `/faculty-subjects/categories` |
+| `getFacultySubjectsDropdown(params)` | GET/POST | `/faculty-subjects/dropdown` |
+| `getContentTree(id)` | GET | `/faculty-subjects/:id/content-tree` |
+| `listContentCategories(body)` | POST | `/faculty-subjects/content/categories` |
+| `createFolder(body)` | POST | `/faculty-subjects/content/folders` |
+| `updateFolder(id, body)` | PUT | `/faculty-subjects/content/folders/:id` |
+| `createFacultySubject(body)` | POST | `/faculty-subjects` |
+| `updateFacultySubject(id, body)` | PUT | `/faculty-subjects/:id` |
+| `updateFacultySubjectStatus(id, status)` | PATCH | `/faculty-subjects/status/:id` |
+| `deleteFacultySubject(id)` | DELETE | `/faculty-subjects/:id` |
+
+### subjectPrelimsTestService.ts
+
+| Method | HTTP | Route |
+|--------|------|-------|
+| `getCreateForm(body)` | POST | `/prelims-tests/create-form` |
+| `getDashboardSummary(body)` | POST | `/prelims-tests/dashboard-summary` |
+| `getPrelimsTests(body)` | POST | `/prelims-tests/list` |
+| `getPrelimsTestById(id)` | POST | `/prelims-tests/view` |
+| `createPrelimsTest(formData)` | POST | `/prelims-tests` |
+| `updatePrelimsTest(id, body)` | PUT | `/prelims-tests/:id` |
+| `updatePublishStatus(id, publishStatus)` | PATCH | `/prelims-tests/:id/publish-status` |
+| `deletePrelimsTest(id)` | DELETE | `/prelims-tests/:id` |
+| `duplicatePrelimsTest(id, body?)` | POST | `/prelims-tests/:id/duplicate` |
+| `uploadQuestions(formData)` | POST | `/prelims-tests/questions/upload` |
+| `reuploadQuestions(formData)` | POST | `/prelims-tests/questions/reupload` |
+| `getQuestions(body)` | POST | `/prelims-tests/questions/list` |
+| `getQuestion(body)` | POST | `/prelims-tests/questions/view` |
+| `updateQuestion(testId, questionId, body)` | PUT | `/prelims-tests/:testId/questions/:questionId` |
+| `deleteQuestion(testId, questionId)` | DELETE | `/prelims-tests/:testId/questions/:questionId` |
+| `getQuestionSheet(body)` | POST | `/prelims-tests/questions/sheet/view` |
+| `removeQuestionSheet(body)` | DELETE | `/prelims-tests/questions/sheet` |
+
+### subjectMainsAnswerWritingService.ts
+
+| Method | HTTP | Route |
+|--------|------|-------|
+| `getCreateForm(params)` | GET | `/mains-answer-writing/create-form` |
+| `getDashboardSummary(params)` | GET | `/mains-answer-writing/dashboard-summary` |
+| `getMainsAnswerWritings(params)` | GET | `/mains-answer-writing` |
+| `getMainsAnswerWritingById(id)` | GET | `/mains-answer-writing/:id` |
+| `getSubjectsDropdown()` | GET | `/mains-answer-writing/filter/subjects-dropdown` |
+| `getTopicsDropdown(facultySubjectId)` | GET | `/mains-answer-writing/filter/topics-dropdown` |
+| `createMainsAnswerWriting(formData)` | POST | `/mains-answer-writing` |
+| `updateMainsAnswerWriting(id, formData)` | PUT | `/mains-answer-writing/:id` |
+| `updatePublishStatus(id, publishStatus)` | PATCH | `/mains-answer-writing/:id/publish-status` |
+| `deleteMainsAnswerWriting(id)` | DELETE | `/mains-answer-writing/:id` |
+
+### subjectPdfService.ts
+
+| Method | HTTP | Route |
+|--------|------|-------|
+| `getCreateForm(params)` | GET | `/subject-pdfs/create-form` |
+| `getDashboardSummary(params)` | GET | `/subject-pdfs/dashboard-summary` |
+| `getSubjectPdfs(params)` | GET | `/subject-pdfs` |
+| `getSubjectPdfById(id)` | GET | `/subject-pdfs/:id` |
+| `createSubjectPdf(formData)` | POST | `/subject-pdfs` |
+| `updateSubjectPdf(id, formData)` | PUT | `/subject-pdfs/:id` |
+| `updateVisibility(id, visibility)` | PATCH | `/subject-pdfs/:id/visibility` |
+| `downloadSubjectPdf(id)` | POST | `/subject-pdfs/:id/download` |
+| `deleteSubjectPdf(id)` | DELETE | `/subject-pdfs/:id` |
+
+---
+
+## 12. React Query mapping
+
+### Recommended query keys
+
+```typescript
+// Faculty subjects
+['facultySubjects', 'list', filters]
+['facultySubjects', 'detail', id]
+['facultySubjects', 'createForm', subjectId?]
+['facultySubjects', 'categories']
+['facultySubjects', 'dropdown', filters]
+['facultySubjects', 'contentTree', id]
+
+// Prelims tests
+['prelimsTests', 'list', filters]
+['prelimsTests', 'detail', id]
+['prelimsTests', 'createForm', facultySubjectId, folderId?]
+['prelimsTests', 'dashboard', filters]
+['prelimsTests', 'questions', testId, filters]
+
+// Mains answer writing
+['mainsAnswerWriting', 'list', filters]
+['mainsAnswerWriting', 'detail', id]
+['mainsAnswerWriting', 'createForm', facultySubjectId?]
+['mainsAnswerWriting', 'dashboard', filters]
+['mainsAnswerWriting', 'topicsDropdown', facultySubjectId]
+
+// Subject PDFs
+['subjectPdfs', 'list', filters]
+['subjectPdfs', 'detail', id]
+['subjectPdfs', 'createForm', facultySubjectId?]
+['subjectPdfs', 'dashboard', filters]
+```
+
+### useQuery vs useMutation
+
+| Endpoint | Hook | Notes |
+|----------|------|-------|
+| All GET / POST-read list & detail | `useQuery` | `staleTime: 30_000` for lists; `enabled: !!id` for detail |
+| Create / Update / Delete / PATCH | `useMutation` | Invalidate related list + detail + dashboard keys |
+| Prelims POST-read (`/list`, `/view`) | `useQuery` with POST fn | Use `queryFn` calling POST; pass filters as query key |
+| Dropdowns / create-form | `useQuery` | Long `staleTime` (5 min) — enums rarely change |
+
+### Invalidation matrix
+
+| Mutation | Invalidate |
 |----------|------------|
-| Faculty Subject picker | `GET /api/faculty-subjects/dropdown?status=ACTIVE&category=LIVE_CLASS` |
+| Create/update/delete faculty subject | `['facultySubjects']`, `['facultySubjects', 'contentTree', id]` |
+| Create/update/delete prelims test | `['prelimsTests']`, `['prelimsTests', 'dashboard']` |
+| Upload/reupload/remove questions | `['prelimsTests', 'detail', id]`, `['prelimsTests', 'questions', id]` |
+| Publish prelims test | `['prelimsTests', 'list']`, `['prelimsTests', 'detail', id]` |
+| Mains CRUD / publish | `['mainsAnswerWriting']` |
+| PDF CRUD / visibility / download | `['subjectPdfs']` (download: optional optimistic viewCount +1) |
 
-### Loading order diagram
+### Loading / error / refetch
 
-```text
-GET /categories ────────────────┐
-GET /create-form ───────────────┤ parallel on modal open
-                                ↓
-                    User picks subjectId
-                                ↓
-              GET /create-form?subjectId=<id>
-                                ↓
-              Enable topics + teacher fields
-```
-
-**Note:** Backend bundles subjects/topics/teachers in **one** create-form endpoint — do not call separate `/api/subjects/dropdown` or `/api/teachers/dropdown` unless your UI already uses them elsewhere; create-form is the canonical source for this module.
+- **Loading:** Show skeleton on `isLoading` / `isFetching` for tables; disable submit on `isPending` for mutations.
+- **Error:** Map `error.response.data` — check `errorCode`, `field`, `suggestions` for child modules.
+- **Refetch:** Expose manual refresh button calling `refetch()` on list queries.
+- **Optimistic updates:** Not recommended for file uploads; use pessimistic + invalidate on success.
+- **Cache:** Keep `facultySubjectId` in detail page context so tab switches reuse cached subject query.
 
 ---
 
-## 12. Environment Variables
+## 13. Axios integration
 
-```env
-# .env / .env.local (Vite — must be prefixed VITE_)
-VITE_API_BASE_URL=http://localhost:5000
-```
-
-Usage:
-
-```typescript
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 30_000,
-});
-```
-
-Never hardcode `http://localhost:5000` in components or services.
-
----
-
-## 13. Centralized API Layer
-
-```text
-src/services/
-├── api.ts                    ← Axios instance + interceptors
-└── facultySubjectService.ts  ← Faculty Subjects HTTP functions
-```
-
-### `api.ts` pattern
+### Central instance (`api.ts`)
 
 ```typescript
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 30_000,
-  headers: { 'Content-Type': 'application/json' },
+  baseURL: import.meta.env.VITE_API_BASE_URL + '/api',
+  timeout: 60_000, // 60s — multipart uploads may be slow
+  headers: { Accept: 'application/json' }
 });
 
-// Request interceptor — attach Bearer token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken'); // or your auth store
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  const token = localStorage.getItem('accessToken');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Response interceptor — global error handling
 api.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      // redirect to login — backend does not expose refresh token
+  async (error) => {
+    const status = error.response?.status;
+    if (status === 401) {
+      // Clear token, redirect to login
+    }
+    if (status === 403) {
+      // Show "Super Admin only" toast
+    }
+    if (status >= 500) {
+      // Show generic server error toast
     }
     return Promise.reject(error);
   }
 );
-
-export default api;
 ```
 
-| Concern | Implementation |
-|---------|----------------|
-| Bearer token | Request interceptor |
-| 401 handling | Clear session → redirect to Super Admin login |
-| Timeout | 30s default |
-| Global errors | Response interceptor + `getApiErrorMessage()` helper |
-| Refresh token | **Not supported by backend** — re-login on expiry |
+### Environment variables
 
----
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_BASE_URL` | Backend origin without `/api` suffix |
 
-## 14. Custom Hooks
+### Multipart requests
 
-### `useFacultySubjectManagement.ts`
+Do **not** set `Content-Type` manually for `FormData` — browser sets boundary.
 
-Orchestrates list page state:
+For JSON fields inside multipart (prelims create):
 
 ```typescript
-export function useFacultySubjectManagement() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const debouncedSearch = useDebouncedValue(search, 300);
-
-  const listParams = useMemo(() => ({
-    page,
-    limit,
-    search: debouncedSearch,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    category: categoryFilter === 'all' ? undefined : categoryFilter,
-    sortBy,
-    sortOrder,
-  }), [page, limit, debouncedSearch, statusFilter, categoryFilter, sortBy, sortOrder]);
-
-  const query = useFacultySubjects(listParams);
-
-  return {
-    ...query,
-    page, setPage, limit, setLimit,
-    search, setSearch,
-    statusFilter, setStatusFilter,
-    categoryFilter, setCategoryFilter,
-    sortBy, setSortBy, sortOrder, setSortOrder,
-    facultySubjects: query.data?.data ?? [],
-    total: query.data?.total ?? 0,
-    totalPages: query.data?.totalPages ?? 0,
-  };
-}
+formData.append('languages', JSON.stringify(['English', 'Hindi']));
+formData.append('negativeMarking', JSON.stringify({ enabled: true, preset: '0.25', value: 0.5 }));
+formData.append('batchIds', JSON.stringify([batchId1, batchId2]));
 ```
 
-### `useFacultySubjectFormOptions.ts`
+### Retry strategy
 
-```typescript
-export function useFacultySubjectFormOptions(open: boolean, subjectId?: string) {
-  const categories = useFacultySubjectCategories({ enabled: open });
-  const createForm = useFacultySubjectCreateForm(subjectId, { enabled: open });
-
-  return {
-    subjectOptions: createForm.data?.data.subjects ?? [],
-    topicOptions: createForm.data?.data.topics ?? [],
-    teacherOptions: createForm.data?.data.teachers ?? [],
-    categoryOptions: categories.data?.data ?? [],
-    isLoading: categories.isLoading || createForm.isLoading,
-  };
-}
-```
+| Scenario | Retry? |
+|----------|--------|
+| Network error / timeout | Yes — 1 retry with backoff for GET/POST-read |
+| 400 validation | No |
+| 401 / 403 | No — redirect/forbidden |
+| 409 faculty subject delete | No — show batch link message |
+| 500 | No — show error; optional 1 retry for idempotent GET |
 
 ---
 
-## 15. Error Handling
+## 14. UI state flow
 
-| HTTP | When | Frontend action |
-|------|------|-----------------|
-| **400** | Validation failure | Show `message` inline on form fields or toast |
-| **401** | Missing/invalid/expired JWT | Redirect to login; message: `Not authorized, no token` or `Not authorized, token failed` |
-| **403** | Non–Super Admin | Show: `Access denied. Super Admin only.` Hide create/edit/delete actions |
-| **404** | Record not found | Toast + close modal; refresh list |
-| **409** | Delete blocked by batch links; duplicate folder | Show exact backend `message`; do not retry delete |
-| **422** | Not used by this module | Handle generically if proxied |
-| **500** | Server error | Toast: "Something went wrong" + optional `error` field in dev |
-| **Network** | Offline / timeout | Toast + retry button |
+| State | Trigger | UI behavior |
+|-------|---------|-------------|
+| **Loading** | Query `isLoading` | Table skeleton; disable filters; form spinner on submit |
+| **Empty** | `success && total === 0` | Illustration + "No faculty subjects" / "No tests in this folder" + CTA create |
+| **Success** | `success: true` | Render data; show pagination footer |
+| **Validation error** | HTTP 400 | Inline field errors from `field` + `message`; show `suggestions[]` as helper text |
+| **Unauthorized** | HTTP 401 | Redirect to login; clear token |
+| **Forbidden** | HTTP 403 | Full-page or modal: "Super Admin access required" |
+| **Conflict** | HTTP 409 on delete FS | Modal: "Remove from N batches first" with link to batch management |
+| **Not found** | HTTP 404 | Toast + redirect to list |
+| **Server error** | HTTP 500 | Toast with `message`; log `error` field if present |
+| **Network error** | No response | Retry button; offline banner |
+| **Sheet validation** | Prelims upload 400 with `valid: false` | Render `errors[]` table with row numbers |
 
-### Helper
+### Publish / visibility guards
 
-```typescript
-export function getApiErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data?.message ?? error.message ?? 'Request failed';
-  }
-  return 'Request failed';
-}
-```
-
-### Validation failure vs permission error
-
-- **400** on submit → field-level or form-level errors; keep modal open
-- **403** on page load → full-page "Access denied" with link home
-- **409** on delete → dialog stays open briefly showing reason, then close
+- **Prelims `PUBLISHED`:** Block publish UI until all languages have `questionCount > 0`; show backend message listing missing languages.
+- **PDF visibility:** Use PATCH visibility endpoint for quick toggle without full edit form.
 
 ---
 
-## 16. Loading States
+## 15. Validation reference
 
-| Context | Indicator | Notes |
-|---------|-----------|-------|
-| **Page initial load** | Full-width table skeleton (8 rows) | `isLoading && !data` |
-| **Table refetch** | Opacity overlay or top progress bar | `isFetching && data` — keep rows |
-| **Search typing** | Debounce — no spinner per keystroke | Show subtle loading after debounce fires |
-| **Dropdown (form)** | Disabled selects + spinner in label | While create-form loading |
-| **Create/Edit submit** | Primary button `loading` + disabled form | `mutation.isPending` |
-| **Delete confirm** | Confirm button spinner | Disable cancel during pending |
-| **Status toggle** | Row-level spinner on toggle control | Track `statusChangingId` |
-| **Refresh button** | Icon spin while `isFetching` | Manual `refetch()` |
+### Faculty Subject
+
+| Field | Rules |
+|-------|-------|
+| `subjectName` | Required, non-empty trim |
+| `subjectId` | Valid ObjectId; subject ACTIVE, not deleted |
+| `teacherId` | Valid ObjectId; teacher ACTIVE, not deleted |
+| `topicIds` | Each valid ObjectId; topic ACTIVE; belongs to subject |
+| `categories` | Array length ≥ 1; values ∈ `FACULTY_CATEGORIES` |
+| `status` | `ACTIVE` or `INACTIVE` |
+
+### Prelims Test
+
+| Field | Rules |
+|-------|-------|
+| `facultySubjectId` | Active FS; must include `PRELIMS_TEST` |
+| `folderId` | Active folder; category `PRELIMS_TEST`; belongs to FS |
+| `batchIds` | ≥1; each batch ACTIVE or UPCOMING |
+| `testName` | Required non-empty |
+| `languages` | ≥1; each active in test configuration |
+| `scheduleDate` | Valid date |
+| `scheduleTime` | Regex `HH:mm` or `HH:mm:ss` |
+| `durationMinutes` | Integer ≥ 1 |
+| `totalMarks` | Number ≥ 1 |
+| `marksPerCorrectAnswer` | Number ≥ 0 |
+| `resultDate` | Valid date ≥ `scheduleDate` |
+| `negativeMarking.preset` | `0.25`, `0.50`, `1.00`, `CUSTOM` |
+| `attemptSettings.restrictionType` | `LIFETIME`, `DAILY`, `WEEKLY` |
+| `attemptSettings.attempts` | Integer ≥ 1 |
+| `publishStatus` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` |
+| `examPatternId` | Optional; active pattern |
+| Question `correctAnswer` | Integer 1–4 |
+| `duplicateMode` | `SKIP`, `REPLACE`, `ALLOW` |
+| `reuploadMode` | `REPLACE_ALL`, `MERGE`, `REPLACE` |
+
+**Question sheet columns (required):** `language`, `questionNo`, `questionText`, `option1`, `option2`, `option3`, `option4`, `correctAnswer`, `explanation`
+
+### Mains Answer Writing
+
+| Field | Rules |
+|-------|-------|
+| `facultySubjectId` | Active FS; `MAINS_ANSWER_WRITING` category |
+| `folderId` | Active folder; category `MAINS_ANSWER_WRITING` |
+| `batchIds` | ≥1 active/upcoming batch |
+| `testName` | Required non-empty |
+| `scheduleDate` | Valid date |
+| `durationPreset` | `30`, `60`, `90`, `120`, `180`, `CUSTOM` |
+| `durationMinutes` | ≥ 1 |
+| `totalMarks` | ≥ 1 |
+| `passMarks` | Optional; ≥ 0; ≤ `totalMarks` |
+| `resultDate` | ≥ `scheduleDate` |
+| `questionsText` | Required non-empty |
+| `topicId` | Optional; must be in FS topics |
+| `pdf` | Required on create; PDF mime; max 20 MB |
+| `publishStatus` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` |
+
+### Subject PDF
+
+| Field | Rules |
+|-------|-------|
+| `facultySubjectId` | Active FS; `PDF` category |
+| `folderId` | Active PDF folder for FS |
+| `batchIds` | ≥1 batch |
+| `pdfTitle` | Required non-empty |
+| `visibility` | `VISIBILITY`, `PUBLISHED`, `DRAFT`, `PRIVATE` |
+| `tags` | String array (parsed from JSON or comma-separated) |
+| `description` | Optional string |
+| `pdf` | Required on create; PDF mime; max 10 MB |
 
 ---
 
-## 17. Authentication
+## 16. File uploads
 
-### Login
+### Subject PDF — field `pdf`
 
-```http
-POST {VITE_API_BASE_URL}/api/auth/login-super-admin
-Content-Type: application/json
+| Property | Value |
+|----------|-------|
+| Content-Type | `multipart/form-data` |
+| Field name | `pdf` |
+| MIME | `application/pdf` |
+| Max size | 10 MB |
+| Create | Required |
+| Update | Optional — replaces file, deletes old Cloudinary asset |
+| Preview | Use `data.pdf.url` from response |
+| Download (tracked) | `POST /subject-pdfs/:id/download` → `pdfUrl` |
 
-{
-  "email": "<SUPER_ADMIN_EMAIL>",
-  "password": "<SUPER_ADMIN_PASSWORD>"
-}
-```
+### Mains Answer Writing — field `pdf`
 
-Store returned JWT (field may be `token` or `data.token` — inspect login response shape in your environment).
+| Property | Value |
+|----------|-------|
+| Field name | `pdf` |
+| MIME | `application/pdf` |
+| Max size | 20 MB |
+| Cloudinary folder | `faculty-subject/mains-answer-writing` |
 
-### Authorization header
+### Prelims Test — field `questionFile`
 
-```http
-Authorization: Bearer <jwt>
-```
+| Property | Value |
+|----------|-------|
+| Create field | `questionFile` (repeat per language) or legacy `questionFile_English`, etc. |
+| Upload/reupload field | `questionFile` (single) |
+| MIME | `.xlsx`, `.csv` |
+| Max size | 10 MB per file |
+| Max files on create | 15 |
+| Language detection | From `language` column inside sheet |
+| Duplicate handling | `duplicateMode` on create/upload; `reuploadMode` on reupload |
+| Sheet removal | `DELETE /questions/sheet` — removes file + all questions for language |
+| Preview | `POST /questions/sheet/view` → `viewUrl`, `downloadUrl` |
 
-Required on **every** `/api/faculty-subjects/*` request.
-
-### Token expiry
-
-Backend uses `jwt.verify` with `JWT_SECRET`. **No refresh-token endpoint exists.** On `401`:
-
-1. Clear stored token
-2. Redirect to Super Admin login
-3. Preserve intended return URL if desired
-
-### Auth types accepted by `protect` middleware
-
-- Legacy `User` with `role === 'super_admin'`
-- `AdminAccess` with populated `roleId.roleCode === 'SUPER_ADMIN'`
-
----
-
-## 18. Role-Based Access
-
-All Faculty Subjects routes use `superAdminAuth`:
+**Prelims create multipart example (two languages):**
 
 ```javascript
-// app.js
-app.use('/api/faculty-subjects', ...superAdminAuth, facultySubjectRoutes);
-```
-
-| Role | List | Create | Edit | Delete | Status | Content CMS |
-|------|------|--------|------|--------|--------|-------------|
-| **SUPER_ADMIN** (`roleCode`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Legacy `super_admin` user role | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **All other roles** | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
-
-**403 response:**
-
-```json
-{
-  "success": false,
-  "message": "Access denied. Super Admin only."
-}
-```
-
-Frontend: wrap the Faculty Subjects route with a Super Admin guard. Do not rely on hiding buttons alone — backend enforces access.
-
-Permission matrix features (`hasFeaturePermission`) are **not** applied to this module — only Super Admin check.
-
----
-
-## 19. Complete Frontend Flow Diagram
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     OPEN FACULTY SUBJECTS PAGE                   │
-└───────────────────────────────┬─────────────────────────────────┘
-                                ↓
-                    ┌───────────────────────┐
-                    │  JWT present?         │
-                    └───────────┬───────────┘
-                          No    │    Yes
-                    ┌───────────┴───────────┐
-                    ↓                       ↓
-            Redirect to login        GET /categories (cache)
-                    │                       ↓
-                    │               GET / (list)
-                    │                       ↓
-                    │               Render table / skeleton
-                    └───────────────────────┘
-                                ↓
-        ┌───────────────────────┼───────────────────────┐
-        ↓                       ↓                       ↓
-    Search/filter           Pagination              Sort
-        ↓                       ↓                       ↓
-    Refetch GET /         Refetch GET /           Refetch GET /
-        └───────────────────────┼───────────────────────┘
-                                ↓
-        ┌───────────┬───────────┼───────────┬───────────┐
-        ↓           ↓           ↓           ↓           ↓
-     Create       Edit        View       Status      Delete
-        ↓           ↓           ↓           ↓           ↓
-  POST /      PUT /:id    GET /:id   PATCH /status  DELETE /:id
-        └───────────┴───────────┴───────────┴───────────┘
-                                ↓
-                    invalidateQueries (list)
-                                ↓
-                         Table refreshed
-                                ↓
-              [Optional] Manage Content
-                                ↓
-                    GET /:id/content-tree
-                                ↓
-                    CMS sub-flow (folders)
+const fd = new FormData();
+fd.append('facultySubjectId', fsId);
+fd.append('folderId', folderId);
+fd.append('batchIds', JSON.stringify([batchId]));
+fd.append('testName', 'Polity Mock 1');
+fd.append('languages', JSON.stringify(['English', 'Hindi']));
+fd.append('scheduleDate', '2026-07-01');
+fd.append('scheduleTime', '10:00');
+fd.append('durationMinutes', '60');
+fd.append('totalMarks', '100');
+fd.append('marksPerCorrectAnswer', '2');
+fd.append('resultDate', '2026-07-02');
+fd.append('questionFile', englishFile); // file 1
+fd.append('questionFile', hindiFile);   // file 2 — same field name
 ```
 
 ---
 
-## 20. Best Practices
+## 17. Table integration
 
-1. **Centralized services** — All HTTP in `facultySubjectService.ts`; components use hooks only.
-2. **TanStack Query** — Server state in queries; UI state (modals, filters) in React `useState`.
-3. **Query key stability** — Serialize `listParams` object for consistent cache keys.
-4. **Debounced search** — Avoid API call per keystroke; reset page on filter change.
-5. **Environment variables** — Single `VITE_API_BASE_URL`; no hardcoded hosts.
-6. **Error helper** — One `getApiErrorMessage()` used by all mutations.
-7. **Super Admin guard** — Route-level check before rendering page.
-8. **409 delete handling** — Surface batch-link message; guide admin to Batch module.
-9. **Create-form two-step** — Never load topics/teachers before subject is selected.
-10. **Use Mongo `_id` in URLs** — For `GET/PUT/PATCH/DELETE /:id`; `facultySubjectId` code is display-only (except summary/content-tree which accept both).
-11. **No invented endpoints** — No bulk delete, no soft delete, no refresh token flow.
-12. **Categories cache** — `staleTime: Infinity` for `/categories` — enum rarely changes.
-13. **Reusable form validation** — Zod schema aligned with backend messages for consistent UX.
-14. **Loading UX** — Distinguish initial load (`isLoading`) from background refetch (`isFetching`).
+### Supported features by module
 
----
+| Feature | Faculty Subjects | Prelims Tests | Mains AW | PDFs |
+|---------|------------------|---------------|----------|------|
+| Pagination | ✅ query | ✅ body | ✅ query | ✅ query |
+| Search | ✅ `search`/`q` | ✅ `search` | ✅ `search` | ✅ `search` |
+| Sort | ✅ `sortBy`/`sortOrder` | ✅ body | ✅ query | ✅ query |
+| Status filter | ✅ `status` | ✅ `publishStatus` | ✅ `publishStatus` | ✅ `visibility` |
+| Category filter | ✅ `category` | — | — | — |
+| Faculty filter | — | ✅ `facultySubjectId` | ✅ `facultySubjectId` | ✅ `facultySubjectId` |
+| Folder filter | — | ✅ `folderId` | ✅ `folderId` | ✅ `folderId` |
+| Batch filter | — | ✅ `batchId` | ✅ `batchId` | ✅ `batchId` |
+| Date range | — | ✅ schedule from/to | — | — |
+| Language filter | — | ✅ `language` | — | — |
+| Topic filter | — | — | ✅ `topicId`/`topicName` | — |
+| Bulk delete | ❌ | ❌ | ❌ | ❌ |
+| Row selection | Frontend only | Frontend only | Frontend only | Frontend only |
+| Quick status toggle | ✅ PATCH status | ✅ PATCH publish | ✅ PATCH publish | ✅ PATCH visibility |
+| Refresh | `refetch()` | `refetch()` | `refetch()` | `refetch()` |
+| Dashboard cards | — | ✅ POST dashboard-summary | ✅ GET dashboard-summary | ✅ GET dashboard-summary |
 
-## 21. Frontend Checklist
+### Recommended table columns
 
-Use this before marking the module production-ready:
+**Faculty Subjects:** `facultySubjectId`, `subjectName`, `teacherDetails.teacherName`, `categories` (badges), `status`, actions (view, edit, delete)
 
-### API & data
+**Prelims Tests:** `prelimsTestId`, `testName`, `languages`, `totalQuestions`, `scheduleDate` + `scheduleTime`, `publishStatus`, `batchNamesLabel`, actions
 
-- [ ] `VITE_API_BASE_URL` configured for all environments
-- [ ] Axios instance with Bearer interceptor
-- [ ] Super Admin login flow stores JWT correctly
-- [ ] `GET /api/faculty-subjects` list connected with pagination
-- [ ] Search debounced and mapped to `search` query param
-- [ ] Status filter mapped to `status` query param
-- [ ] Category filter mapped to `category` query param
-- [ ] Column sorting mapped to `sortBy` + `sortOrder`
-- [ ] `GET /categories` connected for form multi-select
-- [ ] `GET /create-form` two-step dependent dropdowns working
-- [ ] `POST /` create working with validation error display
-- [ ] `GET /:id` detail for view/edit when needed
-- [ ] `PUT /:id` update working
-- [ ] `PATCH /status/:id` status toggle working
-- [ ] `DELETE /:id` working with `409` batch-link handling
+**Mains AW:** `mainsAnswerWritingId`, `testName`, `topicName`, `scheduleDate`, `publishStatus`, `batchNamesLabel`, actions
 
-### React Query
-
-- [ ] Query keys defined in `facultySubjectKeys`
-- [ ] List invalidates after all mutations
-- [ ] Dropdown cache invalidated after create/update/status/delete
-- [ ] `isLoading` vs `isFetching` handled in UI
-
-### UI states
-
-- [ ] Table skeleton on initial load
-- [ ] Empty state (no data)
-- [ ] Empty state (filters active)
-- [ ] Error state with retry
-- [ ] Button loading on submit/delete/status
-- [ ] Toast messages on success and error
-
-### Auth & access
-
-- [ ] 401 redirects to login
-- [ ] 403 shows access denied for non–Super Admin
-- [ ] Route guarded for Super Admin
-
-### Forms
-
-- [ ] Required fields validated before submit
-- [ ] Topics cleared when subject changes
-- [ ] Categories multi-select uses `/categories` labels
-- [ ] Cancel resets form without side effects
-
-### Optional CMS
-
-- [ ] Content tree page uses `GET /:id/content-tree`
-- [ ] Folder create/update uses content folder endpoints
-
-### Production
-
-- [ ] No hardcoded API URLs
-- [ ] Responsive table (horizontal scroll on mobile)
-- [ ] Accessible form labels and error announcements
-- [ ] Manual QA against Postman collection: `BATCH_FACULTY_SUBJECT_POSTMAN_COLLECTION.json`
+**PDFs:** `subjectPdfId`, `pdfTitle`, `visibility`, `viewCount`, `batchNamesLabel`, actions (view, download, edit, delete)
 
 ---
 
-## Appendix A — Response shape reference
+## 18. Integration checklist
 
-### `formatFacultySubject` (full record)
+## Checklist
 
-```typescript
-interface FacultySubject {
-  _id: string;
-  facultySubjectId: string;       // e.g. FSU001
-  subjectName: string;
-  subject: string;                // Subject ObjectId (or populated in some contexts)
-  teacher: string;                // Teacher ObjectId
-  teacherDetails?: {
-    _id: string;
-    teacherId: string;
-    teacherName: string;
-    centerId: string;
-  };
-  topics: Array<{
-    _id: string;
-    topicId: string;
-    topicName: string;
-  }>;
-  categories: Array<
-    'LIVE_CLASS' | 'RECORDING' | 'PRELIMS_TEST' | 'MAINS_ANSWER_WRITING' | 'PDF'
-  >;
-  status: 'ACTIVE' | 'INACTIVE';
-  createdAt: string;
-  updatedAt: string;
-}
-```
-
-### Dropdown summary shape
-
-```typescript
-interface FacultySubjectDropdownItem {
-  _id: string;
-  facultySubjectId: string;
-  subjectName: string;
-  teacherName: string;
-}
-```
+- [ ] **API Connected** — All 4 module base paths wired to `VITE_API_BASE_URL/api`
+- [ ] **Axios Service Created** — `facultySubjectService`, `subjectPrelimsTestService`, `subjectMainsAnswerWritingService`, `subjectPdfService`
+- [ ] **React Query Hook Created** — List, detail, create-form, and mutation hooks per module
+- [ ] **Types Added** — TypeScript interfaces match response shapes in this doc
+- [ ] **Validation Added** — Client-side mirrors required fields; server `errorCode`/`field` mapped to form
+- [ ] **Loading Added** — Skeleton/spinner for lists, forms, and file uploads
+- [ ] **Error Added** — 400/401/403/404/409/500 handled per [UI state flow](#14-ui-state-flow)
+- [ ] **Empty State Added** — Zero-row states for list and folder-filtered views
+- [ ] **CRUD Working** — Faculty subject create/read/update/delete + status patch
+- [ ] **Prelims CRUD Working** — Create with multipart sheets, edit metadata, duplicate, publish, question CRUD
+- [ ] **Mains CRUD Working** — Create/update with PDF, publish toggle, delete
+- [ ] **PDF CRUD Working** — Create/update with PDF, visibility toggle, tracked download, delete
+- [ ] **Pagination Working** — Page/limit controls on all four list endpoints
+- [ ] **Search Working** — Debounced search wired to correct param/body field
+- [ ] **Filters Working** — Status, category, folder, batch, publish/visibility filters
+- [ ] **Authorization Working** — Bearer token on every request; 401 → login; 403 → forbidden UI
+- [ ] **Upload Working** — PDF (10/20 MB) and question sheets (10 MB) with field names `pdf` / `questionFile`
+- [ ] **Delete Working** — Confirm modals; handle FS 409 batch-link conflict
+- [ ] **Refresh Working** — Manual refresh + query invalidation after mutations
+- [ ] **Content tree integrated** — Subject detail loads folders per category before child tabs
+- [ ] **Dependency flow** — Create forms call dropdown APIs in documented order
 
 ---
 
-## Appendix B — Backend file reference
+## Appendix — Quick API index
 
-| File | Role |
-|------|------|
-| `routes/facultySubjectRoutes.js` | Route definitions |
-| `controllers/facultySubjectController.js` | CRUD, create-form, dropdown, content-tree |
-| `models/FacultySubject.js` | Mongoose schema |
-| `services/facultySubjectDeleteService.js` | Hard delete + batch guard + cascade |
-| `services/facultySubjectCategoryService.js` | Content category listing |
-| `utils/batchFacultyHelpers.js` | `validateFacultySubjectPayload` |
-| `utils/batchFacultyConstants.js` | Category enums + labels |
-| `utils/contentMastersHelpers.js` | Pagination, sort, search helpers |
-| `middleware/superAdminAuth.js` | `protect` + `requireSuperAdmin` |
-| `app.js` | Mounts `/api/faculty-subjects` |
+### Faculty Subjects (`/api/faculty-subjects`)
+
+| Method | Route |
+|--------|-------|
+| GET | `/` |
+| POST | `/` |
+| GET | `/create-form` |
+| GET | `/categories` |
+| GET, POST | `/dropdown` |
+| GET | `/summary/:id` |
+| GET | `/:id/content-tree` |
+| POST | `/content/categories` |
+| POST | `/content/folders` |
+| PUT | `/content/folders/:id` |
+| PATCH | `/status/:id` |
+| GET | `/:id` |
+| PUT | `/:id` |
+| DELETE | `/:id` |
+
+### Prelims Tests (`/api/prelims-tests`)
+
+| Method | Route |
+|--------|-------|
+| POST | `/create-form` |
+| POST | `/dashboard-summary` |
+| POST | `/list` |
+| POST | `/view` |
+| POST | `/` |
+| PUT | `/:id` |
+| PATCH | `/:id/publish-status` |
+| DELETE | `/:id` |
+| POST | `/:id/duplicate` |
+| POST | `/questions/upload` |
+| POST | `/questions/reupload` |
+| POST | `/questions/list` |
+| POST | `/questions/view` |
+| POST | `/questions/sheet/view` |
+| DELETE | `/questions/sheet` |
+| PUT | `/:id/questions/:questionId` |
+| DELETE | `/:id/questions/:questionId` |
+
+### Mains Answer Writing — CMS (`/api/mains-answer-writing`)
+
+| Method | Route |
+|--------|-------|
+| GET | `/create-form` |
+| GET | `/dashboard-summary` |
+| GET | `/filter/subjects-dropdown` |
+| GET | `/filter/topics-dropdown` |
+| GET | `/` |
+| GET | `/:id` |
+| POST | `/` |
+| PUT | `/:id` |
+| PATCH | `/:id/publish-status` |
+| DELETE | `/:id` |
+
+### Subject PDFs (`/api/subject-pdfs`)
+
+| Method | Route |
+|--------|-------|
+| GET | `/create-form` |
+| GET | `/dashboard-summary` |
+| GET | `/` |
+| GET | `/:id` |
+| POST | `/` |
+| PUT | `/:id` |
+| PATCH | `/:id/visibility` |
+| POST | `/:id/download` |
+| DELETE | `/:id` |
 
 ---
 
-## Appendix C — Related Postman / specs
-
-| Asset | Purpose |
-|-------|---------|
-| `BATCH_FACULTY_SUBJECT_POSTMAN_COLLECTION.json` | Faculty Subject CRUD smoke tests |
-| `FACULTY_SUBJECT_COMPLETE.md` | Full backend reference including CMS |
-| `FACULTY_SUBJECT_CMS_POSTMAN_COLLECTION.json` | Folder + live class flows |
-
----
-
-*Generated from backend source of truth. Last aligned with: `facultySubjectRoutes.js`, `facultySubjectController.js`, `FacultySubject` model, `batchFacultyHelpers.js`, `superAdminAuth` middleware.*
+*Generated from backend sources: `routes/facultySubjectRoutes.js`, `routes/subjectPrelimsTestRoutes.js`, `routes/subjectMainsAnswerWritingRoutes.js`, `routes/subjectPdfRoutes.js`, corresponding controllers, models, middleware, and `utils/facultyContentHelpers.js`.*

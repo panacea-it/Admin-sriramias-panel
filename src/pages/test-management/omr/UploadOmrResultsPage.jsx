@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -9,18 +9,19 @@ import {
 } from 'lucide-react'
 import TestManagementPageShell from '../../../components/test-management/TestManagementPageShell'
 import OmrTableSkeleton from '../../../components/test-management/omr/OmrTableSkeleton'
+import ResultSheetViewer from '../../../components/test-management/omr/ResultSheetViewer'
 import { CourseFormField } from '../../../components/courses/CourseFormField'
 import { UploadFieldHint, UploadValidationMessage } from '../../../components/common/UploadFieldHint'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { useAuth } from '../../../contexts/AuthContext'
 import { useOmrPermissions } from '../../../hooks/useOmrPermissions'
 import {
-  downloadOmrResultSheet,
-  getOmrExamById,
-  replaceOmrResultSheet,
-  uploadOmrResultSheet,
-} from '../../../services/omrService'
-import { OMR_RESULT_UPLOAD_PROFILE, inferOmrFileType, mapApiOmrExamToLocal } from '../../../utils/omrApiHelpers'
+  useOmrExamDetail,
+  useReplaceResultSheet,
+  useUploadResultSheet,
+  getOmrMutationErrorMessage,
+} from '../../../hooks/useOmrExams'
+import { downloadOmrResultSheet } from '../../../services/omrExamService'
+import { OMR_RESULT_UPLOAD_PROFILE, inferOmrFileType } from '../../../utils/omrApiHelpers'
 import { validateUploadFileSync } from '../../../utils/uploadValidation'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../utils/apiError'
@@ -30,33 +31,23 @@ import { cn } from '../../../utils/cn'
 export default function UploadOmrResultsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const { canUploadResult, canDownloadResult } = useOmrPermissions()
+  const { canUploadResult, canReplaceResult, canDownloadResult } = useOmrPermissions()
 
-  const [exam, setExam] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: exam, isLoading: loading, error } = useOmrExamDetail(id, { enabled: Boolean(id) })
+  const uploadMutation = useUploadResultSheet()
+  const replaceMutation = useReplaceResultSheet()
+
   const [file, setFile] = useState(null)
   const [fileError, setFileError] = useState('')
-  const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
 
-  const loadExam = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await getOmrExamById(id)
-      setExam(mapApiOmrExamToLocal(data) || data)
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to load OMR exam'))
-      navigate(TEST_MANAGEMENT_ROUTES.omr)
-    } finally {
-      setLoading(false)
-    }
-  }, [id, navigate])
-
   useEffect(() => {
-    loadExam()
-  }, [loadExam])
+    if (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load OMR exam'))
+      navigate(TEST_MANAGEMENT_ROUTES.omr)
+    }
+  }, [error, navigate])
 
   const acceptFile = (nextFile) => {
     if (!nextFile) return
@@ -70,38 +61,42 @@ export default function UploadOmrResultsPage() {
     setFileError('')
   }
 
+  const hasExisting = Boolean(exam?.resultSheetUploaded)
+  const canSubmit = hasExisting ? canReplaceResult : canUploadResult
+  const uploading = uploadMutation.isPending || replaceMutation.isPending
+
   const handleUpload = async () => {
     if (!file) {
       toast.error('Please select a file to upload')
       return
     }
-    setUploading(true)
+    if (hasExisting && !canReplaceResult) {
+      toast.error('Only Super Admin can replace an existing result sheet')
+      return
+    }
+
     try {
-      const uploadedBy = user?.name || user?.email || 'Admin'
-      const alreadyUploaded = Boolean(exam?.resultSheetUploaded)
-      const updated = alreadyUploaded
-        ? await replaceOmrResultSheet(id, file, uploadedBy)
-        : await uploadOmrResultSheet(id, file, uploadedBy)
-      setExam(mapApiOmrExamToLocal(updated) || updated)
+      const response = hasExisting
+        ? await replaceMutation.mutateAsync({ id, file })
+        : await uploadMutation.mutateAsync({ id, file })
       setFile(null)
-      toast.success(alreadyUploaded ? 'Result sheet replaced' : 'Result sheet uploaded')
+      toast.success(
+        response?.message ||
+          (hasExisting ? 'Result sheet replaced successfully' : 'Result sheet uploaded successfully'),
+      )
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to upload result sheet'))
-    } finally {
-      setUploading(false)
+      toast.error(getOmrMutationErrorMessage(err, 'Failed to upload result sheet'))
     }
   }
 
   const handleDownload = async () => {
     try {
-      await downloadOmrResultSheet(id)
+      await downloadOmrResultSheet(id, { fileName: exam?.resultSheet?.fileName })
       toast.success('Download started')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to download result sheet'))
     }
   }
-
-  const hasExisting = Boolean(exam?.resultSheetUploaded)
 
   return (
     <TestManagementPageShell
@@ -159,7 +154,8 @@ export default function UploadOmrResultsPage() {
                 >
                   <UploadCloud className="mb-3 h-8 w-8 text-[#246392]" />
                   <p className="text-sm font-semibold text-[#1a3a5c]">
-                    {file?.name || (hasExisting ? 'Drop a file to replace' : 'Drop file or click to browse')}
+                    {file?.name ||
+                      (hasExisting ? 'Drop a file to replace' : 'Drop file or click to browse')}
                   </p>
                   <UploadFieldHint profile={OMR_RESULT_UPLOAD_PROFILE} className="mt-2" />
                   <input
@@ -173,28 +169,36 @@ export default function UploadOmrResultsPage() {
                 {fileError && <UploadValidationMessage message={fileError} />}
               </CourseFormField>
 
-              {hasExisting && (
+              {hasExisting && exam?.resultSheet && (
                 <>
                   <CourseFormField label="File Type">
                     <div className="flex h-12 items-center gap-2 rounded-xl border border-gray-200 bg-slate-50 px-4 text-sm font-medium text-[#444]">
                       <FileSpreadsheet className="h-4 w-4 text-[#246392]" />
-                      {(exam.resultSheet?.fileType || inferOmrFileType(exam.resultSheet?.fileName)).toUpperCase()}
+                      {(exam.resultSheet.fileType || inferOmrFileType(exam.resultSheet.fileName)).toUpperCase()}
                       <span className="text-slate-400">·</span>
-                      {exam.resultSheet?.fileName}
+                      {exam.resultSheet.fileName}
                     </div>
                   </CourseFormField>
 
                   <CourseFormField label="Uploaded By">
                     <div className="flex h-12 items-center rounded-xl border border-gray-200 bg-slate-50 px-4 text-sm font-medium text-[#444]">
-                      {exam.resultSheet?.uploadedBy || '—'}
+                      {exam.resultSheet.uploadedBy || '—'}
                     </div>
                   </CourseFormField>
 
                   <CourseFormField label="Upload Date">
                     <div className="flex h-12 items-center rounded-xl border border-gray-200 bg-slate-50 px-4 text-sm font-medium text-[#444]">
-                      {formatCategoryDateTime(exam.resultSheet?.uploadedAt)}
+                      {formatCategoryDateTime(exam.resultSheet.uploadedAt)}
                     </div>
                   </CourseFormField>
+
+                  {canDownloadResult && (
+                    <ResultSheetViewer
+                      examId={id}
+                      fileName={exam.resultSheet.fileName}
+                      fileType={exam.resultSheet.fileType}
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -221,7 +225,7 @@ export default function UploadOmrResultsPage() {
                 </button>
               )}
 
-              {canUploadResult && (
+              {canSubmit && (
                 <button
                   type="button"
                   onClick={handleUpload}
@@ -229,18 +233,13 @@ export default function UploadOmrResultsPage() {
                   className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 text-sm font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
                 >
                   <UploadCloud className="h-4 w-4" />
-                  {uploading
-                    ? 'Uploading…'
-                    : hasExisting
-                      ? 'Replace File'
-                      : 'Upload'}
+                  {uploading ? 'Uploading…' : hasExisting ? 'Replace File' : 'Upload'}
                 </button>
               )}
             </div>
           </div>
         </div>
       )}
-
     </TestManagementPageShell>
   )
 }

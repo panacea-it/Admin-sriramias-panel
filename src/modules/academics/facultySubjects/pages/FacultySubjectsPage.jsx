@@ -24,6 +24,8 @@ import {
 import { facultySubjectLabels } from '../../../../data/facultySubjectLabels'
 import { MASTER_BULK_TOAST } from '../../../../utils/masterBulkActions'
 import { FACULTY_SUBJECT_CATEGORIES, FACULTY_SUBJECT_ROUTES } from '../constants/facultySubject.constants'
+import { saveFacultySubjectId, saveFacultySubjectName } from '../../../../utils/sessionStorage'
+import { useFacultySubjectCategories } from '../hooks/useFacultySubjectCategories'
 import { useFacultySubjectManagement } from '../hooks/useFacultySubjectManagement'
 import { useFacultySubject } from '../hooks/useFacultySubject'
 import { useCreateFacultySubject } from '../hooks/useCreateFacultySubject'
@@ -70,9 +72,11 @@ function RefreshButton({ onClick, disabled, fetching }) {
 
 export default function FacultySubjectsPage() {
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { logout, isAuthenticated } = useAuth()
   const { isSuperAdmin } = usePermissions()
   const canMutate = isSuperAdmin
+
+  useFacultySubjectCategories({ enabled: isAuthenticated })
 
   const {
     subjects,
@@ -221,7 +225,17 @@ export default function FacultySubjectsPage() {
 
   const openContentManagement = useCallback(
     (row) => {
-      navigate(FACULTY_SUBJECT_ROUTES.content(row.id))
+      const mongoFacultySubjectId = String(row.id || row._id || row.apiId || '').trim()
+      if (mongoFacultySubjectId) {
+        saveFacultySubjectId(mongoFacultySubjectId)
+        if (row.subjectName) saveFacultySubjectName(row.subjectName)
+      }
+      navigate(FACULTY_SUBJECT_ROUTES.content(row.id), {
+        state: {
+          facultySubjectId: mongoFacultySubjectId,
+          facultySubjectName: row.subjectName || '',
+        },
+      })
     },
     [navigate],
   )

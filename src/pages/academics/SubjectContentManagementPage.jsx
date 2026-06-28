@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, Layers, Menu } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import HierarchyExplorer from '../../components/subject-content/HierarchyExplorer'
@@ -10,6 +10,7 @@ import ContentBulkConfirmDialog from '../../components/subject-content/ContentBu
 import { useAuth } from '../../contexts/AuthContext'
 import { useAcademicsSubjects } from '../../hooks/useAcademicsSubjects'
 import { useFacultySubjectDetail } from '../../hooks/useFacultySubjectDetail'
+import { useFolderContentItems } from '../../hooks/useFolderContentItems'
 import { useSubjectContent } from '../../hooks/useSubjectContent'
 import { mergeSeedIntoSubject } from '../../data/facultySubjectContentSeed'
 import {
@@ -24,12 +25,33 @@ import {
 } from '../../utils/facultySubjectContentStorage'
 import { nextLiveClassId } from '../../utils/academicsSubjectsStorage'
 import { normalizeCategories } from '../../utils/subjectCategoryHelpers'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { resolveRecordingFacultySubjectId, syncRecordingFacultySubjectFromNavigation } from '../../utils/recordingFacultySubject'
+import { saveFacultySubjectId } from '../../utils/sessionStorage'
+import {
+  deleteLiveContentItemFromApi,
+  deleteRecordingContentItemFromApi,
+  saveLiveContentItemToApi,
+  saveRecordingContentItemToApi,
+} from '../../utils/facultySubjectContentItemSave'
+import ConfirmDeleteDialog from '../../components/subjects/ConfirmDeleteDialog'
+import FolderDeleteDialog from '../../modules/academics/facultySubjects/components/FolderDeleteDialog'
+import FacultySubjectApiContentPanel, {
+  isApiBackedContentCategory,
+} from '../../modules/academics/facultySubjects/components/FacultySubjectApiContentPanel'
+import { FACULTY_SUBJECT_ROUTES } from '../../modules/academics/facultySubjects/constants/facultySubject.constants'
+import { usePermissions } from '../../hooks/usePermissions'
 import { toast } from '../../utils/toast'
+
+const LIST_ROUTE = FACULTY_SUBJECT_ROUTES.list
 
 export default function SubjectContentManagementPage() {
   const { subjectId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
+  const { isSuperAdmin } = usePermissions()
+  const canMutateContent = isSuperAdmin
   const { upsertSubject } = useAcademicsSubjects()
   const {
     subject,
@@ -49,9 +71,38 @@ export default function SubjectContentManagementPage() {
     saving,
     persist,
     updateFolderItems,
+    createFolder,
+    renameFolder,
+    removeFolder,
+    facultySubjectApiId,
   } = useSubjectContent(subjectId, {
     subjectMeta: subject,
   })
+
+  const resolvedFacultySubjectId = useMemo(
+    () => resolveRecordingFacultySubjectId(subject, subjectId) || facultySubjectApiId || '',
+    [subject, subjectId, facultySubjectApiId],
+  )
+
+  useEffect(() => {
+    syncRecordingFacultySubjectFromNavigation(location.state)
+  }, [location.state])
+
+  useEffect(() => {
+    const mongoId = resolveRecordingFacultySubjectId(subject, subjectId)
+    if (mongoId) saveFacultySubjectId(mongoId)
+  }, [subject, subjectId])
+
+  useEffect(() => {
+    if (subjectLoading) return
+
+    const facultySubjectId = resolveRecordingFacultySubjectId(subject, subjectId)
+
+    if (!facultySubjectId) {
+      toast.error('Faculty Subject not found.')
+      navigate(LIST_ROUTE)
+    }
+  }, [subjectLoading, subject, subjectId, navigate])
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedFolderId, setSelectedFolderId] = useState(null)
@@ -64,6 +115,7 @@ export default function SubjectContentManagementPage() {
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderDescription, setNewFolderDescription] = useState('')
   const [deleteFolderTarget, setDeleteFolderTarget] = useState(null)
+  const [folderDeleteBlocked, setFolderDeleteBlocked] = useState(null)
   const [deleteItemTarget, setDeleteItemTarget] = useState(null)
   const [folderListLoading, setFolderListLoading] = useState(false)
   const [selectedRowIds, setSelectedRowIds] = useState([])
@@ -96,10 +148,36 @@ export default function SubjectContentManagementPage() {
   const activeFolder = activeCategory
     ? findFolderInCategory(activeCategory, selectedFolderId)
     : null
-  const { item: activeItem } = findItemInHierarchy(categories, selectedItemId)
-  const folderItems = activeFolder?.items || []
+
+  const activeFolderApiId = activeFolder?.apiId || activeFolder?.id
+  const loadFolderItemsFromApi = Boolean(activeFolderApiId && activeCategory?.categoryType)
+
+  const {
+    items: apiFolderItems,
+    loading: apiFolderItemsLoading,
+    reload: reloadFolderItems,
+  } = useFolderContentItems({
+    facultySubjectId: resolvedFacultySubjectId,
+    categoryType: activeCategory?.categoryType,
+    folderId: activeFolderApiId,
+    enabled: loadFolderItemsFromApi && Boolean(activeFolderApiId),
+  })
+
+  const folderItems = useMemo(() => {
+    if (loadFolderItemsFromApi) return apiFolderItems
+    return activeFolder?.items || []
+  }, [loadFolderItemsFromApi, apiFolderItems, activeFolder?.items])
+
+  const { item: hierarchyActiveItem } = findItemInHierarchy(categories, selectedItemId)
+  const activeItem = useMemo(() => {
+    if (hierarchyActiveItem) return hierarchyActiveItem
+    if (!selectedItemId) return null
+    return folderItems.find((i) => String(i.id) === String(selectedItemId)) || null
+  }, [hierarchyActiveItem, selectedItemId, folderItems])
   const isRecordingCategory = activeCategory?.categoryType === 'RECORDED_CLASS'
   const recordingCount = isRecordingCategory ? folderItems.length : undefined
+  const apiBackedCategory = isApiBackedContentCategory(activeCategory?.apiCategory)
+  const activeFolderApiIdForTabs = activeFolder?.apiId || activeFolder?.id || ''
 
   const mergedSubject = useMemo(() => {
     if (!subject || !content) return subject
@@ -197,74 +275,84 @@ export default function SubjectContentManagementPage() {
   }, [selectedFolderId, selectedCategoryId])
 
   const handleAddFolder = async () => {
-    if (!newFolderName.trim() || !selectedCategoryId || !activeCategory || !content) {
+    if (!newFolderName.trim() || !selectedCategoryId || !activeCategory) {
       toast.error('Folder name and category are required')
       return
     }
-    const folder = {
-      id: generateContentId('folder'),
-      folderName: newFolderName.trim(),
-      description: newFolderDescription.trim(),
-      items: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+
+    try {
+      const created = await createFolder({
+        categoryId: selectedCategoryId,
+        categoryType: activeCategory.categoryType,
+        folderName: newFolderName.trim(),
+        description: newFolderDescription.trim(),
+      })
+      if (!created) {
+        toast.error('Failed to create folder')
+        return
+      }
+      setAddingFolder(false)
+      setNewFolderName('')
+      setNewFolderDescription('')
+      setSelectedFolderId(created.id)
+      setSelectedItemId(null)
+      setPanelMode('list')
+      setAddingNewItem(false)
+      toast.success('Folder created')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to create folder'))
     }
-    await persistContent({
-      ...content,
-      categories: content.categories.map((c) =>
-        c.id === selectedCategoryId ? { ...c, folders: [...(c.folders || []), folder] } : c,
-      ),
-    })
-    setAddingFolder(false)
-    setNewFolderName('')
-    setNewFolderDescription('')
-    setSelectedFolderId(folder.id)
-    setSelectedItemId(null)
-    setPanelMode('list')
-    setAddingNewItem(false)
-    toast.success('Folder created')
   }
 
   const handleRenameFolder = async (folderId, name) => {
-    if (!name.trim() || !selectedCategoryId || !content) return
+    if (!name.trim() || !selectedCategoryId || !activeCategory) return
     const folder = activeCategory?.folders?.find((f) => f.id === folderId)
-    await persistContent({
-      ...content,
-      categories: content.categories.map((cat) => ({
-        ...cat,
-        folders: (cat.folders || []).map((f) =>
-          f.id === folderId
-            ? {
-                ...f,
-                folderName: name.trim(),
-                description: folder?.description || '',
-                updatedAt: new Date().toISOString(),
-              }
-            : f,
-        ),
-      })),
-    })
-    toast.success('Folder renamed')
+    try {
+      await renameFolder({
+        folderId: folder?.apiId || folderId,
+        folderName: name.trim(),
+        description: folder?.description || '',
+      })
+      toast.success('Folder renamed')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to rename folder'))
+    }
   }
 
   const handleDeleteFolder = (folderId) => setDeleteFolderTarget(folderId)
 
   const confirmDeleteFolder = async () => {
-    if (!selectedCategoryId || !deleteFolderTarget || !content) return
-    await persistContent({
-      ...content,
-      categories: content.categories.map((cat) => ({
-        ...cat,
-        folders: (cat.folders || []).filter((f) => f.id !== deleteFolderTarget),
-      })),
-    })
-    if (selectedFolderId === deleteFolderTarget) {
-      setSelectedFolderId(null)
-      setSelectedItemId(null)
-      setPanelMode('list')
+    if (!selectedCategoryId || !deleteFolderTarget) return
+    const folder =
+      activeCategory?.folders?.find(
+        (f) => f.id === deleteFolderTarget || f.apiId === deleteFolderTarget,
+      ) || null
+    const folderApiId = folder?.apiId || folder?.id || deleteFolderTarget
+
+    try {
+      await removeFolder(folderApiId)
+      if (selectedFolderId === deleteFolderTarget || selectedFolderId === folderApiId) {
+        setSelectedFolderId(null)
+        setSelectedItemId(null)
+        setPanelMode('list')
+      }
+      setDeleteFolderTarget(null)
+      toast.success('Folder deleted')
+    } catch (error) {
+      const status = error?.response?.status
+      const body = error?.response?.data
+      if (status === 409 || body?.errorCode === 'FOLDER_HAS_CONTENT') {
+        setFolderDeleteBlocked({
+          folderName: folder?.folderName,
+          message: body?.message,
+          details: body?.details,
+          suggestions: body?.suggestions,
+        })
+        setDeleteFolderTarget(null)
+        return
+      }
+      toast.error(getApiErrorMessage(error, 'Failed to delete folder'))
     }
-    setDeleteFolderTarget(null)
-    toast.success('Folder deleted')
   }
 
   const removeItemFromSubject = (item, contentType) => {
@@ -294,21 +382,36 @@ export default function SubjectContentManagementPage() {
     if (!deleteItemTarget || !selectedCategoryId || !activeFolder) return
     const contentType = contentTypeFromCategoryType(activeCategory.categoryType)
 
-    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
-      items.filter((i) => i.id !== deleteItemTarget.id),
-    )
-    upsertSubject(removeItemFromSubject(deleteItemTarget, contentType))
-    if (selectedItemId === deleteItemTarget.id) {
-      setSelectedItemId(null)
-      setPanelMode('list')
-    }
-    setDeleteItemTarget(null)
-    if (contentType === 'live') {
-      toast.success('Live Class Deleted Successfully')
-    } else if (contentType === 'recording') {
-      toast.success('Recording deleted successfully')
-    } else {
-      toast.success('Entry deleted')
+    try {
+      if (contentType === 'live') {
+        await deleteLiveContentItemFromApi(deleteItemTarget.data || deleteItemTarget)
+      } else if (contentType === 'recording') {
+        await deleteRecordingContentItemFromApi(deleteItemTarget.data || deleteItemTarget)
+      }
+
+      if (loadFolderItemsFromApi) {
+        await reloadFolderItems()
+      } else {
+        mutateFolderItems(selectedCategoryId, activeFolder.id, (items) =>
+          items.filter((i) => i.id !== deleteItemTarget.id),
+        )
+      }
+
+      upsertSubject(removeItemFromSubject(deleteItemTarget, contentType))
+      if (selectedItemId === deleteItemTarget.id) {
+        setSelectedItemId(null)
+        setPanelMode('list')
+      }
+      setDeleteItemTarget(null)
+      if (contentType === 'live') {
+        toast.success('Live Class Deleted Successfully')
+      } else if (contentType === 'recording') {
+        toast.success('Recording deleted successfully')
+      } else {
+        toast.success('Entry deleted')
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete item'))
     }
   }
 
@@ -516,28 +619,60 @@ export default function SubjectContentManagementPage() {
     existingItem,
     liveClassData,
     recordingData,
+    recordingFormOptions,
   }) => {
     if (!content || !activeCategory || !activeFolder) return
+
+    const folderApiId = activeFolder.apiId || activeFolder.id
+    let savedLiveRow = liveClassData
+    let savedRecordingRow = recordingData
+
+    try {
+      if (contentType === 'live') {
+        savedLiveRow = await saveLiveContentItemToApi({
+          values,
+          facultySubjectId: resolvedFacultySubjectId,
+          folderId: folderApiId,
+          liveClassData,
+          publish,
+        })
+      } else if (contentType === 'recording') {
+        savedRecordingRow = await saveRecordingContentItemToApi({
+          values,
+          facultySubjectId: resolvedFacultySubjectId,
+          folderId: folderApiId,
+          recordingData,
+          recordingFormOptions,
+        })
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to save content'))
+      throw error
+    }
 
     const { item, subjectPatch } = buildItemSavePayload({
       values,
       contentType,
       subject: mergedSubject || subject,
       existingItem: existingItem || null,
-      liveClassData,
-      recordingData,
+      liveClassData: savedLiveRow,
+      recordingData: savedRecordingRow,
       folder: activeFolder,
       category: activeCategory,
       publish,
     })
 
-    mutateFolderItems(selectedCategoryId, activeFolder.id, (items) => {
-      const next = [...items]
-      const idx = next.findIndex((i) => i.id === item.id)
-      if (idx >= 0) next[idx] = { ...item, data: item.data }
-      else next.push(item)
-      return next
-    })
+    if (loadFolderItemsFromApi) {
+      await reloadFolderItems()
+    } else {
+      mutateFolderItems(selectedCategoryId, activeFolder.id, (items) => {
+        const next = [...items]
+        const idx = next.findIndex((i) => i.id === item.id)
+        if (idx >= 0) next[idx] = { ...item, data: item.data }
+        else next.push(item)
+        return next
+      })
+    }
 
     upsertSubject(subjectPatch)
 
@@ -556,7 +691,7 @@ export default function SubjectContentManagementPage() {
         </p>
         <button
           type="button"
-          onClick={() => navigate('/academics/subjects')}
+          onClick={() => navigate(LIST_ROUTE)}
           className="text-sm text-[#246392] hover:underline"
         >
           Back to Faculty Subjects
@@ -573,7 +708,7 @@ export default function SubjectContentManagementPage() {
         <PageBanner icon={Layers} title={`${bannerTitle} — Content`} iconClassName="text-[#246392]">
           <button
             type="button"
-            onClick={() => navigate('/academics/subjects')}
+            onClick={() => navigate(LIST_ROUTE)}
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -650,36 +785,46 @@ export default function SubjectContentManagementPage() {
               <span className="text-sm font-medium text-slate-600">Content explorer</span>
             </div>
 
-            <SubjectContentFormPanel
-              subject={mergedSubject || subject}
-              facultySubjectId=""
-              listLoading={folderListLoading}
-              itemCount={isRecordingCategory ? recordingCount : undefined}
-              subjects={subject ? [subject] : []}
-              category={activeCategory}
-              folder={activeFolder}
-              item={activeItem}
-              items={folderItems}
-              facultyName={facultyName}
-              saving={saving}
-              panelMode={panelMode}
-              onPanelModeChange={handlePanelModeChange}
-              previewRow={previewRow}
-              onPreviewRow={setPreviewRow}
-              addingNew={addingNewItem}
-              onSaveItem={handleSaveItem}
-              onDeleteItem={handleDeleteItem}
-              onDuplicateItem={handleDuplicateItem}
-              onPublishItemQuick={handlePublishItemQuick}
-              onSelectItem={(id) => {
-                setSelectedItemId(id)
-                setAddingNewItem(false)
-              }}
-              onStartAddItem={() => {
-                setSelectedItemId(null)
-                setAddingNewItem(true)
-              }}
-            />
+            {apiBackedCategory && activeCategory ? (
+              <FacultySubjectApiContentPanel
+                apiCategory={activeCategory.apiCategory}
+                facultySubjectId={resolvedFacultySubjectId}
+                folderId={activeFolderApiIdForTabs}
+                folderName={activeFolder?.folderName || activeFolder?.name}
+                canMutate={canMutateContent}
+              />
+            ) : (
+              <SubjectContentFormPanel
+                subject={mergedSubject || subject}
+                facultySubjectId={resolvedFacultySubjectId}
+                listLoading={folderListLoading || apiFolderItemsLoading}
+                itemCount={isRecordingCategory ? recordingCount : undefined}
+                subjects={subject ? [subject] : []}
+                category={activeCategory}
+                folder={activeFolder}
+                item={activeItem}
+                items={folderItems}
+                facultyName={facultyName}
+                saving={saving}
+                panelMode={panelMode}
+                onPanelModeChange={handlePanelModeChange}
+                previewRow={previewRow}
+                onPreviewRow={setPreviewRow}
+                addingNew={addingNewItem}
+                onSaveItem={handleSaveItem}
+                onDeleteItem={handleDeleteItem}
+                onDuplicateItem={handleDuplicateItem}
+                onPublishItemQuick={handlePublishItemQuick}
+                onSelectItem={(id) => {
+                  setSelectedItemId(id)
+                  setAddingNewItem(false)
+                }}
+                onStartAddItem={() => {
+                  setSelectedItemId(null)
+                  setAddingNewItem(true)
+                }}
+              />
+            )}
           </main>
         </div>
       )}
@@ -687,6 +832,24 @@ export default function SubjectContentManagementPage() {
       
 
       
+      <ConfirmDeleteDialog
+        open={Boolean(deleteFolderTarget)}
+        title="Delete folder?"
+        message="This will remove the folder from the sidebar. Content must be deleted first."
+        onConfirm={confirmDeleteFolder}
+        onCancel={() => setDeleteFolderTarget(null)}
+        loading={saving}
+      />
+
+      <FolderDeleteDialog
+        open={Boolean(folderDeleteBlocked)}
+        folderName={folderDeleteBlocked?.folderName}
+        message={folderDeleteBlocked?.message}
+        details={folderDeleteBlocked?.details}
+        suggestions={folderDeleteBlocked?.suggestions}
+        onCancel={() => setFolderDeleteBlocked(null)}
+      />
+
       <ContentBulkConfirmDialog
         open={Boolean(bulkConfirm)}
         type={bulkConfirm?.type}

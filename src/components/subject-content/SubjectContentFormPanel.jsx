@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, Plus } from 'lucide-react'
 import SubjectContentFields from '../subjects/SubjectContentFields'
 import {
@@ -12,7 +13,8 @@ import {
 } from '../subjects/subjectFormUtils'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLiveClassFormOptions } from '../../hooks/useLiveClassFormOptions'
-import { useBatchesData } from '../../hooks/useBatchesData'
+import { useFacultySubjectBatchesDropdown } from '../../hooks/useFacultySubjectBatchesDropdown'
+import { batchDropdownKeys } from '../../hooks/queryKeys'
 import { getLiveClassById } from '../../api/liveClassesHttpAPI'
 import { getRecordingById, playRecording } from '../../api/recordingsAPI'
 import { useRecordingFormOptions } from '../../hooks/useRecordingFormOptions'
@@ -21,6 +23,7 @@ import {
   mapApiLiveClassToLocalRow,
   resolveLiveClassApiId,
 } from '../../utils/liveClassHelpers'
+import { resolveRecordingFacultySubjectId } from '../../utils/recordingFacultySubject'
 import {
   mapApiRecordingToFormValues,
   mapApiRecordingToLocalRow,
@@ -86,8 +89,14 @@ export default function SubjectContentFormPanel({
   onBulkEnableRequest,
 }) {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const actorName = user?.name || user?.email || facultyName || 'Admin'
   const contentType = category ? contentTypeFromCategoryType(category.categoryType) : 'live'
+
+  const effectiveFacultySubjectId = useMemo(
+    () => resolveRecordingFacultySubjectId(subject, facultySubjectId),
+    [subject, facultySubjectId],
+  )
 
   const [testSeriesErrors, setTestSeriesErrors] = useState({})
   const [recordingUploadError, setRecordingUploadError] = useState(null)
@@ -132,9 +141,10 @@ export default function SubjectContentFormPanel({
     loadingBatches,
     loadingCenters,
     loadingClassrooms,
+    batchesError: liveBatchesError,
   } = useLiveClassFormOptions({
     centerId: watchedCenterId,
-    facultySubjectId,
+    facultySubjectId: effectiveFacultySubjectId,
     enabled: contentType === 'live' && panelMode === 'form',
   })
   const {
@@ -145,18 +155,34 @@ export default function SubjectContentFormPanel({
     topics: recordingTopics,
     loadingTeachers: loadingRecordingTeachers,
     loadingCenters: loadingRecordingCenters,
+    centersError: recordingCentersError,
     loadingBatches: loadingRecordingBatches,
     loadingTopics: loadingRecordingTopics,
+    batchesError: recordingBatchesError,
+    batchesFetched: recordingBatchesFetched,
+    reloadBatches: reloadRecordingBatches,
   } = useRecordingFormOptions({
-    facultySubjectId,
+    facultySubjectId: effectiveFacultySubjectId,
     centerId: watchedRecordingCenterId,
     batchId: watchedBatchId,
-    enabled: contentType === 'recording' && Boolean(facultySubjectId),
+    enabled: contentType === 'recording',
     formOpen: contentType === 'recording' && panelMode === 'form',
     loadCreateForm: contentType === 'recording' && panelMode === 'form' && addingNew,
   })
-  const { sourceRows: fallbackBatches, loading: fallbackBatchesLoading } = useBatchesData({
-    enabled: contentType !== 'live' && contentType !== 'recording',
+  const {
+    batches: fallbackBatches,
+    loading: fallbackBatchesLoading,
+    error: fallbackBatchesError,
+  } = useFacultySubjectBatchesDropdown({
+    facultySubjectId: effectiveFacultySubjectId,
+    centerId: watchedCenterId || watchedRecordingCenterId,
+    centerOptions: [...centers, ...recordingCenters],
+    enabled:
+      contentType !== 'live' &&
+      contentType !== 'recording' &&
+      Boolean(effectiveFacultySubjectId) &&
+      panelMode === 'form',
+    requireCenter: false,
   })
   const batchOptions =
     contentType === 'live'
@@ -170,6 +196,24 @@ export default function SubjectContentFormPanel({
       : contentType === 'recording'
         ? loadingRecordingBatches
         : fallbackBatchesLoading
+  const batchOptionsError =
+    contentType === 'live'
+      ? liveBatchesError
+      : contentType === 'recording'
+        ? recordingBatchesError
+        : fallbackBatchesError
+
+  const prevFacultySubjectIdRef = useRef(effectiveFacultySubjectId)
+  useEffect(() => {
+    if (prevFacultySubjectIdRef.current === effectiveFacultySubjectId) return
+    prevFacultySubjectIdRef.current = effectiveFacultySubjectId
+    queryClient.removeQueries({ queryKey: batchDropdownKeys.all })
+    setValue('centerId', '', { shouldValidate: true })
+    setValue('recordingCenter', '', { shouldValidate: true })
+    setValue('batchId', '', { shouldValidate: true })
+    setValue('batchIds', [], { shouldValidate: true })
+    setValue('recordingTopic', '', { shouldValidate: true })
+  }, [effectiveFacultySubjectId, queryClient, setValue])
 
   useEffect(() => {
     if (!folder || !category || panelMode !== 'form') return
@@ -275,6 +319,9 @@ export default function SubjectContentFormPanel({
           recordingCenter: '',
           recordingTopic: '',
           recordingTeacher: subject?.teacher || facultyName,
+          recordingDescription: '',
+          recordingTags: '',
+          recordingVideoFileName: '',
           batchId: '',
           batchIds: [],
           contentType: 'recording',
@@ -350,7 +397,6 @@ export default function SubjectContentFormPanel({
       'recordingTeacher',
       'recordingVisibility',
       'recordingTags',
-      'recordingDescription',
     ]
     fields.forEach((field) => {
       const value = mapped[field]
@@ -742,6 +788,9 @@ export default function SubjectContentFormPanel({
             subjects={subjects}
             batches={batchOptions}
             batchesLoading={batchOptionsLoading}
+            batchesFetched={contentType === 'recording' ? recordingBatchesFetched : true}
+            batchesError={batchOptionsError}
+            facultySubjectId={effectiveFacultySubjectId}
             centerOptions={centers}
             centersLoading={loadingCenters}
             classroomOptions={classrooms}
@@ -754,6 +803,7 @@ export default function SubjectContentFormPanel({
             }}
             recordingCenterOptions={recordingCenters}
             recordingCentersLoading={loadingRecordingCenters}
+            recordingCentersError={recordingCentersError}
             recordingTopicOptions={recordingTopics}
             recordingTopicsLoading={loadingRecordingTopics}
             recordingTeacherOptions={recordingTeachers}
@@ -762,6 +812,7 @@ export default function SubjectContentFormPanel({
               setValue('batchId', '', { shouldValidate: true })
               setValue('batchIds', [], { shouldValidate: true })
               setValue('recordingTopic', '', { shouldValidate: true })
+              reloadRecordingBatches()
             }}
             onRecordingBatchChange={() => {
               setValue('recordingTopic', '', { shouldValidate: true })

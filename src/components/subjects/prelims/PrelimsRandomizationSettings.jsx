@@ -5,6 +5,7 @@ export default function PrelimsRandomizationSettings({
   testSeries,
   onTestSeriesChange,
   errors = {},
+  showShuffleSections = true,
 }) {
   const sectionWise = Boolean(testSeries.sectionWiseEnabled)
 
@@ -17,7 +18,7 @@ export default function PrelimsRandomizationSettings({
           Exam Randomization Settings
         </h4>
         <p className="mt-0.5 text-xs text-[#686868]">
-          Randomize questions, options, or sections independently per student
+          Randomize questions or options independently per student
         </p>
       </div>
 
@@ -48,26 +49,28 @@ export default function PrelimsRandomizationSettings({
           />
         </div>
 
-        <div
-          className={cn(
-            'rounded-xl border border-[#eef2fc] bg-[#fafcff] p-4 sm:p-5',
-            !sectionWise && 'opacity-70',
-          )}
-        >
-          <ExamToggleSwitch
-            checked={Boolean(testSeries.shuffleSections) && sectionWise}
-            onChange={(v) => update({ shuffleSections: sectionWise ? v : false })}
-            label="Shuffle Sections"
-            disabled={!sectionWise}
-            description={
-              !sectionWise
-                ? 'Enable section-wise questions to shuffle section order'
-                : testSeries.shuffleSections
-                  ? 'Section sequence is randomized per student; timers and locks still apply'
-                  : 'Section order remains fixed'
-            }
-          />
-        </div>
+        {showShuffleSections ? (
+          <div
+            className={cn(
+              'rounded-xl border border-[#eef2fc] bg-[#fafcff] p-4 sm:p-5',
+              !sectionWise && 'opacity-70',
+            )}
+          >
+            <ExamToggleSwitch
+              checked={Boolean(testSeries.shuffleSections) && sectionWise}
+              onChange={(v) => update({ shuffleSections: sectionWise ? v : false })}
+              label="Shuffle Sections"
+              disabled={!sectionWise}
+              description={
+                !sectionWise
+                  ? 'Enable section-wise questions to shuffle section order'
+                  : testSeries.shuffleSections
+                    ? 'Section sequence is randomized per student; timers and locks still apply'
+                    : 'Section order remains fixed'
+              }
+            />
+          </div>
+        ) : null}
 
         {errors.testSeries_shuffle ? (
           <p className="text-xs font-medium text-red-600">{errors.testSeries_shuffle}</p>

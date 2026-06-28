@@ -6,6 +6,9 @@
 /** @typedef {import('../types/classroom.types').ClassroomListParams} ClassroomListParams */
 /** @typedef {import('../types/classroom.types').ClassroomDropdownParams} ClassroomDropdownParams */
 /** @typedef {import('../types/classSection.types').ClassSectionListParams} ClassSectionListParams */
+/** @typedef {import('../types/examPattern.types').ExamPatternListParams} ExamPatternListParams */
+/** @typedef {import('../types/testConfigSection.types').TestConfigSectionListParams} TestConfigSectionListParams */
+/** @typedef {import('../types/testConfigLanguage.types').TestConfigLanguageListParams} TestConfigLanguageListParams */
 
 export const subjectKeys = {
   all: ['subjects'],
@@ -93,10 +96,119 @@ export const facultySubjectKeys = {
   details: () => [...facultySubjectKeys.all, 'detail'],
   detail: (id) => [...facultySubjectKeys.details(), id],
   categories: () => [...facultySubjectKeys.all, 'categories'],
-  createForm: (subjectId) => [...facultySubjectKeys.all, 'create-form', subjectId ?? ''],
+  createForm: (subjectId, centerId) =>
+    [...facultySubjectKeys.all, 'create-form', { subjectId: subjectId ?? '', centerId: centerId ?? '' }],
   /** @param {Record<string, unknown>} [params] */
   dropdown: (params) => [...facultySubjectKeys.all, 'dropdown', params ?? {}],
+  contentTree: (id) => [...facultySubjectKeys.all, 'contentTree', id],
+  /** @param {Record<string, unknown>} [payload] */
+  contentCategories: (payload) => [...facultySubjectKeys.all, 'contentCategories', payload ?? {}],
 }
+
+export const batchDropdownKeys = {
+  all: ['batches', 'dropdown'],
+  scoped: (facultySubjectId, centerId) =>
+    [...batchDropdownKeys.all, String(facultySubjectId || ''), String(centerId || '')],
+}
+
+export const folderKeys = {
+  all: ['subjectContentFolders'],
+  lists: () => [...folderKeys.all, 'list'],
+  /** @param {Record<string, unknown>} [params] */
+  list: (params) => [...folderKeys.lists(), params ?? {}],
+  details: () => [...folderKeys.all, 'detail'],
+  detail: (id) => [...folderKeys.details(), id],
+  /** @param {Record<string, unknown>} [params] */
+  content: (params) => [...folderKeys.all, 'content', params ?? {}],
+  summary: (id) => [...folderKeys.all, 'summary', id],
+}
+
+export const examPatternKeys = {
+  all: ['examPatterns'],
+  lists: () => [...examPatternKeys.all, 'list'],
+  /** @param {ExamPatternListParams} [params] */
+  list: (params) => [...examPatternKeys.lists(), params ?? {}],
+  details: () => [...examPatternKeys.all, 'detail'],
+  detail: (id) => [...examPatternKeys.details(), id],
+  dropdown: () => [...examPatternKeys.all, 'dropdown'],
+}
+
+export const testConfigSectionKeys = {
+  all: ['testConfigSections'],
+  lists: () => [...testConfigSectionKeys.all, 'list'],
+  /** @param {TestConfigSectionListParams} [params] */
+  list: (params) => [...testConfigSectionKeys.lists(), params ?? {}],
+  details: () => [...testConfigSectionKeys.all, 'detail'],
+  detail: (id) => [...testConfigSectionKeys.details(), id],
+  dropdown: () => [...testConfigSectionKeys.all, 'dropdown'],
+}
+
+export const testConfigLanguageKeys = {
+  all: ['testConfigLanguages'],
+  lists: () => [...testConfigLanguageKeys.all, 'list'],
+  /** @param {TestConfigLanguageListParams} [params] */
+  list: (params) => [...testConfigLanguageKeys.lists(), params ?? {}],
+  details: () => [...testConfigLanguageKeys.all, 'detail'],
+  detail: (id) => [...testConfigLanguageKeys.details(), id],
+  dropdown: () => [...testConfigLanguageKeys.all, 'dropdown'],
+}
+
+export const prelimsTestKeys = {
+  all: ['prelimsTests'],
+  lists: () => [...prelimsTestKeys.all, 'list'],
+  /** @param {Record<string, unknown>} [filters] */
+  list: (filters) => [...prelimsTestKeys.lists(), filters ?? {}],
+  details: () => [...prelimsTestKeys.all, 'detail'],
+  detail: (id) => [...prelimsTestKeys.details(), id],
+  createForm: (facultySubjectId, folderId) =>
+    [...prelimsTestKeys.all, 'createForm', facultySubjectId ?? '', folderId ?? ''],
+  /** @param {Record<string, unknown>} [filters] */
+  dashboard: (filters) => [...prelimsTestKeys.all, 'dashboard', filters ?? {}],
+  questions: (testId, filters) =>
+    [...prelimsTestKeys.all, 'questions', testId ?? '', filters ?? {}],
+}
+
+export const mainsAnswerWritingKeys = {
+  all: ['mainsAnswerWriting'],
+  lists: () => [...mainsAnswerWritingKeys.all, 'list'],
+  /** @param {Record<string, unknown>} [filters] */
+  list: (filters) => [...mainsAnswerWritingKeys.lists(), filters ?? {}],
+  details: () => [...mainsAnswerWritingKeys.all, 'detail'],
+  detail: (id) => [...mainsAnswerWritingKeys.details(), id],
+  createForm: (facultySubjectId) =>
+    [...mainsAnswerWritingKeys.all, 'createForm', facultySubjectId ?? ''],
+  /** @param {Record<string, unknown>} [filters] */
+  dashboard: (filters) => [...mainsAnswerWritingKeys.all, 'dashboard', filters ?? {}],
+  topicsDropdown: (facultySubjectId) =>
+    [...mainsAnswerWritingKeys.all, 'topicsDropdown', facultySubjectId ?? ''],
+}
+
+export const subjectPdfKeys = {
+  all: ['subjectPdfs'],
+  lists: () => [...subjectPdfKeys.all, 'list'],
+  /** @param {Record<string, unknown>} [filters] */
+  list: (filters) => [...subjectPdfKeys.lists(), filters ?? {}],
+  details: () => [...subjectPdfKeys.all, 'detail'],
+  detail: (id) => [...subjectPdfKeys.details(), id],
+  createForm: (facultySubjectId) =>
+    [...subjectPdfKeys.all, 'createForm', facultySubjectId ?? ''],
+  /** @param {Record<string, unknown>} [filters] */
+  dashboard: (filters) => [...subjectPdfKeys.all, 'dashboard', filters ?? {}],
+}
+
+export const omrExamKeys = {
+  all: ['omr-exams'],
+  lists: () => [...omrExamKeys.all, 'list'],
+  /** @param {import('../types/omrExam.types').ListOmrExamsParams} [params] */
+  list: (params) => [...omrExamKeys.lists(), params ?? {}],
+  searches: () => [...omrExamKeys.all, 'search'],
+  /** @param {import('../types/omrExam.types').SearchOmrExamsParams} [params] */
+  search: (params) => [...omrExamKeys.searches(), params ?? {}],
+  details: () => [...omrExamKeys.all, 'detail'],
+  detail: (id) => [...omrExamKeys.details(), id],
+}
+
+export { questionBankKeys } from './questionBank/queryKeys'
 
 export const currentAffairsKeys = {
   all: ['current-affairs', 'admin'],

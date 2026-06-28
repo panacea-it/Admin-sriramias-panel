@@ -11,8 +11,8 @@ function displaySectionName(row) {
   return row?.sectionName || row?.configurationName || '—'
 }
 
-export default function SectionViewModal({ open, onClose, row }) {
-  if (!row) return null
+export default function SectionViewModal({ open, onClose, row, loading = false }) {
+  if (!open) return null
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title="View Section" showCloseButton={false}>
@@ -25,32 +25,36 @@ export default function SectionViewModal({ open, onClose, row }) {
           icon={Layers}
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-7">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Section ID</dt>
-                <dd className="mt-1 text-sm font-medium text-[#111]">{row.sectionId || row.id}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Status</dt>
-                <dd className="mt-1">
-                  <StatusBadge status={row.status} />
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Section Name</dt>
-                <dd className="mt-1 text-sm font-medium text-[#1a3a5c]">{displaySectionName(row)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Created On</dt>
-                <dd className="mt-1 text-sm font-medium text-[#111]">{displayDate(row, 'createdOn')}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Modified On</dt>
-                <dd className="mt-1 text-sm font-medium text-[#111]">{displayDate(row, 'modifiedOn')}</dd>
-              </div>
-            </dl>
-          </div>
+          {loading || !row ? (
+            <div className="rounded-2xl bg-white p-8 text-center text-sm text-[#6b7280]">Loading section…</div>
+          ) : (
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Section ID</dt>
+                  <dd className="mt-1 text-sm font-medium text-[#111]">{row.sectionId || row.id}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Status</dt>
+                  <dd className="mt-1">
+                    <StatusBadge status={row.status} />
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Section Name</dt>
+                  <dd className="mt-1 text-sm font-medium text-[#1a3a5c]">{displaySectionName(row)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Created On</dt>
+                  <dd className="mt-1 text-sm font-medium text-[#111]">{displayDate(row, 'createdOn')}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Modified On</dt>
+                  <dd className="mt-1 text-sm font-medium text-[#111]">{displayDate(row, 'modifiedOn')}</dd>
+                </div>
+              </dl>
+            </div>
+          )}
         </div>
       </div>
     </Modal>

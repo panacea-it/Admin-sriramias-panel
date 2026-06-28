@@ -24,6 +24,8 @@ export default function BatchMultiSearchSelect({
   disabled = false,
   error,
   required = false,
+  hideLabel = false,
+  label = 'Batch',
   placeholder = 'Search and select batches…',
   emptyHint = 'No active batches — create under Batch Management',
   className,
@@ -119,10 +121,12 @@ export default function BatchMultiSearchSelect({
 
   return (
     <div className={cn('relative', className)} ref={rootRef}>
-      <label className="mb-1.5 block text-sm font-medium text-[#333]">
-        Batch
-        {required ? <span className="text-red-500"> *</span> : null}
-      </label>
+      {!hideLabel ? (
+        <label className="mb-1.5 block text-sm font-medium text-[#333]">
+          {label}
+          {required ? <span className="text-red-500"> *</span> : null}
+        </label>
+      ) : null}
       <div
         ref={triggerRef}
         role="combobox"
