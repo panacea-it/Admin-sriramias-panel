@@ -17,7 +17,7 @@ export const CATEGORY_TABLE_SHELL =
 export const CATEGORY_TABLE_LOADING_SHELL =
   'overflow-hidden rounded-2xl bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-100/80 sm:p-5'
 
-export const CATEGORY_TABLE_MIN_WIDTH = 960
+export const CATEGORY_TABLE_MIN_WIDTH = 0
 
 export const CATEGORY_TABLE_ROW_CLASS = 'hover:bg-[#eef6fc]/70'
 

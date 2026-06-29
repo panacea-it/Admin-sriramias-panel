@@ -6,7 +6,6 @@ import ProductsTable from '../../components/bookstore/ProductsTable'
 import ProductRowActions from '../../components/bookstore/ProductRowActions'
 import ProductFormModal from '../../components/bookstore/ProductFormModal'
 import ProductPreviewModal from '../../components/bookstore/ProductPreviewModal'
-import BookstoreConfirmDialog from '../../components/bookstore/modal/BookstoreConfirmDialog'
 import CategoryEmptyState from '../../components/categories/CategoryEmptyState'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -16,7 +15,6 @@ import {
   useBookstoreProductsList,
   useChangeBookstoreProductStatus,
   useCreateBookstoreProduct,
-  useDeleteBookstoreProduct,
   useUpdateBookstoreProduct,
 } from '../../hooks/bookstore/useBookstoreProducts'
 import { getApiErrorMessage } from '../../utils/apiError'
@@ -38,7 +36,6 @@ export default function BookstoreProductsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingRow, setEditingRow] = useState(null)
   const [previewProductId, setPreviewProductId] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const debouncedSearch = useDebouncedValue(search, 300)
   const filterSignature = buildFilterSignature([debouncedSearch, statusFilter, pageSize])
@@ -106,10 +103,9 @@ export default function BookstoreProductsPage() {
   const createMutation = useCreateBookstoreProduct()
   const updateMutation = useUpdateBookstoreProduct()
   const statusMutation = useChangeBookstoreProductStatus()
-  const deleteMutation = useDeleteBookstoreProduct()
 
   const formSaving = createMutation.isPending || updateMutation.isPending
-  const rowActionLoading = formSaving || deleteMutation.isPending
+  const rowActionLoading = formSaving
   const statusUpdatingMongoId = statusMutation.isPending
     ? statusMutation.variables?.mongoId
     : null
@@ -177,42 +173,6 @@ export default function BookstoreProductsPage() {
     }
   }
 
-  const confirmDelete = async () => {
-    if (!deleteTarget?.mongoId || deleteMutation.isPending) return
-
-    try {
-      const result = await deleteMutation.mutateAsync({
-        mongoId: deleteTarget.mongoId,
-        productId: deleteTarget.id,
-      })
-
-      if (result?.success === true && result?.statusCode === 10000) {
-        toast.success(result.message || 'Product deleted successfully')
-        setDeleteTarget(null)
-
-        if (previewProductId === deleteTarget.id) {
-          setPreviewProductId(null)
-        }
-
-        if (
-          editingRow?.id === deleteTarget.id ||
-          editingRow?.mongoId === deleteTarget.mongoId
-        ) {
-          setModalOpen(false)
-          setEditingRow(null)
-        }
-
-        return
-      }
-
-      toast.error(result?.message || 'Unable to delete the product. Please try again.')
-    } catch (deleteError) {
-      toast.error(
-        getApiErrorMessage(deleteError, 'Unable to delete the product. Please try again.'),
-      )
-    }
-  }
-
   const toggleStatus = useCallback(
     async (row) => {
       if (!row?.mongoId || statusMutation.isPending) return
@@ -256,7 +216,6 @@ export default function BookstoreProductsPage() {
           setModalOpen(true)
         }}
         onStatusToggle={() => toggleStatus(row)}
-        onDelete={() => setDeleteTarget(row)}
       />
     ),
     [rowActionLoading, statusUpdatingMongoId, toggleStatus],
@@ -341,18 +300,6 @@ export default function BookstoreProductsPage() {
         open={Boolean(previewProductId)}
         onClose={() => setPreviewProductId(null)}
         productId={previewProductId}
-      />
-      <BookstoreConfirmDialog
-        open={Boolean(deleteTarget)}
-        onClose={() => {
-          if (!deleteMutation.isPending) setDeleteTarget(null)
-        }}
-        onConfirm={confirmDelete}
-        title="Delete product"
-        message="Are you sure you want to delete this product?"
-        confirmLabel="Delete"
-        loading={deleteMutation.isPending}
-        loadingLabel="Deleting…"
       />
     </BookstorePageShell>
   )

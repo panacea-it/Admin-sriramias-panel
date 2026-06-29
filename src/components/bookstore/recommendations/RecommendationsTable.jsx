@@ -93,7 +93,6 @@ export default function RecommendationsTable({
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"
       tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={1040}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',

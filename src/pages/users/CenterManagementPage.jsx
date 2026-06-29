@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Ban, Building2, CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { Ban, Building2, CheckCircle2, Plus } from 'lucide-react';
 import ErrorState from "../../components/feedback/ErrorState";
 import { toast } from "@/utils/toast";
 import PageBanner from "../../components/figma/PageBanner";
@@ -29,7 +29,7 @@ const CENTER_STATUS_OPTIONS = [
   { value: "disabled", label: "Disabled" },
 ];
 
-function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
+function CenterTableActions({ row, onView, onEdit, onStatusToggle }) {
   const isActive = row.status === "active";
 
   return (
@@ -50,13 +50,6 @@ function CenterTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
         ) : (
           <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
         )}
-      </IconActionButton>
-      <IconActionButton
-        label={`Delete ${row.centerName}`}
-        onClick={onDelete}
-        className="text-rose-600 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-700"
-      >
-        <Trash2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
       </IconActionButton>
     </div>
   );
@@ -270,7 +263,6 @@ export default function CenterManagementPage() {
         onView={() => setViewingId(row.centerId)}
         onEdit={() => openEdit(row)}
         onStatusToggle={() => setStatusTarget(row)}
-        onDelete={() => setDeleteTarget(row)}
       />
     ),
     [],

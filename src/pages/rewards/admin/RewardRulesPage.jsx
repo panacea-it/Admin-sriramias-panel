@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PlusCircle, ScrollText, Ban, CheckCircle2, Trash2, Eye, Pencil } from 'lucide-react'
+import { PlusCircle, ScrollText, Ban, CheckCircle2, Eye, Pencil } from 'lucide-react'
 import RewardsPageShell from '../../../components/rewards/RewardsPageShell'
 import AdminDataPanel from '../../../components/admin/AdminDataPanel'
 import AdminStandardTable from '../../../components/admin/AdminStandardTable'
@@ -109,12 +109,6 @@ export default function RewardRulesPage() {
                 label: isActive ? 'Disable' : 'Enable',
                 icon: isActive ? Ban : CheckCircle2,
                 onClick: () => setStatusTarget(r),
-              },
-              {
-                label: 'Deactivate',
-                icon: Trash2,
-                onClick: () => setDeleteTarget(r),
-                danger: true,
               },
             ]}
           />

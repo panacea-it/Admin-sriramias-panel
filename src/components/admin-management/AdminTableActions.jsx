@@ -1,10 +1,10 @@
-import { Ban, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Ban, Eye, Pencil } from 'lucide-react'
 import { isRecordStatusActive } from '../../constants/recordStatus'
 
 const viewEditClassName =
   'inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-[#246392]'
 
-export default function AdminTableActions({ row, onView, onEdit, onStatusToggle, onDelete }) {
+export default function AdminTableActions({ row, onView, onEdit, onStatusToggle }) {
   const isActive = isRecordStatusActive(row.status)
   const displayName = row.fullName || row.employeeName || 'admin'
 
@@ -39,16 +39,6 @@ export default function AdminTableActions({ row, onView, onEdit, onStatusToggle,
       >
         <Ban className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
         {isActive ? 'Disable' : 'Enable'}
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="Delete"
-        aria-label={`Delete ${displayName}`}
-        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-rose-600 transition hover:text-rose-700"
-      >
-        <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
-        Delete
       </button>
     </div>
   )

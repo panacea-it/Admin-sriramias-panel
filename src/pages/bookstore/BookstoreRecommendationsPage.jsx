@@ -162,7 +162,6 @@ export default function BookstoreRecommendationsPage() {
         onView={() => openView(row)}
         onEdit={() => openEdit(row)}
         onStatusToggle={() => toggleRuleStatus(row)}
-        onDelete={() => setDeleteTarget(row.id)}
       />
     ),
     [products],

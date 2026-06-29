@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Download, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Download, Eye, Pencil } from 'lucide-react'
 import AdminDataPanel from '../../../../../components/admin/AdminDataPanel'
 import TestConfigDataTable from '../../../../../components/test-configuration/TestConfigDataTable'
 import ConfigFilterToolbar, { FilterSelect } from '../../../../../components/test-configuration/ConfigFilterToolbar'
@@ -224,13 +224,6 @@ export default function SubjectPdfsTab({
                 label: 'Toggle visibility',
                 icon: Eye,
                 onClick: () => handleVisibilityToggle(row),
-                disabled: !canMutate,
-              },
-              {
-                label: 'Delete',
-                icon: Trash2,
-                onClick: () => setDeleteTarget(row),
-                danger: true,
                 disabled: !canMutate,
               },
             ]}

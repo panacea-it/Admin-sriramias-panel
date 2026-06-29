@@ -1,4 +1,4 @@
-import { Ban, Circle, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Ban, Circle, Eye, Pencil } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 function ActionButton({ title, ariaLabel, onClick, disabled, className, children }) {
@@ -25,22 +25,17 @@ export default function ManageUsersTableActions({
   onView,
   onEdit,
   onStatusToggle,
-  onDelete,
   disabled = false,
 }) {
   const isActive = row.status === 'Active'
 
   const showView = row.permissions?.canView !== false
   const showEdit = Boolean(row.permissions?.canEdit)
-  const showDelete = Boolean(row.permissions?.canDelete)
   const showStatusToggle = true
 
   const editTitle = showEdit
     ? 'Edit'
     : row.permissions?.editDisabledReason || row.editDisabledReason || 'Edit not allowed'
-  const deleteTitle = showDelete
-    ? 'Delete'
-    : row.permissions?.deleteDisabledReason || row.deleteDisabledReason || 'Delete not allowed'
 
   return (
     <div className="flex items-center justify-center gap-1.5">
@@ -91,27 +86,6 @@ export default function ManageUsersTableActions({
           )}
         </ActionButton>
       ) : null}
-      {showDelete ? (
-        <ActionButton
-          title={deleteTitle}
-          ariaLabel={`Delete ${row.fullName}`}
-          onClick={onDelete}
-          disabled={disabled}
-          className="bg-[#D64B5F]/10 text-[#D64B5F] hover:bg-[#D64B5F] hover:text-white"
-        >
-          <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
-      ) : (
-        <ActionButton
-          title={deleteTitle}
-          ariaLabel={`Delete ${row.fullName} (disabled)`}
-          onClick={() => {}}
-          disabled
-          className="bg-[#D64B5F]/10 text-[#D64B5F]"
-        >
-          <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
-      )}
     </div>
   )
 }

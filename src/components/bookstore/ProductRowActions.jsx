@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import ViewButton from '../common/ViewButton'
 import EditButton from '../common/EditButton'
@@ -15,7 +15,6 @@ export default function ProductRowActions({
   onView,
   onEdit,
   onStatusToggle,
-  onDelete,
 }) {
   const isActive =
     status === 'active' || String(apiStatus || '').toUpperCase() === 'ACTIVE'
@@ -44,16 +43,6 @@ export default function ProductRowActions({
           <RefreshCw className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
         )}
       </IconActionButton>
-      {onDelete ? (
-        <IconActionButton
-          label={`Delete ${name}`}
-          onClick={onDelete}
-          disabled={loading || statusToggleLoading}
-          className="text-rose-600 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-700"
-        >
-          <Trash2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
-        </IconActionButton>
-      ) : null}
     </div>
   )
 }

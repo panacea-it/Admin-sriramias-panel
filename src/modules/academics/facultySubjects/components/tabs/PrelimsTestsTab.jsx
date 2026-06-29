@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Copy, Eye, Pencil, Trash2, Upload } from 'lucide-react'
+import { Copy, Eye, Pencil, Upload } from 'lucide-react'
 import AdminDataPanel from '../../../../../components/admin/AdminDataPanel'
 import TestConfigDataTable from '../../../../../components/test-configuration/TestConfigDataTable'
 import ConfigFilterToolbar, { FilterSelect } from '../../../../../components/test-configuration/ConfigFilterToolbar'
@@ -221,7 +221,6 @@ export default function PrelimsTestsTab({
                 disabled: !canMutate,
               },
               { label: 'Duplicate', icon: Copy, onClick: () => handleDuplicate(row), disabled: !canMutate },
-              { label: 'Delete', icon: Trash2, onClick: () => setDeleteTarget(row), danger: true, disabled: !canMutate },
             ]}
           />
         ),

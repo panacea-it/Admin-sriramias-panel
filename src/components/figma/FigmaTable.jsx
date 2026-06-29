@@ -191,18 +191,30 @@ export default function FigmaTable({
   const tableStyle = tableLayoutFixed
     ? showFillColumn || hasPercentageWidths || fixedTableWidth <= 0 || useFullWidthLayout
       ? { width: '100%', maxWidth: '100%', minWidth: resolvedTableMinWidth }
-      : { width: fixedTableWidth, minWidth: fixedTableWidth }
-    : {
+      : { width: fixedTableWidth, minWidth: fixedTableWidth, maxWidth: '100%' }
+    : fullWidth
+      ? {
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: resolvedTableMinWidth,
+        }
+      : {
+          width: 'max-content',
+          maxWidth: '100%',
+          minWidth: resolvedTableMinWidth || undefined,
+        }
+
+  const tableWrapperStyle = fullWidth
+    ? {
         width: '100%',
         maxWidth: '100%',
-        minWidth: resolvedTableMinWidth,
+        minWidth: showFillColumn ? stretchMinWidth : tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
       }
-
-  const tableWrapperStyle = {
-    width: '100%',
-    maxWidth: '100%',
-    minWidth: showFillColumn ? stretchMinWidth : tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
-  }
+    : {
+        width: 'max-content',
+        maxWidth: '100%',
+        minWidth: showFillColumn ? stretchMinWidth : tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
+      }
 
   const colGroup = (
     <colgroup>
@@ -373,8 +385,9 @@ export default function FigmaTable({
   return (
     <div
       className={cn(
-        'relative w-full bg-white',
-        showFillColumn ? 'min-w-full' : 'min-w-0',
+        'relative bg-white',
+        fullWidth || showFillColumn ? 'w-full min-w-0' : 'w-fit max-w-full',
+        showFillColumn && 'min-w-full',
         !containedScroll && !suppressInnerScroll && 'overflow-x-auto',
         className,
       )}
@@ -387,10 +400,11 @@ export default function FigmaTable({
           data-header-fill-bar
         />
       ) : null}
-      <div className="relative z-[1] w-full min-w-0" style={tableWrapperStyle}>
+      <div className="relative z-[1] min-w-0" style={tableWrapperStyle}>
         <table
           className={cn(
-            'relative z-[1] w-full min-w-full border-collapse border-spacing-0',
+            'relative z-[1] border-collapse border-spacing-0',
+            fullWidth || showFillColumn ? 'w-full min-w-full' : 'w-max max-w-full',
             tableLayoutFixed && 'table-fixed',
           )}
           style={tableStyle}

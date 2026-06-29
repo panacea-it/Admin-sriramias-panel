@@ -1,4 +1,4 @@
-import { Ban, Trash2 } from 'lucide-react'
+import { Ban } from 'lucide-react'
 import EditButton from '../common/EditButton'
 import IconActionButton from '../common/IconActionButton'
 import ViewButton from '../common/ViewButton'
@@ -9,7 +9,6 @@ export default function YoutubeVideoRowActions({
   status,
   onView,
   onEdit,
-  onDelete,
   onStatusChange,
 }) {
   const isActive = status === 'Active'
@@ -29,14 +28,6 @@ export default function YoutubeVideoRowActions({
         className="text-amber-700 hover:border-amber-100 hover:bg-amber-50 hover:text-amber-800"
       >
         <Ban className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
-      </IconActionButton>
-
-      <IconActionButton
-        label={`Delete ${rowName}`}
-        onClick={onDelete}
-        className="text-red-600 hover:border-red-100 hover:bg-red-50 hover:text-red-700"
-      >
-        <Trash2 className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
       </IconActionButton>
     </div>
   )

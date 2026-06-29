@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Ban, CheckCircle2, Eye, Pencil } from 'lucide-react'
 import TableActionMenu, { tableActionsCellClass } from '../common/TableActionMenu'
 import { recordStatusActionLabel } from '../../constants/recordStatus'
 import { createActionsColumn } from '../../utils/tableColumnHelpers'
@@ -43,7 +43,7 @@ function isRowActive(status) {
   return String(status || '').trim().toLowerCase() === 'active'
 }
 
-function TestConfigActionMenu({ row, entityLabel, onView, onEdit, onToggleStatus, onDelete }) {
+function TestConfigActionMenu({ row, entityLabel, onView, onEdit, onToggleStatus }) {
   const isActive = isRowActive(row.status)
   const statusAction = recordStatusActionLabel(isActive ? 'Active' : 'In Active')
 
@@ -59,13 +59,12 @@ function TestConfigActionMenu({ row, entityLabel, onView, onEdit, onToggleStatus
           icon: isActive ? Ban : CheckCircle2,
           onClick: onToggleStatus,
         },
-        { label: 'Delete', icon: Trash2, onClick: onDelete, danger: true },
       ]}
     />
   )
 }
 
-export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
+export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus }) {
   return (
     <TestConfigActionMenu
       row={row}
@@ -73,12 +72,11 @@ export function ExamPatternTableActions({ row, onView, onEdit, onToggleStatus, o
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
-      onDelete={onDelete}
     />
   )
 }
 
-export function SectionManagementTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
+export function SectionManagementTableActions({ row, onView, onEdit, onToggleStatus }) {
   return (
     <TestConfigActionMenu
       row={row}
@@ -86,12 +84,11 @@ export function SectionManagementTableActions({ row, onView, onEdit, onToggleSta
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
-      onDelete={onDelete}
     />
   )
 }
 
-export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStatus, onDelete }) {
+export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStatus }) {
   return (
     <TestConfigActionMenu
       row={row}
@@ -99,7 +96,6 @@ export function LanguageSettingsTableActions({ row, onView, onEdit, onToggleStat
       onView={onView}
       onEdit={onEdit}
       onToggleStatus={onToggleStatus}
-      onDelete={onDelete}
     />
   )
 }

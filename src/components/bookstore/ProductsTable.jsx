@@ -69,20 +69,6 @@ export default function ProductsTable({
         ),
       },
       {
-        key: 'category',
-        label: 'Exam Category',
-        headerClassName: 'min-w-[140px] whitespace-nowrap',
-        cellClassName: 'min-w-[140px] whitespace-nowrap align-middle',
-        render: (row) => (
-          <span
-            className="inline-flex max-w-[180px] items-center rounded-lg bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-800 ring-1 ring-violet-500/15"
-            title={row.examCategory}
-          >
-            <span className="truncate">{row.examCategory || '—'}</span>
-          </span>
-        ),
-      },
-      {
         key: 'discountPrice',
         label: 'Discount Price',
         align: 'center',
@@ -141,7 +127,6 @@ export default function ProductsTable({
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"
       tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={1100}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',
