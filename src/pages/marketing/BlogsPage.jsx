@@ -27,7 +27,7 @@ import { isFrontendOnly } from '../../config/appMode'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { applyBlogMainUpdateToRow, applyBlogStatusUpdateToRow, mapUiStatusToApi } from '../../utils/blogApiHelpers'
 import { isSameCalendarDay, startOfDay } from '../../utils/dailyCollectionUtils'
-import { createActionsColumn } from '../../utils/tableColumnHelpers'
+import { createActionsColumn, OVERFLOW_CELL } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 
 function MainBlogBadge() {
@@ -416,72 +416,10 @@ export default function BlogsPage() {
   }
 
   const apiColumns = useMemo(
-    () => [
-      {
-        key: 'blogId',
-        label: 'Blog ID',
-        headerClassName: 'min-w-[110px] pl-4 sm:pl-6 whitespace-nowrap',
-        cellClassName: 'min-w-[110px] pl-4 align-middle whitespace-nowrap text-[13px] font-semibold text-[#111] sm:pl-6',
-        render: (row) => row.blogId || '—',
-      },
-      {
-        key: 'title',
-        label: 'Title',
-        headerClassName: 'min-w-[220px]',
-        cellClassName: 'min-w-[220px] align-middle',
-        render: (row) => <BlogTitleCell title={row.title} isMainBlog={false} showBadge={false} />,
-      },
-      {
-        key: 'category',
-        label: 'Category',
-        headerClassName: 'min-w-[140px]',
-        cellClassName: 'min-w-[140px] align-middle text-[13px] font-medium text-[#111]',
-        render: (row) => <span className="block truncate">{row.category || '—'}</span>,
-      },
-      {
-        key: 'language',
-        label: 'Language',
-        headerClassName: 'min-w-[120px]',
-        cellClassName: 'min-w-[120px] align-middle text-[13px] font-medium text-[#111]',
-        render: (row) => <span className="block truncate">{row.language || '—'}</span>,
-      },
-      {
-        key: 'readTime',
-        label: 'Read Time',
-        headerClassName: 'min-w-[110px] whitespace-nowrap',
-        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
-        render: (row) => row.readTime || '—',
-      },
-      {
-        key: 'date',
-        label: 'Date',
-        headerClassName: 'min-w-[120px] whitespace-nowrap',
-        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
-        render: (row) => row.listDate || '—',
-      },
-      {
-        key: 'time',
-        label: 'Time',
-        headerClassName: 'min-w-[100px] whitespace-nowrap',
-        cellClassName: 'min-w-[100px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
-        render: (row) => row.listTime || '—',
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        headerClassName: 'min-w-[110px]',
-        cellClassName: 'min-w-[110px] align-middle text-[13px] font-semibold text-[#111]',
-        render: (row) => row.listStatus || '—',
-      },
-      {
-        key: 'isMainBlog',
-        label: 'Main Blog',
-        headerClassName: 'min-w-[100px] whitespace-nowrap',
-        cellClassName: 'min-w-[100px] align-middle whitespace-nowrap text-[13px] font-semibold text-[#111]',
-        render: (row) => row.mainBlogLabel || (row.isMainBlog ? 'Yes' : 'No'),
-      },
-      createActionsColumn({
+    () => {
+      const actionsCol = createActionsColumn({
         buttonCount: 5,
+        width: 280,
         align: 'right',
         render: (row) => (
           <BlogRowActions
@@ -498,18 +436,126 @@ export default function BlogsPage() {
             onDelete={() => requestDelete(row)}
           />
         ),
-      }),
-    ],
+      })
+
+      return [
+      {
+        key: 'blogId',
+        label: 'Blog ID',
+        width: 110,
+        headerClassName: 'pl-4 sm:pl-6 whitespace-nowrap',
+        cellClassName: cn('pl-4 align-middle whitespace-nowrap text-[13px] font-semibold text-[#111] sm:pl-6', OVERFLOW_CELL),
+        render: (row) => row.blogId || '—',
+      },
+      {
+        key: 'title',
+        label: 'Title',
+        width: 280,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: cn('align-middle', OVERFLOW_CELL),
+        render: (row) => <BlogTitleCell title={row.title} isMainBlog={false} showBadge={false} />,
+      },
+      {
+        key: 'category',
+        label: 'Category',
+        width: 150,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
+        render: (row) => <span className="block truncate">{row.category || '—'}</span>,
+      },
+      {
+        key: 'language',
+        label: 'Language',
+        width: 140,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
+        render: (row) => <span className="block truncate">{row.language || '—'}</span>,
+      },
+      {
+        key: 'readTime',
+        label: 'Read Time',
+        width: 120,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        render: (row) => row.readTime || '—',
+      },
+      {
+        key: 'date',
+        label: 'Date',
+        width: 120,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        render: (row) => row.listDate || '—',
+      },
+      {
+        key: 'time',
+        label: 'Time',
+        width: 100,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        render: (row) => row.listTime || '—',
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        width: 110,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle text-[13px] font-semibold text-[#111]',
+        render: (row) => row.listStatus || '—',
+      },
+      {
+        key: 'isMainBlog',
+        label: 'Main Blog',
+        width: 120,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] font-semibold text-[#111]',
+        render: (row) => row.mainBlogLabel || (row.isMainBlog ? 'Yes' : 'No'),
+      },
+      {
+        ...actionsCol,
+        headerClassName: cn(actionsCol.headerClassName, 'pr-8'),
+        cellClassName: cn(actionsCol.cellClassName, 'pr-8'),
+      },
+    ]
+    },
     [handleToggleStatus, statusUpdatingIds, mainBlogUpdatingIds, deleting, deleteTarget, toggleMainBlog],
   )
 
   const localColumns = useMemo(
-    () => [
+    () => {
+      const actionsCol = createActionsColumn({
+        buttonCount: 5,
+        width: 280,
+        align: 'right',
+        render: (row) => (
+          <BlogRowActions
+            title={row.title}
+            status={row.status}
+            isMainBlog={row.isMainBlog}
+            loading={statusUpdatingIds.has(row.id)}
+            mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
+            deleteLoading={deleting && deleteTarget?.id === row.id}
+            onView={() => setViewTarget(row)}
+            onEdit={() => openEdit(row)}
+            onStatusToggle={() => handleToggleStatus(row)}
+            onToggleMainBlog={() => toggleMainBlog(row.id)}
+            onDelete={() => requestDelete(row)}
+          />
+        ),
+      })
+
+      return [
       {
         key: 'title',
         label: 'Title',
-        headerClassName: 'min-w-[220px] pl-4 sm:pl-6',
-        cellClassName: 'min-w-[220px] pl-4 align-middle sm:pl-6',
+        width: 300,
+        headerTruncate: false,
+        headerClassName: 'pl-4 sm:pl-6 whitespace-nowrap',
+        cellClassName: cn('pl-4 align-middle sm:pl-6', OVERFLOW_CELL),
         render: (row) => (
           <BlogTitleCell title={row.title} isMainBlog={row.isMainBlog} />
         ),
@@ -517,51 +563,42 @@ export default function BlogsPage() {
       {
         key: 'category',
         label: 'Category',
-        headerClassName: 'min-w-[140px]',
-        cellClassName: 'min-w-[140px] align-middle text-[13px] font-medium text-[#111]',
+        width: 150,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
         render: (row) => <span className="block truncate">{row.category || '—'}</span>,
       },
       {
         key: 'date',
         label: 'Date',
-        headerClassName: 'min-w-[120px] whitespace-nowrap',
-        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        width: 120,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
         render: (row) => formatBlogDate(row.publishedAt),
       },
       {
         key: 'time',
         label: 'Time',
-        headerClassName: 'min-w-[100px] whitespace-nowrap',
-        cellClassName: 'min-w-[100px] align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        width: 100,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
         render: (row) => formatBlogTime(row.publishedAt),
       },
       {
         key: 'status',
         label: 'Status',
-        headerClassName: 'min-w-[110px]',
-        cellClassName: 'min-w-[110px] align-middle',
+        width: 120,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle',
         render: (row) => <BlogStatusBadge status={row.status} />,
       },
-      createActionsColumn({
-        buttonCount: 5,
-        align: 'right',
-        render: (row) => (
-          <BlogRowActions
-            title={row.title}
-            status={row.status}
-            isMainBlog={row.isMainBlog}
-            loading={statusUpdatingIds.has(row.id)}
-            mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
-            deleteLoading={deleting && deleteTarget?.id === row.id}
-            onView={() => setViewTarget(row)}
-            onEdit={() => openEdit(row)}
-            onStatusToggle={() => handleToggleStatus(row)}
-            onToggleMainBlog={() => toggleMainBlog(row.id)}
-            onDelete={() => requestDelete(row)}
-          />
-        ),
-      }),
-    ],
+      {
+        ...actionsCol,
+        headerClassName: cn(actionsCol.headerClassName, 'pr-8'),
+        cellClassName: cn(actionsCol.cellClassName, 'pr-8'),
+      },
+    ]
+    },
     [handleToggleStatus, statusUpdatingIds, mainBlogUpdatingIds, deleting, deleteTarget, toggleMainBlog],
   )
 
@@ -569,8 +606,8 @@ export default function BlogsPage() {
   const tableData = useLiveApi ? blogs : filtered
 
   return (
-    <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-screen-2xl space-y-6">
+    <div className="figma-admin-section bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
+      <section className="mx-auto max-w-screen-2xl space-y-4">
         <div
           className={cn(
             'flex min-h-[64px] flex-wrap items-center justify-between gap-4 rounded-xl px-5 py-4',
@@ -626,7 +663,7 @@ export default function BlogsPage() {
         <BlogManagementTable
           columns={columns}
           data={tableData}
-          loading={useLiveApi && listLoading}
+          loading={useLiveApi && listLoading && tableData.length === 0}
           controlledPagination={useLiveApi ? controlledPagination : undefined}
           emptyMessage={useLiveApi ? 'No Blogs Found' : 'No blogs match your filters.'}
           resetDeps={

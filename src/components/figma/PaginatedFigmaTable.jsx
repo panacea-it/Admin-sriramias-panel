@@ -37,6 +37,9 @@ export default function PaginatedFigmaTable({
   headerVariant = 'default',
   headerAlign,
   tableLayoutFixed = false,
+  fullWidth = false,
+  suppressInnerScroll = false,
+  headerFillColumn = false,
   /** { selectedIds, onToggle(id), onTogglePage(pageIds, select), getRowId? } */
   selection,
   /** Server-driven pagination — skips client-side slicing */
@@ -144,32 +147,37 @@ export default function PaginatedFigmaTable({
         'overflow-x-auto',
       )}
     >
-      <FigmaTable
-        columns={resolvedColumns}
-        data={tableRows}
-        emptyMessage={emptyMessage}
-        emptyState={emptyState}
-        rowClassName={resolvedRowClassName}
-        getRowClassName={getRowClassName}
-        density={resolvedDensity}
-        className={cn(
-          'min-h-0 shrink-0 rounded-none shadow-none',
-          bodyMaxHeight && 'flex-1',
-          resolvedTableClassName,
-        )}
-        zebraStriping={zebraStriping}
-        loading={loading}
-        skeletonRowCount={skeletonRowCount}
-        stickyHeader={stickyHeader}
-        stickyLastColumn={stickyLastColumn}
-        animateRows={animateRows}
-        onRowClick={onRowClick}
-        tableMinWidth={tableMinWidth}
-        bodyMaxHeight={bodyMaxHeight}
-        headerVariant={headerVariant}
-        headerAlign={headerAlign}
-        tableLayoutFixed={tableLayoutFixed}
-      />
+      <div className={cn(headerFillColumn && 'min-w-full w-full')}>
+        <FigmaTable
+          columns={resolvedColumns}
+          data={tableRows}
+          emptyMessage={emptyMessage}
+          emptyState={emptyState}
+          rowClassName={resolvedRowClassName}
+          getRowClassName={getRowClassName}
+          density={resolvedDensity}
+          className={cn(
+            'min-h-0 shrink-0 rounded-none shadow-none',
+            bodyMaxHeight && 'flex-1',
+            resolvedTableClassName,
+          )}
+          zebraStriping={zebraStriping}
+          loading={loading}
+          skeletonRowCount={skeletonRowCount}
+          stickyHeader={stickyHeader}
+          stickyLastColumn={stickyLastColumn}
+          animateRows={animateRows}
+          onRowClick={onRowClick}
+          tableMinWidth={tableMinWidth}
+          bodyMaxHeight={bodyMaxHeight}
+          headerVariant={headerVariant}
+          headerAlign={headerAlign}
+          tableLayoutFixed={tableLayoutFixed}
+          fullWidth={fullWidth}
+          suppressInnerScroll={suppressInnerScroll}
+          headerFillColumn={headerFillColumn}
+        />
+      </div>
       {showPagination && (
         <TablePagination
           page={pagination.page}

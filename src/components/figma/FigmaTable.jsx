@@ -39,6 +39,14 @@ const PREMIUM_HEADER_BG = 'bg-gradient-to-r from-[#58A8DF] to-[#1F5E99]'
 const ADMIN_HEADER_BG = 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB]'
 const DEFAULT_HEADER_BG = 'bg-[#55ace7]'
 
+const HEADER_BAR_HEIGHT = {
+  default: 48,
+  comfortable: 44,
+  compact: 40,
+  helpdesk: 48,
+  payment: 56,
+}
+
 function resolveColumnWidthPx(width) {
   if (typeof width === 'number' && width > 0) return width
   if (typeof width === 'string' && /^\d+px$/.test(width)) return parseInt(width, 10)
@@ -51,7 +59,7 @@ function colWidthStyle(width) {
   return undefined
 }
 
-function TableSkeleton({ columns, rowCount, density }) {
+function TableSkeleton({ columns, rowCount, density, showFillColumn = false }) {
   const d = DENSITY[density] ?? DENSITY.default
   return (
     <>
@@ -76,6 +84,7 @@ function TableSkeleton({ columns, rowCount, density }) {
               />
             </td>
           ))}
+          {showFillColumn ? <td className="w-full p-0" aria-hidden="true" data-fill-column /> : null}
         </tr>
       ))}
     </>
@@ -103,6 +112,11 @@ export default function FigmaTable({
   headerVariant = 'default',
   headerAlign,
   tableLayoutFixed = false,
+  fullWidth = false,
+  /** When true, parent handles horizontal scroll (no nested overflow-x-auto) */
+  suppressInnerScroll = false,
+  /** Adds trailing column so header bg fills remaining width (body uses row bg) */
+  headerFillColumn = false,
 }) {
   const d = DENSITY[density] ?? DENSITY.default
   const lastColKey = columns[columns.length - 1]?.key
@@ -159,27 +173,44 @@ export default function FigmaTable({
     (col) => typeof col.width === 'string' && String(col.width).includes('%'),
   )
 
+  const useFullWidthLayout = tableLayoutFixed && fullWidth
+  const showFillColumn =
+    headerFillColumn || (useFullWidthLayout && !hasPercentageWidths)
+
+  const stretchMinWidth =
+    tableMinWidth > 0 ? `max(100%, ${tableMinWidth}px)` : '100%'
+
+  const resolvedTableMinWidth = showFillColumn
+    ? stretchMinWidth
+    : tableMinWidth > 0
+      ? tableMinWidth
+      : 0
+
   const tableStyle = tableLayoutFixed
-    ? hasPercentageWidths || fixedTableWidth <= 0
-      ? { width: '100%', maxWidth: '100%', minWidth: tableMinWidth > 0 ? tableMinWidth : 0 }
+    ? showFillColumn || hasPercentageWidths || fixedTableWidth <= 0 || useFullWidthLayout
+      ? { width: '100%', maxWidth: '100%', minWidth: resolvedTableMinWidth }
       : { width: fixedTableWidth, minWidth: fixedTableWidth }
     : {
         width: '100%',
         maxWidth: '100%',
-        minWidth: tableMinWidth > 0 ? tableMinWidth : 0,
+        minWidth: resolvedTableMinWidth,
       }
 
   const tableWrapperStyle = {
     width: '100%',
     maxWidth: '100%',
-    minWidth: tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
+    minWidth: showFillColumn ? stretchMinWidth : tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
   }
+
+  const headerBarHeight = HEADER_BAR_HEIGHT[density] ?? HEADER_BAR_HEIGHT.default
+  const useHeaderBackdrop = showFillColumn && headerFillColumn
 
   const colGroup = (
     <colgroup>
       {columns.map((col) => (
         <col key={col.key} style={colWidthStyle(col.width)} />
       ))}
+      {showFillColumn ? <col key="__fill" /> : null}
     </colgroup>
   )
 
@@ -188,7 +219,6 @@ export default function FigmaTable({
   const headerRow = (
     <tr
       className={cn(
-        headerBg,
         'font-bold leading-none text-white',
         isPremium && 'rounded-t-[10px]',
         d.header,
@@ -198,10 +228,11 @@ export default function FigmaTable({
         <th
           key={col.key}
           className={cn(
-            'align-middle first:pl-6 sm:first:pl-8',
+            'relative z-[1] align-middle first:pl-6 sm:first:pl-8',
             d.cell,
             alignClass(col, true),
             col.headerClassName,
+            useHeaderBackdrop ? 'bg-transparent' : headerBg,
             headerStickyClass(col),
             containedScroll && isPremium && 'shadow-[0_4px_12px_rgba(31,94,153,0.15)]',
             cellOverflowClass,
@@ -212,6 +243,13 @@ export default function FigmaTable({
           </span>
         </th>
       ))}
+      {showFillColumn ? (
+        <th
+          className={cn('relative z-[1] w-full p-0', d.header, 'bg-transparent', cellOverflowClass)}
+          aria-hidden="true"
+          data-fill-column
+        />
+      ) : null}
     </tr>
   )
 
@@ -270,6 +308,9 @@ export default function FigmaTable({
               {col.render ? col.render(row) : row[col.key]}
             </td>
           ))}
+          {showFillColumn ? (
+            <td className={cn('w-full p-0', rowBg)} aria-hidden="true" data-fill-column />
+          ) : null}
         </tr>
       )
     })
@@ -290,7 +331,7 @@ export default function FigmaTable({
             style={tableStyle}
           >
             {colGroup}
-            <thead>{headerRow}</thead>
+            <thead className={cn(headerBg, isPremium && 'rounded-t-[10px]')}>{headerRow}</thead>
           </table>
         </div>
 
@@ -309,8 +350,13 @@ export default function FigmaTable({
           >
             {colGroup}
             <tbody>
-              {loading && (
-                <TableSkeleton columns={columns} rowCount={skeletonRowCount} density={density} />
+              {loading && data.length === 0 && (
+                <TableSkeleton
+                  columns={columns}
+                  rowCount={skeletonRowCount}
+                  density={density}
+                  showFillColumn={showFillColumn}
+                />
               )}
               {bodyRows}
             </tbody>
@@ -327,24 +373,48 @@ export default function FigmaTable({
   return (
     <div
       className={cn(
-        'w-full min-w-0 bg-white',
-        !containedScroll && 'overflow-x-auto',
+        'w-full bg-white',
+        showFillColumn ? 'min-w-full' : 'min-w-0',
+        !containedScroll && !suppressInnerScroll && 'overflow-x-auto',
         className,
       )}
     >
-      <div className="w-full max-w-full" style={tableWrapperStyle}>
+      <div className="relative w-full min-w-full" style={tableWrapperStyle}>
+        {useHeaderBackdrop ? (
+          <div
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute left-0 top-0 z-0',
+              headerBg,
+              isPremium && 'rounded-t-[10px]',
+            )}
+            style={{ height: headerBarHeight, width: '100%', minWidth: stretchMinWidth }}
+          />
+        ) : null}
         <table
           className={cn(
-            'w-full border-separate border-spacing-0',
+            'relative z-[1] w-full min-w-full border-collapse border-spacing-0',
             tableLayoutFixed && 'table-fixed',
           )}
           style={tableStyle}
         >
           {colGroup}
-          <thead>{headerRow}</thead>
+          <thead
+            className={cn(
+              !useHeaderBackdrop && headerBg,
+              isPremium && 'rounded-t-[10px]',
+            )}
+          >
+            {headerRow}
+          </thead>
           <tbody>
-            {loading && (
-              <TableSkeleton columns={columns} rowCount={skeletonRowCount} density={density} />
+            {loading && data.length === 0 && (
+              <TableSkeleton
+                columns={columns}
+                rowCount={skeletonRowCount}
+                density={density}
+                showFillColumn={showFillColumn}
+              />
             )}
             {bodyRows}
           </tbody>

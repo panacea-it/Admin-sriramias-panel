@@ -93,7 +93,8 @@ export function useBlogListManagement(options = {}) {
     setPage(1)
   }
 
-  const listLoading = query.isLoading || query.isFetching
+  const listLoading = query.isLoading
+  const listFetching = query.isFetching
 
   return {
     items,
@@ -112,6 +113,7 @@ export function useBlogListManagement(options = {}) {
     pagination,
     controlledPagination,
     listLoading,
+    listFetching,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,
