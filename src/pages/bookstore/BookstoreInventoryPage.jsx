@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Warehouse } from 'lucide-react'
+import {
+  AlertTriangle,
+  ClipboardList,
+  PackagePlus,
+  ScrollText,
+  Warehouse,
+} from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
+import BookstoreStatCard from '../../components/bookstore/BookstoreStatCard'
 import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
+import BookstoreFilterToolbar from '../../components/bookstore/BookstoreFilterToolbar'
+import InventorySectionCard from '../../components/bookstore/InventorySectionCard'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
 import Button from '../../components/ui/Button'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import {
   useAdjustBookstoreStock,
   useBookstoreInventoryList,
   useBookstoreInventoryLogs,
+  useBookstoreInventoryView,
 } from '../../hooks/bookstore/useBookstoreInventory'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { buildFilterSignature, useEffectivePage } from '../../hooks/useMasterListQuery'
@@ -24,6 +33,7 @@ import {
   BOOKSTORE_LABEL_CLASS,
 } from '../../components/bookstore/modal/bookstoreFormStyles'
 import { cn } from '../../utils/cn'
+import { formatInventoryActionTypeLabel, formatInventoryStockChange } from '../../utils/bookstoreApiHelpers'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -39,6 +49,13 @@ const TABLE_PAGINATION_CLASS = cn(
   '[&_form_input]:h-9 [&_form_input]:leading-none',
   '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
 )
+
+const INVENTORY_PANEL_CLASS = 'overflow-hidden rounded-xl border border-slate-100 bg-slate-50/40'
+
+const ACTION_TYPE_STYLES = {
+  RESTOCK: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  MANUAL_ADJUSTMENT: 'bg-amber-50 text-amber-900 ring-amber-200',
+}
 
 function InventoryFormField({ label, children }) {
   return (
@@ -56,7 +73,25 @@ function renderInventoryStatus(row) {
   if (row.statusLabel === 'Low stock' || row.alert === 'LOW_STOCK') {
     return <BookstoreStatusBadge status="Low stock" />
   }
-  return <span className="text-xs font-semibold text-[#686868]">OK</span>
+  return <BookstoreStatusBadge status="OK" />
+}
+
+function renderActionTypeBadge(row) {
+  const label = row.actionTypeLabel || formatInventoryActionTypeLabel(row.actionType)
+  const style =
+    ACTION_TYPE_STYLES[row.actionType] || 'bg-slate-100 text-slate-700 ring-slate-200'
+
+  return (
+    <span
+      className={cn(
+        'inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset',
+        style,
+      )}
+      title={row.actionType || undefined}
+    >
+      {label}
+    </span>
+  )
 }
 
 export default function BookstoreInventoryPage() {
@@ -67,13 +102,27 @@ export default function BookstoreInventoryPage() {
   const [search, setSearch] = useState('')
   const [logsSearch, setLogsSearch] = useState('')
   const [stockUpdateOpen, setStockUpdateOpen] = useState(false)
-  const [adjustTarget, setAdjustTarget] = useState(null)
+  const [adjustProductId, setAdjustProductId] = useState(null)
+  const [adjustFallbackRow, setAdjustFallbackRow] = useState(null)
   const [adjustmentType, setAdjustmentType] = useState('INCREASE')
   const [adjustQuantity, setAdjustQuantity] = useState('')
   const [adjustReason, setAdjustReason] = useState('')
   const stockQtyRef = useRef(null)
 
   const adjustStockMutation = useAdjustBookstoreStock()
+
+  const {
+    data: adjustInventoryDetail,
+    isLoading: isAdjustDetailLoading,
+    isFetching: isAdjustDetailFetching,
+    isError: isAdjustDetailError,
+    error: adjustDetailError,
+  } = useBookstoreInventoryView(adjustProductId, {
+    enabled: stockUpdateOpen && Boolean(adjustProductId),
+  })
+
+  const adjustTarget = adjustInventoryDetail || adjustFallbackRow
+  const adjustDetailBusy = isAdjustDetailLoading || isAdjustDetailFetching
 
   const debouncedSearch = useDebouncedValue(search, 300)
   const debouncedLogsSearch = useDebouncedValue(logsSearch, 300)
@@ -211,10 +260,27 @@ export default function BookstoreInventoryPage() {
     if (!stockUpdateOpen) return undefined
     const timer = window.setTimeout(() => stockQtyRef.current?.focus(), 50)
     return () => window.clearTimeout(timer)
-  }, [stockUpdateOpen, adjustTarget?.id])
+  }, [stockUpdateOpen, adjustProductId, adjustDetailBusy])
+
+  useEffect(() => {
+    if (!stockUpdateOpen || !isAdjustDetailError) return
+    toast.error(
+      getApiErrorMessage(adjustDetailError, 'Unable to fetch inventory details. Please try again.'),
+    )
+    setStockUpdateOpen(false)
+    setAdjustProductId(null)
+    setAdjustFallbackRow(null)
+  }, [stockUpdateOpen, isAdjustDetailError, adjustDetailError])
 
   const openAdjustModal = useCallback((product) => {
-    setAdjustTarget(product)
+    const productId = product?.productId || product?.id
+    if (!productId) {
+      toast.error('Unable to adjust stock: product ID is missing.')
+      return
+    }
+
+    setAdjustProductId(productId)
+    setAdjustFallbackRow(product)
     setAdjustmentType('INCREASE')
     setAdjustQuantity('')
     setAdjustReason('')
@@ -224,11 +290,13 @@ export default function BookstoreInventoryPage() {
   const closeStockModal = () => {
     if (adjustStockMutation.isPending) return
     setStockUpdateOpen(false)
-    setAdjustTarget(null)
+    setAdjustProductId(null)
+    setAdjustFallbackRow(null)
   }
 
   const handleStockSet = async () => {
-    if (!adjustTarget?.id) return
+    const productId = adjustTarget?.productId || adjustTarget?.id || adjustProductId
+    if (!productId) return
 
     const quantity = Number(adjustQuantity)
     const reason = adjustReason.trim()
@@ -243,9 +311,14 @@ export default function BookstoreInventoryPage() {
       return
     }
 
+    if (reason.length > 300) {
+      toast.error('Reason cannot exceed 300 characters.')
+      return
+    }
+
     if (
       adjustmentType === 'DECREASE' &&
-      Number.isFinite(adjustTarget.stockQuantity) &&
+      Number.isFinite(adjustTarget?.stockQuantity) &&
       quantity > adjustTarget.stockQuantity
     ) {
       toast.error('Quantity cannot exceed current stock.')
@@ -254,7 +327,7 @@ export default function BookstoreInventoryPage() {
 
     try {
       const result = await adjustStockMutation.mutateAsync({
-        productId: adjustTarget.id,
+        productId,
         action: adjustmentType,
         quantity,
         reason,
@@ -262,13 +335,15 @@ export default function BookstoreInventoryPage() {
 
       toast.success(result?.message || 'Stock updated successfully')
       setStockUpdateOpen(false)
-      setAdjustTarget(null)
+      setAdjustProductId(null)
+      setAdjustFallbackRow(null)
     } catch (stockError) {
       toast.error(getApiErrorMessage(stockError, 'Unable to update stock. Please try again.'))
     }
   }
 
   const stockSaving = adjustStockMutation.isPending
+  const adjustModalBusy = stockSaving || adjustDetailBusy
   const isManualAdjustment = adjustmentType === 'DECREASE'
   const lockedProductName = adjustTarget?.productName ?? adjustTarget?.name ?? ''
   const currentStock = adjustTarget?.stockQuantity ?? '—'
@@ -338,9 +413,10 @@ export default function BookstoreInventoryPage() {
         render: (row) => (
           <button
             type="button"
-            className="text-sm font-semibold text-[#7c5cbf]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#7c5cbf]/25 bg-[#7c5cbf]/10 px-3 py-1.5 text-xs font-bold text-[#5c4694] transition hover:border-[#7c5cbf]/40 hover:bg-[#7c5cbf]/15"
             onClick={() => openAdjustModal(row)}
           >
+            <PackagePlus className="h-3.5 w-3.5" strokeWidth={2.25} />
             Adjust
           </button>
         ),
@@ -388,7 +464,7 @@ export default function BookstoreInventoryPage() {
                   : 'text-[#111]',
             )}
           >
-            {row.stockChange ?? '—'}
+            {formatInventoryStockChange(row.stockChange)}
           </span>
         ),
       },
@@ -418,13 +494,9 @@ export default function BookstoreInventoryPage() {
       {
         key: 'actionType',
         label: 'Action Type',
-        headerClassName: 'min-w-[160px] whitespace-nowrap',
-        cellClassName: 'min-w-[160px] whitespace-nowrap align-middle',
-        render: (row) => (
-          <span className="font-mono text-xs font-semibold text-[#333]">
-            {row.actionType || '—'}
-          </span>
-        ),
+        headerClassName: 'min-w-[150px] whitespace-nowrap',
+        cellClassName: 'min-w-[150px] whitespace-nowrap align-middle',
+        render: (row) => renderActionTypeBadge(row),
       },
       {
         key: 'createdAt',
@@ -445,25 +517,80 @@ export default function BookstoreInventoryPage() {
   const logsErrorMessage = isLogsError
     ? getApiErrorMessage(logsError, 'Unable to fetch inventory logs. Please try again.')
     : ''
+  const logsEmptyMessage = debouncedLogsSearch.trim()
+    ? `No inventory logs found for product ID "${debouncedLogsSearch.trim()}".`
+    : 'No inventory logs found.'
+
+  const inventoryStats = useMemo(() => {
+    const lowStockCount = inventoryItems.filter((item) => item.alert === 'LOW_STOCK').length
+    const outOfStockCount = inventoryItems.filter((item) => item.alert === 'OUT_OF_STOCK').length
+
+    return {
+      totalProducts: totalItems,
+      lowStockCount,
+      outOfStockCount,
+      alertCount: lowStockCount + outOfStockCount,
+      totalLogs: logsTotalItems,
+    }
+  }, [inventoryItems, totalItems, logsTotalItems])
 
   return (
-    <BookstorePageShell icon={Warehouse} title="Inventory Management">
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-        <CourseFilterToolbar
+    <BookstorePageShell
+      icon={Warehouse}
+      title="Inventory Management"
+      subtitle="Track stock levels, adjust quantities, and review activity history"
+    >
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <BookstoreStatCard
+          label="Total products"
+          value={inventoryStats.totalProducts.toLocaleString()}
+          sub="Active bookstore inventory"
+          icon={Warehouse}
+          accent="from-[#55ace7] to-[#246392]"
+        />
+        <BookstoreStatCard
+          label="Stock alerts"
+          value={inventoryStats.alertCount.toLocaleString()}
+          sub={`${inventoryStats.lowStockCount} low · ${inventoryStats.outOfStockCount} out`}
+          icon={AlertTriangle}
+          accent="from-[#f59e0b] to-[#d97706]"
+        />
+        <BookstoreStatCard
+          label="Activity logs"
+          value={inventoryStats.totalLogs.toLocaleString()}
+          sub="Stock changes recorded"
+          icon={ScrollText}
+          accent="from-[#7c5cbf] to-[#4a3d8f]"
+        />
+        <BookstoreStatCard
+          label="Current page"
+          value={inventoryItems.length.toLocaleString()}
+          sub={`Showing ${pagination.startIndex + 1}–${pagination.endIndex} of ${totalItems}`}
+          icon={ClipboardList}
+          accent="from-[#df8284] to-[#b85c5e]"
+        />
+      </div>
+
+      <InventorySectionCard
+        icon={ClipboardList}
+        title="Stock overview"
+        description="Search products and adjust stock levels."
+        badge={`${totalItems} products`}
+      >
+        <BookstoreFilterToolbar
           search={search}
-          onSearchChange={(e) => setSearch(e.target.value)}
+          onSearchChange={setSearch}
           searchPlaceholder="Search by product ID or product name…"
-          showStatusFilter={false}
-          disabled={isListBusy}
+          className="mb-4 border border-slate-100 shadow-none"
         />
 
         {listErrorMessage ? (
-          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
             {listErrorMessage}
           </div>
         ) : null}
 
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+        <div className={INVENTORY_PANEL_CLASS}>
           <PaginatedFigmaTable
             columns={productColumns}
             data={inventoryItems}
@@ -474,49 +601,51 @@ export default function BookstoreInventoryPage() {
             resetDeps={[debouncedSearch]}
             controlledPagination={controlledPagination}
             density="comfortable"
-            rowClassName="hover:bg-[#eef6fc]/70"
-            tableClassName="rounded-none border-0 shadow-none"
-            tableMinWidth={760}
+            rowClassName="hover:bg-white/80"
+            tableClassName="rounded-none border-0 bg-white shadow-none"
+            tableMinWidth={820}
             paginationClassName={TABLE_PAGINATION_CLASS}
           />
         </div>
-      </div>
+      </InventorySectionCard>
 
-      <div className="mt-6 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
-        <h3 className="mb-4 text-sm font-bold text-[#111]">Inventory logs</h3>
-
-        <CourseFilterToolbar
+      <InventorySectionCard
+        icon={ScrollText}
+        title="Inventory logs"
+        description="Review restocks and manual adjustments by product."
+        badge={`${logsTotalItems} logs`}
+      >
+        <BookstoreFilterToolbar
           search={logsSearch}
-          onSearchChange={(e) => setLogsSearch(e.target.value)}
-          searchPlaceholder="Filter logs by product ID…"
-          showStatusFilter={false}
-          disabled={isLogsBusy}
+          onSearchChange={setLogsSearch}
+          searchPlaceholder="Filter logs by product ID (e.g. BSP-001)…"
+          className="mb-4 border border-slate-100 shadow-none"
         />
 
         {logsErrorMessage ? (
-          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
             {logsErrorMessage}
           </div>
         ) : null}
 
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+        <div className={INVENTORY_PANEL_CLASS}>
           <PaginatedFigmaTable
             columns={logColumns}
             data={logItems}
             itemLabel="logs"
-            emptyMessage="No inventory logs found."
+            emptyMessage={logsEmptyMessage}
             loading={isLogsBusy}
             skeletonRowCount={6}
             resetDeps={[debouncedLogsSearch]}
             controlledPagination={controlledLogsPagination}
             density="comfortable"
-            rowClassName="hover:bg-[#eef6fc]/70"
-            tableClassName="rounded-none border-0 shadow-none"
-            tableMinWidth={980}
+            rowClassName="hover:bg-white/80"
+            tableClassName="rounded-none border-0 bg-white shadow-none"
+            tableMinWidth={1080}
             paginationClassName={TABLE_PAGINATION_CLASS}
           />
         </div>
-      </div>
+      </InventorySectionCard>
 
       <BookstoreModal
         open={stockUpdateOpen}
@@ -526,16 +655,22 @@ export default function BookstoreInventoryPage() {
         size="md"
         footer={
           <BookstoreModalFooter>
-            <Button variant="ghost" onClick={closeStockModal} disabled={stockSaving}>
+            <Button variant="ghost" onClick={closeStockModal} disabled={adjustModalBusy}>
               Cancel
             </Button>
-            <Button onClick={handleStockSet} disabled={stockSaving}>
+            <Button
+              onClick={handleStockSet}
+              disabled={adjustModalBusy || isAdjustDetailError || !adjustTarget}
+            >
               {stockSaving ? 'Updating…' : 'Update stock'}
             </Button>
           </BookstoreModalFooter>
         }
       >
         <div className={BOOKSTORE_FORM_STACK_CLASS}>
+          {adjustDetailBusy ? (
+            <p className="text-sm font-medium text-slate-500">Loading latest stock details…</p>
+          ) : null}
           <InventoryFormField label="Product">
             <input
               type="text"
@@ -551,7 +686,7 @@ export default function BookstoreInventoryPage() {
             <input
               type="text"
               className={cn(BOOKSTORE_INPUT_CLASS, BOOKSTORE_INPUT_DISABLED_CLASS)}
-              value={currentStock}
+              value={adjustDetailBusy ? 'Loading…' : currentStock}
               disabled
               readOnly
               tabIndex={-1}
@@ -563,7 +698,7 @@ export default function BookstoreInventoryPage() {
               className={BOOKSTORE_INPUT_CLASS}
               value={adjustmentType}
               onChange={(e) => setAdjustmentType(e.target.value)}
-              disabled={stockSaving}
+              disabled={adjustModalBusy}
             >
               {ADJUSTMENT_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -578,7 +713,7 @@ export default function BookstoreInventoryPage() {
               value={adjustQuantity}
               onChange={setAdjustQuantity}
               placeholder={quantityPlaceholder}
-              disabled={stockSaving}
+              disabled={adjustModalBusy || !adjustTarget}
             />
           </InventoryFormField>
           <InventoryFormField label="Reason">
@@ -588,7 +723,7 @@ export default function BookstoreInventoryPage() {
               onChange={(e) => setAdjustReason(e.target.value)}
               placeholder={reasonPlaceholder}
               maxLength={300}
-              disabled={stockSaving}
+              disabled={adjustModalBusy || !adjustTarget}
             />
           </InventoryFormField>
         </div>

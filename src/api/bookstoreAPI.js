@@ -37,13 +37,31 @@ import {
   normalizeBookstoreInventoryLogsResponse,
   buildBookstoreInventoryLogsParams,
   normalizeBookstoreAdjustStockResponse,
+  normalizeBookstoreInventoryViewResponse,
+  normalizeBookstoreInventorySearchResponse,
+  mapApiInventoryViewToRow,
+  mapApiInventoryToRows,
   normalizeBookstoreStatusChangeResponse,
   normalizeBookstoreDeleteResponse,
+  buildBookstoreCommerceListParams,
+  normalizeBookstoreOrdersListResponse,
+  normalizeBookstorePaymentsListResponse,
+  normalizeBookstoreInvoicesListResponse,
+  normalizeBookstoreRecommendationsListResponse,
+  normalizeBookstoreDashboardResponse,
+  normalizeBookstoreReportsResponse,
+  mapApiOrderToRow,
+  mapApiPaymentToRow,
+  mapApiRecommendationToRow,
+  mapOrderStatusToApi,
+  buildRecommendationApiPayload,
+  mapRecommendationStatusToApi,
 } from '../utils/bookstoreApiHelpers'
 
 const USE_MOCK = isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK === 'true'
 const PRODUCTS_BASE = '/admin/bookstore/products'
 const INVENTORY_BASE = '/admin/bookstore/inventory'
+const COMMERCE_BASE = '/admin/bookstore'
 
 async function tryApi(fn, fallback) {
   if (USE_MOCK) return fallback()
@@ -62,11 +80,27 @@ function toProductError(error, fallback) {
   return err
 }
 
+function toCommerceError(error, fallback) {
+  return toProductError(error, fallback)
+}
+
 export async function fetchBookstoreDashboard(params = {}) {
-  return tryApi(
-    () => api.get('/bookstore/dashboard', { params }),
-    () => buildBookstoreDashboardPayload(params),
-  )
+  if (USE_MOCK) {
+    return buildBookstoreDashboardPayload(params)
+  }
+
+  try {
+    const response = await api.get(`${COMMERCE_BASE}/dashboard`, { params })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch dashboard. Please try again.')
+    }
+
+    return normalizeBookstoreDashboardResponse(body)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch dashboard. Please try again.')
+  }
 }
 
 export async function fetchBookstoreExamCategories() {
@@ -192,9 +226,9 @@ export async function createBookstoreProduct(payload, assetContext = {}) {
   }
 }
 
-export async function updateBookstoreProduct(id, payload, assetContext = {}) {
+export async function updateBookstoreProduct(productId, payload, assetContext = {}) {
   if (USE_MOCK) {
-    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id || p.mongoId === id)
+    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === productId || p.mongoId === productId)
     if (idx < 0) return undefined
 
     const previous = MOCK_BOOKSTORE_PRODUCTS[idx]
@@ -205,7 +239,7 @@ export async function updateBookstoreProduct(id, payload, assetContext = {}) {
     MOCK_BOOKSTORE_PRODUCTS[idx] = { ...previous, ...payload }
 
     if (hasStockUpdate && nextStock !== previousStock) {
-      recordProductStockAdjustment(id, previousStock, nextStock)
+      recordProductStockAdjustment(productId, previousStock, nextStock)
     }
 
     return {
@@ -217,14 +251,18 @@ export async function updateBookstoreProduct(id, payload, assetContext = {}) {
   }
 
   try {
-    const mongoId = id
+    const resolvedProductId = String(productId || '').trim()
+    if (!resolvedProductId) {
+      throw new Error('Product ID is required to update a product.')
+    }
+
     const formData =
       payload instanceof FormData
         ? payload
         : buildProductUpdateFormData(payload, assetContext)
 
     const response = await api.put(
-      `${PRODUCTS_BASE}/update/${encodeURIComponent(mongoId)}`,
+      `${PRODUCTS_BASE}/update/${encodeURIComponent(resolvedProductId)}`,
       formData,
     )
     const body = response?.data ?? {}
@@ -244,9 +282,14 @@ export async function updateBookstoreProduct(id, payload, assetContext = {}) {
   }
 }
 
-export async function changeBookstoreProductStatus(id, status) {
+export async function changeBookstoreProductStatus(mongoId, status) {
+  const apiStatus = status === 'ACTIVE' || status === 'DEACTIVATED' ? status : null
+  if (!apiStatus) {
+    throw new Error('Status must be ACTIVE or DEACTIVATED.')
+  }
+
   if (USE_MOCK) {
-    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.id === id || p.mongoId === id)
+    const idx = MOCK_BOOKSTORE_PRODUCTS.findIndex((p) => p.mongoId === mongoId || p.id === mongoId)
     if (idx >= 0) {
       MOCK_BOOKSTORE_PRODUCTS[idx] = {
         ...MOCK_BOOKSTORE_PRODUCTS[idx],
@@ -260,17 +303,25 @@ export async function changeBookstoreProductStatus(id, status) {
       statusCode: 10000,
       message: 'Product status updated successfully',
       productId: row?.id || '',
-      mongoId: row?.mongoId || String(id),
-      status: status === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
-      apiStatus: status === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
-      uiStatus: status === 'ACTIVE' ? 'active' : 'inactive',
+      mongoId: row?.mongoId || String(mongoId),
+      status: apiStatus,
+      apiStatus,
+      uiStatus: apiStatus === 'ACTIVE' ? 'active' : 'inactive',
+      isFeaturedOnHomepage: apiStatus === 'ACTIVE' ? row?.isFeaturedOnHomepage : false,
+      homepageSortOrder: apiStatus === 'ACTIVE' ? row?.homepageSortOrder ?? null : null,
     }
   }
 
   try {
-    const response = await api.patch(`${PRODUCTS_BASE}/status/${encodeURIComponent(id)}`, {
-      status,
-    })
+    const resolvedMongoId = String(mongoId || '').trim()
+    if (!resolvedMongoId) {
+      throw new Error('Product record id is required to update status.')
+    }
+
+    const response = await api.patch(
+      `${PRODUCTS_BASE}/status/${encodeURIComponent(resolvedMongoId)}`,
+      { status: apiStatus },
+    )
     const body = response?.data ?? {}
 
     if (!isBookstoreApiSuccess(body)) {
@@ -385,6 +436,90 @@ export async function fetchBookstoreInventoryPage(params = {}) {
   }
 }
 
+export async function fetchBookstoreInventoryView(productId) {
+  const resolvedProductId = String(productId || '').trim()
+  if (!resolvedProductId) {
+    throw new Error('Product ID is required.')
+  }
+
+  if (USE_MOCK) {
+    const product = MOCK_BOOKSTORE_PRODUCTS.find((entry) => entry.id === resolvedProductId)
+    if (!product) {
+      throw new Error('Product not found')
+    }
+
+    const alert =
+      product.stockQuantity === 0
+        ? 'OUT_OF_STOCK'
+        : product.stockQuantity <= 20
+          ? 'LOW_STOCK'
+          : 'OK'
+
+    return mapApiInventoryViewToRow({
+      productId: product.id,
+      productName: product.name,
+      stockQuantity: product.stockQuantity,
+      alert,
+    })
+  }
+
+  try {
+    const response = await api.post(`${INVENTORY_BASE}/view`, {
+      productId: resolvedProductId,
+    })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch inventory details. Please try again.')
+    }
+
+    return normalizeBookstoreInventoryViewResponse(body)
+  } catch (error) {
+    throw toProductError(error, 'Unable to fetch inventory details. Please try again.')
+  }
+}
+
+export async function searchBookstoreInventory(search) {
+  const term = String(search || '').trim()
+  if (!term) {
+    throw new Error('Search term is required.')
+  }
+
+  if (USE_MOCK) {
+    const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    const items = MOCK_BOOKSTORE_PRODUCTS.filter((product) => {
+      const haystack = [product.id, product.name].filter(Boolean).join(' ')
+      return regex.test(haystack)
+    }).map((product) => ({
+      _id: product.mongoId || product.id,
+      productId: product.id,
+      productName: product.name,
+      stockQuantity: product.stockQuantity,
+      alert:
+        product.stockQuantity === 0
+          ? 'OUT_OF_STOCK'
+          : product.stockQuantity <= 20
+            ? 'LOW_STOCK'
+            : 'OK',
+    }))
+
+    return normalizeBookstoreInventorySearchResponse({ data: { items } })
+  }
+
+  try {
+    const response = await api.post(`${INVENTORY_BASE}/search`, { search: term })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to search inventory. Please try again.')
+    }
+
+    return normalizeBookstoreInventorySearchResponse(body)
+  } catch (error) {
+    throw toProductError(error, 'Unable to search inventory. Please try again.')
+  }
+}
+
 function buildMockInventoryLogsPage(params = {}) {
   const productId = String(params.productId || '').trim()
   const page = params.page || 1
@@ -467,12 +602,29 @@ export async function fetchBookstoreInventory() {
 }
 
 export async function adjustBookstoreStock(productId, payload = {}) {
+  const resolvedProductId = String(productId || '').trim()
+  if (!resolvedProductId) {
+    throw new Error('Product ID is required to adjust stock.')
+  }
+
   const action = payload.action === 'DECREASE' ? 'DECREASE' : 'INCREASE'
   const quantity = Number(payload.quantity)
   const reason = String(payload.reason || '').trim()
 
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new Error('Quantity must be a whole number greater than 0.')
+  }
+
+  if (reason.length < 3) {
+    throw new Error('Reason must be at least 3 characters.')
+  }
+
+  if (reason.length > 300) {
+    throw new Error('Reason cannot exceed 300 characters.')
+  }
+
   if (USE_MOCK) {
-    const product = MOCK_BOOKSTORE_PRODUCTS.find((entry) => entry.id === productId)
+    const product = MOCK_BOOKSTORE_PRODUCTS.find((entry) => entry.id === resolvedProductId)
     if (!product) {
       throw new Error('Product not found')
     }
@@ -482,9 +634,9 @@ export async function adjustBookstoreStock(productId, payload = {}) {
     }
 
     const delta = action === 'INCREASE' ? quantity : -quantity
-    applyStockChange(productId, delta, {
+    applyStockChange(resolvedProductId, delta, {
       reason,
-      transactionId: `adjust-${productId}-${action}-${quantity}-${Date.now()}`,
+      transactionId: `adjust-${resolvedProductId}-${action}-${quantity}-${Date.now()}`,
     })
 
     const alert =
@@ -522,7 +674,7 @@ export async function adjustBookstoreStock(productId, payload = {}) {
 
   try {
     const response = await api.put(
-      `${INVENTORY_BASE}/adjust-stock/${encodeURIComponent(productId)}`,
+      `${INVENTORY_BASE}/adjust-stock/${encodeURIComponent(resolvedProductId)}`,
       {
         action,
         quantity,
@@ -600,33 +752,196 @@ export async function saveBookstoreBundle(payload, id) {
   )
 }
 
-export async function fetchBookstoreOrders() {
-  return tryApi(
-    () => api.get('/bookstore/orders'),
-    () => ({ items: [...MOCK_BOOKSTORE_ORDERS] }),
-  )
+export async function fetchBookstoreOrders(params = {}) {
+  if (USE_MOCK) {
+    return { items: [...MOCK_BOOKSTORE_ORDERS], total: MOCK_BOOKSTORE_ORDERS.length }
+  }
+
+  try {
+    const response = await api.post(
+      `${COMMERCE_BASE}/orders/list`,
+      buildBookstoreCommerceListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch orders. Please try again.')
+    }
+
+    return normalizeBookstoreOrdersListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+    })
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch orders. Please try again.')
+  }
 }
 
-export async function updateBookstoreOrderStatus(id, status) {
-  return tryApi(
-    () => api.patch(`/bookstore/orders/${id}/status`, { status }),
-    () => {
-      const oi = MOCK_BOOKSTORE_ORDERS.findIndex((o) => o.id === id)
-      if (oi < 0) return undefined
+export async function fetchBookstoreOrderById(orderId) {
+  const resolvedOrderId = String(orderId || '').trim()
+  if (!resolvedOrderId) {
+    throw new Error('Order ID is required.')
+  }
 
-      const previousStatus = MOCK_BOOKSTORE_ORDERS[oi].status
-      MOCK_BOOKSTORE_ORDERS[oi] = { ...MOCK_BOOKSTORE_ORDERS[oi], status }
-      processOrderInventoryChange(MOCK_BOOKSTORE_ORDERS[oi], previousStatus, status)
-      return MOCK_BOOKSTORE_ORDERS[oi]
-    },
-  )
+  if (USE_MOCK) {
+    return MOCK_BOOKSTORE_ORDERS.find((order) => order.id === resolvedOrderId) ?? null
+  }
+
+  try {
+    const response = await api.post(`${COMMERCE_BASE}/orders/view`, {
+      orderId: resolvedOrderId,
+    })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch order details. Please try again.')
+    }
+
+    return mapApiOrderToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch order details. Please try again.')
+  }
 }
 
-export async function fetchBookstorePayments() {
-  return tryApi(
-    () => api.get('/bookstore/payments'),
-    () => ({ items: [...MOCK_BOOKSTORE_PAYMENTS] }),
-  )
+export async function updateBookstoreOrderStatus(orderId, status) {
+  const resolvedOrderId = String(orderId || '').trim()
+  if (!resolvedOrderId) {
+    throw new Error('Order ID is required.')
+  }
+
+  const apiStatus = mapOrderStatusToApi(status)
+
+  if (USE_MOCK) {
+    const oi = MOCK_BOOKSTORE_ORDERS.findIndex((o) => o.id === resolvedOrderId)
+    if (oi < 0) return undefined
+
+    const previousStatus = MOCK_BOOKSTORE_ORDERS[oi].status
+    MOCK_BOOKSTORE_ORDERS[oi] = { ...MOCK_BOOKSTORE_ORDERS[oi], status }
+    processOrderInventoryChange(MOCK_BOOKSTORE_ORDERS[oi], previousStatus, status)
+    return MOCK_BOOKSTORE_ORDERS[oi]
+  }
+
+  try {
+    const response = await api.patch(
+      `${COMMERCE_BASE}/orders/status/${encodeURIComponent(resolvedOrderId)}`,
+      { status: apiStatus },
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update order status. Please try again.')
+    }
+
+    return mapApiOrderToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to update order status. Please try again.')
+  }
+}
+
+export async function updateBookstoreOrderShipment(orderId, shipmentId) {
+  const resolvedOrderId = String(orderId || '').trim()
+  const resolvedShipmentId = String(shipmentId || '').trim()
+
+  if (!resolvedOrderId) {
+    throw new Error('Order ID is required.')
+  }
+
+  if (!resolvedShipmentId) {
+    throw new Error('Shipment ID is required.')
+  }
+
+  if (USE_MOCK) {
+    const oi = MOCK_BOOKSTORE_ORDERS.findIndex((o) => o.id === resolvedOrderId)
+    if (oi < 0) return undefined
+
+    MOCK_BOOKSTORE_ORDERS[oi] = {
+      ...MOCK_BOOKSTORE_ORDERS[oi],
+      shipmentId: resolvedShipmentId,
+      status:
+        MOCK_BOOKSTORE_ORDERS[oi].status === 'Confirmed' ||
+        MOCK_BOOKSTORE_ORDERS[oi].status === 'Packed'
+          ? 'Shipped'
+          : MOCK_BOOKSTORE_ORDERS[oi].status,
+    }
+    return MOCK_BOOKSTORE_ORDERS[oi]
+  }
+
+  try {
+    const response = await api.patch(
+      `${COMMERCE_BASE}/orders/shipment/${encodeURIComponent(resolvedOrderId)}`,
+      { shipmentId: resolvedShipmentId },
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update shipment. Please try again.')
+    }
+
+    return mapApiOrderToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to update shipment. Please try again.')
+  }
+}
+
+export async function fetchBookstorePayments(params = {}) {
+  if (USE_MOCK) {
+    return { items: [...MOCK_BOOKSTORE_PAYMENTS], total: MOCK_BOOKSTORE_PAYMENTS.length }
+  }
+
+  try {
+    const response = await api.post(
+      `${COMMERCE_BASE}/payments/list`,
+      buildBookstoreCommerceListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch payments. Please try again.')
+    }
+
+    return normalizeBookstorePaymentsListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+    })
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch payments. Please try again.')
+  }
+}
+
+export async function refundBookstorePayment(orderId, options = {}) {
+  const resolvedOrderId = String(orderId || '').trim()
+  if (!resolvedOrderId) {
+    throw new Error('Order ID is required.')
+  }
+
+  const reason = String(options.reason || 'Admin initiated refund').trim()
+
+  if (USE_MOCK) {
+    const payment = MOCK_BOOKSTORE_PAYMENTS.find((entry) => entry.orderId === resolvedOrderId)
+    if (payment) {
+      payment.status = 'REFUND_INITIATED'
+      setTimeout(() => {
+        payment.status = 'REFUNDED'
+      }, 0)
+    }
+    return payment
+  }
+
+  try {
+    const response = await api.patch(
+      `${COMMERCE_BASE}/payments/refund/${encodeURIComponent(resolvedOrderId)}`,
+      { reason },
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to process refund. Please try again.')
+    }
+
+    return mapApiPaymentToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to process refund. Please try again.')
+  }
 }
 
 export async function fetchBookstoreWallet() {
@@ -636,11 +951,29 @@ export async function fetchBookstoreWallet() {
   )
 }
 
-export async function fetchBookstoreRecommendations() {
-  return tryApi(
-    () => api.get('/bookstore/recommendations'),
-    () => ({ items: [...MOCK_BOOKSTORE_RECOMMENDATIONS] }),
-  )
+export async function fetchBookstoreRecommendations(params = {}) {
+  if (USE_MOCK) {
+    return { items: [...MOCK_BOOKSTORE_RECOMMENDATIONS], total: MOCK_BOOKSTORE_RECOMMENDATIONS.length }
+  }
+
+  try {
+    const response = await api.post(
+      `${COMMERCE_BASE}/recommendations/list`,
+      buildBookstoreCommerceListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch recommendations. Please try again.')
+    }
+
+    return normalizeBookstoreRecommendationsListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+    })
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch recommendations. Please try again.')
+  }
 }
 
 /** Student portal + admin preview — cart “You May Also Like” */
@@ -661,62 +994,216 @@ export async function fetchCartRecommendations(sourceProductId, params = {}) {
 }
 
 export async function createBookstoreRecommendation(payload) {
-  return tryApi(
-    () => api.post('/bookstore/recommendations', payload),
-    () => {
-      const row = {
-        recommendationType: 'Cart Recommendations',
-        placement: 'Cart Drawer',
-        priorityOrder: 1,
-        id: nextRecommendationId(),
-        createdAt: new Date().toISOString(),
-        ...payload,
-      }
-      MOCK_BOOKSTORE_RECOMMENDATIONS.unshift(row)
-      return row
-    },
-  )
+  const apiPayload = buildRecommendationApiPayload(payload)
+
+  if (USE_MOCK) {
+    const row = {
+      recommendationType: apiPayload.recommendationType,
+      placement: apiPayload.placement,
+      priorityOrder: apiPayload.priorityOrder,
+      id: nextRecommendationId(),
+      createdAt: new Date().toISOString(),
+      ...payload,
+      status: mapRecommendationStatusToApi(payload.status),
+    }
+    MOCK_BOOKSTORE_RECOMMENDATIONS.unshift(row)
+    return mapApiRecommendationToRow(row)
+  }
+
+  try {
+    const response = await api.post(`${COMMERCE_BASE}/recommendations/create`, apiPayload)
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to create recommendation. Please try again.')
+    }
+
+    return mapApiRecommendationToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to create recommendation. Please try again.')
+  }
 }
 
 export async function updateBookstoreRecommendation(id, payload) {
-  return tryApi(
-    () => api.put(`/bookstore/recommendations/${id}`, payload),
-    () => {
-      const idx = MOCK_BOOKSTORE_RECOMMENDATIONS.findIndex((r) => r.id === id)
-      if (idx >= 0) {
-        MOCK_BOOKSTORE_RECOMMENDATIONS[idx] = {
-          ...MOCK_BOOKSTORE_RECOMMENDATIONS[idx],
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        }
+  const resolvedId = String(id || '').trim()
+  if (!resolvedId) {
+    throw new Error('Recommendation ID is required.')
+  }
+
+  const apiPayload = buildRecommendationApiPayload(payload)
+
+  if (USE_MOCK) {
+    const idx = MOCK_BOOKSTORE_RECOMMENDATIONS.findIndex((r) => r.id === resolvedId)
+    if (idx >= 0) {
+      MOCK_BOOKSTORE_RECOMMENDATIONS[idx] = {
+        ...MOCK_BOOKSTORE_RECOMMENDATIONS[idx],
+        ...payload,
+        updatedAt: new Date().toISOString(),
       }
-      return MOCK_BOOKSTORE_RECOMMENDATIONS.find((r) => r.id === id)
-    },
-  )
+    }
+    return mapApiRecommendationToRow(
+      MOCK_BOOKSTORE_RECOMMENDATIONS.find((r) => r.id === resolvedId),
+    )
+  }
+
+  try {
+    const response = await api.put(
+      `${COMMERCE_BASE}/recommendations/update/${encodeURIComponent(resolvedId)}`,
+      apiPayload,
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update recommendation. Please try again.')
+    }
+
+    return mapApiRecommendationToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to update recommendation. Please try again.')
+  }
+}
+
+export async function changeBookstoreRecommendationStatus(id, status) {
+  const resolvedId = String(id || '').trim()
+  if (!resolvedId) {
+    throw new Error('Recommendation ID is required.')
+  }
+
+  const apiStatus = mapRecommendationStatusToApi(status)
+
+  if (USE_MOCK) {
+    const idx = MOCK_BOOKSTORE_RECOMMENDATIONS.findIndex((r) => r.id === resolvedId)
+    if (idx >= 0) {
+      MOCK_BOOKSTORE_RECOMMENDATIONS[idx] = {
+        ...MOCK_BOOKSTORE_RECOMMENDATIONS[idx],
+        status: apiStatus,
+      }
+    }
+    return mapApiRecommendationToRow(
+      MOCK_BOOKSTORE_RECOMMENDATIONS.find((r) => r.id === resolvedId),
+    )
+  }
+
+  try {
+    const response = await api.patch(
+      `${COMMERCE_BASE}/recommendations/status/${encodeURIComponent(resolvedId)}`,
+      { status: apiStatus },
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to update recommendation status. Please try again.')
+    }
+
+    return mapApiRecommendationToRow(body.data)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to update recommendation status. Please try again.')
+  }
 }
 
 export async function deleteBookstoreRecommendation(id) {
-  return tryApi(
-    () => api.delete(`/bookstore/recommendations/${id}`),
-    () => {
-      const idx = MOCK_BOOKSTORE_RECOMMENDATIONS.findIndex((r) => r.id === id)
-      if (idx >= 0) MOCK_BOOKSTORE_RECOMMENDATIONS.splice(idx, 1)
-      return { success: true }
-    },
-  )
+  const resolvedId = String(id || '').trim()
+  if (!resolvedId) {
+    throw new Error('Recommendation ID is required.')
+  }
+
+  if (USE_MOCK) {
+    const idx = MOCK_BOOKSTORE_RECOMMENDATIONS.findIndex((r) => r.id === resolvedId)
+    if (idx >= 0) MOCK_BOOKSTORE_RECOMMENDATIONS.splice(idx, 1)
+    return { success: true, deleted: true }
+  }
+
+  try {
+    const response = await api.delete(
+      `${COMMERCE_BASE}/recommendations/delete/${encodeURIComponent(resolvedId)}`,
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to delete recommendation. Please try again.')
+    }
+
+    return body.data || { success: true, deleted: true }
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to delete recommendation. Please try again.')
+  }
 }
 
-export async function fetchBookstoreInvoices() {
-  return tryApi(
-    () => api.get('/bookstore/invoices'),
-    () => ({ items: [...MOCK_BOOKSTORE_INVOICES] }),
-  )
+export async function fetchBookstoreInvoices(params = {}) {
+  if (USE_MOCK) {
+    return { items: [...MOCK_BOOKSTORE_INVOICES], total: MOCK_BOOKSTORE_INVOICES.length }
+  }
+
+  try {
+    const response = await api.post(
+      `${COMMERCE_BASE}/invoices/list`,
+      buildBookstoreCommerceListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch invoices. Please try again.')
+    }
+
+    return normalizeBookstoreInvoicesListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+    })
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch invoices. Please try again.')
+  }
+}
+
+export async function downloadBookstoreInvoice(orderId) {
+  const resolvedOrderId = String(orderId || '').trim()
+  if (!resolvedOrderId) {
+    throw new Error('Order ID is required.')
+  }
+
+  if (USE_MOCK) {
+    const invoice = MOCK_BOOKSTORE_INVOICES.find((entry) => entry.orderId === resolvedOrderId)
+    return invoice?.invoiceUrl || null
+  }
+
+  try {
+    const response = await api.get(
+      `${COMMERCE_BASE}/invoices/${encodeURIComponent(resolvedOrderId)}/download`,
+      { responseType: 'blob' },
+    )
+
+    const contentType = response.headers?.['content-type'] || ''
+    if (contentType.includes('application/json')) {
+      const text = await new Response(response.data).text()
+      const body = JSON.parse(text)
+      if (isBookstoreApiSuccess(body) && body?.data?.invoiceUrl) {
+        return body.data.invoiceUrl
+      }
+      throw new Error(body?.message || 'Invoice file not available.')
+    }
+
+    const blobUrl = URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `${resolvedOrderId.replace(/[^\w-]+/g, '_')}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1500)
+    return true
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to download invoice. Please try again.')
+  }
 }
 
 export async function fetchBookstoreReports(params = {}) {
-  return tryApi(
-    () => api.get('/bookstore/reports', { params }),
-    () => ({
+  if (USE_MOCK) {
+    return {
+      summary: {
+        totalBooksSold: 1245,
+        totalRevenue: 845200,
+        totalOrders: 845,
+        bestSellingBook: MOCK_BOOKSTORE_PRODUCTS[0]?.name || '—',
+      },
       productSales: MOCK_BOOKSTORE_PRODUCTS.map((p) => ({
         productId: p.id,
         name: p.name,
@@ -724,6 +1211,20 @@ export async function fetchBookstoreReports(params = {}) {
         revenue: p.discountPrice * 10,
       })),
       dateWise: buildBookstoreDashboardPayload().revenueChart,
-    }),
-  )
+      chartDateWise: buildBookstoreDashboardPayload().revenueChart,
+    }
+  }
+
+  try {
+    const response = await api.get(`${COMMERCE_BASE}/reports`, { params })
+    const body = response?.data ?? {}
+
+    if (!isBookstoreApiSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch reports. Please try again.')
+    }
+
+    return normalizeBookstoreReportsResponse(body)
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch reports. Please try again.')
+  }
 }

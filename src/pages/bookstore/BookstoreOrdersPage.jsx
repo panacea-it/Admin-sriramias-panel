@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ShoppingCart } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import OrderDetailDrawer from '../../components/bookstore/OrderDetailDrawer'
@@ -7,8 +7,13 @@ import OrderRowActions from '../../components/bookstore/OrderRowActions'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
 import CourseFilterToolbar from '../../components/courses/CourseFilterToolbar'
 import Button from '../../components/ui/Button'
-import { fetchBookstoreOrders, updateBookstoreOrderStatus } from '../../api/bookstoreAPI'
+import {
+  useBookstoreOrdersList,
+  useUpdateBookstoreOrderShipment,
+  useUpdateBookstoreOrderStatus,
+} from '../../hooks/bookstore/useBookstoreOrders'
 import { toast } from '../../utils/toast'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
 
 const ORDER_STATUS_OPTIONS = [
@@ -22,8 +27,6 @@ const ORDER_STATUS_OPTIONS = [
 ]
 
 export default function BookstoreOrdersPage() {
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected] = useState(null)
@@ -32,31 +35,34 @@ export default function BookstoreOrdersPage() {
   const [pendingStatus, setPendingStatus] = useState('Pending')
   const [shipmentId, setShipmentId] = useState('')
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const res = await fetchBookstoreOrders()
-    setOrders(res?.items || [])
-    setLoading(false)
-  }, [])
+  const listParams = useMemo(
+    () => ({
+      search,
+      orderStatus: statusFilter,
+      limit: 100,
+    }),
+    [search, statusFilter],
+  )
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data, isLoading, refetch } = useBookstoreOrdersList(listParams)
+  const updateStatusMutation = useUpdateBookstoreOrderStatus()
+  const updateShipmentMutation = useUpdateBookstoreOrderShipment()
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return orders.filter((o) => {
-      const matchQ = !q || [o.id, o.customerName].some((v) => String(v).toLowerCase().includes(q))
-      const matchStatus = statusFilter === 'all' || o.status === statusFilter
-      return matchQ && matchStatus
-    })
-  }, [orders, search, statusFilter])
+  const orders = data?.items || []
+  const loading = isLoading
+
+  const filtered = orders
 
   const handleStatus = async (id, status) => {
-    await updateBookstoreOrderStatus(id, status)
-    toast.success('Order updated')
-    load()
-    setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev))
+    try {
+      const updated = await updateStatusMutation.mutateAsync({ orderId: id, status })
+      toast.success('Order updated')
+      setSelected((prev) =>
+        prev?.id === id ? { ...prev, ...(updated || {}), status } : prev,
+      )
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to update order status.'))
+    }
   }
 
   const applyStatusDialog = async () => {
@@ -65,12 +71,28 @@ export default function BookstoreOrdersPage() {
     setStatusDialogOpen(false)
   }
 
-  const applyShipment = () => {
+  const applyShipment = async () => {
     if (!selected) return
-    setSelected({ ...selected, shipmentId: shipmentId || `SHP-${Date.now().toString().slice(-6)}` })
-    toast.success('Shipment assigned')
-    setShipmentOpen(false)
-    setShipmentId('')
+
+    const resolvedShipmentId = shipmentId.trim() || `SHP-${Date.now().toString().slice(-6)}`
+
+    try {
+      const updated = await updateShipmentMutation.mutateAsync({
+        orderId: selected.id,
+        shipmentId: resolvedShipmentId,
+      })
+      setSelected((prev) =>
+        prev?.id === selected.id
+          ? { ...prev, ...(updated || {}), shipmentId: resolvedShipmentId }
+          : prev,
+      )
+      toast.success('Shipment assigned')
+      setShipmentOpen(false)
+      setShipmentId('')
+      refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to assign shipment.'))
+    }
   }
 
   const renderRowActions = useCallback(

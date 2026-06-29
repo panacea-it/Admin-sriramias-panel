@@ -84,23 +84,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
             />
           </div>
 
-          {product.previewVideoUrl ? (
-            <div>
-              <p className="text-xs font-semibold text-[#686868]">Overview Video</p>
-              <div className="mt-2 overflow-hidden rounded-xl border border-[#e8ecf2] bg-[#1a3a5c] p-2">
-                <video
-                  src={product.previewVideoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="mx-auto max-h-52 w-full rounded-lg object-contain"
-                >
-                  Your browser does not support video playback.
-                </video>
-              </div>
-            </div>
-          ) : null}
-
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <DetailItem label="Product ID">{product.id || '—'}</DetailItem>
             <DetailItem label="Product Name">{product.name || '—'}</DetailItem>

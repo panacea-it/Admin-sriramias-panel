@@ -78,8 +78,8 @@ export function useUpdateBookstoreProduct() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ mongoId, values, ...assetContext }) =>
-      updateBookstoreProduct(mongoId, values, assetContext),
+    mutationFn: ({ productId, values, ...assetContext }) =>
+      updateBookstoreProduct(productId, values, assetContext),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: bookstoreProductKeys.all })
       if (variables?.productId) {
@@ -101,12 +101,35 @@ export function useChangeBookstoreProductStatus() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ mongoId, productId, status }) =>
-      changeBookstoreProductStatus(mongoId, mapUiStatusToApi(status)),
+    mutationFn: ({ mongoId, status }) => {
+      if (!mongoId) {
+        throw new Error('Product record id is required to update status.')
+      }
+      return changeBookstoreProductStatus(mongoId, mapUiStatusToApi(status))
+    },
     onSuccess: (data, variables) => {
       const productId = data?.productId || variables?.productId
+      const mongoId = data?.mongoId || variables?.mongoId
       const nextUiStatus = data?.uiStatus
       const nextApiStatus = data?.apiStatus || data?.status
+      const nextFeatured =
+        data?.isFeaturedOnHomepage !== undefined
+          ? data.isFeaturedOnHomepage
+          : undefined
+      const nextHomepageOrder =
+        data?.homepageSortOrder !== undefined ? data.homepageSortOrder : undefined
+
+      const patchRow = (item) => {
+        if (item.mongoId !== mongoId && item.id !== productId) return item
+
+        return {
+          ...item,
+          status: nextUiStatus ?? item.status,
+          apiStatus: nextApiStatus ?? item.apiStatus,
+          ...(nextFeatured !== undefined ? { isFeaturedOnHomepage: nextFeatured } : {}),
+          ...(nextHomepageOrder !== undefined ? { homepageSortOrder: nextHomepageOrder } : {}),
+        }
+      }
 
       queryClient.setQueriesData(
         {
@@ -118,28 +141,14 @@ export function useChangeBookstoreProductStatus() {
 
           return {
             ...old,
-            items: old.items.map((item) =>
-              item.mongoId === variables.mongoId || item.id === productId
-                ? {
-                    ...item,
-                    status: nextUiStatus ?? item.status,
-                    apiStatus: nextApiStatus ?? item.apiStatus,
-                  }
-                : item,
-            ),
+            items: old.items.map(patchRow),
           }
         },
       )
 
       if (productId) {
         queryClient.setQueryData(bookstoreProductKeys.detail(productId), (old) =>
-          old
-            ? {
-                ...old,
-                status: nextUiStatus ?? old.status,
-                apiStatus: nextApiStatus ?? old.apiStatus,
-              }
-            : old,
+          old ? patchRow(old) : old,
         )
       }
 

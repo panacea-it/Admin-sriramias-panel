@@ -119,21 +119,19 @@ export default function BookstoreProductsPage() {
 
   const editingProduct = editingDetail || editingRow
 
-  const handleSave = async ({ values, cover, video, samples, keywords, isDraft, hadVideoInitially }) => {
-    const isUpdate = Boolean(editingRow?.mongoId)
+  const handleSave = async ({ values, cover, samplePdf, keywords, isDraft, hadPdfInitially }) => {
+    const isUpdate = Boolean(editingRow?.id)
 
     try {
       if (isUpdate) {
         const result = await updateMutation.mutateAsync({
-          mongoId: editingRow.mongoId,
           productId: editingRow.id,
           values,
           cover,
-          video,
-          samples,
+          samplePdf,
           keywords,
-          isDraft,
-          hadVideoInitially,
+          isDraft: false,
+          hadPdfInitially,
         })
 
         if (result?.success === true && result?.statusCode === 10000) {
@@ -150,8 +148,7 @@ export default function BookstoreProductsPage() {
       const result = await createMutation.mutateAsync({
         values,
         cover,
-        video,
-        samples,
+        samplePdf,
         keywords,
         isDraft,
       })
@@ -178,7 +175,12 @@ export default function BookstoreProductsPage() {
 
   const toggleStatus = useCallback(
     async (row) => {
-      if (!row?.mongoId || statusMutation.isPending) return
+      if (!row?.mongoId || statusMutation.isPending) {
+        if (!row?.mongoId) {
+          toast.error('Unable to update status: product record id is missing.')
+        }
+        return
+      }
       const isCurrentlyActive =
         row.status === 'active' || String(row.apiStatus || '').toUpperCase() === 'ACTIVE'
       const next = isCurrentlyActive ? 'inactive' : 'active'

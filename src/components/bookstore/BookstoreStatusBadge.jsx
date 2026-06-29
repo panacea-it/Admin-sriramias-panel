@@ -19,6 +19,7 @@ const STATUS_STYLES = {
   Generated: 'bg-blue-500/15 text-blue-800 ring-blue-500/25',
   'Low stock': 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
   'Out of stock': 'bg-red-500/15 text-red-800 ring-red-500/25',
+  OK: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
 }
 
 export default function BookstoreStatusBadge({ status }) {

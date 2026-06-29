@@ -6,20 +6,16 @@ import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
 import ProductFormSection from './product-form/ProductFormSection'
 import CoverImageUpload from './product-form/CoverImageUpload'
-import PreviewVideoUpload from './product-form/PreviewVideoUpload'
-import SampleImagesSortable from './product-form/SampleImagesSortable'
+import SamplePdfUpload from './product-form/SamplePdfUpload'
 import KeywordsSortable from './product-form/KeywordsSortable'
 import { cn } from '../../utils/cn'
 import {
   BOOKSTORE_DESCRIPTION_MAX,
   createCoverAsset,
   mapKeywordsFromProduct,
-  mapSampleImagesFromProduct,
-  mapVideoFromProduct,
-  revokeAssetUrls,
+  mapPdfFromProduct,
   runCoverUploadProgress,
-  runListUploadProgress,
-  runVideoUploadProgress,
+  runPdfUploadProgress,
   validateProductForm,
 } from '../../utils/bookstoreProductForm'
 
@@ -34,6 +30,9 @@ const EMPTY = {
   discountPrice: '',
   stockQuantity: '',
   status: 'active',
+  isFeaturedOnHomepage: false,
+  homepageSortOrder: '',
+  catalogSortOrder: '',
 }
 
 function FieldError({ message }) {
@@ -42,11 +41,13 @@ function FieldError({ message }) {
 }
 
 export default function ProductFormModal({ open, onClose, initial, onSubmit, loading }) {
-  const { register, handleSubmit, reset, watch } = useForm({ defaultValues: EMPTY })
+  const { register, handleSubmit, reset, watch, setValue } = useForm({ defaultValues: EMPTY })
   const description = watch('description') || ''
+  const isFeaturedOnHomepage = watch('isFeaturedOnHomepage')
+  const statusValue = watch('status')
 
   const [cover, setCover] = useState(null)
-  const [samples, setSamples] = useState([])
+  const [samplePdf, setSamplePdf] = useState(null)
   const [keywords, setKeywords] = useState([])
   const [fieldErrors, setFieldErrors] = useState({})
   const progressCleanup = useRef(null)
@@ -62,15 +63,10 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     if (id) progressCleanup.current = runCoverUploadProgress(setCover, id)
   }, [clearProgress])
 
-  const startSamplesProgress = useCallback((ids) => {
-    clearProgress()
-    progressCleanup.current = runListUploadProgress(setSamples, ids)
-  }, [clearProgress])
-
-  const startVideoProgress = useCallback((ids) => {
+  const startPdfProgress = useCallback((ids) => {
     clearProgress()
     const id = ids?.[0]
-    if (id) progressCleanup.current = runVideoUploadProgress(setVideo, id)
+    if (id) progressCleanup.current = runPdfUploadProgress(setSamplePdf, id)
   }, [clearProgress])
 
   useEffect(() => {
@@ -88,16 +84,23 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
         discountPrice: String(initial.discountPrice ?? ''),
         stockQuantity: String(initial.stockQuantity ?? ''),
         status: initial.status || 'active',
+        isFeaturedOnHomepage: Boolean(initial.isFeaturedOnHomepage),
+        homepageSortOrder:
+          initial.homepageSortOrder != null && initial.homepageSortOrder !== ''
+            ? String(initial.homepageSortOrder)
+            : '',
+        catalogSortOrder:
+          initial.catalogSortOrder != null && initial.catalogSortOrder !== ''
+            ? String(initial.catalogSortOrder)
+            : '',
       })
       setCover(initial.thumbnailUrl ? createCoverAsset(null, initial.thumbnailUrl) : null)
-      setVideo(mapVideoFromProduct(initial))
-      setSamples(mapSampleImagesFromProduct(initial))
+      setSamplePdf(mapPdfFromProduct(initial))
       setKeywords(mapKeywordsFromProduct(initial))
     } else {
       reset(EMPTY)
       setCover(null)
-      setVideo(null)
-      setSamples([])
+      setSamplePdf(null)
       setKeywords([])
     }
     setFieldErrors({})
@@ -118,12 +121,12 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     setFieldErrors((prev) => ({ ...prev, cover: undefined }))
   }
 
-  const handleVideoChange = (next) => {
-    if (video?.previewUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(video.previewUrl)
+  const handleSamplePdfChange = (next) => {
+    if (samplePdf?.previewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(samplePdf.previewUrl)
     }
-    setVideo(next)
-    setFieldErrors((prev) => ({ ...prev, video: undefined }))
+    setSamplePdf(next)
+    setFieldErrors((prev) => ({ ...prev, samplePdf: undefined }))
   }
 
   const submit = (values, { isDraft }) => {
@@ -142,11 +145,10 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     onSubmit({
       values,
       cover,
-      video,
-      samples,
+      samplePdf,
       keywords,
       isDraft,
-      hadVideoInitially: Boolean(initial?.previewVideoUrl),
+      hadPdfInitially: Boolean(initial?.previewPdf),
     })
   }
 
@@ -154,6 +156,8 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
   const onPublish = handleSubmit((values) => submit(values, { isDraft: false }))
 
   const isEdit = Boolean(initial)
+
+  const featuredField = register('isFeaturedOnHomepage')
 
   const inputClass = (field) =>
     cn(BOOKSTORE_INPUT_CLASS, fieldErrors[field] && 'border-red-400 ring-1 ring-red-200')
@@ -166,7 +170,7 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
       subtitle={
         isEdit
           ? `SKU ${initial.id} · Update listing, media, and SEO`
-          : 'Professional product creation — details, cover, video, samples & keywords'
+          : 'Professional product creation — details, cover, sample PDF & keywords'
       }
       size="7xl"
       loading={loading}
@@ -292,31 +296,15 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
         </ProductFormSection>
 
         <ProductFormSection
-          title="Product overview video"
-          description="Optional promotional or overview video for the book detail page."
+          title="Sample PDF"
+          description="Optional preview PDF for students to read sample pages before purchase."
           delay={0.06}
         >
-          <PreviewVideoUpload
-            value={video}
-            onChange={handleVideoChange}
-            onUploadStart={(ids) => startVideoProgress(ids)}
-            error={fieldErrors.video}
-          />
-        </ProductFormSection>
-
-        <ProductFormSection
-          title="Sample pages / preview images"
-          description="Optional inside pages or product previews. Upload up to 10 images."
-          delay={0.08}
-        >
-          <SampleImagesSortable
-            items={samples}
-            onChange={(next) => {
-              setSamples(next)
-              setFieldErrors((prev) => ({ ...prev, samples: undefined }))
-            }}
-            onUploadStart={startSamplesProgress}
-            error={fieldErrors.samples}
+          <SamplePdfUpload
+            value={samplePdf}
+            onChange={handleSamplePdfChange}
+            onUploadStart={(ids) => startPdfProgress(ids)}
+            error={fieldErrors.samplePdf}
           />
         </ProductFormSection>
 
@@ -382,6 +370,79 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
               </select>
               <FieldError message={fieldErrors.status} />
             </label>
+          </div>
+        </ProductFormSection>
+
+        <ProductFormSection
+          title="Homepage & catalog display"
+          description="Control homepage featuring and sort order on the All Books catalog page."
+          delay={0.18}
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="flex items-start gap-3 sm:col-span-2 lg:col-span-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-[#d8dce3] text-[#7c5cbf] focus:ring-[#7c5cbf]"
+                {...featuredField}
+                onChange={(event) => {
+                  featuredField.onChange(event)
+                  if (!event.target.checked) {
+                    setValue('homepageSortOrder', '')
+                  }
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    isFeaturedOnHomepage: undefined,
+                    homepageSortOrder: undefined,
+                  }))
+                }}
+              />
+              <span>
+                <span className={BOOKSTORE_LABEL_CLASS}>Show on Homepage</span>
+                <p className={BOOKSTORE_HELPER_CLASS}>
+                  Featured ACTIVE books appear on the student homepage (max 15). Requires homepage
+                  display order.
+                </p>
+                <FieldError message={fieldErrors.isFeaturedOnHomepage} />
+              </span>
+            </label>
+
+            <label className={cn(!isFeaturedOnHomepage && 'opacity-60')}>
+              <span className={BOOKSTORE_LABEL_CLASS}>
+                Homepage display order {isFeaturedOnHomepage ? '*' : ''}
+              </span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                disabled={!isFeaturedOnHomepage}
+                placeholder={isFeaturedOnHomepage ? 'e.g. 1' : 'Enable Show on Homepage first'}
+                className={inputClass('homepageSortOrder')}
+                {...register('homepageSortOrder')}
+              />
+              <FieldError message={fieldErrors.homepageSortOrder} />
+              <p className={BOOKSTORE_HELPER_CLASS}>1 = first position on homepage.</p>
+            </label>
+
+            <label>
+              <span className={BOOKSTORE_LABEL_CLASS}>Catalog sort order</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="e.g. 1"
+                className={inputClass('catalogSortOrder')}
+                {...register('catalogSortOrder')}
+              />
+              <FieldError message={fieldErrors.catalogSortOrder} />
+              <p className={BOOKSTORE_HELPER_CLASS}>1 = first on the All Books page.</p>
+            </label>
+
+            {isFeaturedOnHomepage && statusValue === 'inactive' ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs font-medium text-amber-700">
+                Homepage featuring requires ACTIVE status. Save Draft or DEACTIVATED status will
+                fail if Show on Homepage is enabled.
+              </p>
+            ) : null}
           </div>
         </ProductFormSection>
       </form>
