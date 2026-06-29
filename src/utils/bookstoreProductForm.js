@@ -50,6 +50,36 @@ export function createCoverAsset(file, existingUrl = '') {
   return null
 }
 
+export function createVideoAsset(file, existingUrl = '') {
+  if (file) {
+    return {
+      id: nextAssetId('video'),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      fileName: file.name,
+      progress: 0,
+      uploading: true,
+    }
+  }
+  if (existingUrl) {
+    return {
+      id: nextAssetId('video'),
+      file: null,
+      previewUrl: existingUrl,
+      fileName: 'Existing video',
+      progress: 100,
+      uploading: false,
+    }
+  }
+  return null
+}
+
+export function mapVideoFromProduct(product) {
+  const url = product?.previewVideoUrl || product?.previewVideo || ''
+  if (!url) return null
+  return createVideoAsset(null, url)
+}
+
 export function createSampleAsset(file, existingUrl = '') {
   if (file) {
     return {
@@ -193,7 +223,7 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
   return errors
 }
 
-export function buildProductPayload(values, { cover, samples, keywords, isDraft }) {
+export function buildProductPayload(values, { cover, video, samples, keywords, isDraft }) {
   const { productType: _productType, subject: _subject, ...rest } = values
   return {
     ...rest,
@@ -203,6 +233,7 @@ export function buildProductPayload(values, { cover, samples, keywords, isDraft 
     discountPrice: Number(values.discountPrice) || 0,
     stockQuantity: Number(values.stockQuantity) || 0,
     thumbnailUrl: cover?.previewUrl || values.thumbnailUrl || '',
+    previewVideoUrl: video?.previewUrl || values.previewVideoUrl || '',
     sampleImages: samples.map((s, index) => ({
       url: s.previewUrl,
       order: index,
@@ -254,6 +285,27 @@ export function runCoverUploadProgress(setCover, id) {
       prev && prev.id === id ? { ...prev, progress: 100, uploading: false } : prev,
     )
   }, 900)
+  return () => {
+    clearInterval(interval)
+    clearTimeout(timeout)
+  }
+}
+
+export function runVideoUploadProgress(setVideo, id) {
+  const tick = () => {
+    setVideo((prev) => {
+      if (!prev || prev.id !== id || !prev.uploading) return prev
+      const next = Math.min(100, prev.progress + 12 + Math.random() * 8)
+      return { ...prev, progress: next, uploading: next < 100 }
+    })
+  }
+  const interval = setInterval(tick, 180)
+  const timeout = setTimeout(() => {
+    clearInterval(interval)
+    setVideo((prev) =>
+      prev && prev.id === id ? { ...prev, progress: 100, uploading: false } : prev,
+    )
+  }, 1800)
   return () => {
     clearInterval(interval)
     clearTimeout(timeout)

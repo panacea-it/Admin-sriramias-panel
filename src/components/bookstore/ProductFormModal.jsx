@@ -6,6 +6,7 @@ import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
 import ProductFormSection from './product-form/ProductFormSection'
 import CoverImageUpload from './product-form/CoverImageUpload'
+import PreviewVideoUpload from './product-form/PreviewVideoUpload'
 import SampleImagesSortable from './product-form/SampleImagesSortable'
 import KeywordsSortable from './product-form/KeywordsSortable'
 import { cn } from '../../utils/cn'
@@ -14,9 +15,11 @@ import {
   createCoverAsset,
   mapKeywordsFromProduct,
   mapSampleImagesFromProduct,
+  mapVideoFromProduct,
   revokeAssetUrls,
   runCoverUploadProgress,
   runListUploadProgress,
+  runVideoUploadProgress,
   validateProductForm,
 } from '../../utils/bookstoreProductForm'
 
@@ -64,6 +67,12 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     progressCleanup.current = runListUploadProgress(setSamples, ids)
   }, [clearProgress])
 
+  const startVideoProgress = useCallback((ids) => {
+    clearProgress()
+    const id = ids?.[0]
+    if (id) progressCleanup.current = runVideoUploadProgress(setVideo, id)
+  }, [clearProgress])
+
   useEffect(() => {
     if (!open) return undefined
     if (initial) {
@@ -81,11 +90,13 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
         status: initial.status || 'active',
       })
       setCover(initial.thumbnailUrl ? createCoverAsset(null, initial.thumbnailUrl) : null)
+      setVideo(mapVideoFromProduct(initial))
       setSamples(mapSampleImagesFromProduct(initial))
       setKeywords(mapKeywordsFromProduct(initial))
     } else {
       reset(EMPTY)
       setCover(null)
+      setVideo(null)
       setSamples([])
       setKeywords([])
     }
@@ -107,6 +118,14 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     setFieldErrors((prev) => ({ ...prev, cover: undefined }))
   }
 
+  const handleVideoChange = (next) => {
+    if (video?.previewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(video.previewUrl)
+    }
+    setVideo(next)
+    setFieldErrors((prev) => ({ ...prev, video: undefined }))
+  }
+
   const submit = (values, { isDraft }) => {
     const errors = validateProductForm(values, {
       cover,
@@ -120,7 +139,15 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     }
 
     setFieldErrors({})
-    onSubmit({ values, cover, samples, keywords, isDraft })
+    onSubmit({
+      values,
+      cover,
+      video,
+      samples,
+      keywords,
+      isDraft,
+      hadVideoInitially: Boolean(initial?.previewVideoUrl),
+    })
   }
 
   const onDraft = handleSubmit((values) => submit(values, { isDraft: true }))
@@ -139,7 +166,7 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
       subtitle={
         isEdit
           ? `SKU ${initial.id} · Update listing, media, and SEO`
-          : 'Professional product creation — details, cover, samples & keywords'
+          : 'Professional product creation — details, cover, video, samples & keywords'
       }
       size="7xl"
       loading={loading}
@@ -261,6 +288,19 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
             onChange={handleCoverChange}
             onUploadStart={(ids) => startCoverProgress(ids)}
             error={fieldErrors.cover}
+          />
+        </ProductFormSection>
+
+        <ProductFormSection
+          title="Product overview video"
+          description="Optional promotional or overview video for the book detail page."
+          delay={0.06}
+        >
+          <PreviewVideoUpload
+            value={video}
+            onChange={handleVideoChange}
+            onUploadStart={(ids) => startVideoProgress(ids)}
+            error={fieldErrors.video}
           />
         </ProductFormSection>
 

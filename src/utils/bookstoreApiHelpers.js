@@ -95,6 +95,7 @@ export function mapApiProductViewToRow(item, categoryLookup = {}) {
     previewImages: Array.isArray(item.previewImages)
       ? item.previewImages
       : item.sampleImages || [],
+    previewVideoUrl: item.previewVideoUrl || item.previewVideo || '',
     previewPdf: item.previewPdf || null,
     previewPdfFileName: item.previewPdfFileName || null,
     soldQuantity: item.soldQuantity ?? 0,
@@ -371,7 +372,7 @@ export function formFromApiProduct(product) {
   }
 }
 
-export function buildProductFormData(values, { cover, samples, keywords, isDraft } = {}) {
+export function buildProductFormData(values, { cover, video, samples, keywords, isDraft } = {}) {
   const formData = new FormData()
 
   formData.append('productName', String(values.name || '').trim())
@@ -404,6 +405,10 @@ export function buildProductFormData(values, { cover, samples, keywords, isDraft
     formData.append('thumbnail', cover.file)
   }
 
+  if (video?.file) {
+    formData.append('previewVideo', video.file)
+  }
+
   const existingPreviewUrls = []
   ;(samples || []).forEach((sample) => {
     if (sample?.file) {
@@ -424,11 +429,15 @@ export function buildProductFormData(values, { cover, samples, keywords, isDraft
   return formData
 }
 
-export function buildProductUpdateFormData(values, { cover, samples, keywords, isDraft } = {}) {
-  const formData = buildProductFormData(values, { cover, samples, keywords, isDraft })
+export function buildProductUpdateFormData(values, { cover, video, samples, keywords, isDraft, hadVideoInitially } = {}) {
+  const formData = buildProductFormData(values, { cover, video, samples, keywords, isDraft })
 
   if (!cover?.file && cover?.previewUrl && !cover.previewUrl.startsWith('blob:')) {
     formData.delete('thumbnail')
+  }
+
+  if (hadVideoInitially && !video) {
+    formData.append('removePreviewVideo', 'true')
   }
 
   return formData

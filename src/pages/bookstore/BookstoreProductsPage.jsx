@@ -119,7 +119,7 @@ export default function BookstoreProductsPage() {
 
   const editingProduct = editingDetail || editingRow
 
-  const handleSave = async ({ values, cover, samples, keywords, isDraft }) => {
+  const handleSave = async ({ values, cover, video, samples, keywords, isDraft, hadVideoInitially }) => {
     const isUpdate = Boolean(editingRow?.mongoId)
 
     try {
@@ -129,9 +129,11 @@ export default function BookstoreProductsPage() {
           productId: editingRow.id,
           values,
           cover,
+          video,
           samples,
           keywords,
           isDraft,
+          hadVideoInitially,
         })
 
         if (result?.success === true && result?.statusCode === 10000) {
@@ -148,6 +150,7 @@ export default function BookstoreProductsPage() {
       const result = await createMutation.mutateAsync({
         values,
         cover,
+        video,
         samples,
         keywords,
         isDraft,

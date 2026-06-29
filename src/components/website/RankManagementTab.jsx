@@ -8,7 +8,7 @@ import RankManagementTable from './RankManagementTable'
 import RankManagementImageCell from './RankManagementImageCell'
 import RankerRowActions from './RankerRowActions'
 import AdminConfirmModal from '../admin/AdminConfirmModal'
-import { createActionsColumn } from '../../utils/tableColumnHelpers'
+import { createActionsColumn, OVERFLOW_CELL } from '../../utils/tableColumnHelpers'
 import RankTop10Badge from './RankTop10Badge'
 import {
   isActiveTop10Ranker,
@@ -276,18 +276,24 @@ export default function RankManagementTab() {
       {
         key: 'studentId',
         label: 'Student ID',
-        headerClassName: 'min-w-[120px] pl-4 sm:pl-6',
-        cellClassName:
-          'min-w-[120px] pl-4 align-middle font-mono text-xs font-semibold text-[#246392] sm:pl-6',
+        width: 96,
+        headerClassName: 'whitespace-nowrap pl-4 sm:pl-6',
+        cellClassName: cn(
+          OVERFLOW_CELL,
+          'pl-4 sm:pl-6 whitespace-nowrap font-mono text-xs font-semibold text-[#246392]',
+        ),
       },
       {
         key: 'name',
         label: 'Student Name',
-        headerClassName: 'min-w-[170px]',
-        cellClassName: 'min-w-[170px] align-middle',
+        width: 156,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: OVERFLOW_CELL,
         render: (row) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-semibold text-[#111]">{row.name}</span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-semibold text-[#111]" title={row.name}>
+              {row.name}
+            </span>
             {isActiveTop10Ranker(row) && <RankTop10Badge size="sm" />}
           </div>
         ),
@@ -295,38 +301,47 @@ export default function RankManagementTab() {
       {
         key: 'program',
         label: 'Program',
-        headerClassName: 'min-w-[150px]',
-        cellClassName: 'min-w-[150px] align-middle text-[13px] text-[#686868]',
+        width: 132,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: cn(OVERFLOW_CELL, 'text-[13px] text-[#686868]'),
         render: (row) => (
-          <span className="block truncate">{row.program || row.course || '—'}</span>
+          <span className="block truncate" title={row.program || row.course || '—'}>
+            {row.program || row.course || '—'}
+          </span>
         ),
       },
       {
         key: 'image',
         label: 'Image',
-        headerClassName: 'min-w-[72px]',
-        cellClassName: 'min-w-[72px] align-middle',
+        width: 68,
+        align: 'center',
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-center',
         render: (row) => <RankManagementImageCell name={row.name} imageUrl={row.imageUrl} />,
       },
       {
         key: 'rank',
         label: 'Rank',
-        headerClassName: 'min-w-[100px]',
-        cellClassName: 'min-w-[100px] align-middle',
+        width: 84,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap',
         render: (row) => <RankBadge rank={row.rank} />,
       },
       {
         key: 'year',
         label: 'Year',
-        headerClassName: 'min-w-[90px]',
-        cellClassName: 'min-w-[90px] align-middle text-[13px] text-[#686868]',
+        width: 64,
+        align: 'center',
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-center text-[13px] text-[#686868]',
         render: (row) => row.year || '—',
       },
       {
         key: 'top10',
         label: 'Top 10',
-        headerClassName: 'min-w-[120px] whitespace-nowrap',
-        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap',
+        width: 96,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
         render: (row) => (
           <TopperTop10Toggle
@@ -340,12 +355,13 @@ export default function RankManagementTab() {
       {
         key: 'displayOrder',
         label: 'Display Order',
-        headerClassName: 'min-w-[110px] whitespace-nowrap',
-        cellClassName: 'min-w-[110px] align-middle whitespace-nowrap text-center',
+        width: 88,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
         render: (row) =>
           isActiveTop10Ranker(row) ? (
-            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200/80">
+            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 ring-1 ring-amber-200/80">
               {row.displayOrder ?? '—'}
             </span>
           ) : (
@@ -355,8 +371,9 @@ export default function RankManagementTab() {
       {
         key: 'status',
         label: 'Display Status',
-        headerClassName: 'min-w-[130px] whitespace-nowrap',
-        cellClassName: 'min-w-[130px] align-middle whitespace-nowrap',
+        width: 108,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
         render: (row) => (
           <TopperDisplayStatusToggle
@@ -370,8 +387,9 @@ export default function RankManagementTab() {
       {
         key: 'created',
         label: 'Created On',
-        headerClassName: 'min-w-[120px] whitespace-nowrap',
-        cellClassName: 'min-w-[120px] align-middle whitespace-nowrap pr-4',
+        width: 104,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap pr-2',
         render: (row) => (
           <span className="whitespace-nowrap text-[13px] font-medium text-[#686868]">
             {formatCreatedOn(row)}
@@ -379,14 +397,13 @@ export default function RankManagementTab() {
         ),
       },
       createActionsColumn({
-        buttonCount: 3,
+        buttonCount: 2,
         align: 'right',
         render: (row) => (
           <RankerRowActions
             rowName={row.name}
             onView={() => setViewTarget(row)}
             onEdit={() => openEditRank(row)}
-            onDelete={() => setDeleteTarget(row)}
           />
         ),
       }),
