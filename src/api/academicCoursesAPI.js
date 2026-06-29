@@ -1,4 +1,5 @@
 import { isFrontendOnly } from '../config/appMode'
+import { getCourses, getCoursesDropdown } from '../services/courseService'
 import { loadAcademicCourses } from '../utils/academicCoursesStorage'
 import { normalizeCourseCatalogDropdownOptions } from '../utils/courseDropdownApiHelpers'
 
@@ -29,24 +30,19 @@ export async function fetchAcademicCourseOptions({ signal } = {}) {
   }
 
   try {
-    const { default: api } = await import('./axiosInstance')
-    const res = await api.get('/courses/dropdown', {
-      params: { status: 'ACTIVE', limit: 200 },
-      signal,
-    })
-    const options = normalizeCourseCatalogDropdownOptions(res.data)
+    const data = await getCoursesDropdown(
+      { status: 'ACTIVE', limit: 200 },
+      { signal },
+    )
+    const options = normalizeCourseCatalogDropdownOptions(data)
     if (options.length) return options
   } catch {
-    /* try catalog list */
+    /* try list API fallback */
   }
 
   try {
-    const { default: api } = await import('./axiosInstance')
-    const res = await api.get('/courses', {
-      params: { purpose: 'catalog', status: 'ACTIVE', limit: 200 },
-      signal,
-    })
-    const options = normalizeCourseCatalogDropdownOptions(res.data)
+    const data = await getCourses({ status: 'ACTIVE', limit: 200 }, { signal })
+    const options = normalizeCourseCatalogDropdownOptions(data)
     if (options.length) return options
   } catch {
     /* no local fallback in API mode — avoids invalid local ids like CRS001 */
@@ -55,13 +51,7 @@ export async function fetchAcademicCourseOptions({ signal } = {}) {
   return []
 }
 
-/** Push local catalog to backend after Categories → Courses changes */
-export async function syncAcademicCoursesCatalog(courses) {
-  if (isFrontendOnly || !courses?.length) return
-  try {
-    const { default: api } = await import('./axiosInstance')
-    await api.post('/courses/catalog/sync', { courses })
-  } catch {
-    /* non-blocking */
-  }
+/** No backend catalog sync endpoint — kept as a no-op for callers. */
+export async function syncAcademicCoursesCatalog() {
+  return undefined
 }

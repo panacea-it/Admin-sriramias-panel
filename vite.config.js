@@ -97,9 +97,16 @@ export default defineConfig(({ mode }) => {
   const enrollmentProxySecure =
     enrollmentApiTarget === apiTarget ? isHttpsTarget : false;
 
+  const evaluationOversightTarget = explicitLocalApi ? localApiTarget : apiTarget;
+  const evaluationOversightSecure =
+    evaluationOversightTarget === apiTarget ? isHttpsTarget : false;
+
   if (mode === "development") {
     console.log(
       `[vite] batch-enrollments /api/batch-enrollments → ${enrollmentApiTarget}`,
+    );
+    console.log(
+      `[vite] evaluation-oversight /api/evaluation-oversight → ${evaluationOversightTarget}`,
     );
     console.log(
       `[vite] bulk-status /api/* → ${localApiTarget} (optional gateway)`,
@@ -173,8 +180,9 @@ export default defineConfig(({ mode }) => {
           secure: enrollmentProxySecure,
           label: `${enrollmentApiTarget} (batch-enrollments)`,
         }),
-        '/api/evaluation-oversight': createDevProxy(localApiTarget, {
-          label: `${localApiTarget} (evaluation-oversight)`,
+        '/api/evaluation-oversight': createDevProxy(evaluationOversightTarget, {
+          secure: evaluationOversightSecure,
+          label: `${evaluationOversightTarget} (evaluation-oversight)`,
         }),
         ...Object.fromEntries(
           MASTER_BULK_STATUS_PATHS.map((path) => [

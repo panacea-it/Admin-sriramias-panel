@@ -60,17 +60,7 @@ export default function ManageUsersTableActions({
         >
           <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden />
         </ActionButton>
-      ) : (
-        <ActionButton
-          title={editTitle}
-          ariaLabel={`Edit ${row.fullName} (disabled)`}
-          onClick={() => {}}
-          disabled
-          className="bg-[#1D72B8]/10 text-[#1D72B8]"
-        >
-          <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </ActionButton>
-      )}
+      ) : null}
       {showStatusToggle ? (
         <ActionButton
           title={isActive ? 'Disable' : 'Enable'}

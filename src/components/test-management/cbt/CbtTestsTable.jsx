@@ -1,12 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
-import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
-import ViewButton from '../../common/ViewButton'
-import { StatusBadge } from '../../academics/AcademicsUi'
+import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
+import CbtTestsManagementTable from './CbtTestsManagementTable'
+import CbtTestsTableActions from './CbtTestsTableActions'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichCbtTestRow } from '../../../utils/cbtTestSeriesHierarchy'
-import { createActionsColumn } from '../../../utils/tableColumnHelpers'
 
 function collectTestSeries(nodes = []) {
   const list = []
@@ -36,81 +34,46 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
     return tests.filter((t) => t.title.toLowerCase().includes(q))
   }, [tests, search])
 
-  const openResults = (test) => {
-    navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id), {
-      state: { topicId: topic?.id, topicTitle: topic?.title },
-    })
-  }
+  const openResults = useCallback(
+    (test) => {
+      navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id), {
+        state: { topicId: topic?.id, topicTitle: topic?.title },
+      })
+    },
+    [navigate, faculty, topic],
+  )
 
-  const columns = useMemo(
-    () => [
-      {
-        key: 'title',
-        label: 'Test Name',
-        render: (row) => <span className="font-medium text-[#333]">{row.title}</span>,
-      },
-      { key: 'uploadedDate', label: 'Uploaded Date' },
-      {
-        key: 'studentsAssigned',
-        label: 'Students Assigned',
-        render: (row) => <span className="tabular-nums">{row.studentsAssigned}</span>,
-      },
-      {
-        key: 'studentsDownloaded',
-        label: 'PDF Downloads',
-        render: (row) => <span className="tabular-nums">{row.studentsDownloaded}</span>,
-      },
-      {
-        key: 'studentsUploaded',
-        label: 'Answer Sheets Uploaded',
-        render: (row) => <span className="tabular-nums">{row.studentsUploaded}</span>,
-      },
-      {
-        key: 'evaluationStatus',
-        label: 'Evaluation Status',
-        render: (row) => <StatusBadge status={row.evaluationStatus} />,
-      },
-      createActionsColumn({
-        buttonCount: 1,
-        align: 'center',
-        render: (row) => (
-          <ViewButton onClick={() => openResults(row)} label="View Test Series" />
-        ),
-      }),
-    ],
+  const renderRowActions = useCallback(
+    (row) => <CbtTestsTableActions onView={() => openResults(row)} />,
     [openResults],
   )
 
+  const hasActiveFilters = Boolean(search.trim())
+
+  const emptyMessage = hasActiveFilters
+    ? 'No tests match your search.'
+    : 'No tests available for this topic.'
+
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--card-shadow)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-        <div>
-          <h2 className="text-sm font-bold text-[#1a3a5c]">Tests</h2>
-          <p className="mt-0.5 text-xs text-slate-500">{topic?.title ?? ''}</p>
-        </div>
-        <div className="relative min-w-[200px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tests…"
-            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20"
-          />
-        </div>
-      </div>
-      <PaginatedFigmaTable
-        columns={columns}
-        data={filtered}
-        loading={loading}
-        itemLabel="tests"
-        initialPageSize={10}
-        resetDeps={[search, tests.length]}
-        stickyHeader
-        onRowClick={openResults}
-        emptyMessage="No tests available for this topic."
-        rowClassName="hover:bg-slate-50/80"
+    <div className="box-border flex w-full max-w-full flex-col rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+      <CourseFilterToolbar
+        search={search}
+        onSearchChange={(e) => setSearch(e.target.value)}
+        searchPlaceholder="Search tests…"
+        showStatusFilter={false}
+        searchFullWidth
+        disabled={loading && tests.length === 0}
       />
+
+      <div className="mt-5 w-full max-w-full overflow-x-auto rounded-xl border border-slate-100">
+        <CbtTestsManagementTable
+          tests={filtered}
+          loading={loading}
+          resetDeps={[search, tests.length]}
+          emptyMessage={emptyMessage}
+          renderActions={renderRowActions}
+        />
+      </div>
     </div>
   )
 }

@@ -14,6 +14,7 @@ import {
   savePaperAnnotations,
 } from '../../api/evaluationOversightAPI'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const AUTOSAVE_MS = 25000
 
@@ -58,20 +59,28 @@ export default function EvaluationWorkspacePage() {
   }, [paper, workspaceMode])
 
   const load = useCallback(async () => {
+    const submissionId = String(location.state?.submissionId || paperId || '').trim()
+    if (!submissionId) {
+      setLoading(false)
+      toast.error('Submission id is missing')
+      return
+    }
+
     setLoading(true)
     try {
-      const data = await fetchEvaluationPaperById(paperId)
+      const data = await fetchEvaluationPaperById(submissionId)
       setPaper(data)
       setRubric(normalizeRubric(data.rubric))
       setPage(1)
       setPageCount(data.answerType === 'text' ? 1 : 1)
       setDirty(false)
     } catch (err) {
-      toast.error(err?.message || 'Failed to load paper')
+      toast.error(getApiErrorMessage(err, 'Failed to load paper'))
+      setPaper(null)
     } finally {
       setLoading(false)
     }
-  }, [paperId])
+  }, [paperId, location.state?.submissionId])
 
   useEffect(() => {
     load()
@@ -116,7 +125,7 @@ export default function EvaluationWorkspacePage() {
           toast.success('Draft saved successfully')
         }
       } catch (err) {
-        if (!silent) toast.error(err?.message || 'Failed to save draft')
+        if (!silent) toast.error(getApiErrorMessage(err, 'Failed to save draft'))
       } finally {
         setSaving(false)
       }
@@ -186,7 +195,7 @@ export default function EvaluationWorkspacePage() {
       toast.success('Results published successfully')
       navigate(TEST_MANAGEMENT_ROUTES.evaluations)
     } catch (err) {
-      toast.error(err?.message || 'Failed to publish results')
+      toast.error(getApiErrorMessage(err, 'Failed to publish results'))
     } finally {
       setPublishing(false)
     }
@@ -199,7 +208,7 @@ export default function EvaluationWorkspacePage() {
       await downloadEvaluationPaper(paper)
       toast.success('Download started')
     } catch (err) {
-      toast.error(err?.message || 'Download failed')
+      toast.error(getApiErrorMessage(err, 'Download failed'))
     } finally {
       setDownloading(false)
     }

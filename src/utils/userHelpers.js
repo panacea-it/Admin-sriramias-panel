@@ -79,7 +79,8 @@ export function mapApiUserListRow(data) {
     parentMobile: String(studentDetails.parentMobile || data.parentMobile || '').trim(),
     parentPhone: String(studentDetails.parentMobile || data.parentMobile || '').trim(),
     studentDetails,
-    userId: String(data.studentId || data.userId || '').trim(),
+    userId: String(data.studentId || data.userId || data.employeeId || '').trim(),
+    employeeId: String(data.employeeId || '').trim(),
     profileImage: data.profileImage || data.avatar || '',
     permissions: {
       canView: permissions.canView !== false,

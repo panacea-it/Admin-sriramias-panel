@@ -36,6 +36,7 @@ export default function CourseMarketingSections({
   setForm,
   courseName = '',
   centerLabel = '',
+  formResetKey,
 }) {
   if (!centerLabel) return null
 
@@ -47,7 +48,12 @@ export default function CourseMarketingSections({
   return (
     <div className="space-y-6">
       <SectionBar title={`${title} — Course Content`} />
-      <Component form={form} setForm={setForm} courseName={courseName} />
+      <Component
+        form={form}
+        setForm={setForm}
+        courseName={courseName}
+        formResetKey={formResetKey}
+      />
     </div>
   )
 }

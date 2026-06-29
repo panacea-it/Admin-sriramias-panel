@@ -16,6 +16,7 @@ import {
   fetchEvaluationTableData,
 } from '../../api/evaluationOversightAPI'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
@@ -72,7 +73,7 @@ export default function EvaluationOversightPage() {
       setStats(statsRes)
       setRows(tableRes)
     } catch (err) {
-      const message = err?.message || 'Failed to load evaluations'
+      const message = getApiErrorMessage(err, 'Failed to load evaluations')
       setLoadError(message)
       toast.error(message)
     } finally {
@@ -84,11 +85,12 @@ export default function EvaluationOversightPage() {
     fetchEvaluationFilterOptions({
       batchId: filters.batchId,
       subjectId: filters.subjectId,
+      subTopicId: filters.subTopicId,
       programId: filters.programId,
     })
       .then(setFilterOptions)
       .catch(() => {})
-  }, [filters.batchId, filters.subjectId, filters.programId])
+  }, [filters.batchId, filters.subjectId, filters.subTopicId, filters.programId])
 
   useEffect(() => {
     loadData()
@@ -134,8 +136,11 @@ export default function EvaluationOversightPage() {
   }
 
   const openWorkspace = (row, mode = 'view') => {
-    navigate(TEST_MANAGEMENT_ROUTES.evaluationWorkspace(row.id), {
-      state: { mode },
+    navigate(TEST_MANAGEMENT_ROUTES.evaluationWorkspace(row.submissionId || row.id), {
+      state: {
+        mode,
+        submissionId: row.submissionId || row.id,
+      },
     })
   }
 
@@ -145,7 +150,7 @@ export default function EvaluationOversightPage() {
       const { count } = await exportEvaluationCsv(queryParams)
       toast.success(`Exported ${count ?? rows.length} records`)
     } catch (err) {
-      toast.error(err?.message || 'Export failed')
+      toast.error(getApiErrorMessage(err, 'Export failed'))
     } finally {
       setExporting(false)
     }
@@ -161,6 +166,7 @@ export default function EvaluationOversightPage() {
         assignmentContext: {
           batchId: filters.batchId !== 'all' ? filters.batchId : '',
           subjectId: filters.subjectId !== 'all' ? filters.subjectId : '',
+          topicId: filters.subTopicId !== 'all' ? filters.subTopicId : '',
           subTopicId: filters.subTopicId !== 'all' ? filters.subTopicId : '',
           testId: filters.testId !== 'all' ? filters.testId : '',
           paperIds: selectedIds,
@@ -175,6 +181,7 @@ export default function EvaluationOversightPage() {
         assignmentContext: {
           batchId: filters.batchId !== 'all' ? filters.batchId : '',
           subjectId: filters.subjectId !== 'all' ? filters.subjectId : '',
+          topicId: filters.subTopicId !== 'all' ? filters.subTopicId : '',
           subTopicId: filters.subTopicId !== 'all' ? filters.subTopicId : '',
           testId: filters.testId !== 'all' ? filters.testId : '',
           paperIds: selectedIds.length ? selectedIds : undefined,
@@ -359,7 +366,18 @@ export default function EvaluationOversightPage() {
         paper={assignPaper}
         onClose={() => setAssignPaper(null)}
         onAssigned={(updated) => {
-          setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)))
+          setRows((prev) =>
+            prev.map((r) =>
+              r.id === updated.id
+                ? {
+                    ...r,
+                    ...updated,
+                    status: 'Assigned',
+                    statusEnum: 'ASSIGNED',
+                  }
+                : r,
+            ),
+          )
           setAssignPaper(null)
         }}
       />

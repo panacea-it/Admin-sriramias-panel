@@ -10,8 +10,10 @@ import useTestConfigurationMaster from '../../../../../hooks/useTestConfiguratio
 import { buildPrelimsTestCreateFormData } from '../../../../../utils/prelimsTestApiHelpers'
 import { mapChildModuleFormErrors } from '../../../../../utils/facultySubjectChildApiHelpers'
 import { getApiErrorMessage } from '../../../../../utils/apiError'
+import { cn } from '../../../../../utils/cn'
 import { toast } from '../../../../../utils/toast'
-import { examInputClass } from '../../../../../components/courses/exam/examFormStyles'
+import { examInputClass, examSectionCardClass } from '../../../../../components/courses/exam/examFormStyles'
+import PrelimsQuestionSheetUploadField from '../../../../../components/subjects/prelims/PrelimsQuestionSheetUploadField'
 
 function FieldLabel({ children, required }) {
   return (
@@ -155,21 +157,22 @@ export default function PrelimsTestFormModal({
   const languageFileSection = useMemo(
     () =>
       form.languages.map((lang) => (
-        <div key={lang}>
-          <FieldLabel required>{lang} question sheet (.xlsx / .csv)</FieldLabel>
-          <input
-            type="file"
-            accept=".xlsx,.csv"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              setQuestionFiles((prev) => ({ ...prev, [lang]: file || null }))
-            }}
-            className="block w-full text-sm"
-          />
-          {fieldErrors[`file_${lang}`] ? (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors[`file_${lang}`]}</p>
-          ) : null}
-        </div>
+        <PrelimsQuestionSheetUploadField
+          key={lang}
+          language={lang}
+          file={questionFiles[lang] || null}
+          error={fieldErrors[`file_${lang}`]}
+          onChange={(file) => {
+            setQuestionFiles((prev) => ({ ...prev, [lang]: file || null }))
+            if (file) {
+              setFieldErrors((prev) => {
+                const next = { ...prev }
+                delete next[`file_${lang}`]
+                return next
+              })
+            }
+          }}
+        />
       )),
     [form.languages, fieldErrors, questionFiles],
   )
@@ -283,7 +286,15 @@ export default function PrelimsTestFormModal({
         </div>
 
         {!isEdit ? (
-          <div className="space-y-3 rounded-xl border border-slate-100 p-4">{languageFileSection}</div>
+          <div className={cn(examSectionCardClass, 'space-y-4 p-4 sm:p-5')}>
+            <div>
+              <h4 className="text-sm font-semibold text-[#1a3a5c]">Question Sheets</h4>
+              <p className="mt-0.5 text-xs text-[#7a8a9a]">
+                Upload one sheet per selected language (.xlsx or .csv)
+              </p>
+            </div>
+            {languageFileSection}
+          </div>
         ) : (
           <p className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Question sheets can be uploaded or re-uploaded from the test detail actions after creation.

@@ -1,8 +1,10 @@
-import { BookOpen, Loader2 } from 'lucide-react'
+import { BookOpen, Loader2, Sparkles } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import CategoryStatusBadge from './CategoryStatusBadge'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
+import { keyFeaturePointsFromSlots } from '../../utils/newDelhiCourseUi'
+import { mapWhyChooseFeaturesForWebsite } from '../../utils/whyChooseFeatures'
 import {
   normalizeCourseMediaList,
   resolveCourseMediaUrl,
@@ -71,17 +73,81 @@ function MediaGallery({ images = [], label }) {
   )
 }
 
+function FeatureCardsList({ features = [] }) {
+  const cards = mapWhyChooseFeaturesForWebsite({ whyChooseFeatures: features })
+  if (!cards.length) return null
+
+  return (
+    <div className="space-y-3">
+      {cards.map((card, index) => (
+        <div
+          key={`${card.order ?? index}-${card.title}`}
+          className="rounded-xl border border-[#eef2fc] bg-white p-4"
+        >
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-[#246392]">#{card.order ?? index + 1}</span>
+            {card.isHighlighted ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                <Sparkles className="h-3 w-3" />
+                Highlighted
+              </span>
+            ) : null}
+          </div>
+          <div className="flex gap-3">
+            {card.icon ? (
+              <img
+                src={resolveCourseMediaUrl(card.icon)}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-lg border border-[#eef2fc] object-contain p-1"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-[#111]">{card.title || '—'}</p>
+              {card.description ? (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-[#444]">{card.description}</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function BulletList({ items = [], emptyLabel = '—' }) {
+  const points = items.map((entry) => String(entry?.text ?? entry ?? '').trim()).filter(Boolean)
+  if (!points.length) return <span>{emptyLabel}</span>
+  return (
+    <ul className="list-disc space-y-1 pl-5 text-sm text-[#333]">
+      {points.map((point) => (
+        <li key={point}>{point}</li>
+      ))}
+    </ul>
+  )
+}
+
 export default function ViewCourseManagementModal({ open, onClose, item, loading = false }) {
   if (!open || !item) return null
 
   const keyFeatureImage = item.keyFeatureImage || item.keyFeatures?.[0]?.preview
+  const keyFeaturePoints = keyFeaturePointsFromSlots(item.keyFeatures)
+  const featureCards = item.whyChooseFeatures || []
+  const helpPoints =
+    item.helpSectionPoints ||
+    item.newDelhiUi?.howHelpsPoints ||
+    item.hyderabadUi?.howHelpsPoints ||
+    item.puneUi?.howHelpsPoints ||
+    []
   const demoVideo =
     item.demoVideoUrl || item.demoVideo || item.introVideo || item.videoUrl || item.previewVideo
   const whyChooseVideo = item.whyChooseVideo
   const helpSectionVideo = item.helpSectionVideo || item.howWill?.[0]?.preview
 
+  const showKeyFeaturesSection =
+    keyFeaturePoints.some((p) => p.text?.trim()) || Boolean(keyFeatureImage)
+
   const hasMedia =
-    keyFeatureImage ||
+    (!showKeyFeaturesSection && keyFeatureImage) ||
     demoVideo ||
     whyChooseVideo ||
     helpSectionVideo ||
@@ -140,6 +206,41 @@ export default function ViewCourseManagementModal({ open, onClose, item, loading
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#333]">
                     {item.overview}
                   </p>
+                </div>
+              ) : null}
+
+              {showKeyFeaturesSection ? (
+                <div className="rounded-xl bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:p-6">
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-[#246392]">
+                    {item.sectionTitleKeyFeatures || 'Key Features'}
+                  </h3>
+                  {keyFeatureImage ? (
+                    <div className="mb-4">
+                      <MediaImage src={keyFeatureImage} label="Section Image" />
+                    </div>
+                  ) : null}
+                  <BulletList items={keyFeaturePoints} emptyLabel="No key feature points" />
+                </div>
+              ) : null}
+
+              {featureCards.some((c) => c.title?.trim() || c.description?.trim()) ? (
+                <div className="rounded-xl bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:p-6">
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-[#246392]">
+                    {item.whyChooseTitle || item.sectionTitleWhyChoose || 'Why Choose This Course'}
+                  </h3>
+                  {item.whyChooseSubtitle ? (
+                    <p className="mb-4 text-sm text-[#555]">{item.whyChooseSubtitle}</p>
+                  ) : null}
+                  <FeatureCardsList features={featureCards} />
+                </div>
+              ) : null}
+
+              {helpPoints.some((p) => String(p?.text ?? p ?? '').trim()) ? (
+                <div className="rounded-xl bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:p-6">
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-[#246392]">
+                    {item.sectionTitleHowHelps || 'How This Course Helps You'}
+                  </h3>
+                  <BulletList items={helpPoints} emptyLabel="No help section points" />
                 </div>
               ) : null}
 

@@ -91,7 +91,10 @@ function formatCourseCatalogLabel(courseName, courseId) {
 
 /** Batch form course picker — requires Mongo _id for POST /api/batches `courseId`. */
 export function normalizeCourseCatalogDropdownOptions(data) {
-  return unwrapList(data, ['courses', 'items', 'results'])
+  const payload = data?.data ?? data
+  const itemsRaw = Array.isArray(payload?.data)
+    ? payload.data
+    : unwrapList(data, ['courses', 'data', 'items', 'results'])
     .map((row) => {
       const mongoId =
         row._id ??

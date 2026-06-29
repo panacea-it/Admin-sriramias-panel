@@ -10,10 +10,11 @@ function stripEmptyParams(params = {}) {
   return out
 }
 
-export async function getCourses(params = {}) {
+export async function getCourses(params = {}, { signal } = {}) {
   try {
     const response = await api.get('/api/courses', {
       params: stripEmptyParams(params),
+      signal,
     })
     return response.data
   } catch (error) {
@@ -48,10 +49,11 @@ export async function getCourseBySlug(slug) {
   }
 }
 
-export async function getCoursesDropdown(params = {}) {
+export async function getCoursesDropdown(params = {}, { signal } = {}) {
   try {
     const response = await api.get('/api/courses/dropdown', {
       params: stripEmptyParams(params),
+      signal,
     })
     return response.data
   } catch (error) {

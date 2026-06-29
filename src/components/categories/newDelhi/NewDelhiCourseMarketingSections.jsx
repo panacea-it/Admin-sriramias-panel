@@ -24,6 +24,7 @@ export default function NewDelhiCourseMarketingSections({
   form,
   setForm,
   courseName = '',
+  formResetKey,
 }) {
   const defaultHowTitle = buildHowHelpsTitle(courseName || form.name)
   const displayWhyTitle = resolveWhyChooseTitle(form)
@@ -198,6 +199,7 @@ export default function NewDelhiCourseMarketingSections({
           <WhyChooseFeaturesSection
             features={form.whyChooseFeatures}
             onChange={(whyChooseFeatures) => setForm((f) => ({ ...f, whyChooseFeatures }))}
+            resetKey={formResetKey}
           />
         </BatchFormSection>
       </div>

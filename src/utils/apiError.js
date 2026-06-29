@@ -43,6 +43,10 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong') {
     if (!summary || /^validation failed$/i.test(summary)) return detail
     return `${summary}: ${detail}`
   }
+  if (typeof error.reason === 'string' && error.reason.trim()) {
+    const summary = typeof error.message === 'string' ? error.message.trim() : ''
+    return summary ? `${summary}: ${error.reason.trim()}` : error.reason.trim()
+  }
   if (typeof error.message === 'string' && error.message) return error.message
   if (typeof error.msg === 'string' && error.msg) return error.msg
   if (typeof error.error === 'string' && error.error) return error.error

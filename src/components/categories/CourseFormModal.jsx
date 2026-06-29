@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Loader2 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
 import SectionBar from '../courses/SectionBar'
@@ -66,6 +66,36 @@ function getCourseFormInitKey(item, isEdit, detailLoading) {
   return detailLoading ? `${id}:loading` : `${id}:ready`
 }
 
+function CourseFormLoadingSkeleton() {
+  return (
+    <div
+      className="space-y-6"
+      aria-busy="true"
+      aria-label="Loading course details"
+    >
+      <div className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-6 text-sm font-medium text-[#686868] shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
+        <Loader2 className="h-5 w-5 animate-spin text-[#246392]" aria-hidden />
+        Loading course details…
+      </div>
+
+      {[1, 2, 3].map((section) => (
+        <div key={section} className="space-y-4">
+          <div className="h-5 w-40 animate-pulse rounded-lg bg-[#dbeafe]/80" />
+          <div className="grid gap-4 rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:grid-cols-2 sm:px-6 sm:py-6">
+            <div className="h-11 animate-pulse rounded-lg bg-slate-100 sm:col-span-2" />
+            <div className="h-11 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-11 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-11 animate-pulse rounded-lg bg-slate-100 sm:col-span-2" />
+            {section === 2 ? (
+              <div className="h-32 animate-pulse rounded-xl bg-slate-100 sm:col-span-2" />
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function CourseFormModal({
   open,
   onClose,
@@ -110,6 +140,15 @@ export default function CourseFormModal({
     setErrors({})
     setDemoVideoUploading(false)
   })
+
+  useEffect(() => {
+    if (!open || !item || detailLoading) return
+    setForm(buildFullForm(item))
+    setErrors({})
+    setDemoVideoUploading(false)
+  }, [open, item, detailLoading])
+
+  const formBusy = submitting || detailLoading || demoVideoUploading
 
   const centreSelectOptions = useMemo(
     () => withCurrentSelectOption(centerOptions, form.centerId, item?.centerName),
@@ -181,6 +220,7 @@ export default function CourseFormModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (detailLoading) return
     if (demoVideoUploading) {
       toast.error('Please wait for the demo video upload to finish')
       return
@@ -205,8 +245,14 @@ export default function CourseFormModal({
     )
 
     try {
+      const serialized = serializeAcademicCourseContent(form, {
+        examCategory: category?.label || '',
+        courseName: form.name.trim(),
+      })
+
       await onSubmit(
         {
+          ...serialized,
           name: form.name.trim(),
           centerId: form.centerId,
           centerName: centre?.label || '',
@@ -230,10 +276,6 @@ export default function CourseFormModal({
           newDelhiUi: form.newDelhiUi,
           hyderabadUi: form.hyderabadUi,
           puneUi: form.puneUi,
-          ...serializeAcademicCourseContent(form, {
-            examCategory: category?.label || '',
-            courseName: form.name.trim(),
-          }),
         },
         { isEdit, id: item?.id },
       )
@@ -244,16 +286,6 @@ export default function CourseFormModal({
   }
 
   if (!open) return null
-
-  if (detailLoading) {
-    return (
-      <Modal open={open} onClose={handleClose} size="full" title="Loading course…">
-        <div className="flex min-h-[200px] items-center justify-center p-8 text-sm text-[#686868]">
-          Loading course details…
-        </div>
-      </Modal>
-    )
-  }
 
   const title = isEdit ? 'Edit Course' : 'Add Course'
 
@@ -282,6 +314,10 @@ export default function CourseFormModal({
         </div>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 sm:py-6">
+          {detailLoading ? (
+            <CourseFormLoadingSkeleton />
+          ) : (
+            <>
           <div className="space-y-6">
             <SectionBar title="Course Details" />
             <div className="grid gap-4 rounded-xl bg-white px-4 py-5 shadow-[0_4px_16px_rgba(15,23,42,0.06)] sm:grid-cols-2 sm:px-6 sm:py-6">
@@ -408,20 +444,25 @@ export default function CourseFormModal({
               setForm={setForm}
               courseName={form.name}
               centerLabel={selectedCenterLabel}
+              formResetKey={editKey}
             />
           ) : null}
+            </>
+          )}
         </div>
 
         <div className="sticky bottom-0 z-20 shrink-0 border-t border-[#e5eaf2] bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] sm:px-8">
           <FormModalSubmitBar
             isEditMode={isEdit}
             onReset={handleReset}
-            isSubmitting={submitting || demoVideoUploading}
-            disableSubmit={submitting || demoVideoUploading}
-            disableReset={submitting}
+            isSubmitting={formBusy}
+            disableSubmit={formBusy}
+            disableReset={formBusy}
             createLabel="Create"
             updateLabel="Update"
-            loadingLabel={isEdit ? 'Updating…' : 'Creating…'}
+            loadingLabel={
+              detailLoading ? 'Loading course…' : isEdit ? 'Updating…' : 'Creating…'
+            }
             className="border-t-0 pt-2"
           />
         </div>

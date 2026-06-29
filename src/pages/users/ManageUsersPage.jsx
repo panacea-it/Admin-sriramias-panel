@@ -8,20 +8,16 @@ import { ADMIN_CREATE_BTN, ADMIN_PAGE_SECTION, ADMIN_PAGE_INNER } from '../../ut
 import ManageUsersFilterToolbar from '../../components/manage-users/ManageUsersFilterToolbar'
 import ManageUsersTable from '../../components/manage-users/ManageUsersTable'
 import ManageUsersTableActions from '../../components/manage-users/ManageUsersTableActions'
-import ConfirmManageUserDeleteModal from '../../components/manage-users/ConfirmManageUserDeleteModal'
 import ConfirmManageUserStatusModal from '../../components/manage-users/ConfirmManageUserStatusModal'
 import UserFormModal from '../../components/manage-users/UserFormModal'
-import ViewUserModal from '../../components/manage-users/ViewUserModal'
+import EditUserModal from '../../components/manage-users/EditUserModal'
 import { useUserManagement } from '../../hooks/user/useUserManagement'
 import { useCreateUser } from '../../hooks/user/useCreateUser'
 import { useUpdateUser } from '../../hooks/user/useUpdateUser'
-import { useDeleteUser } from '../../hooks/user/useDeleteUser'
 import { useUpdateUserStatus } from '../../hooks/user/useUpdateUserStatus'
-import { useUser } from '../../hooks/user/useUser'
 import {
   formatManageUserJoinDate,
   getRecordTypeQuery,
-  isStudentRow,
   mapApiErrorsToForm,
   roleBadgeClassName,
 } from '../../utils/userHelpers'
@@ -64,20 +60,6 @@ function UserRoleBadge({ role, roleType }) {
   )
 }
 
-function RecordTypeBadge({ recordType }) {
-  const labels = {
-    USER: 'Portal',
-    STUDENT: 'Batch',
-    ADMIN: 'Admin',
-  }
-  const label = labels[recordType] || recordType || '—'
-  return (
-    <span className="inline-flex items-center rounded-md bg-[#F5F7FB] px-2 py-0.5 text-xs font-medium text-[#667085] ring-1 ring-inset ring-[#E7ECF5]">
-      {label}
-    </span>
-  )
-}
-
 function CenterPill({ label }) {
   return (
     <span className="inline-flex max-w-[180px] truncate rounded-md bg-[#F5F7FB] px-2.5 py-1 text-xs font-medium text-[#667085] ring-1 ring-inset ring-[#E7ECF5]">
@@ -111,50 +93,38 @@ export default function ManageUsersPage() {
 
   const createUserMutation = useCreateUser()
   const updateUserMutation = useUpdateUser()
-  const deleteUserMutation = useDeleteUser()
   const updateStatusMutation = useUpdateUserStatus()
 
-  const [formOpen, setFormOpen] = useState(false)
+  const [createFormOpen, setCreateFormOpen] = useState(false)
+  const [editFormOpen, setEditFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
-  const [viewingUser, setViewingUser] = useState(null)
-  const [viewUserId, setViewUserId] = useState(null)
-  const [viewUserType, setViewUserType] = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
   const [actionUserId, setActionUserId] = useState(null)
-
-  const viewUserQuery = useUser(viewUserId, viewUserType, Boolean(viewUserId))
 
   const pageTitle = moduleConfig?.listUsersLabel || 'List Users'
   const createLabel = moduleConfig?.createFormLabel || 'Create Student'
 
   const openCreate = () => {
-    setEditingUser(null)
-    setFormOpen(true)
+    setCreateFormOpen(true)
   }
 
   const openEdit = (user) => {
-    if (!user.permissions?.canEdit) {
-      toast.error(user.permissions?.editDisabledReason || 'Edit not allowed for this account')
-      return
-    }
     setEditingUser(user)
-    setFormOpen(true)
+    setEditFormOpen(true)
   }
 
-  const openStudent360 = (user) => {
-    navigate(`/users/manage/students/${user.id}`)
+  const openUserDetail = (row) => {
+    if (!row?.id) return
+    navigate(`/users/manage/students/${row.id}`, {
+      state: {
+        recordType: getRecordTypeQuery(row),
+        listRow: row,
+      },
+    })
   }
 
-  const handleView = async (row) => {
-    if (isStudentRow(row)) {
-      openStudent360(row)
-      return
-    }
-
-    setViewUserId(row.id)
-    setViewUserType(getRecordTypeQuery(row))
-    setViewingUser(row)
+  const handleView = (row) => {
+    openUserDetail(row)
   }
 
   const handleCreateUser = async (formData) => {
@@ -217,31 +187,6 @@ export default function ManageUsersPage() {
     }
   }
 
-  const confirmDelete = async () => {
-    if (!deleteTarget || deleteUserMutation.isPending) return
-
-    try {
-      setActionUserId(deleteTarget.id)
-      const recordType = getRecordTypeQuery(deleteTarget)
-      const targetId = deleteTarget.id
-
-      const response = await deleteUserMutation.mutateAsync({
-        id: targetId,
-        type: recordType,
-      })
-
-      await refreshUsers()
-      toast.success(response?.message || 'Student permanently deleted')
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete user'))
-    } finally {
-      setDeleteTarget(null)
-      setActionUserId(null)
-    }
-  }
-
-  const resolvedViewUser = viewUserQuery.data?.summary || viewingUser
-
   const columns = [
     {
       key: 'fullName',
@@ -261,18 +206,15 @@ export default function ManageUsersPage() {
             ) : null}
           </div>
         )
-        if (isStudentRow(row)) {
-          return (
-            <button
-              type="button"
-              onClick={() => openStudent360(row)}
-              className="min-w-0 text-left transition hover:opacity-80"
-            >
-              {inner}
-            </button>
-          )
-        }
-        return inner
+        return (
+          <button
+            type="button"
+            onClick={() => openUserDetail(row)}
+            className="min-w-0 text-left transition hover:opacity-80"
+          >
+            {inner}
+          </button>
+        )
       },
     },
     {
@@ -323,14 +265,6 @@ export default function ManageUsersPage() {
       render: (row) => <UserStatusBadge status={row.status} />,
     },
     {
-      key: 'recordType',
-      label: 'Type',
-      align: 'center',
-      headerClassName: 'min-w-[90px] text-center',
-      cellClassName: 'text-center',
-      render: (row) => <RecordTypeBadge recordType={row.recordType} />,
-    },
-    {
       key: 'joinedDate',
       label: 'Joined',
       align: 'center',
@@ -346,19 +280,15 @@ export default function ManageUsersPage() {
       key: 'actions',
       label: 'Actions',
       align: 'center',
-      headerClassName: 'min-w-[200px] text-center',
+      headerClassName: 'min-w-[160px] text-center',
       cellClassName: 'text-center',
       render: (row) => (
         <ManageUsersTableActions
           row={row}
-          disabled={
-            actionUserId === row.id &&
-            (updateStatusMutation.isPending || deleteUserMutation.isPending)
-          }
+          disabled={actionUserId === row.id && updateStatusMutation.isPending}
           onView={() => handleView(row)}
           onEdit={() => openEdit(row)}
           onStatusToggle={() => setStatusTarget(row)}
-          onDelete={() => setDeleteTarget(row)}
         />
       ),
     },
@@ -427,27 +357,24 @@ export default function ManageUsersPage() {
       </section>
 
       <UserFormModal
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false)
-          setEditingUser(null)
-        }}
+        open={createFormOpen}
+        onClose={() => setCreateFormOpen(false)}
         onCreate={handleCreateUser}
-        onUpdate={(id, patch) => handleUpdateUser(id, patch, editingUser)}
-        editingUser={editingUser}
         createLabel={createLabel}
         createPending={createUserMutation.isPending}
-        updatePending={updateUserMutation.isPending}
       />
 
-      <ViewUserModal
-        open={Boolean(viewingUser)}
+      <EditUserModal
+        open={editFormOpen}
         onClose={() => {
-          setViewingUser(null)
-          setViewUserId(null)
-          setViewUserType(null)
+          setEditFormOpen(false)
+          setEditingUser(null)
         }}
-        user={resolvedViewUser}
+        user={editingUser}
+        onStudentUpdate={(id, patch) => handleUpdateUser(id, patch, editingUser)}
+        updatePending={updateUserMutation.isPending}
+        createLabel={createLabel}
+        onAdminSuccess={refreshUsers}
       />
 
       <ConfirmManageUserStatusModal
@@ -458,16 +385,6 @@ export default function ManageUsersPage() {
           if (!updateStatusMutation.isPending) setStatusTarget(null)
         }}
         onConfirm={confirmStatusChange}
-      />
-
-      <ConfirmManageUserDeleteModal
-        open={Boolean(deleteTarget)}
-        user={deleteTarget}
-        loading={deleteUserMutation.isPending}
-        onCancel={() => {
-          if (!deleteUserMutation.isPending) setDeleteTarget(null)
-        }}
-        onConfirm={confirmDelete}
       />
     </div>
   )

@@ -1,8 +1,12 @@
 import { resolveWhyChooseTitle } from './academicCourseForm'
 import { keyFeaturePointsFromSlots } from './newDelhiCourseUi'
-import { resolveHyderabadUi } from './hyderabadCourseUi'
-import { resolveNewDelhiUi } from './newDelhiCourseUi'
-import { resolvePuneUi } from './puneCourseUi'
+import {
+  createEmptyHyderabadUi,
+  isHyderabadCenter,
+  resolveHyderabadUi,
+} from './hyderabadCourseUi'
+import { isNewDelhiCenter, resolveNewDelhiUi } from './newDelhiCourseUi'
+import { isPuneCenter, resolvePuneUi } from './puneCourseUi'
 import {
   fileNameFromMediaUrl,
   mapDemoVideoFromCourse,
@@ -61,6 +65,330 @@ function isExistingMediaUrl(url) {
   return typeof url === 'string' && /^https?:\/\//i.test(url.trim())
 }
 
+function hasStoredDemoVideo(course = {}) {
+  const raw =
+    course.demoVideo ??
+    course.demoVideoUrl ??
+    course.introVideo ??
+    course.videoUrl ??
+    ''
+  return Boolean(String(raw || '').trim())
+}
+
+function resolveDemoVideoPayloadUrl(form = {}) {
+  const raw = String(form.demoVideoUrl ?? form.demoVideo ?? '').trim()
+  if (!raw || raw.startsWith('blob:')) return ''
+  const resolved = resolveCourseMediaUrl(raw)
+  return resolved || raw
+}
+
+function appendDemoVideoFields(formData, form, { isEdit = false, originalCourse = null } = {}) {
+  const demoVideoFile = form.demoVideoFile instanceof File ? form.demoVideoFile : null
+  const demoVideoUrl = resolveDemoVideoPayloadUrl(form)
+
+  if (demoVideoFile) {
+    formData.append('demoVideo', demoVideoFile)
+    return
+  }
+
+  if (isExistingMediaUrl(demoVideoUrl)) {
+    formData.append('demoVideo', demoVideoUrl)
+    return
+  }
+
+  if (isEdit && hasStoredDemoVideo(originalCourse) && !demoVideoUrl) {
+    formData.append('demoVideoRemoveVideo', 'true')
+  }
+}
+
+function resolveActiveCourseCenterKey(form = {}) {
+  const label = String(form.centerName || form.centerLabel || '').trim().toLowerCase()
+  if (!label) return null
+  if (isHyderabadCenter(label) || label.startsWith('hyderabad')) return 'hyderabad'
+  if (isNewDelhiCenter(label) || label.startsWith('new delhi')) return 'new-delhi'
+  if (isPuneCenter(label) || label.startsWith('pune')) return 'pune'
+  return null
+}
+
+function dedupeMediaUrls(urls = []) {
+  const seen = new Set()
+  return urls.filter((url) => {
+    const key = String(url || '').trim()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function keepUrlFromSlot(slot) {
+  if (!slot || slot.file instanceof File) return null
+  const url = slot.preview || slot.existingUrl
+  return isExistingMediaUrl(url) ? url.trim() : null
+}
+
+function collectWhyChooseImageFiles(form) {
+  const centerKey = resolveActiveCourseCenterKey(form)
+  const files = []
+
+  if (centerKey === 'hyderabad') {
+    const ui = mergeHyderabadUiForSubmit(form) || resolveHyderabadUi(form)
+    for (const key of ['image1', 'image2']) {
+      const file = ui.whyChooseMedia?.[key]?.file
+      if (file instanceof File) files.push(file)
+    }
+    return files
+  }
+
+  if (centerKey === 'new-delhi') {
+    const file = resolveNewDelhiUi(form).whyChooseImage?.file
+    if (file instanceof File) files.push(file)
+    return files
+  }
+
+  if (centerKey === 'pune') {
+    const file = resolvePuneUi(form).whyChooseImage?.file
+    if (file instanceof File) files.push(file)
+  }
+
+  return files
+}
+
+function hasStoredWhyChooseVideo(course = {}) {
+  return Boolean(String(course.whyChooseVideo || '').trim())
+}
+
+function hasStoredHelpSectionVideo(course = {}) {
+  return Boolean(String(course.helpSectionVideo || '').trim())
+}
+
+function hasVideoSlotContent(slot) {
+  if (!slot || typeof slot !== 'object') return false
+  if (slot.file instanceof File) return true
+  const preview = slot.preview || slot.existingUrl
+  return isExistingMediaUrl(preview) || (typeof preview === 'string' && preview.startsWith('blob:'))
+}
+
+function mergeMediaSlotForSubmit(primary, fallback) {
+  if (!primary && !fallback) return null
+  if (!primary) return fallback
+  if (!fallback) return primary
+  if (fallback.file instanceof File) return { ...primary, ...fallback }
+  if (primary.file instanceof File) return { ...fallback, ...primary }
+  return { ...fallback, ...primary }
+}
+
+function mergeHyderabadUiForSubmit(form = {}) {
+  const top = form.hyderabadUi
+  const nested = form.courseFormData?.hyderabadUi
+  if (!top && !nested) return null
+  if (!top) return nested
+  if (!nested || top === nested) return top
+
+  const empty = createEmptyHyderabadUi()
+  return {
+    ...empty,
+    ...nested,
+    ...top,
+    whyChooseMedia: {
+      ...empty.whyChooseMedia,
+      ...nested.whyChooseMedia,
+      ...top.whyChooseMedia,
+      image1: mergeMediaSlotForSubmit(top.whyChooseMedia?.image1, nested.whyChooseMedia?.image1),
+      image2: mergeMediaSlotForSubmit(top.whyChooseMedia?.image2, nested.whyChooseMedia?.image2),
+      video: mergeMediaSlotForSubmit(top.whyChooseMedia?.video, nested.whyChooseMedia?.video),
+    },
+    howHelpsMedia: {
+      ...empty.howHelpsMedia,
+      ...nested.howHelpsMedia,
+      ...top.howHelpsMedia,
+      video: mergeMediaSlotForSubmit(top.howHelpsMedia?.video, nested.howHelpsMedia?.video),
+      image: mergeMediaSlotForSubmit(top.howHelpsMedia?.image, nested.howHelpsMedia?.image),
+    },
+    howHelpsPoints: top.howHelpsPoints?.length ? top.howHelpsPoints : nested.howHelpsPoints,
+  }
+}
+
+function resolveWhyChooseVideoSlot(form = {}) {
+  const mergedUi = mergeHyderabadUiForSubmit(form)
+  const fromMerged = mergedUi?.whyChooseMedia?.video
+  const fromResolver = resolveHyderabadUi({
+    ...form,
+    hyderabadUi: mergedUi || form.hyderabadUi,
+  }).whyChooseMedia?.video
+
+  return mergeMediaSlotForSubmit(fromMerged, fromResolver)
+}
+
+function collectWhyChooseVideoFile(form) {
+  if (form.whyChooseVideoFile instanceof File) return form.whyChooseVideoFile
+
+  const slot = resolveWhyChooseVideoSlot(form)
+  return slot?.file instanceof File ? slot.file : null
+}
+
+function collectHelpSectionVideoFile(form) {
+  const mergedUi = mergeHyderabadUiForSubmit(form)
+  const hydSlot = (mergedUi || resolveHyderabadUi(form)).howHelpsMedia?.video
+  if (hydSlot?.file instanceof File) return hydSlot.file
+
+  for (const slot of form.howWill || []) {
+    if (!(slot?.file instanceof File)) continue
+    const kind = String(slot.kind || '').toLowerCase()
+    if (kind === 'video' || slot.file.type?.startsWith('video/')) {
+      return slot.file
+    }
+  }
+
+  return null
+}
+
+function hasExistingWhyChooseVideoPreview(form) {
+  return hasVideoSlotContent(resolveWhyChooseVideoSlot(form))
+}
+
+function hasExistingHelpSectionVideoPreview(form) {
+  if (hasVideoSlotContent(resolveHyderabadUi(form).howHelpsMedia?.video)) return true
+
+  return (form.howWill || []).some((slot) => {
+    if (String(slot?.kind || '').toLowerCase() !== 'video') return false
+    return hasVideoSlotContent(slot)
+  })
+}
+
+function appendWhyChooseVideoFields(formData, form, { isEdit = false, originalCourse = null } = {}) {
+  const videoFile = collectWhyChooseVideoFile(form)
+
+  if (videoFile) {
+    formData.append('whyChooseVideo', videoFile)
+    return
+  }
+
+  if (
+    isEdit &&
+    hasStoredWhyChooseVideo(originalCourse) &&
+    !hasExistingWhyChooseVideoPreview(form)
+  ) {
+    formData.append('whyChooseRemoveVideo', 'true')
+  }
+}
+
+function appendHelpSectionVideoFields(formData, form, { isEdit = false, originalCourse = null } = {}) {
+  const videoFile = collectHelpSectionVideoFile(form)
+
+  if (videoFile) {
+    formData.append('helpSectionVideo', videoFile)
+    return
+  }
+
+  if (
+    isEdit &&
+    hasStoredHelpSectionVideo(originalCourse) &&
+    !hasExistingHelpSectionVideoPreview(form)
+  ) {
+    formData.append('helpSectionRemoveVideo', 'true')
+  }
+}
+
+function extractHelpSectionPoints(form) {
+  const centerKey = resolveActiveCourseCenterKey(form)
+
+  const points =
+    centerKey === 'hyderabad'
+      ? resolveHyderabadUi(form).howHelpsPoints
+      : centerKey === 'new-delhi'
+        ? resolveNewDelhiUi(form).howHelpsPoints
+        : centerKey === 'pune'
+          ? resolvePuneUi(form).howHelpsPoints
+          : []
+
+  return (points || []).map((point) => String(point.text || '').trim()).filter(Boolean)
+}
+
+function collectHelpSectionImageFiles(form) {
+  const centerKey = resolveActiveCourseCenterKey(form)
+  const files = []
+
+  if (centerKey === 'hyderabad') {
+    const file = resolveHyderabadUi(form).howHelpsMedia?.image?.file
+    if (file instanceof File) files.push(file)
+    return files
+  }
+
+  if (centerKey === 'new-delhi') {
+    for (const slot of form.howWill || []) {
+      if (slot?.kind !== 'video' && slot?.file instanceof File) {
+        files.push(slot.file)
+      }
+    }
+    for (const extra of resolveNewDelhiUi(form).helpSectionExtraImages || []) {
+      if (extra?.file instanceof File) files.push(extra.file)
+    }
+    return files
+  }
+
+  if (centerKey === 'pune') {
+    const file = resolvePuneUi(form).howHelpsImage?.file
+    if (file instanceof File) files.push(file)
+  }
+
+  return files
+}
+
+function collectWhyChooseKeepUrls(form) {
+  const centerKey = resolveActiveCourseCenterKey(form)
+
+  if (centerKey === 'hyderabad') {
+    const ui = resolveHyderabadUi(form)
+    return dedupeMediaUrls(
+      ['image1', 'image2']
+        .map((key) => keepUrlFromSlot(ui.whyChooseMedia?.[key]))
+        .filter(Boolean),
+    )
+  }
+
+  if (centerKey === 'new-delhi') {
+    const url = keepUrlFromSlot(resolveNewDelhiUi(form).whyChooseImage)
+    return url ? [url] : []
+  }
+
+  if (centerKey === 'pune') {
+    const url = keepUrlFromSlot(resolvePuneUi(form).whyChooseImage)
+    return url ? [url] : []
+  }
+
+  return []
+}
+
+function collectHelpSectionKeepUrls(form) {
+  const centerKey = resolveActiveCourseCenterKey(form)
+
+  if (centerKey === 'hyderabad') {
+    const url = keepUrlFromSlot(resolveHyderabadUi(form).howHelpsMedia?.image)
+    return url ? [url] : []
+  }
+
+  if (centerKey === 'new-delhi') {
+    const urls = []
+    for (const slot of form.howWill || []) {
+      if (slot?.kind === 'video') continue
+      const url = keepUrlFromSlot(slot)
+      if (url) urls.push(url)
+    }
+    for (const extra of resolveNewDelhiUi(form).helpSectionExtraImages || []) {
+      const url = keepUrlFromSlot(extra)
+      if (url) urls.push(url)
+    }
+    return dedupeMediaUrls(urls).slice(0, 3)
+  }
+
+  if (centerKey === 'pune') {
+    const url = keepUrlFromSlot(resolvePuneUi(form).howHelpsImage)
+    return url ? [url] : []
+  }
+
+  return []
+}
+
 function fileToDataUri(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -76,143 +404,15 @@ function extractKeyFeaturePointTexts(form) {
     .filter(Boolean)
 }
 
-function collectWhyChooseImageFiles(form) {
-  const files = []
-  const newDelhiUi = resolveNewDelhiUi(form)
-  const hyderabadUi = resolveHyderabadUi(form)
-  const puneUi = resolvePuneUi(form)
-
-  if (newDelhiUi.whyChooseImage?.file instanceof File) {
-    files.push(newDelhiUi.whyChooseImage.file)
-  }
-  if (hyderabadUi.whyChooseMedia?.image1?.file instanceof File) {
-    files.push(hyderabadUi.whyChooseMedia.image1.file)
-  }
-  if (hyderabadUi.whyChooseMedia?.image2?.file instanceof File) {
-    files.push(hyderabadUi.whyChooseMedia.image2.file)
-  }
-  if (puneUi.whyChooseImage?.file instanceof File) {
-    files.push(puneUi.whyChooseImage.file)
-  }
-
-  return files
-}
-
-function collectWhyChooseVideoFile(form) {
-  const hyderabadUi = resolveHyderabadUi(form)
-  const video = hyderabadUi.whyChooseMedia?.video
-  return video?.file instanceof File ? video.file : null
-}
-
-function extractHelpSectionPoints(form) {
-  const newDelhiUi = resolveNewDelhiUi(form)
-  const hyderabadUi = resolveHyderabadUi(form)
-  const puneUi = resolvePuneUi(form)
-
-  const points =
-    newDelhiUi.howHelpsPoints?.length
-      ? newDelhiUi.howHelpsPoints
-      : hyderabadUi.howHelpsPoints?.length
-        ? hyderabadUi.howHelpsPoints
-        : puneUi.howHelpsPoints || []
-
-  return points.map((point) => String(point.text || '').trim()).filter(Boolean)
-}
-
-function collectHelpSectionImageFiles(form) {
-  const files = []
-  const howWill = form.howWill || []
-  const newDelhiUi = resolveNewDelhiUi(form)
-  const hyderabadUi = resolveHyderabadUi(form)
-  const puneUi = resolvePuneUi(form)
-
-  for (const slot of howWill) {
-    if (slot?.kind !== 'video' && slot?.file instanceof File) {
-      files.push(slot.file)
-    }
-  }
-
-  for (const extra of newDelhiUi.helpSectionExtraImages || []) {
-    if (extra?.file instanceof File) files.push(extra.file)
-  }
-
-  if (hyderabadUi.howHelpsMedia?.image?.file instanceof File) {
-    files.push(hyderabadUi.howHelpsMedia.image.file)
-  }
-  if (puneUi.howHelpsImage?.file instanceof File) {
-    files.push(puneUi.howHelpsImage.file)
-  }
-
-  return files
-}
-
-function collectHelpSectionVideoFile(form) {
-  const howWill = form.howWill || []
-  const hyderabadUi = resolveHyderabadUi(form)
-
-  const howWillVideo = howWill.find((slot) => slot?.kind === 'video' && slot?.file instanceof File)
-  if (howWillVideo?.file) return howWillVideo.file
-
-  const hydVideo = hyderabadUi.howHelpsMedia?.video
-  return hydVideo?.file instanceof File ? hydVideo.file : null
-}
-
-function collectWhyChooseKeepUrls(form) {
-  const urls = []
-  const newDelhiUi = resolveNewDelhiUi(form)
-  const hyderabadUi = resolveHyderabadUi(form)
-  const puneUi = resolvePuneUi(form)
-
-  const candidates = [
-    newDelhiUi.whyChooseImage?.preview,
-    hyderabadUi.whyChooseMedia?.image1?.preview,
-    hyderabadUi.whyChooseMedia?.image2?.preview,
-    puneUi.whyChooseImage?.preview,
-  ]
-
-  for (const url of candidates) {
-    if (isExistingMediaUrl(url)) urls.push(url.trim())
-  }
-
-  return urls
-}
-
-function collectHelpSectionKeepUrls(form) {
-  const urls = []
-  const howWill = form.howWill || []
-  const newDelhiUi = resolveNewDelhiUi(form)
-  const hyderabadUi = resolveHyderabadUi(form)
-  const puneUi = resolvePuneUi(form)
-
-  for (const slot of howWill) {
-    if (slot?.kind !== 'video' && isExistingMediaUrl(slot?.preview)) {
-      urls.push(slot.preview.trim())
-    }
-  }
-
-  for (const extra of newDelhiUi.helpSectionExtraImages || []) {
-    if (isExistingMediaUrl(extra?.preview)) urls.push(extra.preview.trim())
-  }
-
-  if (isExistingMediaUrl(hyderabadUi.howHelpsMedia?.image?.preview)) {
-    urls.push(hyderabadUi.howHelpsMedia.image.preview.trim())
-  }
-  if (isExistingMediaUrl(puneUi.howHelpsImage?.preview)) {
-    urls.push(puneUi.howHelpsImage.preview.trim())
-  }
-
-  return urls
-}
-
 async function buildFeatureCardsPayload(features = []) {
   const normalized = normalizeWhyChooseFeatures({ whyChooseFeatures: features })
   const cards = []
 
-  for (const card of normalized) {
+  for (const [index, card] of normalized.entries()) {
     const payload = {
       title: String(card.title || '').trim(),
       description: String(card.description || '').trim(),
-      displayOrder: Number(card.order) || cards.length + 1,
+      displayOrder: index + 1,
       highlightOnWebsite: Boolean(card.isHighlighted),
     }
 
@@ -238,6 +438,36 @@ export function validateCreateCourseContent(form) {
   if (!form.examCategoryId) errors.examCategoryId = 'Exam category is required'
   if (!form.examSubCategoryId) errors.examSubCategoryId = 'Exam subcategory is required'
   return errors
+}
+
+/** Normalize submit payload so nested center UI media survives serialize spread. */
+export function normalizeCourseSubmitForm(form = {}) {
+  const hyderabadUi = mergeHyderabadUiForSubmit(form) || form.hyderabadUi || form.courseFormData?.hyderabadUi
+  const whyChooseVideoSlot = resolveWhyChooseVideoSlot({ ...form, hyderabadUi })
+
+  return {
+    ...form,
+    hyderabadUi,
+    newDelhiUi: form.newDelhiUi || form.courseFormData?.newDelhiUi,
+    puneUi: form.puneUi || form.courseFormData?.puneUi,
+    howWill: form.howWill || form.courseFormData?.howWill,
+    keyFeatures: form.keyFeatures || form.courseFormData?.keyFeatures,
+    demoVideoFile: form.demoVideoFile,
+    demoVideoUrl: form.demoVideoUrl,
+    demoVideoFileName: form.demoVideoFileName,
+    demoVideoFileSize: form.demoVideoFileSize,
+    whyChooseVideoFile:
+      form.whyChooseVideoFile instanceof File
+        ? form.whyChooseVideoFile
+        : whyChooseVideoSlot?.file instanceof File
+          ? whyChooseVideoSlot.file
+          : null,
+    whyChooseVideoUrl:
+      form.whyChooseVideoUrl ||
+      (typeof whyChooseVideoSlot?.preview === 'string' ? whyChooseVideoSlot.preview : '') ||
+      form.whyChooseVideo ||
+      '',
+  }
 }
 
 export async function buildCourseFormData(form, { isEdit = false, originalCourse = null } = {}) {
@@ -299,31 +529,13 @@ export async function buildCourseFormData(form, { isEdit = false, originalCourse
     formData.append('whyChooseImages', file)
   }
 
-  const whyChooseVideo = collectWhyChooseVideoFile(form)
-  if (whyChooseVideo) formData.append('whyChooseVideo', whyChooseVideo)
-  else if (
-    isEdit &&
-    originalCourse?.whyChooseVideo &&
-    !isExistingMediaUrl(resolveHyderabadUi(form).whyChooseMedia?.video?.preview)
-  ) {
-    formData.append('whyChooseRemoveVideo', 'true')
-  }
+  appendWhyChooseVideoFields(formData, form, { isEdit, originalCourse })
 
   for (const file of collectHelpSectionImageFiles(form)) {
     formData.append('helpSectionImages', file)
   }
 
-  const helpVideo = collectHelpSectionVideoFile(form)
-  if (helpVideo) formData.append('helpSectionVideo', helpVideo)
-  else if (isEdit && originalCourse?.helpSectionVideo) {
-    const hasVideoPreview = (form.howWill || []).some(
-      (slot) => slot?.kind === 'video' && isExistingMediaUrl(slot?.preview),
-    )
-    const hydPreview = resolveHyderabadUi(form).howHelpsMedia?.video?.preview
-    if (!hasVideoPreview && !isExistingMediaUrl(hydPreview)) {
-      formData.append('helpSectionRemoveVideo', 'true')
-    }
-  }
+  appendHelpSectionVideoFields(formData, form, { isEdit, originalCourse })
 
   if (isEdit) {
     const whyChooseKeep = collectWhyChooseKeepUrls(form)
@@ -337,18 +549,7 @@ export async function buildCourseFormData(form, { isEdit = false, originalCourse
     }
   }
 
-  if (form.demoVideoFile instanceof File) {
-    formData.append('demoVideo', form.demoVideoFile)
-  } else if (
-    isEdit &&
-    (originalCourse?.demoVideo ||
-      originalCourse?.demoVideoUrl ||
-      originalCourse?.introVideo ||
-      originalCourse?.videoUrl) &&
-    !isExistingMediaUrl(form.demoVideoUrl)
-  ) {
-    formData.append('demoVideoRemoveVideo', 'true')
-  }
+  appendDemoVideoFields(formData, form, { isEdit, originalCourse })
 
   return formData
 }

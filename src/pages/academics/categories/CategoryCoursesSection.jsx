@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PlusCircle } from 'lucide-react'
 import CategoryPageHeader from '../../../components/categories/CategoryPageHeader'
-import ProgramsFilterBar from '../../../components/categories/ProgramsFilterBar'
-import ProgramsBulkActionsBar from '../../../components/categories/ProgramsBulkActionsBar'
+import ExamCategoryFilterBar from '../../../components/categories/ExamCategoryFilterBar'
+import ExamCategoryBulkActionsBar from '../../../components/categories/ExamCategoryBulkActionsBar'
 import CategoryStatusBadge from '../../../components/categories/CategoryStatusBadge'
-import CourseTableActions from '../../../components/categories/CourseTableActions'
+import ExamCategoryTableActions from '../../../components/categories/ExamCategoryTableActions'
 import MasterBulkConfirmModal from '../../../components/categories/MasterBulkConfirmModal'
 import CategoryEmptyState from '../../../components/categories/CategoryEmptyState'
 import CategoryTableLoadingShell from '../../../components/categories/CategoryTableLoadingShell'
 import CategoryStandardTable from '../../../components/categories/CategoryStandardTable'
 import CourseFormModal from '../../../components/categories/CourseFormModal'
 import ViewCourseManagementModal from '../../../components/categories/ViewCourseManagementModal'
-import ConfirmDeleteDialog from '../../../components/subjects/ConfirmDeleteDialog'
 import ConfirmExamCategoryStatusModal from '../../../components/categories/ConfirmExamCategoryStatusModal'
 import ErrorState from '../../../components/feedback/ErrorState'
 import { CATEGORY_HUB_SECTIONS } from '../../../constants/categoryHubSections'
@@ -21,14 +20,15 @@ import { useCourseManagement } from '../../../hooks/useCourseManagement'
 import { useInitialRouteFilterSearch } from '../../../hooks/useInitialRouteSearch'
 import { useCentersDropdownOptions } from '../../../hooks/useCentersDropdownOptions'
 import { useProgramsByCenter } from '../../../hooks/useProgramsByCenter'
+import { useTableRowSelection } from '../../../hooks/useTableRowSelection'
 import { useCreateCourse } from '../../../hooks/course/useCreateCourse'
 import { useUpdateCourse } from '../../../hooks/course/useUpdateCourse'
-import { useDeleteCourse } from '../../../hooks/course/useDeleteCourse'
 import { useUpdateCourseStatus } from '../../../hooks/course/useUpdateCourseStatus'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 import { getApiErrorMessage } from '../../../utils/apiError'
 import {
   buildCourseFormData,
+  normalizeCourseSubmitForm,
   extractCourseMutationWarnings,
   formatCourseWarningsToast,
   mapApiCourseToLocal,
@@ -43,12 +43,16 @@ import {
   filterDisableableIds,
   filterEnableableIds,
 } from '../../../utils/masterBulkActions'
-import { CATEGORY_COL } from '../../../utils/categoryUiStandards'
-import { useAuth } from '../../../contexts/AuthContext'
 
 const section = CATEGORY_HUB_SECTIONS.courses
 
-function AddCourseButton({ onClick, disabled }) {
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Status' },
+  { value: 'Active', label: 'Active' },
+  { value: 'In Active', label: 'Deactivated' },
+]
+
+function CreateButton({ onClick, disabled, label }) {
   return (
     <button
       type="button"
@@ -57,14 +61,12 @@ function AddCourseButton({ onClick, disabled }) {
       className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
     >
       <PlusCircle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-      Add Course
+      {label}
     </button>
   )
 }
 
 export default function CategoryCoursesSection() {
-  const { isSuperAdmin } = useAuth()
-
   const {
     courses,
     totalCourses,
@@ -78,18 +80,15 @@ export default function CategoryCoursesSection() {
     setCenterFilter,
     programFilter,
     setProgramFilter,
-    debouncedSearch,
     controlledPagination,
     refreshCourses,
     patchCourseLocally,
-    removeCourseLocally,
   } = useCourseManagement()
 
   useInitialRouteFilterSearch(setSearch)
 
   const { mutateAsync: createCourse, isPending: createPending } = useCreateCourse()
   const { mutateAsync: updateCourse, isPending: updatePending } = useUpdateCourse()
-  const { mutateAsync: deleteCourse, isPending: deleteMutationPending } = useDeleteCourse()
   const { mutateAsync: updateCourseStatus, isPending: statusMutationPending } =
     useUpdateCourseStatus()
 
@@ -99,22 +98,21 @@ export default function CategoryCoursesSection() {
   )
 
   const { isOpen, openEdit, openCreate, close, selectedItem } = useEditModal()
+  const { selectedIds, selection, clearSelection } = useTableRowSelection((row) => row.id)
   const [viewItem, setViewItem] = useState(null)
   const [viewDetail, setViewDetail] = useState(null)
   const [viewDetailLoading, setViewDetailLoading] = useState(false)
   const [editDetail, setEditDetail] = useState(null)
   const [editDetailLoading, setEditDetailLoading] = useState(false)
   const [formSubmitting, setFormSubmitting] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
   const [bulkConfirm, setBulkConfirm] = useState(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const editFetchIdRef = useRef(null)
 
-  const centreFilterOptions = useMemo(
-    () => [{ value: 'all', label: 'Centre Wise' }, ...centreDropdownOptions],
+  const centreOptions = useMemo(
+    () => [{ value: 'all', label: 'Center' }, ...centreDropdownOptions],
     [centreDropdownOptions],
   )
 
@@ -142,30 +140,6 @@ export default function CategoryCoursesSection() {
     [selectedIds, coursesById],
   )
 
-  const toggleSelect = useCallback((id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }, [])
-
-  const toggleSelectPage = useCallback((pageIds, select) => {
-    setSelectedIds((prev) => {
-      if (!select) return prev.filter((id) => !pageIds.includes(id))
-      const merged = new Set([...prev, ...pageIds])
-      return [...merged]
-    })
-  }, [])
-
-  const filters = useMemo(
-    () => ({
-      search: debouncedSearch,
-      status: statusFilter,
-      center: centerFilter,
-      program: programFilter,
-    }),
-    [debouncedSearch, statusFilter, centerFilter, programFilter],
-  )
-
   const loadCourseDetail = useCallback(async (row) => {
     const data = await getCourse(row.id)
     return mapApiCourseToLocal(data) || row
@@ -190,26 +164,34 @@ export default function CategoryCoursesSection() {
   )
 
   const handleEditOpen = useCallback(
-    async (row) => {
+    (row) => {
+      const fetchId = String(row.id)
+      editFetchIdRef.current = fetchId
       openEdit(row)
       setEditDetail(row)
       setEditDetailLoading(true)
 
-      try {
-        const detail = await loadCourseDetail(row)
-        setEditDetail(detail || row)
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Failed to load course for edit'))
-        close()
-      } finally {
-        setEditDetailLoading(false)
-      }
+      void loadCourseDetail(row)
+        .then((detail) => {
+          if (editFetchIdRef.current !== fetchId) return
+          setEditDetail(detail || row)
+        })
+        .catch((error) => {
+          if (editFetchIdRef.current !== fetchId) return
+          toast.error(getApiErrorMessage(error, 'Failed to load course for edit'))
+          close()
+        })
+        .finally(() => {
+          if (editFetchIdRef.current !== fetchId) return
+          setEditDetailLoading(false)
+        })
     },
     [loadCourseDetail, openEdit, close],
   )
 
   useEffect(() => {
     if (!isOpen) {
+      editFetchIdRef.current = null
       setEditDetail(null)
       setEditDetailLoading(false)
     }
@@ -228,7 +210,7 @@ export default function CategoryCoursesSection() {
       setFormSubmitting(true)
       try {
         const originalCourse = isEdit ? editDetail ?? selectedItem : null
-        const formData = await buildCourseFormData(form, {
+        const formData = await buildCourseFormData(normalizeCourseSubmitForm(form), {
           isEdit,
           originalCourse,
         })
@@ -258,24 +240,6 @@ export default function CategoryCoursesSection() {
     },
     [createCourse, updateCourse, refreshCourses, editDetail, selectedItem, showMutationWarnings],
   )
-
-  const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return
-    setDeleteLoading(true)
-    try {
-      await deleteCourse(deleteTarget.id)
-      removeCourseLocally(deleteTarget.id)
-      toast.success(
-        'Course deleted successfully (soft delete — enrollments remain linked)',
-      )
-      setDeleteTarget(null)
-      await refreshCourses()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to delete course'))
-    } finally {
-      setDeleteLoading(false)
-    }
-  }, [deleteTarget, deleteCourse, removeCourseLocally, refreshCourses])
 
   const confirmStatusChange = useCallback(async () => {
     if (!statusTarget) return
@@ -319,14 +283,14 @@ export default function CategoryCoursesSection() {
         const apiStatus = mapUiCourseStatusToApi('Active')
         await Promise.all(ids.map((id) => updateCourseStatus({ id, status: apiStatus })))
         ids.forEach((id) => patchCourseLocally(id, { status: 'Active' }))
-        setSelectedIds([])
+        clearSelection()
         toast.success(MASTER_BULK_TOAST.enabled, { duration: TOAST_DURATION.short })
       } else if (bulkConfirm.type === 'disable') {
         const ids = filterDisableableIds(selectedIds, coursesById)
         const apiStatus = mapUiCourseStatusToApi('In Active')
         await Promise.all(ids.map((id) => updateCourseStatus({ id, status: apiStatus })))
         ids.forEach((id) => patchCourseLocally(id, { status: 'In Active' }))
-        setSelectedIds([])
+        clearSelection()
         toast.success(MASTER_BULK_TOAST.disabled, { duration: TOAST_DURATION.short })
       }
       setBulkConfirm(null)
@@ -343,6 +307,7 @@ export default function CategoryCoursesSection() {
     updateCourseStatus,
     patchCourseLocally,
     refreshCourses,
+    clearSelection,
   ])
 
   const columns = useMemo(
@@ -350,8 +315,8 @@ export default function CategoryCoursesSection() {
       {
         key: 'courseId',
         label: 'Course ID',
-        headerClassName: CATEGORY_COL.idHeader,
-        cellClassName: CATEGORY_COL.idCell,
+        headerClassName: 'min-w-[7.5rem] whitespace-nowrap',
+        cellClassName: 'min-w-[7.5rem] whitespace-nowrap align-middle',
         render: (row) => (
           <span className="font-mono text-sm font-semibold text-[#111]">{row.courseId}</span>
         ),
@@ -359,15 +324,19 @@ export default function CategoryCoursesSection() {
       {
         key: 'name',
         label: 'Course Name',
-        headerClassName: CATEGORY_COL.nameHeader,
-        cellClassName: CATEGORY_COL.nameCell,
-        render: (row) => <span className="font-semibold text-[#111]">{row.name}</span>,
+        headerClassName: 'min-w-[10rem]',
+        cellClassName: 'min-w-[10rem] max-w-[220px] align-middle',
+        render: (row) => (
+          <span className="block truncate font-semibold text-[#111]" title={row.name}>
+            {row.name}
+          </span>
+        ),
       },
       {
         key: 'centerName',
-        label: 'Centre',
-        headerClassName: CATEGORY_COL.textHeader,
-        cellClassName: CATEGORY_COL.textCell,
+        label: 'Centre Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
           <span
             className="block truncate text-sm font-medium text-[#1a3a5c]"
@@ -379,9 +348,9 @@ export default function CategoryCoursesSection() {
       },
       {
         key: 'program',
-        label: 'Program',
-        headerClassName: CATEGORY_COL.textHeader,
-        cellClassName: CATEGORY_COL.textCell,
+        label: 'Program Name',
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
           <span className="block truncate text-sm font-medium text-[#444]" title={row.program}>
             {row.program || '—'}
@@ -391,8 +360,8 @@ export default function CategoryCoursesSection() {
       {
         key: 'examCategory',
         label: 'Exam Category',
-        headerClassName: CATEGORY_COL.textHeader,
-        cellClassName: CATEGORY_COL.textCell,
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
           <span
             className="block truncate text-sm font-medium text-[#444]"
@@ -405,8 +374,8 @@ export default function CategoryCoursesSection() {
       {
         key: 'examSubCategory',
         label: 'Exam Subcategory',
-        headerClassName: CATEGORY_COL.textHeader,
-        cellClassName: CATEGORY_COL.textCell,
+        headerClassName: 'min-w-[9rem]',
+        cellClassName: 'min-w-[9rem] max-w-[180px] align-middle',
         render: (row) => (
           <span
             className="block truncate text-sm font-medium text-[#444]"
@@ -419,8 +388,8 @@ export default function CategoryCoursesSection() {
       {
         key: 'createdAt',
         label: 'Created On',
-        headerClassName: CATEGORY_COL.dateHeader,
-        cellClassName: CATEGORY_COL.dateCell,
+        headerClassName: 'min-w-[9rem] whitespace-nowrap',
+        cellClassName: 'min-w-[9rem] whitespace-nowrap align-middle',
         render: (row) => (
           <span className="text-sm font-medium text-[#686868]">
             {formatCategoryDateTime(row.createdAt)}
@@ -430,28 +399,27 @@ export default function CategoryCoursesSection() {
       {
         key: 'status',
         label: 'Status',
-        headerClassName: CATEGORY_COL.statusHeader,
-        cellClassName: CATEGORY_COL.statusCell,
+        headerClassName: 'min-w-[6.5rem] whitespace-nowrap',
+        cellClassName: 'min-w-[6.5rem] align-middle',
         render: (row) => <CategoryStatusBadge status={row.status} />,
       },
       {
         key: 'actions',
         label: 'Actions',
         align: 'right',
-        headerClassName: CATEGORY_COL.actionsHeader,
-        cellClassName: CATEGORY_COL.actionsCell,
+        headerClassName: 'min-w-[220px] whitespace-nowrap pr-4 sm:pr-6',
+        cellClassName: 'min-w-[220px] whitespace-nowrap align-middle pr-4 sm:pr-6',
         render: (row) => (
-          <CourseTableActions
+          <ExamCategoryTableActions
             row={row}
             onView={() => handleView(row)}
             onEdit={() => handleEditOpen(row)}
-            onDelete={isSuperAdmin ? () => setDeleteTarget(row) : undefined}
-            onToggleStatus={() => setStatusTarget(row)}
+            onStatusToggle={() => setStatusTarget(row)}
           />
         ),
       },
     ],
-    [handleView, handleEditOpen, isSuperAdmin],
+    [handleView, handleEditOpen],
   )
 
   const hasActiveFilters =
@@ -469,8 +437,6 @@ export default function CategoryCoursesSection() {
     setProgramFilter('all')
   }
 
-  const deleteMessage = `Are you sure you want to delete "${deleteTarget?.name || 'this course'}"? This is a soft delete — enrollments will remain linked.`
-
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -482,28 +448,28 @@ export default function CategoryCoursesSection() {
         className="space-y-5 sm:space-y-6"
       >
         <CategoryPageHeader title="Courses">
-          <AddCourseButton onClick={openCreate} disabled={loading} />
+          <CreateButton onClick={openCreate} label={section.addLabel} />
         </CategoryPageHeader>
 
-        <ProgramsFilterBar
+        <ExamCategoryFilterBar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
           searchPlaceholder={section.searchPlaceholder}
-          centre={centerFilter}
-          onCentreChange={(e) => setCenterFilter(e.target.value)}
-          centreOptions={centreFilterOptions}
           program={programFilter}
           onProgramChange={(e) => setProgramFilter(e.target.value)}
           programOptions={programFilterOptions}
+          centerFilter={centerFilter}
+          onCenterFilterChange={(e) => setCenterFilter(e.target.value)}
+          centerOptions={centreOptions}
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
+          statusOptions={STATUS_FILTER_OPTIONS}
         />
 
-        <ProgramsBulkActionsBar
+        <ExamCategoryBulkActionsBar
           count={selectedIds.length}
           enableCount={enableableCount}
           disableCount={disableableCount}
-          onClearSelection={() => setSelectedIds([])}
           onEnable={handleBulkEnableRequest}
           onDisable={handleBulkDisableRequest}
         />
@@ -520,7 +486,7 @@ export default function CategoryCoursesSection() {
           <CategoryEmptyState
             title={section.emptyTitle}
             description={section.emptyDescription}
-            ctaLabel="Add Course"
+            ctaLabel={section.emptyCta}
             onCta={openCreate}
           />
         ) : showNoResults ? (
@@ -536,13 +502,9 @@ export default function CategoryCoursesSection() {
             data={courses}
             itemLabel="courses"
             controlledPagination={controlledPagination}
-            resetDeps={[filters]}
-            loading={deleteMutationPending || statusMutationPending || bulkActionLoading}
-            selection={{
-              selectedIds,
-              onToggle: toggleSelect,
-              onTogglePage: toggleSelectPage,
-            }}
+            resetDeps={[search, statusFilter, centerFilter, programFilter]}
+            selection={selection}
+            loading={bulkActionLoading || statusMutationPending}
           />
         )}
 
@@ -564,17 +526,6 @@ export default function CategoryCoursesSection() {
           item={viewDetail ?? viewItem}
           loading={viewDetailLoading}
         />
-
-        {isSuperAdmin && (
-          <ConfirmDeleteDialog
-            open={Boolean(deleteTarget)}
-            title="Delete course?"
-            message={deleteMessage}
-            loading={deleteLoading}
-            onCancel={() => !deleteLoading && setDeleteTarget(null)}
-            onConfirm={confirmDelete}
-          />
-        )}
 
         <ConfirmExamCategoryStatusModal
           open={Boolean(statusTarget)}

@@ -31,6 +31,7 @@ export default function PuneCourseMarketingSections({
   form,
   setForm,
   courseName = '',
+  formResetKey,
 }) {
   const displayWhyTitle = resolveWhyChooseTitle(form)
   const puneUi = resolvePuneUi(form)
@@ -220,6 +221,7 @@ export default function PuneCourseMarketingSections({
           <WhyChooseFeaturesSection
             features={form.whyChooseFeatures}
             onChange={(whyChooseFeatures) => setForm((f) => ({ ...f, whyChooseFeatures }))}
+            resetKey={formResetKey}
           />
         </BatchFormSection>
       </div>

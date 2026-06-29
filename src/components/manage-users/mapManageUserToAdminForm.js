@@ -17,7 +17,21 @@ function findCenterOption(centerOptions, assignedCenter) {
   )
 }
 
-function findRoleOption(roleOptions, role) {
+function findRoleOption(roleOptions, row) {
+  const roleId = row?.roleId
+  if (roleId) {
+    const byId = roleOptions.find((r) => String(r.value) === String(roleId))
+    if (byId) return byId
+  }
+
+  const roleKey = row?.roleKey || row?.roleType
+  if (roleKey) {
+    const normalizedKey = String(roleKey).trim().toUpperCase()
+    const byCode = roleOptions.find((r) => String(r.roleCode || '').trim().toUpperCase() === normalizedKey)
+    if (byCode) return byCode
+  }
+
+  const role = row?.role
   if (!role) return null
   const normalized = String(role).trim().toLowerCase()
   return (
@@ -32,16 +46,16 @@ function findRoleOption(roleOptions, role) {
 
 /** Map a User List row into CreateAdminModal form shape (frontend-only prefill). */
 export function mapManageUserRowToAdminForm(row, { roleOptions = [], centerOptions = [] } = {}) {
-  const centerMatch = findCenterOption(centerOptions, row?.assignedCenter)
-  const roleMatch = findRoleOption(roleOptions, row?.role)
+  const centerMatch = findCenterOption(centerOptions, row?.centerId || row?.assignedCenter)
+  const roleMatch = findRoleOption(roleOptions, row)
 
   return {
     fullName: row?.fullName ?? '',
-    email: row?.email ?? '',
-    mobile: row?.phone ?? '',
-    employeeId: row?.userId ?? row?.employeeId ?? '',
-    roleId: roleMatch?.value ?? roleOptions[0]?.value ?? '',
-    centerId: centerMatch?.value ?? centerOptions[0]?.value ?? '',
+    email: row?.email ?? row?.officialEmail ?? '',
+    mobile: row?.phone ?? row?.phoneNumber ?? '',
+    employeeId: row?.employeeId ?? row?.userId ?? '',
+    roleId: row?.roleId || roleMatch?.value || roleOptions[0]?.value || '',
+    centerId: row?.centerId || centerMatch?.value || centerOptions[0]?.value || '',
     password: '',
     confirmPassword: '',
     active: row?.status ? row.status === 'Active' : INITIAL.active,

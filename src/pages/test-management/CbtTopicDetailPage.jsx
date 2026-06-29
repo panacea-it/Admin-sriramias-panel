@@ -8,7 +8,6 @@ import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { useCbtFacultySubject } from '../../hooks/useCbtFacultySubject'
 import { useCbtTopicTests } from '../../hooks/useCbtTopicTests'
-import { Loader2 } from 'lucide-react'
 
 export default function CbtTopicDetailPage() {
   const { subjectId, topicId } = useParams()
@@ -58,18 +57,12 @@ export default function CbtTopicDetailPage() {
       <div className="mb-4">
         <CbtBreadcrumbNav items={breadcrumbs} />
       </div>
-      {(facultyLoading || testsLoading) ? (
-        <div className="flex min-h-[200px] items-center justify-center">
-          <Loader2 className="h-10 w-10 animate-spin text-[#55ace7]" />
-        </div>
-      ) : (
-        <CbtTestsTable
-          faculty={faculty || { subjectId }}
-          topic={topic}
-          tests={tests}
-          loading={testsLoading}
-        />
-      )}
+      <CbtTestsTable
+        faculty={faculty || { subjectId }}
+        topic={topic}
+        tests={tests}
+        loading={facultyLoading || testsLoading}
+      />
     </TestManagementPageShell>
   )
 }

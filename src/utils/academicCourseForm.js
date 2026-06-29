@@ -5,7 +5,12 @@ import {
   mapWhyChooseFeaturesForWebsite,
   normalizeWhyChooseFeatures,
 } from './whyChooseFeatures'
-import { fileNameFromMediaUrl, resolveUiMediaSlot } from './courseMediaPrefill'
+import {
+  fileNameFromMediaUrl,
+  normalizeCourseMediaList,
+  resolveCourseMediaUrl,
+  resolveUiMediaSlot,
+} from './courseMediaPrefill'
 import { createEmptyNewDelhiUi, resolveNewDelhiUi } from './newDelhiCourseUi'
 import { createEmptyHyderabadUi, resolveHyderabadUi } from './hyderabadCourseUi'
 import { createEmptyPuneUi, resolvePuneUi } from './puneCourseUi'
@@ -106,17 +111,16 @@ function normalizeKeyFeatureSlots(list) {
     typeof list[0] === 'object' &&
     (list[0].id != null || list[0].text != null || list[0].fileName != null)
   ) {
-    return list.map((slot, i) => {
-      const preview = slot.preview || slot.existingUrl || ''
-      return {
+    return list.map((slot, i) =>
+      resolveUiMediaSlot({
         id: slot.id || `kf-${i}`,
-        fileName: slot.fileName || (preview ? fileNameFromMediaUrl(preview) : ''),
+        fileName: slot.fileName || '',
         text: slot.text || '',
-        preview,
-        existingUrl: slot.existingUrl || preview || '',
+        preview: slot.preview || slot.existingUrl || '',
+        existingUrl: slot.existingUrl || slot.preview || '',
         file: slot.file || null,
-      }
-    })
+      }),
+    )
   }
   const slots = createDefaultKeyFeatureSlots()
   list.forEach((entry, i) => {
@@ -136,41 +140,110 @@ function normalizeKeyFeatureSlots(list) {
   return slots
 }
 
+function hasUsableList(value) {
+  return Array.isArray(value) && value.length > 0
+}
+
+function pickStoredList(primary, stored) {
+  return hasUsableList(primary) ? primary : stored
+}
+
 function mergeItemWithCourseFormData(item) {
   const stored = item?.courseFormData || {}
   if (!stored || typeof stored !== 'object') return item
 
-  const hasApiMedia = Boolean(
-    item.keyFeatureImage ||
-      item.helpSectionVideo ||
-      item.whyChooseVideo ||
-      item.demoVideo ||
-      item.demoVideoUrl ||
-      item.videoUrl ||
-      item.introVideo ||
-      (Array.isArray(item.whyChooseImages) && item.whyChooseImages.length) ||
-      (Array.isArray(item.helpSectionImages) && item.helpSectionImages.length) ||
-      (Array.isArray(item.featureCards) && item.featureCards.length),
-  )
-  if (hasApiMedia) return item
-
   return {
     ...item,
-    overview: stored.overview ?? item.overview ?? item.courseOverview,
-    keyFeatures: stored.keyFeatures?.length ? stored.keyFeatures : item.keyFeatures,
-    whyChooseFeatures: stored.whyChooseFeatures?.length
-      ? stored.whyChooseFeatures
-      : item.whyChooseFeatures,
-    howWill: stored.howWill?.length ? stored.howWill : item.howWill,
-    sectionTitleOverview: stored.sectionTitleOverview ?? item.sectionTitleOverview,
-    sectionTitleKeyFeatures: stored.sectionTitleKeyFeatures ?? item.sectionTitleKeyFeatures,
-    sectionTitleWhyChoose: stored.sectionTitleWhyChoose ?? item.sectionTitleWhyChoose,
-    sectionTitleHowHelps: stored.sectionTitleHowHelps ?? item.sectionTitleHowHelps,
-    whyChooseTitle: stored.whyChooseTitle ?? item.whyChooseTitle ?? '',
-    whyChooseSubtitle: stored.whyChooseSubtitle ?? item.whyChooseSubtitle ?? '',
-    newDelhiUi: stored.newDelhiUi ?? item.newDelhiUi,
-    hyderabadUi: stored.hyderabadUi ?? item.hyderabadUi,
-    puneUi: stored.puneUi ?? item.puneUi,
+    overview: item.overview ?? item.courseOverview ?? stored.overview ?? '',
+    keyFeatures: pickStoredList(item.keyFeatures, stored.keyFeatures),
+    whyChooseFeatures: pickStoredList(item.whyChooseFeatures, stored.whyChooseFeatures),
+    howWill: pickStoredList(item.howWill, stored.howWill),
+    sectionTitleOverview: item.sectionTitleOverview ?? stored.sectionTitleOverview,
+    sectionTitleKeyFeatures: item.sectionTitleKeyFeatures ?? stored.sectionTitleKeyFeatures,
+    sectionTitleWhyChoose: item.sectionTitleWhyChoose ?? stored.sectionTitleWhyChoose,
+    sectionTitleHowHelps: item.sectionTitleHowHelps ?? stored.sectionTitleHowHelps,
+    whyChooseTitle: item.whyChooseTitle ?? stored.whyChooseTitle ?? '',
+    whyChooseSubtitle: item.whyChooseSubtitle ?? stored.whyChooseSubtitle ?? '',
+    newDelhiUi: item.newDelhiUi ?? stored.newDelhiUi,
+    hyderabadUi: item.hyderabadUi ?? stored.hyderabadUi,
+    puneUi: item.puneUi ?? stored.puneUi,
+  }
+}
+
+function fillMediaSlot(slot = {}, url = '') {
+  const preview = resolveCourseMediaUrl(url)
+  if (!preview) return resolveUiMediaSlot(slot)
+  if (resolveCourseMediaUrl(slot.preview || slot.existingUrl)) {
+    return resolveUiMediaSlot(slot)
+  }
+  return resolveUiMediaSlot({
+    ...slot,
+    preview,
+    existingUrl: preview,
+    fileName: slot.fileName || fileNameFromMediaUrl(preview) || 'uploaded-file',
+  })
+}
+
+function applyApiMediaToFormContent(content, row = {}) {
+  const keyFeatureImage = resolveCourseMediaUrl(row.keyFeatureImage)
+  const whyChooseImages = normalizeCourseMediaList(row.whyChooseImages)
+  const whyChooseVideo = resolveCourseMediaUrl(row.whyChooseVideo)
+  const helpSectionImages = normalizeCourseMediaList(row.helpSectionImages)
+  const helpSectionVideo = resolveCourseMediaUrl(row.helpSectionVideo)
+
+  const keyFeatures = [...(content.keyFeatures || [])]
+  if (keyFeatureImage) {
+    const current = keyFeatures[0] || { id: 'kf-0', fileName: '', text: '' }
+    keyFeatures[0] = fillMediaSlot(current, keyFeatureImage)
+  }
+
+  const howWill = (() => {
+    let imageSlotIndex = 0
+    let videoAssigned = false
+    return (content.howWill || []).map((slot) => {
+      const resolved = resolveUiMediaSlot(slot)
+      if (resolved.kind === 'video') {
+        if (!videoAssigned && helpSectionVideo) {
+          videoAssigned = true
+          return fillMediaSlot(resolved, helpSectionVideo)
+        }
+        return resolved
+      }
+      const imageUrl = helpSectionImages[imageSlotIndex]
+      imageSlotIndex += 1
+      return imageUrl ? fillMediaSlot(resolved, imageUrl) : resolved
+    })
+  })()
+
+  const hyderabadUi = content.hyderabadUi || createEmptyHyderabadUi()
+  const newDelhiUi = content.newDelhiUi || createEmptyNewDelhiUi()
+  const puneUi = content.puneUi || createEmptyPuneUi()
+
+  return {
+    ...content,
+    keyFeatures,
+    howWill,
+    hyderabadUi: {
+      ...hyderabadUi,
+      whyChooseMedia: {
+        image1: fillMediaSlot(hyderabadUi.whyChooseMedia?.image1, whyChooseImages[0]),
+        image2: fillMediaSlot(hyderabadUi.whyChooseMedia?.image2, whyChooseImages[1]),
+        video: fillMediaSlot(hyderabadUi.whyChooseMedia?.video, whyChooseVideo),
+      },
+      howHelpsMedia: {
+        video: fillMediaSlot(hyderabadUi.howHelpsMedia?.video, helpSectionVideo),
+        image: fillMediaSlot(hyderabadUi.howHelpsMedia?.image, helpSectionImages[0]),
+      },
+    },
+    newDelhiUi: {
+      ...newDelhiUi,
+      whyChooseImage: fillMediaSlot(newDelhiUi.whyChooseImage, whyChooseImages[0]),
+    },
+    puneUi: {
+      ...puneUi,
+      whyChooseImage: fillMediaSlot(puneUi.whyChooseImage, whyChooseImages[0]),
+      howHelpsImage: fillMediaSlot(puneUi.howHelpsImage, helpSectionImages[0]),
+    },
   }
 }
 
@@ -205,21 +278,20 @@ export function academicCourseItemToContent(item) {
     howWill = createDefaultHowWillSlots()
   } else {
     howWill = howWill.map((slot, i) => {
-      const preview = slot.preview || slot.existingUrl || ''
       const kind = slot.kind || (i === 0 || i === 3 ? 'video' : 'image')
-      return {
+      return resolveUiMediaSlot({
         id: slot.id || `hw-${i}`,
         kind,
-        fileName: slot.fileName || (preview ? fileNameFromMediaUrl(preview) : ''),
+        fileName: slot.fileName || '',
         placeholder:
           slot.placeholder ||
           (kind === 'video'
             ? 'Video to be played for motion effect'
             : 'Image to be displayed'),
-        preview,
-        existingUrl: slot.existingUrl || preview || '',
+        preview: slot.preview || slot.existingUrl || '',
+        existingUrl: slot.existingUrl || slot.preview || '',
         file: slot.file || null,
-      }
+      })
     })
   }
 
@@ -231,45 +303,48 @@ export function academicCourseItemToContent(item) {
   const hyderabadUi = resolveHyderabadUi(row)
   const puneUi = resolvePuneUi(row)
 
-  return {
-    subjects: normalizeSubjects(row.subjects),
-    overview,
-    keyFeatures,
-    whyChooseFeatures,
-    howWill,
-    whyChooseTitle: row.whyChooseTitle?.trim() || row.sectionTitleWhyChoose?.trim() || '',
-    whyChooseSubtitle: row.whyChooseSubtitle?.trim() || '',
-    sectionTitleOverview:
-      row.sectionTitleOverview?.trim() || defaults.sectionTitleOverview,
-    sectionTitleKeyFeatures:
-      row.sectionTitleKeyFeatures?.trim() || defaults.sectionTitleKeyFeatures,
-    sectionTitleWhyChoose:
-      row.sectionTitleWhyChoose?.trim() || defaults.sectionTitleWhyChoose,
-    sectionTitleHowHelps:
-      row.sectionTitleHowHelps?.trim() || defaults.sectionTitleHowHelps,
-    newDelhiUi: {
-      ...newDelhiUi,
-      whyChooseImage: resolveUiMediaSlot(newDelhiUi.whyChooseImage),
-      helpSectionExtraImages: (newDelhiUi.helpSectionExtraImages || []).map(resolveUiMediaSlot),
-    },
-    hyderabadUi: {
-      ...hyderabadUi,
-      whyChooseMedia: {
-        image1: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.image1),
-        image2: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.image2),
-        video: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.video),
+  return applyApiMediaToFormContent(
+    {
+      subjects: normalizeSubjects(row.subjects),
+      overview,
+      keyFeatures,
+      whyChooseFeatures,
+      howWill,
+      whyChooseTitle: row.whyChooseTitle?.trim() || row.sectionTitleWhyChoose?.trim() || '',
+      whyChooseSubtitle: row.whyChooseSubtitle?.trim() || '',
+      sectionTitleOverview:
+        row.sectionTitleOverview?.trim() || defaults.sectionTitleOverview,
+      sectionTitleKeyFeatures:
+        row.sectionTitleKeyFeatures?.trim() || defaults.sectionTitleKeyFeatures,
+      sectionTitleWhyChoose:
+        row.sectionTitleWhyChoose?.trim() || defaults.sectionTitleWhyChoose,
+      sectionTitleHowHelps:
+        row.sectionTitleHowHelps?.trim() || defaults.sectionTitleHowHelps,
+      newDelhiUi: {
+        ...newDelhiUi,
+        whyChooseImage: resolveUiMediaSlot(newDelhiUi.whyChooseImage),
+        helpSectionExtraImages: (newDelhiUi.helpSectionExtraImages || []).map(resolveUiMediaSlot),
       },
-      howHelpsMedia: {
-        video: resolveUiMediaSlot(hyderabadUi.howHelpsMedia?.video),
-        image: resolveUiMediaSlot(hyderabadUi.howHelpsMedia?.image),
+      hyderabadUi: {
+        ...hyderabadUi,
+        whyChooseMedia: {
+          image1: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.image1),
+          image2: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.image2),
+          video: resolveUiMediaSlot(hyderabadUi.whyChooseMedia?.video),
+        },
+        howHelpsMedia: {
+          video: resolveUiMediaSlot(hyderabadUi.howHelpsMedia?.video),
+          image: resolveUiMediaSlot(hyderabadUi.howHelpsMedia?.image),
+        },
+      },
+      puneUi: {
+        ...puneUi,
+        whyChooseImage: resolveUiMediaSlot(puneUi.whyChooseImage),
+        howHelpsImage: resolveUiMediaSlot(puneUi.howHelpsImage),
       },
     },
-    puneUi: {
-      ...puneUi,
-      whyChooseImage: resolveUiMediaSlot(puneUi.whyChooseImage),
-      howHelpsImage: resolveUiMediaSlot(puneUi.howHelpsImage),
-    },
-  }
+    row,
+  )
 }
 
 export function getCourseMarketingSectionTitles(course = {}, meta = {}) {
@@ -361,6 +436,7 @@ export function serializeAcademicCourseContent(form, meta = {}) {
     fileName: slot.fileName || '',
     placeholder: slot.placeholder || 'Image to be displayed',
     preview: slot.preview || '',
+    file: slot.file instanceof File ? slot.file : null,
   }))
 
   const titles = getCourseMarketingSectionTitles(form, {

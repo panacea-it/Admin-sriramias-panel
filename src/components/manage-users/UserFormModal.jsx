@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { getModalEditKey, useInitOnModalOpen } from '../../hooks/modalFormSync'
-import { ImagePlus, UserPlus, X } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { toast } from '@/utils/toast'
 import Modal from '../ui/Modal'
 import ModalPanelHeader from '../courses/ModalPanelHeader'
@@ -15,11 +15,6 @@ import { useUserCreateRoles } from '../../hooks/user/useUserCreateRoles'
 import { useUserCenterFormDropdown } from '../../hooks/user/useUserCenterFormDropdown'
 import { validateCreateStudent, validateUpdateStudent } from '../../utils/userValidation'
 import { cn } from '../../utils/cn'
-import {
-  UploadFieldHint,
-  UploadValidationMessage,
-} from '../common/UploadFieldHint'
-import { validateUploadFile } from '../../utils/uploadValidation'
 
 const emptyForm = {
   fullName: '',
@@ -29,7 +24,6 @@ const emptyForm = {
   parentPhone: '',
   assignedCenter: '',
   status: 'Active',
-  profileImage: '',
 }
 
 function FormSection({ title, description, children, className }) {
@@ -55,7 +49,6 @@ function userRowToForm(row) {
     parentPhone: row.parentMobile || row.parentPhone || row.studentDetails?.parentMobile || '',
     assignedCenter: row.centerId || row.assignedCenter || '',
     status: row.status || 'Active',
-    profileImage: row.profileImage || '',
   }
 }
 
@@ -71,8 +64,6 @@ export default function UserFormModal({
 }) {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
-  const [uploadError, setUploadError] = useState(null)
-  const fileRef = useRef(null)
   const editingRef = useRef(editingUser)
   editingRef.current = editingUser
   const editKey = getModalEditKey(editingUser)
@@ -127,23 +118,6 @@ export default function UserFormModal({
 
     setErrors(next)
     return Object.keys(next).length === 0
-  }
-
-  const handleImage = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const result = await validateUploadFile(file, 'IMAGE_PROFILE')
-    if (!result.valid) {
-      setUploadError(result.message)
-      e.target.value = ''
-      return
-    }
-    setUploadError(null)
-    const reader = new FileReader()
-    reader.onload = () => {
-      setForm((f) => ({ ...f, profileImage: String(reader.result || '') }))
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleSubmit = async (e) => {
@@ -404,58 +378,6 @@ export default function UserFormModal({
                 </CourseFormField>
               </div>
             </FormSection>
-
-            {isEdit ? (
-              <FormSection
-                title="Profile photo"
-                description="Optional — JPG or PNG, shown in user lists."
-              >
-                <div className="flex flex-col gap-4 rounded-xl border border-[#e5eaf2] bg-[#f8fbff] p-4 sm:flex-row sm:items-center">
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className={cn(
-                      'mx-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b8d4eb] bg-white shadow-sm transition',
-                      'hover:border-[#55ace7] hover:bg-[#eef6fc] sm:mx-0',
-                    )}
-                  >
-                    {form.profileImage ? (
-                      <img src={form.profileImage} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <ImagePlus className="h-9 w-9 text-[#246392]" strokeWidth={1.75} />
-                    )}
-                  </button>
-                  <div className="min-w-0 flex-1 text-center sm:text-left">
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="text-sm font-semibold text-[#246392] underline-offset-2 hover:underline"
-                    >
-                      {form.profileImage ? 'Change photo' : 'Upload photo'}
-                    </button>
-                    <UploadFieldHint profile="IMAGE_PROFILE" className="mt-1" />
-                    <UploadValidationMessage message={uploadError} />
-                    {form.profileImage ? (
-                      <button
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, profileImage: '' }))}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#c96565] transition hover:text-[#b94b4b]"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        Remove image
-                      </button>
-                    ) : null}
-                  </div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleImage}
-                  />
-                </div>
-              </FormSection>
-            ) : null}
           </div>
         </div>
 

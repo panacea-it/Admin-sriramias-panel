@@ -137,6 +137,7 @@ export default function CreateAdminModal({
   const editingIdRef = useRef(editingId)
   editingIdRef.current = editingId
   const isUserListEdit = Boolean(prefillRow && frontendOnly)
+  const hasListPrefill = Boolean(prefillRow && editingId)
   const editKey = getModalEditKey(isUserListEdit ? prefillRow?.id : editingId)
   const isEdit = Boolean(editingId) || isUserListEdit
 
@@ -169,8 +170,9 @@ export default function CreateAdminModal({
   })
 
   useEffect(() => {
-    if (!open || !prefillRow || editingId) return
+    if (!open || !prefillRow) return
     if (!safeRoleOptions.length || !safeCenterOptions.length) return
+    if (adminDetail && editingId) return
 
     setForm(
       mapManageUserRowToAdminForm(prefillRow, {
@@ -179,7 +181,7 @@ export default function CreateAdminModal({
       }),
     )
     setErrors({})
-  }, [open, prefillRow, editingId, safeRoleOptions, safeCenterOptions])
+  }, [open, prefillRow, editingId, adminDetail, safeRoleOptions, safeCenterOptions])
 
   useEffect(() => {
     if (!open || !editingId || isUserListEdit || !adminDetail) return
@@ -283,13 +285,15 @@ export default function CreateAdminModal({
   }
 
   const mutationLoading = createMutation.isPending || updateMutation.isPending
-  const formDisabled = mutationLoading || detailLoading || rolesLoading || centersLoading
+  const formDisabled = mutationLoading || (detailLoading && !hasListPrefill) || rolesLoading || centersLoading
   const dropdownsReady = safeRoleOptions.length > 0 && safeCenterOptions.length > 0
   const dropdownLoadError = rolesError || centersError
   const dropdownsLoading = rolesLoading || centersLoading
   const detailLoadError = detailError
     ? handleApiError(detailError, { silent: true, fallback: 'Failed to load admin details' }).message
     : null
+  const showDetailError = Boolean(detailLoadError) && !hasListPrefill
+  const showFormLoading = dropdownsLoading || (detailLoading && !hasListPrefill)
 
   const retryDropdowns = () => {
     refreshRoles()
@@ -336,7 +340,9 @@ export default function CreateAdminModal({
                   {isUserListEdit ? 'Edit Admin' : isEdit ? 'Edit User Access' : 'Create Admin Access'}
                 </h2>
                 <p className="mt-1 text-[13px] leading-snug text-slate-500">
-                  Manage and assign secure administrative access across departments.
+                  {hasListPrefill
+                    ? 'Update staff account details and access configuration.'
+                    : 'Manage and assign secure administrative access across departments.'}
                 </p>
               </div>
               <button
@@ -349,7 +355,7 @@ export default function CreateAdminModal({
               </button>
             </div>
 
-            {detailLoadError ? (
+            {showDetailError ? (
               <div className="flex min-h-0 flex-1 flex-col px-6 py-8 sm:px-8">
                 <ErrorState
                   title="Unable to load user details"
@@ -366,7 +372,7 @@ export default function CreateAdminModal({
                   </button>
                 </div>
               </div>
-            ) : detailLoading || dropdownsLoading ? (
+            ) : showFormLoading ? (
               <div className="flex flex-1 items-center justify-center py-24">
                 <Loader2 className="h-8 w-8 animate-spin text-violet-600" aria-label="Loading form data" />
               </div>
@@ -383,6 +389,11 @@ export default function CreateAdminModal({
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col" noValidate>
+                {detailLoadError && hasListPrefill ? (
+                  <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-[12px] font-medium text-amber-800 sm:px-5">
+                    Showing list data — full profile could not be loaded. You can still edit and save.
+                  </div>
+                ) : null}
                 <div className="custom-scrollbar min-h-0 flex-1 scroll-smooth overflow-y-auto bg-slate-50/40 px-4 py-4 sm:px-5 sm:py-5">
                   <div className="space-y-4">
                     <SectionCard
@@ -561,8 +572,8 @@ export default function CreateAdminModal({
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {isEdit ? 'Saving…' : 'Creating…'}
                       </span>
-                    ) : isUserListEdit ? (
-                      'Update Admin'
+                    ) : isUserListEdit || hasListPrefill ? (
+                      'Update User Access'
                     ) : isEdit ? (
                       'Save changes'
                     ) : (

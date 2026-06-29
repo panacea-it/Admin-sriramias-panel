@@ -13,6 +13,8 @@ import StatCard from "../dashboard/StatCard";
 import { Target, TrendingDown, Trophy, Zap } from 'lucide-react';
 import {
   asArray,
+  formatNumber,
+  formatPercent,
   normalizeDashboardAnalytics,
 } from "../../utils/testManagementDashboardHelpers";
 
@@ -52,25 +54,25 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Avg Attempt Rate"
-          value={`${data.summary?.avgAttemptRate || 0}%`}
+          value={formatPercent(data.summary?.avgAttemptRate)}
           color="#55ace7"
           icon={Zap}
         />
         <StatCard
           title="Top Scorer Avg"
-          value={data.summary?.topScorerAvg || 0}
+          value={formatNumber(data.summary?.topScorerAvg)}
           color="#10b981"
           icon={Trophy}
         />
         <StatCard
           title="Weak Topics"
-          value={weakAreas.length}
+          value={formatNumber(data.summary?.weakTopics)}
           color="#ef4444"
           icon={TrendingDown}
         />
         <StatCard
           title="Accuracy Index"
-          value={`${data.summary?.accuracyIndex || 0}%`}
+          value={formatPercent(data.summary?.accuracyIndex)}
           color="#8b5cf6"
           icon={Target}
         />
@@ -160,6 +162,7 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
             data={topScorers}
             itemLabel="students"
             initialPageSize={5}
+            emptyMessage="No Top Scorers"
           />
         </article>
 
@@ -183,7 +186,7 @@ export default function TestManagementAnalyticsSection({ analyticsData = EMPTY_A
               ))
             ) : (
               <p className="text-sm text-slate-400 p-4">
-                No weak areas identified.
+                No Weak Areas
               </p>
             )}
           </ul>

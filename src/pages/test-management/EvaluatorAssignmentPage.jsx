@@ -15,8 +15,10 @@ import {
   fetchAssignmentTests,
   fetchAssignmentTopics,
   fetchCurrentPrimaryAssignment,
+  clearAssignPreviewCache,
 } from '../../api/evaluationOversightAPI'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 
 export default function EvaluatorAssignmentPage() {
@@ -40,8 +42,9 @@ export default function EvaluatorAssignmentPage() {
   const [selectedIds, setSelectedIds] = useState(() => [...incomingPaperIds])
   const [facultySearch, setFacultySearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [loading, setLoading] = useState(true)
+  const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [cascadeReady, setCascadeReady] = useState(false)
 
   const testName = useMemo(
     () => tests.find((t) => t.value === testId)?.label || '',
@@ -75,9 +78,17 @@ export default function EvaluatorAssignmentPage() {
   }, [])
 
   const loadWorkspace = useCallback(async () => {
-    if (!batchId || !subjectId || !testId) return
-    setLoading(true)
+    if (!batchId || !subjectId || !testId) {
+      setPapers([])
+      setAllFaculty([])
+      setPrimary(null)
+      setWorkspaceLoading(false)
+      return
+    }
+
+    setWorkspaceLoading(true)
     try {
+      clearAssignPreviewCache()
       const current = await fetchCurrentPrimaryAssignment({
         batchId,
         subjectId,
@@ -94,6 +105,7 @@ export default function EvaluatorAssignmentPage() {
         }),
         fetchAssignmentEvaluators(subjectId, {
           excludeMentorId: current?.mentorId,
+          context: { batchId, subjectId, topicId, testId, status: statusFilter },
         }),
       ])
       setPapers(paperRows)
@@ -105,49 +117,99 @@ export default function EvaluatorAssignmentPage() {
         return pick?.id || ''
       })
     } catch (err) {
-      toast.error(err?.message || 'Failed to load assignment data')
+      toast.error(getApiErrorMessage(err, 'Failed to load assignment data'))
+      setPapers([])
+      setAllFaculty([])
+      setPrimary(null)
     } finally {
-      setLoading(false)
+      setWorkspaceLoading(false)
     }
   }, [batchId, subjectId, topicId, testId, statusFilter])
 
   useEffect(() => {
+    let cancelled = false
+    setCascadeReady(false)
     fetchAssignmentBatches()
       .then((list) => {
+        if (cancelled) return
         setBatches(list)
         setBatchId((prev) => {
-          if (prev && list.some((b) => b.value === prev)) return prev
+          const preferred = prev || incoming.batchId
+          if (preferred && list.some((b) => b.value === preferred)) return preferred
+          return list[0]?.value || ''
+        })
+        if (!list.length) setCascadeReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setCascadeReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [incoming.batchId])
+
+  useEffect(() => {
+    if (!batchId) return
+    let cancelled = false
+    loadSubjects(batchId)
+      .then((list) => {
+        if (cancelled) return
+        setSubjectId((prev) => {
+          const preferred = prev || incoming.subjectId
+          if (preferred && list.some((s) => s.value === preferred)) return preferred
+          return list[0]?.value || ''
+        })
+        if (!list.length) setCascadeReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setCascadeReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [batchId, incoming.subjectId, loadSubjects])
+
+  useEffect(() => {
+    if (!subjectId) return
+    let cancelled = false
+    loadTopics(subjectId)
+      .then((list) => {
+        if (cancelled) return
+        setTopics(list)
+        setTopicId((prev) => {
+          const preferred = prev || incoming.topicId || incoming.subTopicId
+          if (preferred && list.some((t) => t.value === preferred)) return preferred
+          if (list.length) return list[0].value
+          return prev || ''
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [subjectId, incoming.topicId, incoming.subTopicId, loadTopics])
+
+  useEffect(() => {
+    if (!batchId || !subjectId) return
+    let cancelled = false
+    loadTests(batchId, subjectId, topicId)
+      .then((list) => {
+        if (cancelled) return
+        setTests(list)
+        setTestId((prev) => {
+          const preferred = prev || incoming.testId
+          if (preferred && list.some((t) => t.value === preferred)) return preferred
           return list[0]?.value || ''
         })
       })
       .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    loadSubjects(batchId).then((list) => {
-      if (list.length && !list.some((s) => s.value === subjectId)) {
-        setSubjectId(list[0].value)
-      }
-    })
-  }, [batchId, loadSubjects, subjectId])
-
-  useEffect(() => {
-    if (!subjectId) return
-    loadTopics(subjectId).then((list) => {
-      if (list.length && !list.some((t) => t.value === topicId)) {
-        setTopicId(list[0].value)
-      }
-    })
-  }, [subjectId, loadTopics, topicId])
-
-  useEffect(() => {
-    if (!subjectId) return
-    loadTests(batchId, subjectId, topicId).then((list) => {
-      if (list.length && !list.some((t) => t.value === testId)) {
-        setTestId(list[0].value)
-      }
-    })
-  }, [batchId, subjectId, topicId, loadTests, testId])
+      .finally(() => {
+        if (!cancelled) setCascadeReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [batchId, subjectId, topicId, incoming.testId, loadTests])
 
   useEffect(() => {
     if (!papers.length || !incomingPaperIds.length) return
@@ -158,8 +220,9 @@ export default function EvaluatorAssignmentPage() {
   }, [papers, incomingPaperIds])
 
   useEffect(() => {
+    if (!cascadeReady) return
     loadWorkspace()
-  }, [loadWorkspace])
+  }, [cascadeReady, loadWorkspace])
 
   const handleBatchChange = (id) => {
     setBatchId(id)
@@ -225,7 +288,7 @@ export default function EvaluatorAssignmentPage() {
       toast.success(`Reassigned ${result.count} paper${result.count === 1 ? '' : 's'}`)
       navigate(TEST_MANAGEMENT_ROUTES.evaluations)
     } catch (err) {
-      toast.error(err?.message || 'Reassignment failed')
+      toast.error(getApiErrorMessage(err, 'Reassignment failed'))
     } finally {
       setSaving(false)
     }
@@ -261,16 +324,16 @@ export default function EvaluatorAssignmentPage() {
             onSubjectChange={handleSubjectChange}
             onTopicChange={handleTopicChange}
             onTestChange={handleTestChange}
-            loading={loading}
+            loading={workspaceLoading}
           />
-          <CurrentAssignmentCard assignment={primary} loading={loading} />
+          <CurrentAssignmentCard assignment={primary} loading={workspaceLoading} />
           <FacultyAssignmentPanel
             search={facultySearch}
             onSearchChange={setFacultySearch}
             faculty={faculty}
             selectedFacultyId={selectedFacultyId}
             onSelectFaculty={setSelectedFacultyId}
-            loading={loading}
+            loading={workspaceLoading}
           />
         </div>
 
@@ -284,7 +347,7 @@ export default function EvaluatorAssignmentPage() {
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
             onBulkSelectAll={() => setSelectedIds(papers.map((p) => p.id))}
-            loading={loading}
+            loading={workspaceLoading}
             selectedCount={selectedIds.length}
             totalCount={papers.length}
             onSelectAll={() => setSelectedIds(papers.map((p) => p.id))}

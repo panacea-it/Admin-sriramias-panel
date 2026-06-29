@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFieldArray, useForm, Controller } from 'react-hook-form'
 import { ChevronDown, ChevronUp, ImageIcon, Sparkles, Upload, X } from 'lucide-react'
 import { CourseAddMoreLink, CourseFormField, CourseInput, CourseTextarea } from './CourseFormField'
-import { emptyWhyChooseFeature, normalizeWhyChooseFeatures } from '../../utils/whyChooseFeatures'
+import {
+  emptyWhyChooseFeature,
+  normalizeWhyChooseFeatures,
+  syncWhyChooseFeatureOrders,
+} from '../../utils/whyChooseFeatures'
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { validateUploadFile } from '../../utils/uploadValidation'
 import { resolveCourseMediaUrl } from '../../utils/courseMediaPrefill'
@@ -36,7 +40,7 @@ function HighlightSwitch({ checked, onChange, id }) {
 function FeatureIconUpload({ value, fileName, onFile }) {
   const inputRef = useRef(null)
   const [uploadError, setUploadError] = useState(null)
-  const displayValue = useMemo(() => resolveCourseMediaUrl(value), [value])
+  const displayValue = resolveCourseMediaUrl(value)
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -93,6 +97,7 @@ function FeatureIconUpload({ value, fileName, onFile }) {
 }
 
 function FeatureCardEditor({
+  fieldId,
   index,
   total,
   register,
@@ -227,7 +232,7 @@ function FeatureCardEditor({
               name={`whyChooseFeatures.${index}.isHighlighted`}
               render={({ field }) => (
                 <HighlightSwitch
-                  id={`highlight-${index}`}
+                  id={`highlight-${fieldId}`}
                   checked={Boolean(field.value)}
                   onChange={field.onChange}
                 />
@@ -240,19 +245,20 @@ function FeatureCardEditor({
   )
 }
 
-export default function WhyChooseFeaturesSection({ features, onChange }) {
-  const normalized = normalizeWhyChooseFeatures({ whyChooseFeatures: features })
+export default function WhyChooseFeaturesSection({ features, onChange, resetKey = '__default__' }) {
   const syncingRef = useRef(false)
+  const lastResetKeyRef = useRef(resetKey)
 
   const {
     control,
     register,
     watch,
+    getValues,
     setValue,
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues: { whyChooseFeatures: normalized },
+    defaultValues: { whyChooseFeatures: normalizeWhyChooseFeatures({ whyChooseFeatures: features }) },
   })
 
   const { fields, append, remove, move } = useFieldArray({
@@ -261,18 +267,34 @@ export default function WhyChooseFeaturesSection({ features, onChange }) {
   })
 
   useEffect(() => {
+    if (lastResetKeyRef.current === resetKey) return
+    lastResetKeyRef.current = resetKey
     syncingRef.current = true
     reset({ whyChooseFeatures: normalizeWhyChooseFeatures({ whyChooseFeatures: features }) })
     const t = setTimeout(() => {
       syncingRef.current = false
     }, 0)
     return () => clearTimeout(t)
-  }, [features, reset])
+  }, [resetKey, features, reset])
+
+  const emitFeatures = () => {
+    onChange(syncWhyChooseFeatureOrders(getValues('whyChooseFeatures') || []))
+  }
+
+  const syncOrdersAfterReorder = () => {
+    queueMicrotask(() => {
+      const synced = syncWhyChooseFeatureOrders(getValues('whyChooseFeatures') || [])
+      synced.forEach((feature, index) => {
+        setValue(`whyChooseFeatures.${index}.order`, feature.order, { shouldDirty: true })
+      })
+      emitFeatures()
+    })
+  }
 
   useEffect(() => {
     const sub = watch((data) => {
       if (syncingRef.current) return
-      onChange(data.whyChooseFeatures || [])
+      onChange(syncWhyChooseFeatureOrders(data.whyChooseFeatures || []))
     })
     return () => sub.unsubscribe()
   }, [watch, onChange])
@@ -282,6 +304,23 @@ export default function WhyChooseFeaturesSection({ features, onChange }) {
     append(emptyWhyChooseFeature(nextOrder))
   }
 
+  const handleRemove = (index) => {
+    remove(index)
+    syncOrdersAfterReorder()
+  }
+
+  const handleMoveUp = (index) => {
+    if (index <= 0) return
+    move(index, index - 1)
+    syncOrdersAfterReorder()
+  }
+
+  const handleMoveDown = (index) => {
+    if (index >= fields.length - 1) return
+    move(index, index + 1)
+    syncOrdersAfterReorder()
+  }
+
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-600">
@@ -289,19 +328,20 @@ export default function WhyChooseFeaturesSection({ features, onChange }) {
         Each card maps to icon, heading, description, highlight style, and display order.
       </p>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="flex flex-col gap-6">
         {fields.map((field, index) => (
           <FeatureCardEditor
             key={field.id}
+            fieldId={field.id}
             index={index}
             total={fields.length}
             register={register}
             control={control}
             errors={errors}
             setValue={setValue}
-            onRemove={() => remove(index)}
-            onMoveUp={() => index > 0 && move(index, index - 1)}
-            onMoveDown={() => index < fields.length - 1 && move(index, index + 1)}
+            onRemove={() => handleRemove(index)}
+            onMoveUp={() => handleMoveUp(index)}
+            onMoveDown={() => handleMoveDown(index)}
           />
         ))}
       </div>

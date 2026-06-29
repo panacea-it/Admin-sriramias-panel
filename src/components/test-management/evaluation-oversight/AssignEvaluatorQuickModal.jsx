@@ -5,7 +5,21 @@ import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import SearchableSelect from '../../categories/SearchableSelect'
 import { CourseFormField } from '../../courses/CourseFormField'
 import { assignEvaluator, fetchMentorsForSubject } from '../../../api/evaluationOversightAPI'
+import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
+
+function isEvaluatedPaper(paper) {
+  const label = String(paper?.status || '').toLowerCase()
+  const key = String(paper?.statusEnum || '').toUpperCase()
+  return label === 'evaluated' || key === 'EVALUATED' || key === 'PUBLISHED'
+}
+
+function shouldReassignPaper(paper) {
+  if (isEvaluatedPaper(paper)) return false
+  if (paper?.canReassign === true) return true
+  if (paper?.canReassign === false) return false
+  return Boolean(paper?.mentorName || paper?.mentorId)
+}
 
 export default function AssignEvaluatorQuickModal({ open, onClose, paper, onAssigned }) {
   const [mentorId, setMentorId] = useState('')
@@ -14,10 +28,28 @@ export default function AssignEvaluatorQuickModal({ open, onClose, paper, onAssi
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!open || !paper?.subjectId) return
+    if (!open || !paper) return
     setMentorId('')
+    setMentors([])
     setLoading(true)
-    fetchMentorsForSubject(paper.subjectId, { excludeId: paper.mentorId })
+
+    const subjectId = paper.subjectId || paper.facultySubjectId
+    const isReassign = shouldReassignPaper(paper)
+
+    if (!isReassign && !subjectId) {
+      toast.error('This paper is missing subject context. Try assigning from the Assign Evaluators page.')
+      setLoading(false)
+      return
+    }
+
+    fetchMentorsForSubject(subjectId, {
+      excludeId: paper.mentorId,
+      submissionId: paper.submissionId || paper.id,
+      isReassign,
+      batchId: paper.batchId,
+      testId: paper.testId,
+      topicId: paper.subTopicId,
+    })
       .then((list) => {
         setMentors(
           list.map((m) => ({
@@ -28,8 +60,24 @@ export default function AssignEvaluatorQuickModal({ open, onClose, paper, onAssi
         const first = list.find((m) => m.available) || list[0]
         if (first) setMentorId(first.id)
       })
+      .catch((err) => {
+        toast.error(getApiErrorMessage(err, 'Failed to load mentors'))
+      })
       .finally(() => setLoading(false))
-  }, [open, paper?.subjectId, paper?.mentorId])
+  }, [
+    open,
+    paper,
+    paper?.subjectId,
+    paper?.facultySubjectId,
+    paper?.mentorId,
+    paper?.submissionId,
+    paper?.id,
+    paper?.mentorName,
+    paper?.status,
+    paper?.batchId,
+    paper?.testId,
+    paper?.subTopicId,
+  ])
 
   const handleClose = () => {
     if (!saving) onClose?.()
@@ -42,12 +90,14 @@ export default function AssignEvaluatorQuickModal({ open, onClose, paper, onAssi
     }
     setSaving(true)
     try {
-      const updated = await assignEvaluator(paper.id, mentorId)
+      const updated = await assignEvaluator(paper.id, mentorId, {
+        isReassign: shouldReassignPaper(paper),
+      })
       toast.success(`Assigned to ${updated.mentorName}`)
       onAssigned?.(updated)
       onClose?.()
     } catch (err) {
-      toast.error(err?.message || 'Assignment failed')
+      toast.error(getApiErrorMessage(err, 'Assignment failed'))
     } finally {
       setSaving(false)
     }

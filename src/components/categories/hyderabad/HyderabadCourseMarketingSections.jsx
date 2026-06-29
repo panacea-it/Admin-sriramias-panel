@@ -32,6 +32,7 @@ export default function HyderabadCourseMarketingSections({
   form,
   setForm,
   courseName = '',
+  formResetKey,
 }) {
   const displayWhyTitle = resolveWhyChooseTitle(form)
   const hyderabadUi = resolveHyderabadUi(form)
@@ -258,6 +259,7 @@ export default function HyderabadCourseMarketingSections({
           <WhyChooseFeaturesSection
             features={form.whyChooseFeatures}
             onChange={(whyChooseFeatures) => setForm((f) => ({ ...f, whyChooseFeatures }))}
+            resetKey={formResetKey}
           />
         </BatchFormSection>
       </div>

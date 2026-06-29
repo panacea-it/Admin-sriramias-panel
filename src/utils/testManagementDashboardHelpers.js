@@ -2,6 +2,20 @@ export function asArray(value) {
   return Array.isArray(value) ? value : []
 }
 
+export function formatPercent(value, fallback = '0') {
+  if (value === null || value === undefined || Number.isNaN(value)) return `${fallback}%`
+  return `${value}%`
+}
+
+export function formatNumber(value, fallback = 0) {
+  if (value === null || value === undefined) return '—'
+  return value ?? fallback
+}
+
+export function normalizeActivityStatus(status) {
+  return String(status || '').trim().toLowerCase()
+}
+
 export function normalizeAccuracyHeatmap(accuracyHeatmap) {
   const empty = { subjects: [], difficulties: [], values: [] }
   if (!accuracyHeatmap) return empty
