@@ -389,10 +389,10 @@ export function buildBlogListRequestBody(params = {}) {
 export function buildBlogSaveFormData(form, { backgroundFile, languageLookup = {} } = {}) {
   const formData = new FormData()
   const status = form.status === 'published' ? 'ACTIVE' : 'INACTIVE'
-  const tableContent = (form.sections || []).map((section, index) => ({
+  const tableOfContents = (form.sections || []).map((section, index) => ({
+    order: section.order ?? index + 1,
     topic: section.topic || `Section ${index + 1}`,
     content: section.content || '',
-    order: section.order ?? index + 1,
   }))
 
   formData.append('title', form.title.trim())
@@ -407,7 +407,7 @@ export function buildBlogSaveFormData(form, { backgroundFile, languageLookup = {
   formData.append('tags', JSON.stringify(form.tags || []))
   formData.append('youtubeVideoUrl', (form.youtubeVideoUrl || '').trim())
   formData.append('isMainBlog', form.isMainBlog ? 'true' : 'false')
-  formData.append('tableContent', JSON.stringify(tableContent))
+  formData.append('tableOfContents', JSON.stringify(tableOfContents))
 
   if (form.publishedAt) {
     formData.append('publishedAt', form.publishedAt)

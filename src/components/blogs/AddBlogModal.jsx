@@ -143,23 +143,6 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
     }))
   }
 
-  const handleSectionFile = (sectionId, file) => {
-    if (!file) return
-    setForm((f) => ({
-      ...f,
-      sections: f.sections.map((s) =>
-        s.id === sectionId
-          ? {
-              ...s,
-              imageFile: file,
-              image: file.name,
-              imageName: file.name,
-            }
-          : s,
-      ),
-    }))
-  }
-
   const handleBackgroundFile = (file) => {
     if (!file) return
     setForm((f) => ({
@@ -447,26 +430,15 @@ export default function AddBlogModal({ open, onClose, blog, onSave, detailsLoadi
             <div className="space-y-6">
               {form.sections.map((section, index) => (
                 <div key={section.id} className="space-y-5">
-                  <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
-                    <CourseFormField label={`Topic ${index + 1}`}>
-                      <CourseInput
-                        value={section.topic}
-                        onChange={(e) =>
-                          setSection(section.id, 'topic', e.target.value)
-                        }
-                        placeholder={`Topic ${index + 1}`}
-                      />
-                    </CourseFormField>
-                    <CourseFormField label="Image (optional)">
-                      <BlogBackgroundImageUpload
-                        file={section.imageFile}
-                        imageUrl={section.imageFile ? '' : section.image}
-                        fileName={section.imageName || section.image}
-                        cacheKey={form.lastSavedAt}
-                        onFileChange={(file) => handleSectionFile(section.id, file)}
-                      />
-                    </CourseFormField>
-                  </div>
+                  <CourseFormField label={`Topic ${index + 1}`}>
+                    <CourseInput
+                      value={section.topic}
+                      onChange={(e) =>
+                        setSection(section.id, 'topic', e.target.value)
+                      }
+                      placeholder={`Topic ${index + 1}`}
+                    />
+                  </CourseFormField>
                   <CourseFormField label="Content">
                     <BlogRichEditor
                       value={section.content}

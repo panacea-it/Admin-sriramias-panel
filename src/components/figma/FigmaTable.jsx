@@ -202,9 +202,6 @@ export default function FigmaTable({
     minWidth: showFillColumn ? stretchMinWidth : tableLayoutFixed && tableMinWidth > 0 ? tableMinWidth : 0,
   }
 
-  const headerBarHeight = HEADER_BAR_HEIGHT[density] ?? HEADER_BAR_HEIGHT.default
-  const useHeaderBackdrop = showFillColumn && headerFillColumn
-
   const colGroup = (
     <colgroup>
       {columns.map((col) => (
@@ -232,7 +229,7 @@ export default function FigmaTable({
             d.cell,
             alignClass(col, true),
             col.headerClassName,
-            useHeaderBackdrop ? 'bg-transparent' : headerBg,
+            headerBg,
             headerStickyClass(col),
             containedScroll && isPremium && 'shadow-[0_4px_12px_rgba(31,94,153,0.15)]',
             cellOverflowClass,
@@ -245,7 +242,7 @@ export default function FigmaTable({
       ))}
       {showFillColumn ? (
         <th
-          className={cn('relative z-[1] w-full p-0', d.header, 'bg-transparent', cellOverflowClass)}
+          className={cn('relative z-[1] w-full p-0', d.header, headerBg, cellOverflowClass)}
           aria-hidden="true"
           data-fill-column
         />
@@ -380,17 +377,6 @@ export default function FigmaTable({
       )}
     >
       <div className="relative w-full min-w-full" style={tableWrapperStyle}>
-        {useHeaderBackdrop ? (
-          <div
-            aria-hidden
-            className={cn(
-              'pointer-events-none absolute left-0 top-0 z-0',
-              headerBg,
-              isPremium && 'rounded-t-[10px]',
-            )}
-            style={{ height: headerBarHeight, width: '100%', minWidth: stretchMinWidth }}
-          />
-        ) : null}
         <table
           className={cn(
             'relative z-[1] w-full min-w-full border-collapse border-spacing-0',
@@ -401,7 +387,7 @@ export default function FigmaTable({
           {colGroup}
           <thead
             className={cn(
-              !useHeaderBackdrop && headerBg,
+              headerBg,
               isPremium && 'rounded-t-[10px]',
             )}
           >

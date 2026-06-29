@@ -27,7 +27,8 @@ import { isFrontendOnly } from '../../config/appMode'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { applyBlogMainUpdateToRow, applyBlogStatusUpdateToRow, mapUiStatusToApi } from '../../utils/blogApiHelpers'
 import { isSameCalendarDay, startOfDay } from '../../utils/dailyCollectionUtils'
-import { createActionsColumn, OVERFLOW_CELL } from '../../utils/tableColumnHelpers'
+import { ADMIN_DATA_PANEL, ADMIN_TABLE_CONTAINER } from '../../utils/adminUiStandards'
+import { createActionsColumn } from '../../utils/tableColumnHelpers'
 import { cn } from '../../utils/cn'
 
 function MainBlogBadge() {
@@ -415,147 +416,127 @@ export default function BlogsPage() {
     }
   }
 
-  const apiColumns = useMemo(
-    () => {
-      const actionsCol = createActionsColumn({
-        buttonCount: 5,
-        width: 280,
-        align: 'right',
-        render: (row) => (
-          <BlogRowActions
-            title={row.title}
-            status={row.status}
-            isMainBlog={row.isMainBlog}
-            loading={statusUpdatingIds.has(row.id)}
-            mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
-            deleteLoading={deleting && deleteTarget?.id === row.id}
-            onView={() => setViewTarget(row)}
-            onEdit={() => openEdit(row)}
-            onStatusToggle={() => handleToggleStatus(row)}
-            onToggleMainBlog={() => toggleMainBlog(row.id)}
-            onDelete={() => requestDelete(row)}
-          />
-        ),
-      })
+  const renderBlogActions = useCallback(
+    (row) => (
+      <BlogRowActions
+        title={row.title}
+        status={row.status}
+        isMainBlog={row.isMainBlog}
+        loading={statusUpdatingIds.has(row.id)}
+        mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
+        deleteLoading={deleting && deleteTarget?.id === row.id}
+        onView={() => setViewTarget(row)}
+        onEdit={() => openEdit(row)}
+        onStatusToggle={() => handleToggleStatus(row)}
+        onToggleMainBlog={() => toggleMainBlog(row.id)}
+        onDelete={() => requestDelete(row)}
+      />
+    ),
+    [
+      handleToggleStatus,
+      statusUpdatingIds,
+      mainBlogUpdatingIds,
+      deleting,
+      deleteTarget,
+      toggleMainBlog,
+    ],
+  )
 
-      return [
+  const apiColumns = useMemo(
+    () => [
       {
         key: 'blogId',
         label: 'Blog ID',
-        width: 110,
-        headerClassName: 'pl-4 sm:pl-6 whitespace-nowrap',
-        cellClassName: cn('pl-4 align-middle whitespace-nowrap text-[13px] font-semibold text-[#111] sm:pl-6', OVERFLOW_CELL),
+        headerClassName: 'min-w-[96px] whitespace-nowrap pl-4 sm:pl-6',
+        cellClassName:
+          'min-w-[96px] whitespace-nowrap align-middle pl-4 sm:pl-6 text-[13px] font-semibold text-[#111]',
         render: (row) => row.blogId || '—',
       },
       {
         key: 'title',
         label: 'Title',
-        width: 280,
         headerTruncate: false,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: cn('align-middle', OVERFLOW_CELL),
+        headerClassName: 'min-w-[180px]',
+        cellClassName: 'min-w-[180px] align-middle',
         render: (row) => <BlogTitleCell title={row.title} isMainBlog={false} showBadge={false} />,
       },
       {
         key: 'category',
         label: 'Category',
-        width: 150,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
-        render: (row) => <span className="block truncate">{row.category || '—'}</span>,
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] align-middle text-[13px] font-medium text-[#111]',
+        render: (row) => (
+          <span className="block max-w-[140px] truncate" title={row.category || ''}>
+            {row.category || '—'}
+          </span>
+        ),
       },
       {
         key: 'language',
         label: 'Language',
-        width: 140,
         headerTruncate: false,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
-        render: (row) => <span className="block truncate">{row.language || '—'}</span>,
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] align-middle text-[13px] font-medium text-[#111]',
+        render: (row) => (
+          <span className="block truncate" title={row.language || ''}>
+            {row.language || '—'}
+          </span>
+        ),
       },
       {
         key: 'readTime',
         label: 'Read Time',
-        width: 120,
         headerTruncate: false,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => row.readTime || '—',
       },
       {
         key: 'date',
         label: 'Date',
-        width: 120,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => row.listDate || '—',
       },
       {
         key: 'time',
         label: 'Time',
-        width: 100,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        headerClassName: 'min-w-[88px] whitespace-nowrap',
+        cellClassName: 'min-w-[88px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => row.listTime || '—',
       },
       {
         key: 'status',
         label: 'Status',
-        width: 110,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle text-[13px] font-semibold text-[#111]',
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] align-middle text-[13px] font-semibold text-[#111]',
         render: (row) => row.listStatus || '—',
       },
       {
         key: 'isMainBlog',
         label: 'Main Blog',
-        width: 120,
         headerTruncate: false,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] font-semibold text-[#111]',
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName:
+          'min-w-[96px] whitespace-nowrap align-middle text-[13px] font-semibold text-[#111]',
         render: (row) => row.mainBlogLabel || (row.isMainBlog ? 'Yes' : 'No'),
       },
-      {
-        ...actionsCol,
-        headerClassName: cn(actionsCol.headerClassName, 'pr-8'),
-        cellClassName: cn(actionsCol.cellClassName, 'pr-8'),
-      },
-    ]
-    },
-    [handleToggleStatus, statusUpdatingIds, mainBlogUpdatingIds, deleting, deleteTarget, toggleMainBlog],
+      createActionsColumn({
+        buttonCount: 5,
+        render: renderBlogActions,
+      }),
+    ],
+    [renderBlogActions],
   )
 
   const localColumns = useMemo(
-    () => {
-      const actionsCol = createActionsColumn({
-        buttonCount: 5,
-        width: 280,
-        align: 'right',
-        render: (row) => (
-          <BlogRowActions
-            title={row.title}
-            status={row.status}
-            isMainBlog={row.isMainBlog}
-            loading={statusUpdatingIds.has(row.id)}
-            mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
-            deleteLoading={deleting && deleteTarget?.id === row.id}
-            onView={() => setViewTarget(row)}
-            onEdit={() => openEdit(row)}
-            onStatusToggle={() => handleToggleStatus(row)}
-            onToggleMainBlog={() => toggleMainBlog(row.id)}
-            onDelete={() => requestDelete(row)}
-          />
-        ),
-      })
-
-      return [
+    () => [
       {
         key: 'title',
         label: 'Title',
-        width: 300,
         headerTruncate: false,
-        headerClassName: 'pl-4 sm:pl-6 whitespace-nowrap',
-        cellClassName: cn('pl-4 align-middle sm:pl-6', OVERFLOW_CELL),
+        headerClassName: 'min-w-[200px] pl-4 sm:pl-6',
+        cellClassName: 'min-w-[200px] align-middle pl-4 sm:pl-6',
         render: (row) => (
           <BlogTitleCell title={row.title} isMainBlog={row.isMainBlog} />
         ),
@@ -563,43 +544,41 @@ export default function BlogsPage() {
       {
         key: 'category',
         label: 'Category',
-        width: 150,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: cn('align-middle text-[13px] font-medium text-[#111]', OVERFLOW_CELL),
-        render: (row) => <span className="block truncate">{row.category || '—'}</span>,
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] align-middle text-[13px] font-medium text-[#111]',
+        render: (row) => (
+          <span className="block max-w-[140px] truncate" title={row.category || ''}>
+            {row.category || '—'}
+          </span>
+        ),
       },
       {
         key: 'date',
         label: 'Date',
-        width: 120,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => formatBlogDate(row.publishedAt),
       },
       {
         key: 'time',
         label: 'Time',
-        width: 100,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle whitespace-nowrap text-[13px] text-[#686868]',
+        headerClassName: 'min-w-[88px] whitespace-nowrap',
+        cellClassName: 'min-w-[88px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => formatBlogTime(row.publishedAt),
       },
       {
         key: 'status',
         label: 'Status',
-        width: 120,
-        headerClassName: 'whitespace-nowrap',
-        cellClassName: 'align-middle',
+        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        cellClassName: 'min-w-[96px] align-middle',
         render: (row) => <BlogStatusBadge status={row.status} />,
       },
-      {
-        ...actionsCol,
-        headerClassName: cn(actionsCol.headerClassName, 'pr-8'),
-        cellClassName: cn(actionsCol.cellClassName, 'pr-8'),
-      },
-    ]
-    },
-    [handleToggleStatus, statusUpdatingIds, mainBlogUpdatingIds, deleting, deleteTarget, toggleMainBlog],
+      createActionsColumn({
+        buttonCount: 5,
+        render: renderBlogActions,
+      }),
+    ],
+    [renderBlogActions],
   )
 
   const columns = useLiveApi ? apiColumns : localColumns
@@ -607,11 +586,11 @@ export default function BlogsPage() {
 
   return (
     <div className="figma-admin-section bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
-      <section className="mx-auto max-w-screen-2xl space-y-4">
+      <section className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
         <div
           className={cn(
             'flex min-h-[64px] flex-wrap items-center justify-between gap-4 rounded-xl px-5 py-4',
-            'bg-gradient-to-r from-[#55ace7] via-[#8b98bb] to-[#df8284]',
+            'bg-gradient-to-r from-[#55ace7] via-[#8b98bb] to-[#246392]',
             'shadow-[0_5px_16px_rgba(15,23,42,0.1)]',
           )}
         >
@@ -630,48 +609,52 @@ export default function BlogsPage() {
           </button>
         </div>
 
-        <BlogFilterToolbar
-          search={searchValue}
-          onSearchChange={(e) =>
-            useLiveApi ? setSearch(e.target.value) : setLocalSearch(e.target.value)
-          }
-          selectedDate={selectedDateValue}
-          onDateChange={(date) => {
-            const nextDate = date ? startOfDay(date) : null
-            if (useLiveApi) {
-              setSelectedDate(nextDate)
-              listManagement.setPage(1)
-            } else {
-              setLocalSelectedDate(nextDate)
+        <div className={ADMIN_DATA_PANEL}>
+          <BlogFilterToolbar
+            search={searchValue}
+            onSearchChange={(e) =>
+              useLiveApi ? setSearch(e.target.value) : setLocalSearch(e.target.value)
             }
-          }}
-          status={statusFilterValue}
-          onStatusChange={
-            useLiveApi
-              ? handleStatusFilterChange
-              : (e) => setLocalStatusFilter(e.target.value)
-          }
-          disabled={useLiveApi && listLoading}
-        />
+            selectedDate={selectedDateValue}
+            onDateChange={(date) => {
+              const nextDate = date ? startOfDay(date) : null
+              if (useLiveApi) {
+                setSelectedDate(nextDate)
+                listManagement.setPage(1)
+              } else {
+                setLocalSelectedDate(nextDate)
+              }
+            }}
+            status={statusFilterValue}
+            onStatusChange={
+              useLiveApi
+                ? handleStatusFilterChange
+                : (e) => setLocalStatusFilter(e.target.value)
+            }
+            disabled={useLiveApi && listLoading}
+          />
 
-        {useLiveApi && blogsError ? (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-            {getApiErrorMessage(blogsQueryError, 'Unable to fetch blogs.')}
-          </p>
-        ) : null}
+          {useLiveApi && blogsError ? (
+            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {getApiErrorMessage(blogsQueryError, 'Unable to fetch blogs.')}
+            </p>
+          ) : null}
 
-        <BlogManagementTable
-          columns={columns}
-          data={tableData}
-          loading={useLiveApi && listLoading && tableData.length === 0}
-          controlledPagination={useLiveApi ? controlledPagination : undefined}
-          emptyMessage={useLiveApi ? 'No Blogs Found' : 'No blogs match your filters.'}
-          resetDeps={
-            useLiveApi
-              ? [searchValue, selectedDateValue, statusFilterValue]
-              : [localSearch, localSelectedDate, localStatusFilter]
-          }
-        />
+          <div className={ADMIN_TABLE_CONTAINER}>
+            <BlogManagementTable
+              columns={columns}
+              data={tableData}
+              loading={useLiveApi && listLoading && tableData.length === 0}
+              controlledPagination={useLiveApi ? controlledPagination : undefined}
+              emptyMessage={useLiveApi ? 'No Blogs Found' : 'No blogs match your filters.'}
+              resetDeps={
+                useLiveApi
+                  ? [searchValue, selectedDateValue, statusFilterValue]
+                  : [localSearch, localSelectedDate, localStatusFilter]
+              }
+            />
+          </div>
+        </div>
       </section>
 
       <AddBlogModal
