@@ -30,6 +30,7 @@ export default function BlogManagementTable({
       rowClassName={ADMIN_TABLE_ROW_CLASS}
       tableClassName={ADMIN_TABLE_INNER_CLASS}
       paginationClassName={ADMIN_TABLE_PAGINATION_CLASS}
+      tableMinWidth={1180}
       headerFillColumn
       suppressInnerScroll
     />

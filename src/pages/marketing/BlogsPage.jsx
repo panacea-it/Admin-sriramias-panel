@@ -7,7 +7,6 @@ import BlogViewModal from '../../components/blogs/BlogViewModal'
 import BlogManagementTable from '../../components/blogs/BlogManagementTable'
 import BlogRowActions from '../../components/blogs/BlogRowActions'
 import BlogStatusBadge from '../../components/blogs/BlogStatusBadge'
-import AdminConfirmModal from '../../components/admin/AdminConfirmModal'
 import {
   blogStatusLabel,
   isBlogActive,
@@ -20,7 +19,7 @@ import {
   saveBlogs,
 } from '../../data/blogsData'
 import { useBlogLanguageLookup } from '../../hooks/blogs/useBlogDropdowns'
-import { useBlogDetails, useDeleteBlog, useSaveBlog, useUpdateBlogMain, useUpdateBlogStatus } from '../../hooks/blogs/useBlogManagement'
+import { useBlogDetails, useSaveBlog, useUpdateBlogMain, useUpdateBlogStatus } from '../../hooks/blogs/useBlogManagement'
 import { useBlogListManagement } from '../../hooks/blogs/useBlogListManagement'
 import { fetchBlogDetails } from '../../api/blogAPI'
 import { isFrontendOnly } from '../../config/appMode'
@@ -59,8 +58,6 @@ export default function BlogsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingBlog, setEditingBlog] = useState(null)
   const [viewTarget, setViewTarget] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
   const [statusUpdatingIds, setStatusUpdatingIds] = useState(() => new Set())
   const [mainBlogUpdatingIds, setMainBlogUpdatingIds] = useState(() => new Set())
 
@@ -89,7 +86,6 @@ export default function BlogsPage() {
   const saveBlogMutation = useSaveBlog()
   const updateBlogStatusMutation = useUpdateBlogStatus()
   const updateBlogMainMutation = useUpdateBlogMain()
-  const deleteBlogMutation = useDeleteBlog()
 
   const blogs = useLiveApi ? apiItems : localBlogs
   const searchValue = useLiveApi ? search : localSearch
@@ -363,59 +359,6 @@ export default function BlogsPage() {
     [blogs, localBlogs, useLiveApi, updateBlogMainMutation, editingBlog?.id],
   )
 
-  const requestDelete = (row) => setDeleteTarget(row)
-
-  const cancelDelete = () => {
-    if (!deleting) setDeleteTarget(null)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget || deleting) return
-
-    const id = deleteTarget.id
-    const blogId = deleteTarget.blogId
-    const snapshot = blogs
-    const wasOnlyItemOnPage = useLiveApi ? blogs.length === 1 : false
-    const currentPage = listManagement.page
-
-    if (useLiveApi && !blogId) {
-      toast.error('Blog ID is missing.')
-      return
-    }
-
-    setDeleting(true)
-    if (!useLiveApi) {
-      setLocalBlogs((prev) => prev.filter((b) => b.id !== id))
-    }
-
-    try {
-      if (useLiveApi) {
-        const response = await deleteBlogMutation.mutateAsync({ blogId })
-        toast.success(response?.message || 'Blog deleted successfully')
-
-        if (wasOnlyItemOnPage && currentPage > 1) {
-          listManagement.setPage(currentPage - 1)
-        }
-
-        await refetchBlogs()
-      } else {
-        saveBlogs(snapshot.filter((b) => b.id !== id))
-        toast.success('Blog deleted')
-      }
-
-      setDeleteTarget(null)
-      if (editingBlog?.id === id) closeModal()
-      if (viewTarget?.id === id) setViewTarget(null)
-    } catch (err) {
-      if (!useLiveApi) {
-        setLocalBlogs(snapshot)
-      }
-      toast.error(getApiErrorMessage(err, 'Failed to delete blog'))
-    } finally {
-      setDeleting(false)
-    }
-  }
-
   const renderBlogActions = useCallback(
     (row) => (
       <BlogRowActions
@@ -424,20 +367,16 @@ export default function BlogsPage() {
         isMainBlog={row.isMainBlog}
         loading={statusUpdatingIds.has(row.id)}
         mainBlogLoading={mainBlogUpdatingIds.has(row.id)}
-        deleteLoading={deleting && deleteTarget?.id === row.id}
         onView={() => setViewTarget(row)}
         onEdit={() => openEdit(row)}
         onStatusToggle={() => handleToggleStatus(row)}
         onToggleMainBlog={() => toggleMainBlog(row.id)}
-        onDelete={() => requestDelete(row)}
       />
     ),
     [
       handleToggleStatus,
       statusUpdatingIds,
       mainBlogUpdatingIds,
-      deleting,
-      deleteTarget,
       toggleMainBlog,
     ],
   )
@@ -447,7 +386,8 @@ export default function BlogsPage() {
       {
         key: 'blogId',
         label: 'Blog ID',
-        headerClassName: 'min-w-[96px] whitespace-nowrap pl-4 sm:pl-6',
+        width: 100,
+        headerClassName: 'whitespace-nowrap pl-4 sm:pl-6',
         cellClassName:
           'min-w-[96px] whitespace-nowrap align-middle pl-4 sm:pl-6 text-[13px] font-semibold text-[#111]',
         render: (row) => row.blogId || '—',
@@ -455,8 +395,9 @@ export default function BlogsPage() {
       {
         key: 'title',
         label: 'Title',
+        width: '22%',
         headerTruncate: false,
-        headerClassName: 'min-w-[180px]',
+        headerClassName: 'min-w-[160px]',
         cellClassName: 'min-w-[180px] align-middle',
         render: (row) => <BlogTitleCell title={row.title} isMainBlog={false} showBadge={false} />,
       },
@@ -474,8 +415,9 @@ export default function BlogsPage() {
       {
         key: 'language',
         label: 'Language',
+        width: 100,
         headerTruncate: false,
-        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        headerClassName: 'whitespace-nowrap',
         cellClassName: 'min-w-[96px] align-middle text-[13px] font-medium text-[#111]',
         render: (row) => (
           <span className="block truncate" title={row.language || ''}>
@@ -486,8 +428,9 @@ export default function BlogsPage() {
       {
         key: 'readTime',
         label: 'Read Time',
+        width: 100,
         headerTruncate: false,
-        headerClassName: 'min-w-[96px] whitespace-nowrap',
+        headerClassName: 'whitespace-nowrap',
         cellClassName: 'min-w-[96px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
         render: (row) => row.readTime || '—',
       },
@@ -496,14 +439,14 @@ export default function BlogsPage() {
         label: 'Date',
         headerClassName: 'min-w-[110px] whitespace-nowrap',
         cellClassName: 'min-w-[110px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
-        render: (row) => row.listDate || '—',
+        render: (row) => row.listDate || formatBlogDate(row.publishedAt),
       },
       {
         key: 'time',
         label: 'Time',
         headerClassName: 'min-w-[88px] whitespace-nowrap',
         cellClassName: 'min-w-[88px] whitespace-nowrap align-middle text-[13px] font-medium text-[#686868]',
-        render: (row) => row.listTime || '—',
+        render: (row) => row.listTime || formatBlogTime(row.publishedAt),
       },
       {
         key: 'status',
@@ -522,7 +465,7 @@ export default function BlogsPage() {
         render: (row) => row.mainBlogLabel || (row.isMainBlog ? 'Yes' : 'No'),
       },
       createActionsColumn({
-        buttonCount: 5,
+        buttonCount: 4,
         render: renderBlogActions,
       }),
     ],
@@ -574,7 +517,7 @@ export default function BlogsPage() {
         render: (row) => <BlogStatusBadge status={row.status} />,
       },
       createActionsColumn({
-        buttonCount: 5,
+        buttonCount: 4,
         render: renderBlogActions,
       }),
     ],
@@ -670,23 +613,6 @@ export default function BlogsPage() {
         blog={activeViewTarget}
         loading={viewDetailsLoading}
         onClose={() => setViewTarget(null)}
-      />
-
-      <AdminConfirmModal
-        open={Boolean(deleteTarget)}
-        onClose={cancelDelete}
-        onConfirm={handleConfirmDelete}
-        title="Delete Blog"
-        description={
-          deleteTarget
-            ? `Are you sure you want to delete "${deleteTarget.title || deleteTarget.blogId || 'this blog'}"? This will remove it from the customer website if published.`
-            : 'Are you sure you want to delete this blog?'
-        }
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        loading={deleting}
-        loadingLabel="Deleting…"
-        variant="danger"
       />
     </div>
   )

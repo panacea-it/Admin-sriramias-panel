@@ -174,8 +174,10 @@ export default function FigmaTable({
   )
 
   const useFullWidthLayout = tableLayoutFixed && fullWidth
+  const useHeaderFillBar = headerFillColumn && !tableLayoutFixed
   const showFillColumn =
-    headerFillColumn || (useFullWidthLayout && !hasPercentageWidths)
+    (headerFillColumn && tableLayoutFixed) || (useFullWidthLayout && !hasPercentageWidths)
+  const headerBarHeight = HEADER_BAR_HEIGHT[density] ?? 44
 
   const stretchMinWidth =
     tableMinWidth > 0 ? `max(100%, ${tableMinWidth}px)` : '100%'
@@ -218,6 +220,7 @@ export default function FigmaTable({
       className={cn(
         'font-bold leading-none text-white',
         isPremium && 'rounded-t-[10px]',
+        showFillColumn && !useHeaderFillBar && headerBg,
         d.header,
       )}
     >
@@ -370,13 +373,21 @@ export default function FigmaTable({
   return (
     <div
       className={cn(
-        'w-full bg-white',
+        'relative w-full bg-white',
         showFillColumn ? 'min-w-full' : 'min-w-0',
         !containedScroll && !suppressInnerScroll && 'overflow-x-auto',
         className,
       )}
     >
-      <div className="relative w-full min-w-full" style={tableWrapperStyle}>
+      {useHeaderFillBar ? (
+        <div
+          className={cn(headerBg, 'pointer-events-none absolute inset-x-0 top-0 z-0')}
+          style={{ height: headerBarHeight }}
+          aria-hidden="true"
+          data-header-fill-bar
+        />
+      ) : null}
+      <div className="relative z-[1] w-full min-w-0" style={tableWrapperStyle}>
         <table
           className={cn(
             'relative z-[1] w-full min-w-full border-collapse border-spacing-0',

@@ -144,7 +144,9 @@ export default function PaginatedFigmaTable({
         'w-full min-w-0 max-w-full rounded-md bg-white shadow-[0_11px_25px_rgba(15,23,42,0.06)]',
         bodyMaxHeight && 'flex flex-col',
         resolvedClassName,
-        'overflow-x-auto',
+        suppressInnerScroll && headerFillColumn && !(tableMinWidth > 0)
+          ? 'overflow-x-hidden'
+          : 'overflow-x-auto',
       )}
     >
       <div className={cn(headerFillColumn && 'min-w-full w-full')}>

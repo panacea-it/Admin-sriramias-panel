@@ -16,12 +16,40 @@ function formatDateFields(isoValue) {
 
   return {
     iso: value.toISOString(),
-    time: value.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-    date: value.toLocaleDateString(undefined, {
+    time: value.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }),
+    date: value.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     }),
+  }
+}
+
+function resolveBlogListTimestamp(item) {
+  if (!item || typeof item !== 'object') return null
+
+  return (
+    item.createdAt ||
+    item.publishedAt ||
+    item.updatedAt ||
+    item.date ||
+    null
+  )
+}
+
+function applyBlogListDateTime(row, source = {}) {
+  const published = formatDateFields(resolveBlogListTimestamp(source))
+  if (!published.iso) return row
+
+  return {
+    ...row,
+    publishedAt: published.iso,
+    listDate: published.date,
+    listTime: published.time,
   }
 }
 
@@ -166,7 +194,9 @@ export function normalizeBlogLanguageList(data) {
 export function mapApiBlogToRow(item, index = 0, languageLookup = {}) {
   if (!item) return null
 
-  const published = formatDateFields(item.publishedAt || item.date || item.createdAt)
+  const published = formatDateFields(
+    resolveBlogListTimestamp(item) || item.publishedAt || item.date || item.createdAt,
+  )
   const languageId = resolveBlogLanguageId(item, languageLookup)
   const languageName =
     item.languageName ||
@@ -238,6 +268,8 @@ export function mapApiBlogToRow(item, index = 0, languageLookup = {}) {
     slugManuallyEdited: Boolean(item.slugManuallyEdited || item.slug),
     status: mapApiStatusToUi(item.status ?? item.isActive),
     listStatus: item.status != null ? String(item.status) : '',
+    listDate: published.date,
+    listTime: published.time,
     category: item.category || item.paper || item.paperName || '',
     languageId,
     language: languageName,
@@ -251,8 +283,7 @@ export function mapApiBlogListItemToRow(item, index = 0, languageLookup = {}) {
   if (!item) return null
 
   const rawStatus = item.status != null ? String(item.status) : ''
-  const timestamp = item.updatedAt || item.createdAt || item.date || item.publishedAt
-  const published = formatDateFields(timestamp)
+  const published = formatDateFields(resolveBlogListTimestamp(item))
   const languageId = resolveBlogLanguageId(item, languageLookup)
   const languageName =
     item.languageName ||
@@ -269,8 +300,8 @@ export function mapApiBlogListItemToRow(item, index = 0, languageLookup = {}) {
     languageId,
     language: languageName,
     readTime: item.readTime || '',
-    listDate: item.date || published.date,
-    listTime: item.time || published.time,
+    listDate: published.date,
+    listTime: published.time,
     listStatus: rawStatus,
     mainBlogLabel: item.isMainBlog ? 'Yes' : 'No',
     isMainBlog: Boolean(item.isMainBlog),
@@ -287,13 +318,14 @@ export function applyBlogStatusUpdateToRow(existingRow, apiData) {
   const patch = mapApiBlogListItemToRow({ ...existingRow, ...apiData })
   if (!patch) return existingRow
 
-  return {
-    ...existingRow,
-    ...patch,
-    listDate: existingRow.listDate,
-    listTime: existingRow.listTime,
-    lastSavedAt: apiData.updatedAt || patch.lastSavedAt || existingRow.lastSavedAt,
-  }
+  return applyBlogListDateTime(
+    {
+      ...existingRow,
+      ...patch,
+      lastSavedAt: apiData.updatedAt || patch.lastSavedAt || existingRow.lastSavedAt,
+    },
+    apiData,
+  )
 }
 
 export function applyBlogMainUpdateToRow(existingRow, apiData) {
@@ -318,20 +350,21 @@ export function applyBlogUpdateToRow(existingRow, apiData, languageLookup = {}) 
 
   if (!listPatch) return existingRow
 
-  const published = formatDateFields(apiData.updatedAt || apiData.createdAt || apiData.publishedAt)
+  const published = formatDateFields(resolveBlogListTimestamp(apiData))
 
-  return {
-    ...existingRow,
-    ...listPatch,
-    title: detailPatch?.title || listPatch.title,
-    slug: detailPatch?.slug || listPatch.slug,
-    language: detailPatch?.language || listPatch.language,
-    readTime: detailPatch?.readTime || listPatch.readTime,
-    category: detailPatch?.category || listPatch.category,
-    listDate: apiData.date || published.date || listPatch.listDate,
-    listTime: apiData.time || published.time || listPatch.listTime,
-    lastSavedAt: apiData.updatedAt || listPatch.lastSavedAt || existingRow.lastSavedAt,
-  }
+  return applyBlogListDateTime(
+    {
+      ...existingRow,
+      ...listPatch,
+      title: detailPatch?.title || listPatch.title,
+      slug: detailPatch?.slug || listPatch.slug,
+      language: detailPatch?.language || listPatch.language,
+      readTime: detailPatch?.readTime || listPatch.readTime,
+      category: detailPatch?.category || listPatch.category,
+      lastSavedAt: apiData.updatedAt || listPatch.lastSavedAt || existingRow.lastSavedAt,
+    },
+    apiData,
+  )
 }
 
 export function normalizeBlogListResponse(response, languageLookup = {}) {
@@ -493,20 +526,26 @@ export function buildBlogUpdateFormData(form, { backgroundFile, languageLookup =
 export function mapSavedBlogToRow(responseData, form, languageLookup = {}) {
   const mapped = mapApiBlogToRow(responseData, 0, languageLookup)
   if (!mapped) {
-    return {
-      ...form,
-      language: resolveBlogLanguageName(form, languageLookup),
-      status: normalizeUiStatus(form.status),
-      lastSavedAt: new Date().toISOString(),
-    }
+    return applyBlogListDateTime(
+      {
+        ...form,
+        language: resolveBlogLanguageName(form, languageLookup),
+        status: normalizeUiStatus(form.status),
+        lastSavedAt: new Date().toISOString(),
+      },
+      responseData || form,
+    )
   }
 
-  return {
-    ...mapped,
-    sections: mapped.sections?.length ? mapped.sections : form.sections || [],
-    backgroundImageName: form.backgroundImageName || mapped.backgroundImageName,
-    slugManuallyEdited: Boolean(form.slugManuallyEdited),
-  }
+  return applyBlogListDateTime(
+    {
+      ...mapped,
+      sections: mapped.sections?.length ? mapped.sections : form.sections || [],
+      backgroundImageName: form.backgroundImageName || mapped.backgroundImageName,
+      slugManuallyEdited: Boolean(form.slugManuallyEdited),
+    },
+    responseData || form,
+  )
 }
 
 export function blogStatusLabelFromRow(row) {
