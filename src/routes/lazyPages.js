@@ -36,10 +36,18 @@ export const BooksPage = lazyRoute(() => import('../pages/marketing/BooksPage'))
 export const HomePageManagementLayout = lazyRoute(
   () => import('../layouts/HomePageManagementLayout'),
 )
+export const QuickLinksLayout = lazyRoute(() => import('../layouts/QuickLinksLayout'))
 export const WebsitePage = lazyRoute(
   () => import('../pages/marketing/YoutubeManagementPage'),
 )
 export const BlogsPage = lazyRoute(() => import('../pages/marketing/BlogsPage'))
+export const QuickLinksPage = lazyRoute(() => import('../pages/marketing/QuickLinksPage'))
+export const QuickLinksSectionViewPage = lazyRoute(
+  () => import('../pages/marketing/QuickLinksSectionViewPage'),
+)
+export const QuickLinksSectionEditPage = lazyRoute(
+  () => import('../pages/marketing/QuickLinksSectionEditPage'),
+)
 export const CouponsPage = lazyRoute(() => import('../pages/users/CouponsPage'))
 export const EnquiriesPage = lazyRoute(() => import('../pages/crm/EnquiriesPage'))
 export const LeadsPage = lazyRoute(() => import('../pages/crm/LeadsPage'))

@@ -197,6 +197,9 @@ export default defineConfig(({ mode }) => {
           label: apiTarget,
           logAuth: mode === "development",
         }),
+        "/uploads": createDevProxy(localApiTarget, {
+          label: `${localApiTarget} (uploads)`,
+        }),
       },
     },
   };
