@@ -317,7 +317,7 @@ export default function BookstoreDashboardPage() {
           <BookstoreDashboardKpiCard
             sparkId="growth"
             label="Monthly Growth"
-            value={`${stats?.monthlyGrowth}%`}
+            value={`${stats?.monthlyGrowth ?? 0}%`}
             icon={TrendingUp}
             trend={trends.monthlyGrowth}
             accent="from-[#9b59b6] via-[#7c5cbf] to-[#4a3d8f]"

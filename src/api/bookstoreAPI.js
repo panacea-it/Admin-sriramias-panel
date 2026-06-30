@@ -47,6 +47,9 @@ import {
   normalizeBookstoreOrdersListResponse,
   normalizeBookstorePaymentsListResponse,
   normalizeBookstoreInvoicesListResponse,
+  normalizeBookstorePaymentAttemptsListResponse,
+  buildBookstorePaymentAttemptListParams,
+  mapApiBookstorePaymentAttemptToRow,
   normalizeBookstoreRecommendationsListResponse,
   normalizeBookstoreDashboardResponse,
   normalizeBookstoreReportsResponse,
@@ -1129,6 +1132,27 @@ export async function deleteBookstoreRecommendation(id) {
     return body.data || { success: true, deleted: true }
   } catch (error) {
     throw toCommerceError(error, 'Unable to delete recommendation. Please try again.')
+  }
+}
+
+export async function fetchBookstorePaymentAttempts(params = {}) {
+  try {
+    const response = await api.post(
+      `${COMMERCE_BASE}/payment-attempts/list`,
+      buildBookstorePaymentAttemptListParams(params),
+    )
+    const body = response?.data ?? {}
+
+    if (!isBookstoreListSuccess(body)) {
+      throw new Error(body?.message || 'Unable to fetch payment attempt logs. Please try again.')
+    }
+
+    return normalizeBookstorePaymentAttemptsListResponse(body, {
+      page: params.page || 1,
+      limit: params.limit || 100,
+    })
+  } catch (error) {
+    throw toCommerceError(error, 'Unable to fetch payment attempt logs. Please try again.')
   }
 }
 

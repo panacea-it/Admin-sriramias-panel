@@ -7,13 +7,11 @@ import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } 
 import ProductFormSection from './product-form/ProductFormSection'
 import CoverImageUpload from './product-form/CoverImageUpload'
 import SamplePdfUpload from './product-form/SamplePdfUpload'
-import KeywordsSortable from './product-form/KeywordsSortable'
 import PositiveIntegerInput from './PositiveIntegerInput'
 import { cn } from '../../utils/cn'
 import {
   BOOKSTORE_DESCRIPTION_MAX,
   createCoverAsset,
-  mapKeywordsFromProduct,
   mapPdfFromProduct,
   runCoverUploadProgress,
   runPdfUploadProgress,
@@ -26,7 +24,6 @@ const EMPTY = {
   examCategory: '',
   authorName: '',
   isbn: '',
-  language: 'English',
   originalPrice: '',
   discountPrice: '',
   stockQuantity: '',
@@ -49,7 +46,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
 
   const [cover, setCover] = useState(null)
   const [samplePdf, setSamplePdf] = useState(null)
-  const [keywords, setKeywords] = useState([])
   const [fieldErrors, setFieldErrors] = useState({})
   const progressCleanup = useRef(null)
 
@@ -80,7 +76,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
         examCategory: initial.examCategoryId || '',
         authorName: initial.authorName || '',
         isbn: initial.isbn || '',
-        language: initial.language || 'English',
         originalPrice: String(initial.originalPrice ?? ''),
         discountPrice: String(initial.discountPrice ?? ''),
         stockQuantity: String(initial.stockQuantity ?? ''),
@@ -97,12 +92,10 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
       })
       setCover(initial.thumbnailUrl ? createCoverAsset(null, initial.thumbnailUrl) : null)
       setSamplePdf(mapPdfFromProduct(initial))
-      setKeywords(mapKeywordsFromProduct(initial))
     } else {
       reset(EMPTY)
       setCover(null)
       setSamplePdf(null)
-      setKeywords([])
     }
     setFieldErrors({})
     return () => clearProgress()
@@ -133,7 +126,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
   const submit = (values, { isDraft }) => {
     const errors = validateProductForm(values, {
       cover,
-      keywords,
       isDraft,
       isEdit,
     })
@@ -147,7 +139,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
       values,
       cover,
       samplePdf,
-      keywords,
       isDraft,
       hadPdfInitially: Boolean(initial?.previewPdf),
     })
@@ -171,7 +162,7 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
       subtitle={
         isEdit
           ? `SKU ${initial.id} · Update listing, media, and SEO`
-          : 'Professional product creation — details, cover, sample PDF & keywords'
+          : 'Professional product creation — details, cover & sample PDF'
       }
       size="7xl"
       loading={loading}
@@ -255,13 +246,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
               />
               <FieldError message={fieldErrors.isbn} />
             </label>
-            <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Language *</span>
-              <select className={inputClass('language')} {...register('language')} disabled>
-                <option value="English">English</option>
-              </select>
-              <FieldError message={fieldErrors.language} />
-            </label>
             <label className="sm:col-span-2">
               <span className={BOOKSTORE_LABEL_CLASS}>Book Summary *</span>
               <textarea
@@ -306,21 +290,6 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
             onChange={handleSamplePdfChange}
             onUploadStart={(ids) => startPdfProgress(ids)}
             error={fieldErrors.samplePdf}
-          />
-        </ProductFormSection>
-
-        <ProductFormSection
-          title="SEO keywords / search keywords"
-          description="Tags that power search and recommendations. Order sets priority."
-          delay={0.12}
-        >
-          <KeywordsSortable
-            items={keywords}
-            onChange={(next) => {
-              setKeywords(next)
-              setFieldErrors((prev) => ({ ...prev, keywords: undefined }))
-            }}
-            error={fieldErrors.keywords}
           />
         </ProductFormSection>
 

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Warehouse, ShoppingCart, CreditCard, Sparkles, FileText, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Package, Warehouse, ShoppingCart, CreditCard, Sparkles, FileText, BarChart3, History } from 'lucide-react'
 
 export const BOOKSTORE_BASE = '/admin/bookstore'
 
@@ -10,6 +10,7 @@ export const BOOKSTORE_ROUTES = {
   bundles: `${BOOKSTORE_BASE}/bundles`,
   orders: `${BOOKSTORE_BASE}/orders`,
   payments: `${BOOKSTORE_BASE}/payments`,
+  paymentAttempts: `${BOOKSTORE_BASE}/payment-attempts`,
   wallet: `${BOOKSTORE_BASE}/wallet`,
   recommendations: `${BOOKSTORE_BASE}/recommendations`,
   invoices: `${BOOKSTORE_BASE}/invoices`,
@@ -22,6 +23,12 @@ export const BOOKSTORE_NAV_ITEMS = [
   { label: 'Inventory', path: BOOKSTORE_ROUTES.inventory, icon: Warehouse, permission: 'inventory' },
   { label: 'Orders', path: BOOKSTORE_ROUTES.orders, icon: ShoppingCart, permission: 'orders' },
   { label: 'Payments', path: BOOKSTORE_ROUTES.payments, icon: CreditCard, permission: 'payments' },
+  {
+    label: 'Payment Attempt Logs',
+    path: BOOKSTORE_ROUTES.paymentAttempts,
+    icon: History,
+    permission: 'paymentAttempts',
+  },
   { label: 'Recommendations', path: BOOKSTORE_ROUTES.recommendations, icon: Sparkles, permission: 'recommendations' },
   { label: 'Invoices', path: BOOKSTORE_ROUTES.invoices, icon: FileText, permission: 'invoices' },
   { label: 'Reports & Analytics', path: BOOKSTORE_ROUTES.reports, icon: BarChart3, permission: 'reports' },

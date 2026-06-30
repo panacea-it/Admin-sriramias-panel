@@ -51,7 +51,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
   }, [productId, product?.thumbnailUrl])
 
   const isBusy = isLoading || isFetching
-  const keywords = product?.keywords || []
   const statusLabel = product?.apiStatus || product?.status || '—'
   const thumbnailSrc =
     thumbnailError || !product?.thumbnailUrl ? PLACEHOLDER_COVER : product.thumbnailUrl
@@ -87,7 +86,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
             <DetailItem label="Product Name">{product.name || '—'}</DetailItem>
             <DetailItem label="Author Name">{product.authorName || '—'}</DetailItem>
             <DetailItem label="ISBN">{product.isbn || '—'}</DetailItem>
-            <DetailItem label="Language">{product.language || '—'}</DetailItem>
             <DetailItem label="Stock Quantity">
               {product.stockQuantity?.toLocaleString?.() ?? product.stockQuantity ?? '—'}
             </DetailItem>
@@ -118,24 +116,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
               </dd>
             </div>
           </dl>
-
-          <div>
-            <p className="text-xs font-semibold text-[#686868]">SEO Keywords</p>
-            {keywords.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {keywords.map((kw) => (
-                  <span
-                    key={kw}
-                    className="rounded-full bg-[#f3f0fa] px-3 py-1 text-xs font-medium text-[#5a4a8a]"
-                  >
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-sm text-[#686868]">—</p>
-            )}
-          </div>
 
           <div>
             <p className="text-xs font-semibold text-[#686868]">Preview PDF</p>

@@ -118,7 +118,7 @@ export default function BookstoreProductsPage() {
     { enabled: shouldFetchDetail },
   )
 
-  const handleSave = async ({ values, cover, samplePdf, keywords, isDraft, hadPdfInitially }) => {
+  const handleSave = async ({ values, cover, samplePdf, isDraft, hadPdfInitially }) => {
     const isUpdate = Boolean(editingRow?.id)
 
     try {
@@ -128,7 +128,6 @@ export default function BookstoreProductsPage() {
           values,
           cover,
           samplePdf,
-          keywords,
           isDraft: false,
           hadPdfInitially,
         })
@@ -148,7 +147,6 @@ export default function BookstoreProductsPage() {
         values,
         cover,
         samplePdf,
-        keywords,
         isDraft,
       })
 
@@ -252,7 +250,7 @@ export default function BookstoreProductsPage() {
         <CourseFilterToolbar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
-          searchPlaceholder="Search products by name, ID, category, or author…"
+          searchPlaceholder="Search products by name, ID, or author…"
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           statusOptions={PRODUCT_STATUS_OPTIONS}

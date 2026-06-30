@@ -70,8 +70,10 @@ export function mapApiProductListItemToRow(item, index = 0, categoryLookup = {})
       item.examCategoryName || item.examCategory,
       categoryLookup,
     ),
-    originalPrice: Number(item.originalPrice) || Number(item.discountPrice) || 0,
-    discountPrice: Number(item.discountPrice) || 0,
+    originalPrice: Number(item.originalPrice) || 0,
+    discountPrice:
+      Number(item.discountPrice ?? item.discountedPrice) ||
+      (Number(item.originalPrice) > 0 ? Number(item.originalPrice) : 0),
     stockQuantity: Number(item.stockQuantity) || 0,
     thumbnailUrl: item.thumbnailUrl || item.thumbnail?.url || item.thumbnail || '',
     previewPdf: item.previewPdf?.url || item.previewPdf || null,
@@ -108,8 +110,6 @@ export function mapApiProductViewToRow(item, categoryLookup = {}) {
     examCategoryId: item.examCategoryId ? String(item.examCategoryId) : row.examCategoryId,
     description: item.bookSummary || item.description || '',
     isbn: item.isbn || '',
-    language: item.language || 'English',
-    keywords: Array.isArray(item.seoKeywords) ? item.seoKeywords : item.keywords || [],
     previewImages: Array.isArray(item.previewImages)
       ? item.previewImages
       : item.sampleImages || [],
@@ -448,7 +448,7 @@ export function formFromApiProduct(product) {
   }
 }
 
-export function buildProductFormData(values, { cover, samplePdf, keywords, isDraft } = {}) {
+export function buildProductFormData(values, { cover, samplePdf, isDraft } = {}) {
   const formData = new FormData()
 
   formData.append('productName', String(values.name || '').trim())
@@ -472,15 +472,6 @@ export function buildProductFormData(values, { cover, samplePdf, keywords, isDra
 
   const status = isDraft ? 'DEACTIVATED' : mapUiStatusToApi(values.status || 'active')
   formData.append('status', status)
-
-  const keywordList = (keywords || [])
-    .map((entry) => (typeof entry === 'string' ? entry : entry?.text || ''))
-    .map((text) => text.trim())
-    .filter(Boolean)
-
-  if (keywordList.length) {
-    formData.append('seoKeywords', JSON.stringify(keywordList))
-  }
 
   if (cover?.file) {
     formData.append('thumbnail', cover.file)
@@ -632,7 +623,10 @@ export function mapApiPaymentToRow(payment) {
   if (!payment) return null
 
   const items = (payment.items || []).map(mapApiOrderItemToRow).filter(Boolean)
-  const bookName = payment.bookName || formatOrderBookNames(items) || '—'
+  const bookName =
+    String(payment.bookName || '').trim() ||
+    formatOrderBookNames(items) ||
+    '—'
 
   return {
     ...payment,
@@ -652,10 +646,23 @@ export function mapApiPaymentToRow(payment) {
 export function mapApiInvoiceToRow(invoice) {
   if (!invoice) return null
 
+  const items = (invoice.items || []).map(mapApiOrderItemToRow).filter(Boolean)
+  const buyerName =
+    String(invoice.buyerName || invoice.customerName || invoice.shippingAddress?.fullName || '')
+      .trim() ||
+    '—'
+  const bookName =
+    String(invoice.bookName || '').trim() ||
+    formatOrderBookNames(items) ||
+    '—'
+
   return {
     ...invoice,
     id: invoice.id || invoice.invoiceNumber || invoice.orderId || '',
     orderId: invoice.orderId || '',
+    buyerName,
+    bookName,
+    items,
     amount: invoice.amount ?? invoice.totalAmount ?? 0,
     status: invoice.status || invoice.invoiceStatus || 'Generated',
     invoiceUrl: invoice.invoiceUrl || null,
@@ -702,6 +709,46 @@ export function buildBookstoreCommerceListParams(filters = {}) {
   return params
 }
 
+export function buildBookstorePaymentAttemptListParams(filters = {}) {
+  const params = buildBookstoreCommerceListParams(filters)
+
+  if (filters.failureReason && filters.failureReason !== 'all') {
+    params.failureReason = String(filters.failureReason)
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+  }
+
+  if (filters.attemptStatus && filters.attemptStatus !== 'all') {
+    params.status = String(filters.attemptStatus).trim().toUpperCase()
+  }
+
+  return params
+}
+
+export function mapApiBookstorePaymentAttemptToRow(item) {
+  if (!item) return null
+
+  return {
+    ...item,
+    id: item.attemptId || item.id || '',
+    student: item.studentName || '',
+    mobile: item.mobileNumber || '',
+    course: item.bookName || '',
+    bookName: item.bookName || '',
+    failureCategory: item.failureCategory || item.failureReason || 'Unknown Error',
+    lastAttemptDate: item.lastAttemptAt || item.createdAt || null,
+    dateTime: item.lastAttemptAt || item.createdAt || null,
+  }
+}
+
+export function normalizeBookstorePaymentAttemptsListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiBookstorePaymentAttemptToRow,
+  })
+}
+
 export function normalizeBookstoreOrdersListResponse(body, options = {}) {
   return normalizePaginatedList(body, {
     ...options,
@@ -737,13 +784,22 @@ export function normalizeBookstoreDashboardResponse(body) {
   return {
     kpis,
     revenueChart: Array.isArray(data.revenueChart) ? data.revenueChart : [],
+    productSalesChart: Array.isArray(data.productSalesChart) ? data.productSalesChart : [],
+    orderTrends: Array.isArray(data.orderTrends) ? data.orderTrends : [],
+    comboPerformance: Array.isArray(data.comboPerformance) ? data.comboPerformance : [],
+    lowStockAlerts: Array.isArray(data.lowStockAlerts) ? data.lowStockAlerts : [],
+    bestSellers: Array.isArray(data.bestSellers) ? data.bestSellers : [],
     weekRevenue: data.weekRevenue ?? 0,
     stats: {
       totalRevenue: kpis.revenue ?? 0,
-      totalOrders: kpis.booksSold ?? 0,
+      totalOrders: kpis.totalOrders ?? kpis.booksSold ?? 0,
       totalProducts: kpis.activeProducts ?? 0,
       pendingOrders: kpis.pendingOrders ?? 0,
+      deliveredOrders: kpis.deliveredOrders ?? 0,
       lowStockProducts: kpis.lowStockCount ?? 0,
+      totalCustomers: kpis.totalCustomers ?? 0,
+      monthlyGrowth: kpis.monthlyGrowth ?? 0,
+      bestSellingCategory: kpis.bestSellingCategory || '—',
       weekRevenue: data.weekRevenue ?? 0,
       booksSold: kpis.booksSold ?? 0,
     },
@@ -803,12 +859,11 @@ export function buildRecommendationApiPayload(payload = {}) {
 
 export function buildProductUpdateFormData(
   values,
-  { cover, samplePdf, keywords, isDraft = false, hadPdfInitially } = {},
+  { cover, samplePdf, isDraft = false, hadPdfInitially } = {},
 ) {
   const formData = buildProductFormData(values, {
     cover,
     samplePdf,
-    keywords,
     isDraft,
   })
 

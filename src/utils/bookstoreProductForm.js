@@ -121,38 +121,6 @@ export function mapSampleImagesFromProduct(product) {
     .filter(Boolean)
 }
 
-export function mapKeywordsFromProduct(product) {
-  const raw = product?.keywords || []
-  if (!Array.isArray(raw)) return []
-  return raw.map((text, index) => ({
-    id: nextAssetId('kw'),
-    text: typeof text === 'string' ? text : String(text?.text ?? ''),
-    order: index,
-  })).filter((k) => k.text.trim())
-}
-
-export function validateProductAssets({ cover, samples, keywords }, { isDraft } = {}) {
-  const errors = {}
-
-  if (!isDraft && !cover?.previewUrl) {
-    errors.cover = 'Thumbnail image is required.'
-  }
-
-  const seen = new Set()
-  const dupes = []
-  keywords.forEach((k) => {
-    const key = k.text.trim().toLowerCase()
-    if (!key) return
-    if (seen.has(key)) dupes.push(k.text)
-    seen.add(key)
-  })
-  if (dupes.length) {
-    errors.keywords = `Duplicate keywords: ${dupes.join(', ')}`
-  }
-
-  return errors
-}
-
 function normalizeIsbn(value) {
   return String(value || '').replace(/[-\s]/g, '')
 }
@@ -166,7 +134,7 @@ export function validateIsbn(value) {
   return ''
 }
 
-export function validateProductForm(values, { cover, keywords, isDraft, isEdit } = {}) {
+export function validateProductForm(values, { cover, isDraft, isEdit } = {}) {
   const errors = {}
 
   if (!String(values.name || '').trim()) {
@@ -175,10 +143,6 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
 
   if (!String(values.authorName || '').trim()) {
     errors.authorName = 'Author name is required.'
-  }
-
-  if (!String(values.language || '').trim()) {
-    errors.language = 'Language is required.'
   }
 
   const isbnError = validateIsbn(values.isbn)
@@ -220,11 +184,6 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
     errors.cover = 'Upload a thumbnail image before creating the product.'
   }
 
-  const keywordErrors = validateProductAssets({ cover, samples: [], keywords }, { isDraft })
-  if (keywordErrors.keywords) {
-    errors.keywords = keywordErrors.keywords
-  }
-
   const isFeatured =
     values.isFeaturedOnHomepage === true ||
     values.isFeaturedOnHomepage === 'true' ||
@@ -262,7 +221,7 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
   return errors
 }
 
-export function buildProductPayload(values, { cover, samplePdf, keywords, isDraft }) {
+export function buildProductPayload(values, { cover, samplePdf, isDraft }) {
   const { productType: _productType, subject: _subject, ...rest } = values
   const stockQty = parseStockQuantity(values.stockQuantity)
 
@@ -276,7 +235,6 @@ export function buildProductPayload(values, { cover, samplePdf, keywords, isDraf
     thumbnailUrl: cover?.previewUrl || values.thumbnailUrl || '',
     previewPdf: samplePdf?.previewUrl || values.previewPdf || '',
     previewPdfFileName: samplePdf?.fileName || values.previewPdfFileName || '',
-    keywords: keywords.map((k) => k.text.trim()).filter(Boolean),
     publishState: isDraft ? 'draft' : 'published',
     status: isDraft ? 'inactive' : values.status,
   }
