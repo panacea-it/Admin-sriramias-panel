@@ -58,7 +58,10 @@ import {
   mapRecommendationStatusToApi,
 } from '../utils/bookstoreApiHelpers'
 
-const USE_MOCK = isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK === 'true'
+// Production builds always use live APIs; mock is dev-only.
+const USE_MOCK =
+  !import.meta.env.PROD &&
+  (isFrontendOnly || import.meta.env.VITE_BOOKSTORE_USE_MOCK === 'true')
 const PRODUCTS_BASE = '/admin/bookstore/products'
 const INVENTORY_BASE = '/admin/bookstore/inventory'
 const COMMERCE_BASE = '/admin/bookstore'
