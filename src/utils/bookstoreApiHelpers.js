@@ -1,3 +1,5 @@
+import { parseStockQuantity } from './bookstoreProductForm'
+
 export const BOOKSTORE_API_SUCCESS_CODE = 10000
 
 export function isBookstoreApiSuccess(response) {
@@ -461,7 +463,12 @@ export function buildProductFormData(values, { cover, samplePdf, keywords, isDra
     formData.append('discountPrice', String(Number(values.discountPrice)))
   }
 
-  formData.append('stockQuantity', String(Number(values.stockQuantity) || 0))
+  const stockQty = parseStockQuantity(values.stockQuantity)
+
+  formData.append(
+    'stockQuantity',
+    String(Number.isFinite(stockQty) ? stockQty : 0),
+  )
 
   const status = isDraft ? 'DEACTIVATED' : mapUiStatusToApi(values.status || 'active')
   formData.append('status', status)

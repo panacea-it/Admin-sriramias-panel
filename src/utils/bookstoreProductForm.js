@@ -6,6 +6,11 @@ export const BOOKSTORE_MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const BOOKSTORE_MIN_SAMPLE_IMAGES = 3
 export const BOOKSTORE_DESCRIPTION_MAX = 3000
 
+export function parseStockQuantity(value) {
+  const parsed = parseInt(String(value ?? '').trim(), 10)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
 export function getProductExamCategory(product) {
   return product?.examCategory ?? product?.subject ?? ''
 }
@@ -192,14 +197,14 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
   if (discountRaw) {
     const discountPrice = Number(discountRaw)
     if (!Number.isFinite(discountPrice) || discountPrice < 0) {
-      errors.discountPrice = 'Discount price cannot be negative.'
+      errors.discountPrice = 'Discounted price cannot be negative.'
     } else if (Number.isFinite(originalPrice) && discountPrice > originalPrice) {
-      errors.discountPrice = 'Discount price cannot exceed original price.'
+      errors.discountPrice = 'Discounted price cannot exceed original price.'
     }
   }
 
-  const stockQuantity = Number(values.stockQuantity)
-  if (!Number.isFinite(stockQuantity) || stockQuantity < 0 || !Number.isInteger(stockQuantity)) {
+  const stockQuantity = parseStockQuantity(values.stockQuantity)
+  if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
     errors.stockQuantity = 'Stock quantity must be a non-negative whole number.'
   }
 
@@ -259,13 +264,15 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
 
 export function buildProductPayload(values, { cover, samplePdf, keywords, isDraft }) {
   const { productType: _productType, subject: _subject, ...rest } = values
+  const stockQty = parseStockQuantity(values.stockQuantity)
+
   return {
     ...rest,
     examCategory: values.examCategory,
     subject: values.examCategory,
     originalPrice: Number(values.originalPrice) || 0,
     discountPrice: Number(values.discountPrice) || 0,
-    stockQuantity: Number(values.stockQuantity) || 0,
+    stockQuantity: Number.isFinite(stockQty) ? stockQty : 0,
     thumbnailUrl: cover?.previewUrl || values.thumbnailUrl || '',
     previewPdf: samplePdf?.previewUrl || values.previewPdf || '',
     previewPdfFileName: samplePdf?.fileName || values.previewPdfFileName || '',

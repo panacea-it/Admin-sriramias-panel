@@ -5,7 +5,6 @@ import ProductStatusPill from './ProductStatusPill'
 import { useBookstoreProduct } from '../../hooks/bookstore/useBookstoreProducts'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { formatINR } from '../../utils/financeFilters'
-import { getProductExamCategory } from '../../utils/bookstoreProductForm'
 
 const PLACEHOLDER_COVER =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTYwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y0ZjVmOCIgc3Ryb2tlPSIjZTBlNGVhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTNhM2I4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
@@ -53,7 +52,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
 
   const isBusy = isLoading || isFetching
   const keywords = product?.keywords || []
-  const examCategory = product ? getProductExamCategory(product) : ''
   const statusLabel = product?.apiStatus || product?.status || '—'
   const thumbnailSrc =
     thumbnailError || !product?.thumbnailUrl ? PLACEHOLDER_COVER : product.thumbnailUrl
@@ -87,7 +85,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <DetailItem label="Product ID">{product.id || '—'}</DetailItem>
             <DetailItem label="Product Name">{product.name || '—'}</DetailItem>
-            <DetailItem label="Exam Category">{examCategory || '—'}</DetailItem>
             <DetailItem label="Author Name">{product.authorName || '—'}</DetailItem>
             <DetailItem label="ISBN">{product.isbn || '—'}</DetailItem>
             <DetailItem label="Language">{product.language || '—'}</DetailItem>
@@ -98,7 +95,7 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
               {product.soldQuantity?.toLocaleString?.() ?? product.soldQuantity ?? '—'}
             </DetailItem>
             <DetailItem label="Original Price">{formatINR(product.originalPrice)}</DetailItem>
-            <DetailItem label="Discount Price">
+            <DetailItem label="Discounted Price">
               <span className="font-bold text-[#7c5cbf]">{formatINR(product.discountPrice)}</span>
             </DetailItem>
             <DetailItem label="Status">

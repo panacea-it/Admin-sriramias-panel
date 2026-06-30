@@ -117,8 +117,18 @@ export default function ProductsTable({
         ),
       },
       {
+        key: 'originalPrice',
+        label: 'Original Price',
+        align: 'center',
+        headerClassName: 'min-w-[110px] whitespace-nowrap',
+        cellClassName: 'min-w-[110px] whitespace-nowrap align-middle text-center',
+        render: (row) => (
+          <span className="font-semibold text-slate-700">{formatINR(row.originalPrice)}</span>
+        ),
+      },
+      {
         key: 'discountPrice',
-        label: 'Discount Price',
+        label: 'Discounted Price',
         align: 'center',
         headerClassName: 'min-w-[110px] whitespace-nowrap',
         cellClassName: 'min-w-[110px] whitespace-nowrap align-middle text-center',

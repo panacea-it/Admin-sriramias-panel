@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import Button from '../ui/Button'
 import BookstoreModal, { BookstoreModalFooter } from './modal/BookstoreModal'
 import { BOOKSTORE_HELPER_CLASS, BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from './modal/bookstoreFormStyles'
@@ -8,6 +8,7 @@ import ProductFormSection from './product-form/ProductFormSection'
 import CoverImageUpload from './product-form/CoverImageUpload'
 import SamplePdfUpload from './product-form/SamplePdfUpload'
 import KeywordsSortable from './product-form/KeywordsSortable'
+import PositiveIntegerInput from './PositiveIntegerInput'
 import { cn } from '../../utils/cn'
 import {
   BOOKSTORE_DESCRIPTION_MAX,
@@ -41,7 +42,7 @@ function FieldError({ message }) {
 }
 
 export default function ProductFormModal({ open, onClose, initial, onSubmit, loading }) {
-  const { register, handleSubmit, reset, watch, setValue } = useForm({ defaultValues: EMPTY })
+  const { register, handleSubmit, reset, watch, setValue, control } = useForm({ defaultValues: EMPTY })
   const description = watch('description') || ''
   const isFeaturedOnHomepage = watch('isFeaturedOnHomepage')
   const statusValue = watch('status')
@@ -105,7 +106,7 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
     }
     setFieldErrors({})
     return () => clearProgress()
-  }, [open, initial?.mongoId, initial?.id, reset, clearProgress])
+  }, [open, initial, reset, clearProgress])
 
   useEffect(() => {
     if (!open) {
@@ -341,7 +342,7 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
               <FieldError message={fieldErrors.originalPrice} />
             </label>
             <label>
-              <span className={BOOKSTORE_LABEL_CLASS}>Discount Price (₹)</span>
+              <span className={BOOKSTORE_LABEL_CLASS}>Discounted Price (₹)</span>
               <input
                 type="number"
                 min="0"
@@ -353,12 +354,16 @@ export default function ProductFormModal({ open, onClose, initial, onSubmit, loa
             </label>
             <label>
               <span className={BOOKSTORE_LABEL_CLASS}>Stock Quantity *</span>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                className={inputClass('stockQuantity')}
-                {...register('stockQuantity')}
+              <Controller
+                name="stockQuantity"
+                control={control}
+                render={({ field }) => (
+                  <PositiveIntegerInput
+                    {...field}
+                    placeholder="e.g. 100"
+                    className={inputClass('stockQuantity')}
+                  />
+                )}
               />
               <FieldError message={fieldErrors.stockQuantity} />
             </label>

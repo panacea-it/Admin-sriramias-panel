@@ -111,13 +111,12 @@ export default function BookstoreProductsPage() {
     : null
 
   const editingProductId = editingRow?.id
-  const shouldFetchDetail = Boolean(editingProductId) && modalOpen
+  const isEditing = Boolean(editingProductId)
+  const shouldFetchDetail = isEditing && modalOpen
   const { data: editingDetail, isFetching: isDetailFetching } = useBookstoreProduct(
     editingProductId,
     { enabled: shouldFetchDetail },
   )
-
-  const editingProduct = editingDetail || editingRow
 
   const handleSave = async ({ values, cover, samplePdf, keywords, isDraft, hadPdfInitially }) => {
     const isUpdate = Boolean(editingRow?.id)
@@ -297,9 +296,9 @@ export default function BookstoreProductsPage() {
           setModalOpen(false)
           setEditingRow(null)
         }}
-        initial={editingProduct}
+        initial={isEditing ? editingDetail : null}
         onSubmit={handleSave}
-        loading={formSaving || isDetailFetching}
+        loading={formSaving || (isEditing && (!editingDetail || isDetailFetching))}
       />
       <ProductPreviewModal
         open={Boolean(previewProductId)}
