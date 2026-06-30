@@ -5,7 +5,6 @@ import ProductStatusPill from './ProductStatusPill'
 import { useBookstoreProduct } from '../../hooks/bookstore/useBookstoreProducts'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { formatINR } from '../../utils/financeFilters'
-import { getProductExamCategory } from '../../utils/bookstoreProductForm'
 
 const PLACEHOLDER_COVER =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTYwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y0ZjVmOCIgc3Ryb2tlPSIjZTBlNGVhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTNhM2I4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
@@ -52,8 +51,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
   }, [productId, product?.thumbnailUrl])
 
   const isBusy = isLoading || isFetching
-  const keywords = product?.keywords || []
-  const examCategory = product ? getProductExamCategory(product) : ''
   const statusLabel = product?.apiStatus || product?.status || '—'
   const thumbnailSrc =
     thumbnailError || !product?.thumbnailUrl ? PLACEHOLDER_COVER : product.thumbnailUrl
@@ -84,30 +81,11 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
             />
           </div>
 
-          {product.previewVideoUrl ? (
-            <div>
-              <p className="text-xs font-semibold text-[#686868]">Overview Video</p>
-              <div className="mt-2 overflow-hidden rounded-xl border border-[#e8ecf2] bg-[#1a3a5c] p-2">
-                <video
-                  src={product.previewVideoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="mx-auto max-h-52 w-full rounded-lg object-contain"
-                >
-                  Your browser does not support video playback.
-                </video>
-              </div>
-            </div>
-          ) : null}
-
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <DetailItem label="Product ID">{product.id || '—'}</DetailItem>
             <DetailItem label="Product Name">{product.name || '—'}</DetailItem>
-            <DetailItem label="Exam Category">{examCategory || '—'}</DetailItem>
             <DetailItem label="Author Name">{product.authorName || '—'}</DetailItem>
             <DetailItem label="ISBN">{product.isbn || '—'}</DetailItem>
-            <DetailItem label="Language">{product.language || '—'}</DetailItem>
             <DetailItem label="Stock Quantity">
               {product.stockQuantity?.toLocaleString?.() ?? product.stockQuantity ?? '—'}
             </DetailItem>
@@ -115,7 +93,7 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
               {product.soldQuantity?.toLocaleString?.() ?? product.soldQuantity ?? '—'}
             </DetailItem>
             <DetailItem label="Original Price">{formatINR(product.originalPrice)}</DetailItem>
-            <DetailItem label="Discount Price">
+            <DetailItem label="Discounted Price">
               <span className="font-bold text-[#7c5cbf]">{formatINR(product.discountPrice)}</span>
             </DetailItem>
             <DetailItem label="Status">
@@ -138,24 +116,6 @@ export default function ProductPreviewModal({ open, onClose, productId }) {
               </dd>
             </div>
           </dl>
-
-          <div>
-            <p className="text-xs font-semibold text-[#686868]">SEO Keywords</p>
-            {keywords.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {keywords.map((kw) => (
-                  <span
-                    key={kw}
-                    className="rounded-full bg-[#f3f0fa] px-3 py-1 text-xs font-medium text-[#5a4a8a]"
-                  >
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-sm text-[#686868]">—</p>
-            )}
-          </div>
 
           <div>
             <p className="text-xs font-semibold text-[#686868]">Preview PDF</p>

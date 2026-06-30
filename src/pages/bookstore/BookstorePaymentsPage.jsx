@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { CreditCard } from 'lucide-react'
 import BookstorePageShell from '../../components/bookstore/BookstorePageShell'
 import BookstoreStatusBadge from '../../components/bookstore/BookstoreStatusBadge'
@@ -6,10 +6,14 @@ import PaymentsTable from '../../components/bookstore/PaymentsTable'
 import PaymentRowActions from '../../components/bookstore/PaymentRowActions'
 import BookstoreModal, { BookstoreModalFooter } from '../../components/bookstore/modal/BookstoreModal'
 import Button from '../../components/ui/Button'
-import { fetchBookstorePayments } from '../../api/bookstoreAPI'
+import {
+  useBookstorePaymentsList,
+  useRefundBookstorePayment,
+} from '../../hooks/bookstore/useBookstorePayments'
 import { formatINR } from '../../utils/financeFilters'
 import { toast } from '../../utils/toast'
-import { withPaymentsDisplayFields, updateMockPaymentStatus } from '../../utils/bookstorePaymentDisplay'
+import { getApiErrorMessage } from '../../utils/apiError'
+import { withPaymentsDisplayFields } from '../../utils/bookstorePaymentDisplay'
 import { BOOKSTORE_INPUT_CLASS, BOOKSTORE_LABEL_CLASS } from '../../components/bookstore/modal/bookstoreFormStyles'
 
 function PaymentDetailField({ label, children }) {
@@ -22,63 +26,36 @@ function PaymentDetailField({ label, children }) {
 }
 
 export default function BookstorePaymentsPage() {
-  const [payments, setPayments] = useState([])
-  const [loading, setLoading] = useState(true)
   const [details, setDetails] = useState(null)
   const [refundTarget, setRefundTarget] = useState(null)
   const [refundAmount, setRefundAmount] = useState('')
-  const refundTimersRef = useRef([])
 
-  useEffect(() => {
-    setLoading(true)
-    fetchBookstorePayments()
-      .then((res) => setPayments(res?.items || []))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data, isLoading } = useBookstorePaymentsList({ limit: 100 })
+  const refundMutation = useRefundBookstorePayment()
 
-  useEffect(
-    () => () => {
-      refundTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
-      refundTimersRef.current = []
-    },
-    [],
-  )
+  const payments = data?.items || []
+  const loading = isLoading
 
-  const applyPaymentStatus = useCallback((paymentId, status) => {
-    setPayments((prev) =>
-      prev.map((payment) => (payment.id === paymentId ? { ...payment, status } : payment)),
-    )
-    setDetails((prev) => (prev?.id === paymentId ? { ...prev, status } : prev))
-    updateMockPaymentStatus(paymentId, status)
-  }, [])
-
-  const handleConfirmRefund = useCallback(() => {
+  const handleConfirmRefund = useCallback(async () => {
     if (!refundTarget) return
 
-    const paymentId = refundTarget.id
     const amount = Number(refundAmount)
 
-    applyPaymentStatus(paymentId, 'REFUND_INITIATED')
-    toast.success(`Refund of ${formatINR(amount)} initiated`)
-    setRefundTarget(null)
-
-    const timerId = window.setTimeout(() => {
-      setPayments((prev) => {
-        const payment = prev.find((p) => p.id === paymentId)
-        if (payment?.status !== 'REFUND_INITIATED') return prev
-        return prev.map((p) => (p.id === paymentId ? { ...p, status: 'REFUNDED' } : p))
+    try {
+      const updated = await refundMutation.mutateAsync({
+        orderId: refundTarget.orderId,
+        reason: 'Admin initiated refund',
       })
+      const nextStatus = updated?.status || 'REFUND_INITIATED'
       setDetails((prev) =>
-        prev?.id === paymentId && prev?.status === 'REFUND_INITIATED'
-          ? { ...prev, status: 'REFUNDED' }
-          : prev,
+        prev?.orderId === refundTarget.orderId ? { ...prev, status: nextStatus } : prev,
       )
-      updateMockPaymentStatus(paymentId, 'REFUNDED')
-      refundTimersRef.current = refundTimersRef.current.filter((id) => id !== timerId)
-    }, 3000)
-
-    refundTimersRef.current.push(timerId)
-  }, [applyPaymentStatus, refundAmount, refundTarget])
+      toast.success(`Refund of ${formatINR(amount)} initiated`)
+      setRefundTarget(null)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to process refund.'))
+    }
+  }, [refundAmount, refundMutation, refundTarget])
 
   const displayPayments = useMemo(
     () => withPaymentsDisplayFields(payments),
@@ -168,6 +145,7 @@ export default function BookstorePaymentsPage() {
             <Button
               variant="danger"
               onClick={handleConfirmRefund}
+              disabled={refundMutation.isPending}
             >
               Confirm refund
             </Button>

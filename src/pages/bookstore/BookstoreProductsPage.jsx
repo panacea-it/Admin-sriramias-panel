@@ -111,29 +111,25 @@ export default function BookstoreProductsPage() {
     : null
 
   const editingProductId = editingRow?.id
-  const shouldFetchDetail = Boolean(editingProductId) && modalOpen
+  const isEditing = Boolean(editingProductId)
+  const shouldFetchDetail = isEditing && modalOpen
   const { data: editingDetail, isFetching: isDetailFetching } = useBookstoreProduct(
     editingProductId,
     { enabled: shouldFetchDetail },
   )
 
-  const editingProduct = editingDetail || editingRow
-
-  const handleSave = async ({ values, cover, video, samples, keywords, isDraft, hadVideoInitially }) => {
-    const isUpdate = Boolean(editingRow?.mongoId)
+  const handleSave = async ({ values, cover, samplePdf, isDraft, hadPdfInitially }) => {
+    const isUpdate = Boolean(editingRow?.id)
 
     try {
       if (isUpdate) {
         const result = await updateMutation.mutateAsync({
-          mongoId: editingRow.mongoId,
           productId: editingRow.id,
           values,
           cover,
-          video,
-          samples,
-          keywords,
-          isDraft,
-          hadVideoInitially,
+          samplePdf,
+          isDraft: false,
+          hadPdfInitially,
         })
 
         if (result?.success === true && result?.statusCode === 10000) {
@@ -150,9 +146,7 @@ export default function BookstoreProductsPage() {
       const result = await createMutation.mutateAsync({
         values,
         cover,
-        video,
-        samples,
-        keywords,
+        samplePdf,
         isDraft,
       })
 
@@ -178,7 +172,12 @@ export default function BookstoreProductsPage() {
 
   const toggleStatus = useCallback(
     async (row) => {
-      if (!row?.mongoId || statusMutation.isPending) return
+      if (!row?.mongoId || statusMutation.isPending) {
+        if (!row?.mongoId) {
+          toast.error('Unable to update status: product record id is missing.')
+        }
+        return
+      }
       const isCurrentlyActive =
         row.status === 'active' || String(row.apiStatus || '').toUpperCase() === 'ACTIVE'
       const next = isCurrentlyActive ? 'inactive' : 'active'
@@ -251,7 +250,7 @@ export default function BookstoreProductsPage() {
         <CourseFilterToolbar
           search={search}
           onSearchChange={(e) => setSearch(e.target.value)}
-          searchPlaceholder="Search products by name, ID, category, or author…"
+          searchPlaceholder="Search products by name, ID, or author…"
           status={statusFilter}
           onStatusChange={(e) => setStatusFilter(e.target.value)}
           statusOptions={PRODUCT_STATUS_OPTIONS}
@@ -295,9 +294,9 @@ export default function BookstoreProductsPage() {
           setModalOpen(false)
           setEditingRow(null)
         }}
-        initial={editingProduct}
+        initial={isEditing ? editingDetail : null}
         onSubmit={handleSave}
-        loading={formSaving || isDetailFetching}
+        loading={formSaving || (isEditing && (!editingDetail || isDetailFetching))}
       />
       <ProductPreviewModal
         open={Boolean(previewProductId)}

@@ -32,6 +32,7 @@ export const BOOKSTORE_PERMISSION_MATRIX = {
     'dashboard',
     'orders',
     'payments',
+    'paymentAttempts',
     'wallet',
     'invoices',
     'reports',
@@ -55,6 +56,7 @@ const PLATFORM_BOOKSTORE_PERMISSIONS = {
     'dashboard',
     'orders',
     'payments',
+    'paymentAttempts',
     'reports',
   ],
 }

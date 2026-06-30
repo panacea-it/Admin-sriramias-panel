@@ -180,6 +180,7 @@ export const RBAC_MODULE_FEATURES = {
         { id: 'inventory', label: 'Inventory' },
         { id: 'orders', label: 'Orders' },
         { id: 'payments', label: 'Payments' },
+        { id: 'paymentAttempts', label: 'Payment Attempt Logs' },
         { id: 'recommendations', label: 'Recommendations' },
         { id: 'invoices', label: 'Invoices' },
         { id: 'bookstoreReports', label: 'Reports & Analytics' },

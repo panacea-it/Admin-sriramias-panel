@@ -6,6 +6,11 @@ export const BOOKSTORE_MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const BOOKSTORE_MIN_SAMPLE_IMAGES = 3
 export const BOOKSTORE_DESCRIPTION_MAX = 3000
 
+export function parseStockQuantity(value) {
+  const parsed = parseInt(String(value ?? '').trim(), 10)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
 export function getProductExamCategory(product) {
   return product?.examCategory ?? product?.subject ?? ''
 }
@@ -50,10 +55,10 @@ export function createCoverAsset(file, existingUrl = '') {
   return null
 }
 
-export function createVideoAsset(file, existingUrl = '') {
+export function createPdfAsset(file, existingUrl = '', existingFileName = '') {
   if (file) {
     return {
-      id: nextAssetId('video'),
+      id: nextAssetId('pdf'),
       file,
       previewUrl: URL.createObjectURL(file),
       fileName: file.name,
@@ -63,10 +68,10 @@ export function createVideoAsset(file, existingUrl = '') {
   }
   if (existingUrl) {
     return {
-      id: nextAssetId('video'),
+      id: nextAssetId('pdf'),
       file: null,
       previewUrl: existingUrl,
-      fileName: 'Existing video',
+      fileName: existingFileName || 'Sample PDF',
       progress: 100,
       uploading: false,
     }
@@ -74,10 +79,10 @@ export function createVideoAsset(file, existingUrl = '') {
   return null
 }
 
-export function mapVideoFromProduct(product) {
-  const url = product?.previewVideoUrl || product?.previewVideo || ''
+export function mapPdfFromProduct(product) {
+  const url = product?.previewPdf || ''
   if (!url) return null
-  return createVideoAsset(null, url)
+  return createPdfAsset(null, url, product?.previewPdfFileName || 'Sample PDF')
 }
 
 export function createSampleAsset(file, existingUrl = '') {
@@ -116,38 +121,6 @@ export function mapSampleImagesFromProduct(product) {
     .filter(Boolean)
 }
 
-export function mapKeywordsFromProduct(product) {
-  const raw = product?.keywords || []
-  if (!Array.isArray(raw)) return []
-  return raw.map((text, index) => ({
-    id: nextAssetId('kw'),
-    text: typeof text === 'string' ? text : String(text?.text ?? ''),
-    order: index,
-  })).filter((k) => k.text.trim())
-}
-
-export function validateProductAssets({ cover, samples, keywords }, { isDraft } = {}) {
-  const errors = {}
-
-  if (!isDraft && !cover?.previewUrl) {
-    errors.cover = 'Thumbnail image is required.'
-  }
-
-  const seen = new Set()
-  const dupes = []
-  keywords.forEach((k) => {
-    const key = k.text.trim().toLowerCase()
-    if (!key) return
-    if (seen.has(key)) dupes.push(k.text)
-    seen.add(key)
-  })
-  if (dupes.length) {
-    errors.keywords = `Duplicate keywords: ${dupes.join(', ')}`
-  }
-
-  return errors
-}
-
 function normalizeIsbn(value) {
   return String(value || '').replace(/[-\s]/g, '')
 }
@@ -161,7 +134,7 @@ export function validateIsbn(value) {
   return ''
 }
 
-export function validateProductForm(values, { cover, keywords, isDraft, isEdit } = {}) {
+export function validateProductForm(values, { cover, isDraft, isEdit } = {}) {
   const errors = {}
 
   if (!String(values.name || '').trim()) {
@@ -170,10 +143,6 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
 
   if (!String(values.authorName || '').trim()) {
     errors.authorName = 'Author name is required.'
-  }
-
-  if (!String(values.language || '').trim()) {
-    errors.language = 'Language is required.'
   }
 
   const isbnError = validateIsbn(values.isbn)
@@ -192,14 +161,14 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
   if (discountRaw) {
     const discountPrice = Number(discountRaw)
     if (!Number.isFinite(discountPrice) || discountPrice < 0) {
-      errors.discountPrice = 'Discount price cannot be negative.'
+      errors.discountPrice = 'Discounted price cannot be negative.'
     } else if (Number.isFinite(originalPrice) && discountPrice > originalPrice) {
-      errors.discountPrice = 'Discount price cannot exceed original price.'
+      errors.discountPrice = 'Discounted price cannot exceed original price.'
     }
   }
 
-  const stockQuantity = Number(values.stockQuantity)
-  if (!Number.isFinite(stockQuantity) || stockQuantity < 0 || !Number.isInteger(stockQuantity)) {
+  const stockQuantity = parseStockQuantity(values.stockQuantity)
+  if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
     errors.stockQuantity = 'Stock quantity must be a non-negative whole number.'
   }
 
@@ -215,31 +184,57 @@ export function validateProductForm(values, { cover, keywords, isDraft, isEdit }
     errors.cover = 'Upload a thumbnail image before creating the product.'
   }
 
-  const keywordErrors = validateProductAssets({ cover, samples: [], keywords }, { isDraft })
-  if (keywordErrors.keywords) {
-    errors.keywords = keywordErrors.keywords
+  const isFeatured =
+    values.isFeaturedOnHomepage === true ||
+    values.isFeaturedOnHomepage === 'true' ||
+    values.isFeaturedOnHomepage === '1'
+
+  const effectiveStatus = isDraft ? 'DEACTIVATED' : (values.status === 'active' ? 'ACTIVE' : 'DEACTIVATED')
+
+  if (isFeatured) {
+    if (effectiveStatus !== 'ACTIVE') {
+      errors.isFeaturedOnHomepage =
+        'Only ACTIVE products can be featured on the homepage. Set status to ACTIVE before featuring.'
+    }
+
+    const homepageOrder = Number(values.homepageSortOrder)
+    if (!Number.isFinite(homepageOrder) || !Number.isInteger(homepageOrder) || homepageOrder < 1) {
+      errors.homepageSortOrder =
+        'Homepage display order is required and must be at least 1 when Show on Homepage is enabled.'
+    }
+  } else {
+    const homepageRaw = String(values.homepageSortOrder ?? '').trim()
+    if (homepageRaw) {
+      errors.homepageSortOrder =
+        'Homepage display order cannot be set when Show on Homepage is disabled.'
+    }
+  }
+
+  const catalogRaw = String(values.catalogSortOrder ?? '').trim()
+  if (catalogRaw) {
+    const catalogOrder = Number(catalogRaw)
+    if (!Number.isFinite(catalogOrder) || !Number.isInteger(catalogOrder) || catalogOrder < 1) {
+      errors.catalogSortOrder = 'Catalog sort order must be a whole number of at least 1.'
+    }
   }
 
   return errors
 }
 
-export function buildProductPayload(values, { cover, video, samples, keywords, isDraft }) {
+export function buildProductPayload(values, { cover, samplePdf, isDraft }) {
   const { productType: _productType, subject: _subject, ...rest } = values
+  const stockQty = parseStockQuantity(values.stockQuantity)
+
   return {
     ...rest,
     examCategory: values.examCategory,
     subject: values.examCategory,
     originalPrice: Number(values.originalPrice) || 0,
     discountPrice: Number(values.discountPrice) || 0,
-    stockQuantity: Number(values.stockQuantity) || 0,
+    stockQuantity: Number.isFinite(stockQty) ? stockQty : 0,
     thumbnailUrl: cover?.previewUrl || values.thumbnailUrl || '',
-    previewVideoUrl: video?.previewUrl || values.previewVideoUrl || '',
-    sampleImages: samples.map((s, index) => ({
-      url: s.previewUrl,
-      order: index,
-      fileName: s.fileName,
-    })),
-    keywords: keywords.map((k) => k.text.trim()).filter(Boolean),
+    previewPdf: samplePdf?.previewUrl || values.previewPdf || '',
+    previewPdfFileName: samplePdf?.fileName || values.previewPdfFileName || '',
     publishState: isDraft ? 'draft' : 'published',
     status: isDraft ? 'inactive' : values.status,
   }
@@ -291,21 +286,21 @@ export function runCoverUploadProgress(setCover, id) {
   }
 }
 
-export function runVideoUploadProgress(setVideo, id) {
+export function runPdfUploadProgress(setSamplePdf, id) {
   const tick = () => {
-    setVideo((prev) => {
+    setSamplePdf((prev) => {
       if (!prev || prev.id !== id || !prev.uploading) return prev
-      const next = Math.min(100, prev.progress + 12 + Math.random() * 8)
+      const next = Math.min(100, prev.progress + 14 + Math.random() * 10)
       return { ...prev, progress: next, uploading: next < 100 }
     })
   }
-  const interval = setInterval(tick, 180)
+  const interval = setInterval(tick, 140)
   const timeout = setTimeout(() => {
     clearInterval(interval)
-    setVideo((prev) =>
+    setSamplePdf((prev) =>
       prev && prev.id === id ? { ...prev, progress: 100, uploading: false } : prev,
     )
-  }, 1800)
+  }, 1200)
   return () => {
     clearInterval(interval)
     clearTimeout(timeout)

@@ -10,11 +10,12 @@ import CartRecommendationPreview from '../../components/bookstore/recommendation
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import {
   fetchBookstoreProducts,
-  fetchBookstoreRecommendations,
   createBookstoreRecommendation,
   updateBookstoreRecommendation,
   deleteBookstoreRecommendation,
+  changeBookstoreRecommendationStatus,
 } from '../../api/bookstoreAPI'
+import { useBookstoreRecommendationsList } from '../../hooks/bookstore/useBookstoreRecommendations'
 import {
   emptyRecommendationRule,
   mapProductsToRecommendationCards,
@@ -23,6 +24,7 @@ import {
   productDisplayName,
 } from '../../utils/bookstoreRecommendationUtils'
 import { toast } from '../../utils/toast'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 export default function BookstoreRecommendationsPage() {
   const [rules, setRules] = useState([])
@@ -36,22 +38,48 @@ export default function BookstoreRecommendationsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [previewRuleId, setPreviewRuleId] = useState(null)
 
+  const { data: recommendationsData, isLoading: recommendationsLoading, refetch } =
+    useBookstoreRecommendationsList({ limit: 100 })
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProducts() {
+      setLoading(true)
+      try {
+        const prodRes = await fetchBookstoreProducts()
+        if (cancelled) return
+
+        const items = (recommendationsData?.items || []).map(normalizeRuleFromApi)
+        setRules(items)
+        setProducts(prodRes?.items || prodRes || [])
+        setPreviewRuleId((prev) => prev ?? items[0]?.id ?? null)
+      } finally {
+        if (!cancelled) {
+          setLoading(recommendationsLoading)
+        }
+      }
+    }
+
+    if (!recommendationsLoading) {
+      loadProducts()
+    } else {
+      setLoading(true)
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [recommendationsData?.items, recommendationsLoading])
+
   const load = useCallback(async () => {
-    setLoading(true)
-    const [recRes, prodRes] = await Promise.all([
-      fetchBookstoreRecommendations(),
-      fetchBookstoreProducts(),
-    ])
-    const items = (recRes?.items || []).map(normalizeRuleFromApi)
+    const result = await refetch()
+    const prodRes = await fetchBookstoreProducts()
+    const items = (result.data?.items || []).map(normalizeRuleFromApi)
     setRules(items)
     setProducts(prodRes?.items || prodRes || [])
     setPreviewRuleId((prev) => prev ?? items[0]?.id ?? null)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  }, [refetch])
 
   const previewRule = rules.find((r) => r.id === previewRuleId) || rules[0]
   const pagePreviewSource = productById(products, previewRule?.sourceProductId)
@@ -92,13 +120,25 @@ export default function BookstoreRecommendationsPage() {
     setPreviewRuleId(row.id)
   }
 
-  const toggleRuleStatus = (row) => {
+  const toggleRuleStatus = async (row) => {
     const nextStatus = row.status === 'active' ? 'disabled' : 'active'
-    setRules((prev) =>
-      prev.map((rule) => (rule.id === row.id ? { ...rule, status: nextStatus } : rule)),
-    )
-    setViewRule((prev) => (prev?.id === row.id ? { ...prev, status: nextStatus } : prev))
-    toast.success(nextStatus === 'active' ? 'Rule enabled' : 'Rule disabled')
+
+    try {
+      const updated = await changeBookstoreRecommendationStatus(row.id, nextStatus)
+      const resolvedStatus = updated?.status || nextStatus
+      setRules((prev) =>
+        prev.map((rule) =>
+          rule.id === row.id ? { ...rule, ...(updated || {}), status: resolvedStatus } : rule,
+        ),
+      )
+      setViewRule((prev) =>
+        prev?.id === row.id ? { ...prev, ...(updated || {}), status: resolvedStatus } : prev,
+      )
+      toast.success(nextStatus === 'active' ? 'Rule enabled' : 'Rule disabled')
+      refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to update rule status.'))
+    }
   }
 
   const validate = () => {

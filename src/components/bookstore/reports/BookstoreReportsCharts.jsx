@@ -63,43 +63,47 @@ function SummaryCard({ icon: Icon, label, value, accent }) {
   )
 }
 
-export function ReportsSummaryCards() {
+export function ReportsSummaryCards({ summary }) {
+  const metrics = summary || REPORTS_SUMMARY
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard
         icon={BookOpen}
         label="Total Books Sold"
-        value={REPORTS_SUMMARY.totalBooksSold.toLocaleString()}
+        value={metrics.totalBooksSold.toLocaleString()}
         accent="from-[#7c5cbf] to-[#6a4fb0]"
       />
       <SummaryCard
         icon={IndianRupee}
         label="Total Revenue"
-        value={formatINR(REPORTS_SUMMARY.totalRevenue)}
+        value={formatINR(metrics.totalRevenue)}
         accent="from-[#55ace7] to-[#246392]"
       />
       <SummaryCard
         icon={ShoppingCart}
         label="Total Orders"
-        value={REPORTS_SUMMARY.totalOrders.toLocaleString()}
+        value={metrics.totalOrders.toLocaleString()}
         accent="from-[#2d9d78] to-[#1a6b52]"
       />
       <SummaryCard
         icon={Star}
         label="Best Selling Book"
-        value={REPORTS_SUMMARY.bestSellingBook}
+        value={metrics.bestSellingBook}
         accent="from-[#e67e22] to-[#c0392b]"
       />
     </div>
   )
 }
 
-export function ReportsDailySalesList() {
+export function ReportsDailySalesList({ dailySales }) {
+  const rows = dailySales?.length ? dailySales : REPORTS_DAILY_SALES
+
   return (
     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-      {REPORTS_DAILY_SALES.map((row) => (
+      {rows.map((row) => (
         <li
-          key={row.label}
+          key={`${row.label}-${row.day}-${row.amount}`}
           className="flex items-center justify-between rounded-lg border border-[#eef0f4] bg-[#fafbfc] px-3 py-2.5 text-sm"
         >
           <span className="font-medium text-[#111]">{row.day}</span>
@@ -110,11 +114,13 @@ export function ReportsDailySalesList() {
   )
 }
 
-export function ReportsDailySalesLineChart() {
+export function ReportsDailySalesLineChart({ dailySales }) {
+  const rows = dailySales?.length ? dailySales : REPORTS_DAILY_SALES
+
   return (
     <div className="h-[min(280px,40vh)] w-full min-h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={REPORTS_DAILY_SALES} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="reportsLineGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor={PURPLE} />
@@ -133,7 +139,7 @@ export function ReportsDailySalesLineChart() {
             contentStyle={tooltipStyle}
             formatter={(v) => [formatINR(v), 'Sales']}
             labelFormatter={(label) => {
-              const row = REPORTS_DAILY_SALES.find((d) => d.label === label)
+              const row = rows.find((d) => d.label === label)
               return row?.day ?? label
             }}
           />
@@ -152,11 +158,13 @@ export function ReportsDailySalesLineChart() {
   )
 }
 
-export function ReportsDailySalesBarChart() {
+export function ReportsDailySalesBarChart({ dailySales }) {
+  const rows = dailySales?.length ? dailySales : REPORTS_DAILY_SALES
+
   return (
     <div className="h-[min(280px,40vh)] w-full min-h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={REPORTS_DAILY_SALES} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+        <BarChart data={rows} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#686868', fontSize: 11 }} axisLine={false} tickLine={false} />
           <YAxis
@@ -170,7 +178,7 @@ export function ReportsDailySalesBarChart() {
             formatter={(v) => [formatINR(v), 'Sales']}
           />
           <Bar dataKey="amount" radius={[8, 8, 0, 0]} animationDuration={800} maxBarSize={44}>
-            {REPORTS_DAILY_SALES.map((_, i) => (
+            {rows.map((_, i) => (
               <Cell key={i} fill={i % 2 === 0 ? PURPLE : BLUE} />
             ))}
           </Bar>
@@ -217,21 +225,21 @@ export function ReportsCategoryPieChart() {
   )
 }
 
-export function ReportsDateWiseSalesSection() {
+export function ReportsDateWiseSalesSection({ dailySales }) {
   return (
-    <ChartShell title="Date-wise sales" subtitle="Daily bookstore revenue for the current week">
+    <ChartShell title="Date-wise sales" subtitle="Daily bookstore revenue for the selected period">
       <div className="grid gap-5 xl:grid-cols-12">
         <div className="xl:col-span-3">
-          <ReportsDailySalesList />
+          <ReportsDailySalesList dailySales={dailySales} />
         </div>
         <div className="space-y-5 xl:col-span-9">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#686868]">Sales trend</p>
-            <ReportsDailySalesLineChart />
+            <ReportsDailySalesLineChart dailySales={dailySales} />
           </div>
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#686868]">Daily comparison</p>
-            <ReportsDailySalesBarChart />
+            <ReportsDailySalesBarChart dailySales={dailySales} />
           </div>
         </div>
       </div>

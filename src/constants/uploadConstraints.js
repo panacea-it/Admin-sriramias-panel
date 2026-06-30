@@ -58,6 +58,14 @@ export const UPLOAD_PROFILES = {
     accept: '.pdf,application/pdf',
     maxBytes: 10 * 1024 * 1024,
   },
+  BOOKSTORE_PREVIEW_PDF: {
+    id: 'BOOKSTORE_PREVIEW_PDF',
+    labelFormats: ['PDF'],
+    extensions: ['pdf'],
+    mimeTypes: ['application/pdf'],
+    accept: '.pdf,application/pdf',
+    maxBytes: 25 * 1024 * 1024,
+  },
   DOCUMENT_BOOK: {
     id: 'DOCUMENT_BOOK',
     labelFormats: ['PDF', 'EPUB', 'DOC', 'DOCX'],

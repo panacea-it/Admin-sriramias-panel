@@ -49,9 +49,9 @@ export default function BookstoreReportsPage() {
       }
     >
       <div className="space-y-5 sm:space-y-6">
-        <ReportsSummaryCards />
+        <ReportsSummaryCards summary={data?.summary} />
 
-        <ReportsDateWiseSalesSection />
+        <ReportsDateWiseSalesSection dailySales={data?.chartDateWise} />
 
         <ReportsCategoryRevenueSection />
 

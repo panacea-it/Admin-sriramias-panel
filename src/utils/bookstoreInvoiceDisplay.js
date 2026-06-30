@@ -1,3 +1,5 @@
+import { formatOrderBookNames } from './bookstoreApiHelpers'
+
 const ORDER_DISPLAY_HINTS = {
   'BSO-1001': {
     buyerName: 'Aarav Patel',
@@ -15,10 +17,20 @@ const ORDER_DISPLAY_HINTS = {
 
 export function withInvoiceDisplayFields(invoice) {
   const hint = ORDER_DISPLAY_HINTS[invoice.orderId]
+  const buyerName =
+    String(invoice.buyerName || '').trim() ||
+    hint?.buyerName ||
+    'Guest Buyer'
+  const bookName =
+    String(invoice.bookName || '').trim() ||
+    formatOrderBookNames(invoice.items) ||
+    hint?.bookName ||
+    'Book purchase'
+
   return {
     ...invoice,
-    buyerName: invoice.buyerName ?? hint?.buyerName ?? 'Guest Buyer',
-    bookName: invoice.bookName ?? hint?.bookName ?? 'Book purchase',
+    buyerName,
+    bookName,
     invoiceDate: invoice.invoiceDate ?? invoice.createdAt ?? null,
   }
 }

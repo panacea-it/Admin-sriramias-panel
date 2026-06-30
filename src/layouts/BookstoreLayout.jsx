@@ -13,6 +13,7 @@ const BookstoreCombosPage = lazy(() => import('../pages/bookstore/BookstoreCombo
 const BookstoreBundlesPage = lazy(() => import('../pages/bookstore/BookstoreBundlesPage'))
 const BookstoreOrdersPage = lazy(() => import('../pages/bookstore/BookstoreOrdersPage'))
 const BookstorePaymentsPage = lazy(() => import('../pages/bookstore/BookstorePaymentsPage'))
+const BookstorePaymentAttemptLogsPage = lazy(() => import('../pages/bookstore/BookstorePaymentAttemptLogsPage'))
 const BookstoreWalletPage = lazy(() => import('../pages/bookstore/BookstoreWalletPage'))
 const BookstoreRecommendationsPage = lazy(() => import('../pages/bookstore/BookstoreRecommendationsPage'))
 const BookstoreInvoicesPage = lazy(() => import('../pages/bookstore/BookstoreInvoicesPage'))
@@ -51,6 +52,7 @@ export default function BookstoreLayout() {
                 <Route path="bundles" element={<BookstoreBundlesPage />} />
                 <Route path="orders" element={<BookstoreOrdersPage />} />
                 <Route path="payments" element={<BookstorePaymentsPage />} />
+                <Route path="payment-attempts" element={<BookstorePaymentAttemptLogsPage />} />
                 <Route path="wallet" element={<BookstoreWalletPage />} />
                 <Route path="recommendations" element={<BookstoreRecommendationsPage />} />
                 <Route path="invoices" element={<BookstoreInvoicesPage />} />

@@ -1,3 +1,5 @@
+import { parseStockQuantity } from './bookstoreProductForm'
+
 export const BOOKSTORE_API_SUCCESS_CODE = 10000
 
 export function isBookstoreApiSuccess(response) {
@@ -52,6 +54,11 @@ export function mapApiProductListItemToRow(item, index = 0, categoryLookup = {})
   const created = formatDateFields(item.createdAt)
   const updated = formatDateFields(item.updatedAt || item.createdAt)
 
+  const isFeatured =
+    item.isFeaturedOnHomepage === true ||
+    item.isFeaturedOnHomepage === 'true' ||
+    item.isFeaturedOnHomepage === '1'
+
   return {
     id: item.productId || item.id || '',
     mongoId: String(item._id || item.mongoId || ''),
@@ -63,12 +70,25 @@ export function mapApiProductListItemToRow(item, index = 0, categoryLookup = {})
       item.examCategoryName || item.examCategory,
       categoryLookup,
     ),
-    originalPrice: Number(item.originalPrice) || Number(item.discountPrice) || 0,
-    discountPrice: Number(item.discountPrice) || 0,
+    originalPrice: Number(item.originalPrice) || 0,
+    discountPrice:
+      Number(item.discountPrice ?? item.discountedPrice) ||
+      (Number(item.originalPrice) > 0 ? Number(item.originalPrice) : 0),
     stockQuantity: Number(item.stockQuantity) || 0,
-    thumbnailUrl: item.thumbnailUrl || item.thumbnail || '',
+    thumbnailUrl: item.thumbnailUrl || item.thumbnail?.url || item.thumbnail || '',
+    previewPdf: item.previewPdf?.url || item.previewPdf || null,
+    previewPdfFileName: item.previewPdf?.fileName || item.previewPdfFileName || null,
     status: mapApiStatusToUi(item.status),
     apiStatus: item.status || '',
+    isFeaturedOnHomepage: isFeatured,
+    homepageSortOrder:
+      item.homepageSortOrder === null || item.homepageSortOrder === undefined
+        ? null
+        : Number(item.homepageSortOrder),
+    catalogSortOrder:
+      item.catalogSortOrder === null || item.catalogSortOrder === undefined
+        ? null
+        : Number(item.catalogSortOrder),
     createdAt: created.iso,
     createdDate: created.date,
     createdTime: created.time,
@@ -90,14 +110,15 @@ export function mapApiProductViewToRow(item, categoryLookup = {}) {
     examCategoryId: item.examCategoryId ? String(item.examCategoryId) : row.examCategoryId,
     description: item.bookSummary || item.description || '',
     isbn: item.isbn || '',
-    language: item.language || 'English',
-    keywords: Array.isArray(item.seoKeywords) ? item.seoKeywords : item.keywords || [],
     previewImages: Array.isArray(item.previewImages)
       ? item.previewImages
       : item.sampleImages || [],
     previewVideoUrl: item.previewVideoUrl || item.previewVideo || '',
-    previewPdf: item.previewPdf || null,
-    previewPdfFileName: item.previewPdfFileName || null,
+    previewPdf: row.previewPdf,
+    previewPdfFileName: row.previewPdfFileName,
+    isFeaturedOnHomepage: row.isFeaturedOnHomepage,
+    homepageSortOrder: row.homepageSortOrder,
+    catalogSortOrder: row.catalogSortOrder,
     soldQuantity: item.soldQuantity ?? 0,
     apiStatus: item.status || '',
   }
@@ -112,6 +133,11 @@ export function mapApiProductsToRows(items = [], categoryLookup = {}) {
 export function normalizeBookstoreStatusChangeResponse(body) {
   const data = body?.data && typeof body.data === 'object' ? body.data : {}
 
+  const isFeatured =
+    data.isFeaturedOnHomepage === true ||
+    data.isFeaturedOnHomepage === 'true' ||
+    data.isFeaturedOnHomepage === '1'
+
   return {
     success: body?.success === true,
     statusCode: body?.statusCode,
@@ -121,6 +147,11 @@ export function normalizeBookstoreStatusChangeResponse(body) {
     status: data.status || '',
     apiStatus: data.status || '',
     uiStatus: mapApiStatusToUi(data.status),
+    isFeaturedOnHomepage: isFeatured,
+    homepageSortOrder:
+      data.homepageSortOrder === null || data.homepageSortOrder === undefined
+        ? null
+        : Number(data.homepageSortOrder),
   }
 }
 
@@ -260,8 +291,49 @@ export function buildBookstoreInventoryListParams(filters = {}) {
   }
 }
 
+export function mapApiInventoryViewToRow(item) {
+  if (!item) return null
+
+  return {
+    id: item.productId || '',
+    productId: item.productId || '',
+    productName: item.productName || '',
+    name: item.productName || '',
+    stockQuantity: Number(item.stockQuantity) || 0,
+    alert: item.alert || '',
+    statusLabel: mapApiAlertToUi(item.alert),
+  }
+}
+
+export function normalizeBookstoreInventoryViewResponse(body) {
+  const data = body?.data && typeof body.data === 'object' ? body.data : body
+  return mapApiInventoryViewToRow(data)
+}
+
+export function normalizeBookstoreInventorySearchResponse(body) {
+  const payload = body?.data && typeof body.data === 'object' ? body.data : body
+  const items = mapApiInventoryToRows(Array.isArray(payload?.items) ? payload.items : [])
+  return { items }
+}
+
+export function formatInventoryActionTypeLabel(actionType) {
+  if (actionType === 'RESTOCK') return 'Restock'
+  if (actionType === 'MANUAL_ADJUSTMENT') return 'Manual Adjustment'
+  return actionType || '—'
+}
+
+export function formatInventoryStockChange(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '—'
+  if (num > 0) return `+${num}`
+  return String(num)
+}
+
 export function mapApiInventoryLogItemToRow(item, index = 0) {
   if (!item) return null
+
+  const actionType = item.actionType || ''
 
   return {
     id: String(item._id || item.id || index),
@@ -271,7 +343,8 @@ export function mapApiInventoryLogItemToRow(item, index = 0) {
     stockChange: item.stockChange,
     stockAfter: item.stockAfter,
     reason: item.reason || '',
-    actionType: item.actionType || '',
+    actionType,
+    actionTypeLabel: formatInventoryActionTypeLabel(actionType),
     createdAt: item.createdAt || '',
     _index: index,
   }
@@ -310,10 +383,13 @@ export function normalizeBookstoreInventoryLogsResponse(data, { page = 1, limit 
 }
 
 export function buildBookstoreInventoryLogsParams(filters = {}) {
+  const page = Number(filters.page)
+  const limit = Number(filters.limit)
+
   return {
-    page: filters.page || 1,
-    limit: filters.limit || 10,
-    productId: String(filters.productId || '').trim(),
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+    limit: Number.isInteger(limit) && limit >= 1 ? limit : 10,
+    productId: String(filters.productId ?? '').trim(),
   }
 }
 
@@ -372,7 +448,7 @@ export function formFromApiProduct(product) {
   }
 }
 
-export function buildProductFormData(values, { cover, video, samples, keywords, isDraft } = {}) {
+export function buildProductFormData(values, { cover, samplePdf, isDraft } = {}) {
   const formData = new FormData()
 
   formData.append('productName', String(values.name || '').trim())
@@ -387,57 +463,419 @@ export function buildProductFormData(values, { cover, video, samples, keywords, 
     formData.append('discountPrice', String(Number(values.discountPrice)))
   }
 
-  formData.append('stockQuantity', String(Number(values.stockQuantity) || 0))
+  const stockQty = parseStockQuantity(values.stockQuantity)
+
+  formData.append(
+    'stockQuantity',
+    String(Number.isFinite(stockQty) ? stockQty : 0),
+  )
 
   const status = isDraft ? 'DEACTIVATED' : mapUiStatusToApi(values.status || 'active')
   formData.append('status', status)
-
-  const keywordList = (keywords || [])
-    .map((entry) => (typeof entry === 'string' ? entry : entry?.text || ''))
-    .map((text) => text.trim())
-    .filter(Boolean)
-
-  if (keywordList.length) {
-    formData.append('seoKeywords', JSON.stringify(keywordList))
-  }
 
   if (cover?.file) {
     formData.append('thumbnail', cover.file)
   }
 
-  if (video?.file) {
-    formData.append('previewVideo', video.file)
+  if (samplePdf?.file) {
+    formData.append('previewPdf', samplePdf.file)
   }
 
-  const existingPreviewUrls = []
-  ;(samples || []).forEach((sample) => {
-    if (sample?.file) {
-      formData.append('previewImages', sample.file)
-      return
-    }
+  const isFeatured =
+    values.isFeaturedOnHomepage === true ||
+    values.isFeaturedOnHomepage === 'true' ||
+    values.isFeaturedOnHomepage === '1'
 
-    const url = sample?.previewUrl
-    if (url && !url.startsWith('blob:')) {
-      existingPreviewUrls.push(url)
-    }
-  })
+  formData.append('isFeaturedOnHomepage', isFeatured ? 'true' : 'false')
 
-  if (existingPreviewUrls.length) {
-    formData.append('existingPreviewImages', JSON.stringify(existingPreviewUrls))
+  if (isFeatured) {
+    formData.append('homepageSortOrder', String(Number(values.homepageSortOrder)))
+  }
+
+  const catalogRaw = String(values.catalogSortOrder ?? '').trim()
+  if (catalogRaw) {
+    formData.append('catalogSortOrder', String(Number(values.catalogSortOrder)))
   }
 
   return formData
 }
 
-export function buildProductUpdateFormData(values, { cover, video, samples, keywords, isDraft, hadVideoInitially } = {}) {
-  const formData = buildProductFormData(values, { cover, video, samples, keywords, isDraft })
+export function mapOrderStatusToUi(status) {
+  const normalized = String(status || '').toUpperCase()
+  const map = {
+    PENDING: 'Pending',
+    CONFIRMED: 'Confirmed',
+    PACKED: 'Packed',
+    SHIPPED: 'Shipped',
+    DELIVERED: 'Delivered',
+    CANCELLED: 'Cancelled',
+  }
+  return map[normalized] || status || 'Pending'
+}
+
+export function mapOrderStatusToApi(status) {
+  const map = {
+    Pending: 'PENDING',
+    Confirmed: 'CONFIRMED',
+    Packed: 'PACKED',
+    Shipped: 'SHIPPED',
+    Delivered: 'DELIVERED',
+    Cancelled: 'CANCELLED',
+  }
+  return map[status] || String(status || '').toUpperCase()
+}
+
+export function mapPaymentStatusToUi(status) {
+  const normalized = String(status || '').toUpperCase()
+  const map = {
+    PAID: 'Paid',
+    PENDING: 'Pending',
+    FAILED: 'Failed',
+    REFUNDED: 'REFUNDED',
+    REFUND_INITIATED: 'REFUND_INITIATED',
+  }
+  return map[normalized] || status
+}
+
+export function mapRecommendationStatusToUi(status) {
+  if (status === 'inactive' || status === 'disabled' || status === 'draft') return 'disabled'
+  return status || 'active'
+}
+
+export function mapRecommendationStatusToApi(status) {
+  if (status === 'disabled' || status === 'draft') return 'inactive'
+  return status || 'active'
+}
+
+function normalizePaginatedList(payload, { page = 1, limit = 10, mapItem } = {}) {
+  const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload
+  const rawItems = Array.isArray(data?.items) ? data.items : []
+  const items = mapItem ? rawItems.map(mapItem).filter(Boolean) : rawItems
+  const pagination = data?.pagination || {}
+  const total = pagination.total ?? items.length
+  const resolvedLimit = pagination.limit ?? limit
+  const totalPages =
+    pagination.totalPages != null
+      ? pagination.totalPages
+      : total > 0
+        ? Math.max(1, Math.ceil(total / resolvedLimit))
+        : 0
+  const currentPage = pagination.page ?? page
+
+  return {
+    items,
+    count: items.length,
+    total,
+    totalPages,
+    page: currentPage,
+    limit: resolvedLimit,
+    hasNextPage: pagination.hasNextPage ?? (totalPages > 0 && currentPage < totalPages),
+    hasPrevPage: pagination.hasPrevPage ?? currentPage > 1,
+  }
+}
+
+export function mapApiOrderItemToRow(item) {
+  if (!item) return null
+
+  return {
+    productId: item.productId,
+    name: item.productName || item.name || '',
+    productName: item.productName || item.name || '',
+    qty: item.quantity ?? item.qty ?? 0,
+    quantity: item.quantity ?? item.qty ?? 0,
+    price: item.unitPrice ?? item.price ?? 0,
+    unitPrice: item.unitPrice ?? item.price ?? 0,
+    lineTotal: item.lineTotal ?? 0,
+  }
+}
+
+export function formatOrderBookNames(items = []) {
+  const names = (items || [])
+    .map((item) => String(item?.productName || item?.name || '').trim())
+    .filter(Boolean)
+
+  if (!names.length) return '—'
+  return names.join(', ')
+}
+
+export function mapApiOrderToRow(order) {
+  if (!order) return null
+
+  const items = (order.items || []).map(mapApiOrderItemToRow).filter(Boolean)
+
+  return {
+    ...order,
+    id: order.orderId || order.id || '',
+    orderId: order.orderId || order.id || '',
+    status: mapOrderStatusToUi(order.orderStatus || order.status),
+    orderStatus: order.orderStatus || mapOrderStatusToApi(order.status),
+    paymentStatus: mapPaymentStatusToUi(order.paymentStatus),
+    total: order.totalAmount ?? order.total ?? 0,
+    totalAmount: order.totalAmount ?? order.total ?? 0,
+    paymentGateway: order.paymentGateway || order.gateway || 'Razorpay',
+    bookName: formatOrderBookNames(items),
+    items,
+    mongoId: String(order._id || order.mongoId || ''),
+  }
+}
+
+export function mapApiPaymentToRow(payment) {
+  if (!payment) return null
+
+  const items = (payment.items || []).map(mapApiOrderItemToRow).filter(Boolean)
+  const bookName =
+    String(payment.bookName || '').trim() ||
+    formatOrderBookNames(items) ||
+    '—'
+
+  return {
+    ...payment,
+    id: payment.id || payment.txnId || payment.orderId || '',
+    orderId: payment.orderId || '',
+    gateway: payment.gateway || payment.paymentGateway || 'Razorpay',
+    amount: payment.amount ?? payment.totalAmount ?? 0,
+    status: payment.status || mapPaymentStatusToUi(payment.paymentStatus),
+    customerName: payment.customerName || '',
+    bookName,
+    items,
+    txnId: payment.txnId || payment.razorpayPaymentId || '',
+    createdAt: payment.createdAt || null,
+  }
+}
+
+export function mapApiInvoiceToRow(invoice) {
+  if (!invoice) return null
+
+  const items = (invoice.items || []).map(mapApiOrderItemToRow).filter(Boolean)
+  const buyerName =
+    String(invoice.buyerName || invoice.customerName || invoice.shippingAddress?.fullName || '')
+      .trim() ||
+    '—'
+  const bookName =
+    String(invoice.bookName || '').trim() ||
+    formatOrderBookNames(items) ||
+    '—'
+
+  return {
+    ...invoice,
+    id: invoice.id || invoice.invoiceNumber || invoice.orderId || '',
+    orderId: invoice.orderId || '',
+    buyerName,
+    bookName,
+    items,
+    amount: invoice.amount ?? invoice.totalAmount ?? 0,
+    status: invoice.status || invoice.invoiceStatus || 'Generated',
+    invoiceUrl: invoice.invoiceUrl || null,
+    gstin: invoice.gstin || '',
+    createdAt: invoice.createdAt || null,
+    invoiceDate: invoice.createdAt || invoice.invoiceDate || null,
+  }
+}
+
+export function mapApiRecommendationToRow(rule) {
+  if (!rule) return null
+
+  return {
+    ...rule,
+    id: rule.id || rule.recommendationId || '',
+    recommendationId: rule.recommendationId || rule.id || '',
+    recommendedProductIds: rule.recommendedProductIds || rule.targetProductIds || [],
+    targetProductIds: rule.recommendedProductIds || rule.targetProductIds || [],
+    status: mapRecommendationStatusToUi(rule.status),
+    apiStatus: rule.status || 'active',
+    mongoId: String(rule._id || rule.mongoId || ''),
+  }
+}
+
+export function buildBookstoreCommerceListParams(filters = {}) {
+  const params = {
+    page: filters.page || 1,
+    limit: filters.limit || 100,
+    search: String(filters.search || '').trim(),
+  }
+
+  if (filters.orderStatus && filters.orderStatus !== 'all') {
+    params.orderStatus = mapOrderStatusToApi(filters.orderStatus)
+  }
+
+  if (filters.paymentStatus && filters.paymentStatus !== 'all') {
+    params.paymentStatus = String(filters.paymentStatus).toUpperCase()
+  }
+
+  if (filters.status && filters.status !== 'all') {
+    params.status = mapRecommendationStatusToApi(filters.status)
+  }
+
+  return params
+}
+
+export function buildBookstorePaymentAttemptListParams(filters = {}) {
+  const params = buildBookstoreCommerceListParams(filters)
+
+  if (filters.failureReason && filters.failureReason !== 'all') {
+    params.failureReason = String(filters.failureReason)
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+  }
+
+  if (filters.attemptStatus && filters.attemptStatus !== 'all') {
+    params.status = String(filters.attemptStatus).trim().toUpperCase()
+  }
+
+  return params
+}
+
+export function mapApiBookstorePaymentAttemptToRow(item) {
+  if (!item) return null
+
+  return {
+    ...item,
+    id: item.attemptId || item.id || '',
+    student: item.studentName || '',
+    mobile: item.mobileNumber || '',
+    course: item.bookName || '',
+    bookName: item.bookName || '',
+    failureCategory: item.failureCategory || item.failureReason || 'Unknown Error',
+    lastAttemptDate: item.lastAttemptAt || item.createdAt || null,
+    dateTime: item.lastAttemptAt || item.createdAt || null,
+  }
+}
+
+export function normalizeBookstorePaymentAttemptsListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiBookstorePaymentAttemptToRow,
+  })
+}
+
+export function normalizeBookstoreOrdersListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiOrderToRow,
+  })
+}
+
+export function normalizeBookstorePaymentsListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiPaymentToRow,
+  })
+}
+
+export function normalizeBookstoreInvoicesListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiInvoiceToRow,
+  })
+}
+
+export function normalizeBookstoreRecommendationsListResponse(body, options = {}) {
+  return normalizePaginatedList(body, {
+    ...options,
+    mapItem: mapApiRecommendationToRow,
+  })
+}
+
+export function normalizeBookstoreDashboardResponse(body) {
+  const data = body?.data && typeof body.data === 'object' ? body.data : body || {}
+  const kpis = data.kpis || {}
+
+  return {
+    kpis,
+    revenueChart: Array.isArray(data.revenueChart) ? data.revenueChart : [],
+    productSalesChart: Array.isArray(data.productSalesChart) ? data.productSalesChart : [],
+    orderTrends: Array.isArray(data.orderTrends) ? data.orderTrends : [],
+    comboPerformance: Array.isArray(data.comboPerformance) ? data.comboPerformance : [],
+    lowStockAlerts: Array.isArray(data.lowStockAlerts) ? data.lowStockAlerts : [],
+    bestSellers: Array.isArray(data.bestSellers) ? data.bestSellers : [],
+    weekRevenue: data.weekRevenue ?? 0,
+    stats: {
+      totalRevenue: kpis.revenue ?? 0,
+      totalOrders: kpis.totalOrders ?? kpis.booksSold ?? 0,
+      totalProducts: kpis.activeProducts ?? 0,
+      pendingOrders: kpis.pendingOrders ?? 0,
+      deliveredOrders: kpis.deliveredOrders ?? 0,
+      lowStockProducts: kpis.lowStockCount ?? 0,
+      totalCustomers: kpis.totalCustomers ?? 0,
+      monthlyGrowth: kpis.monthlyGrowth ?? 0,
+      bestSellingCategory: kpis.bestSellingCategory || '—',
+      weekRevenue: data.weekRevenue ?? 0,
+      booksSold: kpis.booksSold ?? 0,
+    },
+    filters: data.filters || {},
+  }
+}
+
+export function normalizeBookstoreReportsResponse(body) {
+  const data = body?.data && typeof body.data === 'object' ? body.data : body || {}
+  const summary = data.summary || {}
+  const productSales = Array.isArray(data.productSales) ? data.productSales : []
+  const dateWise = Array.isArray(data.dateWise) ? data.dateWise : []
+
+  const chartDateWise = dateWise.map((row) => {
+    const date = row.date || row.label
+    const parsed = date ? new Date(date) : null
+    const valid = parsed && !Number.isNaN(parsed.getTime())
+
+    return {
+      label: valid
+        ? parsed.toLocaleDateString(undefined, { weekday: 'short' })
+        : row.label || date || '—',
+      day: valid
+        ? parsed.toLocaleDateString(undefined, { weekday: 'long' })
+        : row.label || date || '—',
+      date: date || '',
+      amount: row.amount ?? 0,
+      orders: row.orders ?? 0,
+    }
+  })
+
+  return {
+    summary: {
+      totalBooksSold: summary.totalUnits ?? 0,
+      totalRevenue: summary.totalRevenue ?? 0,
+      totalOrders: summary.totalOrders ?? 0,
+      averageOrderValue: summary.averageOrderValue ?? 0,
+      bestSellingBook: productSales[0]?.name || '—',
+    },
+    productSales,
+    dateWise,
+    chartDateWise,
+  }
+}
+
+export function buildRecommendationApiPayload(payload = {}) {
+  return {
+    sourceProductId: payload.sourceProductId || null,
+    recommendationType: payload.recommendationType || 'Cart Recommendations',
+    placement: payload.placement || 'Cart Drawer',
+    recommendedProductIds: payload.recommendedProductIds || payload.targetProductIds || [],
+    bestsellerProductIds: payload.bestsellerProductIds || [],
+    priorityOrder: payload.priorityOrder ?? 1,
+    status: mapRecommendationStatusToApi(payload.status),
+  }
+}
+
+export function buildProductUpdateFormData(
+  values,
+  { cover, samplePdf, isDraft = false, hadPdfInitially } = {},
+) {
+  const formData = buildProductFormData(values, {
+    cover,
+    samplePdf,
+    isDraft,
+  })
+
+  // Product update API does not accept examCategoryId.
+  formData.delete('examCategoryId')
 
   if (!cover?.file && cover?.previewUrl && !cover.previewUrl.startsWith('blob:')) {
     formData.delete('thumbnail')
   }
 
-  if (hadVideoInitially && !video) {
-    formData.append('removePreviewVideo', 'true')
+  if (hadPdfInitially && !samplePdf) {
+    formData.append('previewPdfRemove', 'true')
   }
 
   return formData

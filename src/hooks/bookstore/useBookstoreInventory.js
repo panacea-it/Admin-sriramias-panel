@@ -3,6 +3,8 @@ import {
   adjustBookstoreStock,
   fetchBookstoreInventoryLogsPage,
   fetchBookstoreInventoryPage,
+  fetchBookstoreInventoryView,
+  searchBookstoreInventory,
 } from '../../api/bookstoreAPI'
 import { bookstoreProductKeys } from './useBookstoreProducts'
 
@@ -10,6 +12,8 @@ export const bookstoreInventoryKeys = {
   all: ['bookstore-inventory'],
   list: (params) => [...bookstoreInventoryKeys.all, 'list', params],
   logs: (params) => [...bookstoreInventoryKeys.all, 'logs', params],
+  view: (productId) => [...bookstoreInventoryKeys.all, 'view', productId],
+  search: (search) => [...bookstoreInventoryKeys.all, 'search', search],
 }
 
 export function useBookstoreInventoryList(params, options = {}) {
@@ -33,6 +37,35 @@ export function useBookstoreInventoryLogs(params, options = {}) {
     retry: 1,
     refetchOnWindowFocus: false,
     ...options,
+  })
+}
+
+export function useBookstoreInventoryView(productId, options = {}) {
+  const { enabled: enabledOption = true, ...queryOptions } = options
+
+  return useQuery({
+    queryKey: bookstoreInventoryKeys.view(productId),
+    queryFn: () => fetchBookstoreInventoryView(productId),
+    staleTime: 0,
+    retry: 1,
+    refetchOnMount: 'always',
+    ...queryOptions,
+    enabled: Boolean(productId) && Boolean(enabledOption),
+  })
+}
+
+export function useBookstoreInventorySearch(search, options = {}) {
+  const term = String(search || '').trim()
+  const { enabled: enabledOption = true, ...queryOptions } = options
+
+  return useQuery({
+    queryKey: bookstoreInventoryKeys.search(term),
+    queryFn: () => searchBookstoreInventory(term),
+    staleTime: 30 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    ...queryOptions,
+    enabled: Boolean(term) && Boolean(enabledOption),
   })
 }
 
@@ -72,35 +105,39 @@ export function useAdjustBookstoreStock() {
             }
           },
         )
+
+        queryClient.setQueryData(bookstoreInventoryKeys.view(productId), updatedProduct)
       }
 
       if (newLog) {
-        queryClient.setQueriesData(
-          {
-            queryKey: bookstoreInventoryKeys.all,
-            predicate: (query) => query.queryKey[1] === 'logs',
-          },
-          (old) => {
-            if (!old?.items) return old
+        const logQueries = queryClient.getQueriesData({
+          queryKey: bookstoreInventoryKeys.all,
+          predicate: (q) => q.queryKey[1] === 'logs',
+        })
 
-            const params = query.queryKey[2]
-            const currentPage = params?.page ?? 1
-            if (currentPage !== 1) return old
+        logQueries.forEach(([queryKey, old]) => {
+          if (!old?.items) return
 
-            const limit = old.limit ?? params?.limit ?? 10
-            const nextItems = [newLog, ...old.items.filter((item) => item.id !== newLog.id)].slice(
-              0,
-              limit,
-            )
+          const params = queryKey[2] || {}
+          const currentPage = params?.page ?? 1
+          const filterProductId = String(params?.productId || '').trim()
 
-            return {
-              ...old,
-              items: nextItems,
-              count: nextItems.length,
-              total: (old.total ?? old.items.length) + 1,
-            }
-          },
-        )
+          if (currentPage !== 1) return
+          if (filterProductId && filterProductId !== productId) return
+
+          const limit = old.limit ?? params?.limit ?? 10
+          const nextItems = [newLog, ...old.items.filter((item) => item.id !== newLog.id)].slice(
+            0,
+            limit,
+          )
+
+          queryClient.setQueryData(queryKey, {
+            ...old,
+            items: nextItems,
+            count: nextItems.length,
+            total: (old.total ?? old.items.length) + 1,
+          })
+        })
       }
 
       if (productId && updatedProduct) {
