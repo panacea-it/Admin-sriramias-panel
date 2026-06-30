@@ -40,6 +40,20 @@ export default function OrdersTable({
         ),
       },
       {
+        key: 'bookName',
+        label: 'Book Name',
+        headerClassName: 'min-w-[200px]',
+        cellClassName: 'min-w-[200px] align-middle',
+        render: (row) => (
+          <span
+            className="block max-w-[280px] truncate text-[13px] font-medium text-[#111]"
+            title={row.bookName}
+          >
+            {row.bookName || '—'}
+          </span>
+        ),
+      },
+      {
         key: 'total',
         label: 'Total',
         align: 'center',
@@ -88,7 +102,7 @@ export default function OrdersTable({
       density="comfortable"
       rowClassName="hover:bg-[#eef6fc]/70"
       tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={880}
+      tableMinWidth={1080}
       paginationClassName={cn(
         '[&>div:last-child]:items-center',
         '[&_nav]:items-center',

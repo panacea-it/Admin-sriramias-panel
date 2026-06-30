@@ -598,6 +598,15 @@ export function mapApiOrderItemToRow(item) {
   }
 }
 
+export function formatOrderBookNames(items = []) {
+  const names = (items || [])
+    .map((item) => String(item?.productName || item?.name || '').trim())
+    .filter(Boolean)
+
+  if (!names.length) return '—'
+  return names.join(', ')
+}
+
 export function mapApiOrderToRow(order) {
   if (!order) return null
 
@@ -613,6 +622,7 @@ export function mapApiOrderToRow(order) {
     total: order.totalAmount ?? order.total ?? 0,
     totalAmount: order.totalAmount ?? order.total ?? 0,
     paymentGateway: order.paymentGateway || order.gateway || 'Razorpay',
+    bookName: formatOrderBookNames(items),
     items,
     mongoId: String(order._id || order.mongoId || ''),
   }
@@ -621,11 +631,8 @@ export function mapApiOrderToRow(order) {
 export function mapApiPaymentToRow(payment) {
   if (!payment) return null
 
-  const bookName =
-    payment.bookName ||
-    payment.items?.[0]?.productName ||
-    payment.items?.[0]?.name ||
-    ''
+  const items = (payment.items || []).map(mapApiOrderItemToRow).filter(Boolean)
+  const bookName = payment.bookName || formatOrderBookNames(items) || '—'
 
   return {
     ...payment,
@@ -636,6 +643,7 @@ export function mapApiPaymentToRow(payment) {
     status: payment.status || mapPaymentStatusToUi(payment.paymentStatus),
     customerName: payment.customerName || '',
     bookName,
+    items,
     txnId: payment.txnId || payment.razorpayPaymentId || '',
     createdAt: payment.createdAt || null,
   }

@@ -51,7 +51,7 @@ export default function PaymentsTable({
             className="block max-w-[240px] truncate text-[13px] font-medium text-[#111]"
             title={row.bookName}
           >
-            {row.bookName}
+            {row.bookName || '—'}
           </span>
         ),
       },
