@@ -3,60 +3,33 @@ import { UserCircle } from 'lucide-react'
 import FinanceSettingsPanelShell from './FinanceSettingsPanelShell'
 import ProfileSummaryOverview from './student-profiles/ProfileSummaryOverview'
 import { ProfileEnrollmentPanel } from './student-profiles/StudentProfileTabPanels'
-import {
-  fetchStudentFinanceProfileDetail,
-  fetchPaymentReports,
-  fetchEmiPlans,
-  fetchGstSettings,
-} from '../../api/financeAPI'
-import { enrichStudentFinanceProfile } from '../../utils/studentFinanceProfile'
-import { enrichFinanceRecord } from '../../utils/financeRecordModel'
+import { fetchStudentFinanceProfile } from '../../api/studentFinanceProfilesAPI'
 import { toast } from '../../utils/toast'
 
 export default function StudentFinanceProfilePanel({ studentId, seed, onClose }) {
   const [profile, setProfile] = useState(null)
-  const [payments, setPayments] = useState([])
-  const [gstSettings, setGstSettings] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
     if (!studentId) return
     setLoading(true)
+    setError(null)
+    setProfile(null)
     try {
-      const [detail, allPay, emi, gst] = await Promise.all([
-        fetchStudentFinanceProfileDetail(studentId),
-        fetchPaymentReports(),
-        fetchEmiPlans(),
-        fetchGstSettings(),
-      ])
-      setGstSettings(gst)
-      const studentPayments = allPay.filter((p) => p.studentId === studentId).map(enrichFinanceRecord)
-      setPayments(studentPayments)
-      if (detail) {
-        setProfile(detail)
-      } else if (seed) {
-        setProfile(enrichStudentFinanceProfile(seed, { payments: allPay, emiPlans: emi }))
-      } else if (studentPayments[0]) {
-        setProfile(
-          enrichStudentFinanceProfile(
-            {
-              id: studentId,
-              studentName: studentPayments[0].studentName,
-              mobile: studentPayments[0].mobile,
-              email: studentPayments[0].email,
-              branch: studentPayments[0].branch,
-              courses: [],
-            },
-            { payments: allPay, emiPlans: emi },
-          ),
-        )
+      const detail = await fetchStudentFinanceProfile(studentId)
+      setProfile(detail)
+    } catch (err) {
+      if (err.status === 404) {
+        setError('Finance profile not found for this student')
+      } else {
+        toast.error(err.message || 'Failed to load finance profile')
+        setError(err.message || 'Failed to load finance profile')
       }
-    } catch {
-      toast.error('Failed to load finance profile')
     } finally {
       setLoading(false)
     }
-  }, [studentId, seed?.mobile, seed?.email])
+  }, [studentId])
 
   useEffect(() => {
     if (studentId) {
@@ -66,12 +39,19 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
 
   if (!studentId) return null
 
+  const displayName = profile?.studentName || seed?.studentName || 'Student'
+  const subtitleParts = [
+    studentId,
+    profile?.branch || seed?.branch || '—',
+    profile?.enrollmentSourceLabel || seed?.enrollmentSourceLabel || '',
+  ].filter(Boolean)
+
   return (
     <FinanceSettingsPanelShell
       open={!!studentId}
       onClose={onClose}
-      title={profile?.studentName || seed?.studentName || 'Student'}
-      subtitle={`${studentId} · ${profile?.branch || profile?.branchMapped || '—'} · ${profile?.enrollmentSourceLabel || ''}`}
+      title={displayName}
+      subtitle={subtitleParts.join(' · ')}
       icon={UserCircle}
       size="xl"
       className="sm:max-w-3xl"
@@ -92,7 +72,20 @@ export default function StudentFinanceProfilePanel({ studentId, seed, onClose })
 
         {loading && <p className="text-sm text-[#686868]">Loading finance profile…</p>}
 
-        {!loading && profile && (
+        {!loading && error && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
+            <p className="text-sm text-[#686868]">{error}</p>
+            <button
+              type="button"
+              onClick={load}
+              className="mt-3 text-sm font-semibold text-[#246392] hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && profile && (
           <>
             <ProfileSummaryOverview profile={profile} />
             <ProfileEnrollmentPanel profile={profile} />

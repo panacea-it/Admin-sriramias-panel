@@ -6,13 +6,16 @@ import { TABLE_ACTIONS_WRAP } from '../../../utils/tableColumnHelpers'
 
 export default function PaymentAttemptTableActions({
   row,
-  hasRemark,
+  canAssign = true,
+  canAddRemark = true,
   onView,
   onAssignCounselor,
   onAddRemark,
 }) {
   const assigned = isCounselorAssigned(row)
   const attemptLabel = row.attemptId || row.id
+  const showAssignIcon = !assigned && canAssign
+  const showRemarkIcon = assigned && canAddRemark
 
   return (
     <div className={TABLE_ACTIONS_WRAP}>
@@ -21,7 +24,7 @@ export default function PaymentAttemptTableActions({
         label={`View attempt ${attemptLabel}`}
       />
 
-      {assigned && !hasRemark ? (
+      {showRemarkIcon ? (
         <IconActionButton
           label={`Add counselor remark for ${row.student}`}
           onClick={onAddRemark}
@@ -31,7 +34,7 @@ export default function PaymentAttemptTableActions({
         </IconActionButton>
       ) : null}
 
-      {!assigned ? (
+      {showAssignIcon ? (
         <IconActionButton
           label={`Assign counselor for ${row.student}`}
           onClick={onAssignCounselor}

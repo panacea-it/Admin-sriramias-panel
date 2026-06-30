@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Settings2, Layers } from 'lucide-react'
 import FinanceSettingsPanelShell from './FinanceSettingsPanelShell'
 import FinanceConfirmDialog from './FinanceConfirmDialog'
@@ -7,27 +7,59 @@ import FinancePaymentModeDialog from './FinancePaymentModeDialog'
 import FinanceModeFilters from './FinanceModeFilters'
 import { FinanceSettingsSection } from './FinanceSettingsHeader'
 import FinanceEmptyState from './FinanceEmptyState'
-import { updatePaymentModeSettings } from '../../api/financeAPI'
+import {
+  changePaymentModeStatus,
+  createPaymentMode,
+  deletePaymentMode,
+  fetchPaymentModesList,
+  updatePaymentMode,
+} from '../../api/paymentModesAPI'
 import { FINANCE_CRITICAL_PAYMENT_MODE_IDS } from '../../constants/financeConstants'
 import {
-  createPaymentModeFromForm,
   filterAndSortPaymentModes,
   groupPaymentModesByCategory,
 } from '../../utils/finance/paymentModeUtils'
+import { mapApiCategoryToUi, mapApiIconToUi } from '../../utils/studentPaymentReportsHelpers'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
+function mapApiGroupsToSections(groups = []) {
+  return groups
+    .map((group) => {
+      const categoryId = mapApiCategoryToUi(group.category)
+      const modes = (group.items || []).map((item) => ({
+        id: item.paymentModeId,
+        paymentModeId: item.paymentModeId,
+        label: item.paymentModeName,
+        category: categoryId,
+        description: item.description || '',
+        icon: mapApiIconToUi(item.icon),
+        enabled: item.isActive !== false,
+        isCustom: true,
+        lastUpdated: item.updatedAt,
+        _id: item._id,
+      }))
+      return { categoryId, count: group.count ?? modes.length, modes }
+    })
+    .filter((section) => section.modes.length > 0)
+}
+
 export default function FinancePaymentModeManager({
-  settings = [],
-  onUpdated,
+  badgeSummary = { activeCount: 0, totalCount: 0 },
+  onModesChanged,
   canManage = true,
   readOnly = false,
   className,
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState([])
+  const [summary, setSummary] = useState(badgeSummary)
+  const [apiGroups, setApiGroups] = useState([])
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('name')
@@ -36,13 +68,37 @@ export default function FinancePaymentModeManager({
   const [confirmDisable, setConfirmDisable] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
-  if (!canManage) return null
-
-  const enabledCount = settings.filter((m) => m.enabled).length
   const canEdit = !readOnly
 
+  useEffect(() => {
+    setSummary(badgeSummary)
+  }, [badgeSummary])
+
+  const loadModes = useCallback(
+    async (filters = {}) => {
+      setLoading(true)
+      try {
+        const result = await fetchPaymentModesList({
+          search: filters.search ?? debouncedSearch,
+          category: filters.category ?? categoryFilter,
+          status: filters.status ?? statusFilter,
+          sort: filters.sort ?? sortBy,
+        })
+        setDraft(result.items || [])
+        setApiGroups(result.groups || [])
+        setSummary(result.summary || badgeSummary)
+        return result
+      } catch (error) {
+        toast.error(error.message || 'Failed to load payment modes')
+        throw error
+      } finally {
+        setLoading(false)
+      }
+    },
+    [debouncedSearch, categoryFilter, statusFilter, sortBy, badgeSummary],
+  )
+
   const openManager = () => {
-    setDraft(JSON.parse(JSON.stringify(settings)))
     setSearch('')
     setCategoryFilter('all')
     setStatusFilter('all')
@@ -57,44 +113,51 @@ export default function FinancePaymentModeManager({
     setEditingMode(null)
   }
 
+  useEffect(() => {
+    if (!open) return
+    loadModes().catch(() => {})
+  }, [open, debouncedSearch, categoryFilter, statusFilter, sortBy, loadModes])
+
   const filteredModes = useMemo(
     () =>
       filterAndSortPaymentModes(draft, {
-        search,
-        category: categoryFilter,
-        status: statusFilter,
+        search: '',
+        category: 'all',
+        status: 'all',
         sort: sortBy,
       }),
-    [draft, search, categoryFilter, statusFilter, sortBy],
+    [draft, sortBy],
   )
 
-  const groupedModes = useMemo(() => groupPaymentModesByCategory(filteredModes), [filteredModes])
-
-  const persistSettings = async (nextDraft) => {
-    setSaving(true)
-    try {
-      const updated = await updatePaymentModeSettings(nextDraft)
-      setDraft(updated)
-      onUpdated?.(updated)
-    } catch {
-      toast.error('Failed to save payment mode settings')
-      throw new Error('save failed')
-    } finally {
-      setSaving(false)
+  const groupedModes = useMemo(() => {
+    if (apiGroups.length > 0) {
+      return mapApiGroupsToSections(apiGroups).map((section) => ({
+        category: {
+          id: section.categoryId,
+          label: section.categoryId.charAt(0).toUpperCase() + section.categoryId.slice(1),
+        },
+        modes: section.modes,
+      }))
     }
-  }
+    return groupPaymentModesByCategory(filteredModes)
+  }, [apiGroups, filteredModes])
 
   const applyToggle = async (mode, enabled) => {
     if (!canEdit) return
-    const nextDraft = draft.map((m) =>
-      m.id === mode.id ? { ...m, enabled, lastUpdated: new Date().toISOString() } : m,
-    )
-    setDraft(nextDraft)
+    setSaving(true)
     try {
-      await persistSettings(nextDraft)
+      await changePaymentModeStatus(mode.paymentModeId || mode.id, enabled)
+      await loadModes()
+      onModesChanged?.()
       toast.success(enabled ? `"${mode.label}" enabled` : `"${mode.label}" disabled`)
-    } catch {
-      setDraft(settings)
+    } catch (error) {
+      if (error.status === 403) {
+        toast.error('Access denied')
+      } else {
+        toast.error(error.message || 'Failed to update payment mode')
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -109,47 +172,42 @@ export default function FinancePaymentModeManager({
 
   const handleFormSubmit = async (form, existing) => {
     if (!canEdit || saving) return
-    const now = new Date().toISOString()
-    let nextDraft
-    if (existing) {
-      nextDraft = draft.map((m) =>
-        m.id === existing.id
-          ? {
-              ...m,
-              label: form.label.trim(),
-              category: form.category,
-              description: form.description?.trim() || '',
-              icon: form.icon,
-              enabled: form.enabled !== false,
-              lastUpdated: now,
-            }
-          : m,
-      )
-    } else {
-      nextDraft = [...draft, createPaymentModeFromForm(form)]
-    }
-    setDraft(nextDraft)
+    setSaving(true)
     try {
-      await persistSettings(nextDraft)
-      toast.success(existing ? `"${form.label.trim()}" updated` : `"${form.label.trim()}" added`)
+      if (existing) {
+        await updatePaymentMode(form, existing)
+        toast.success(`"${form.label.trim()}" updated`)
+      } else {
+        await createPaymentMode(form)
+        toast.success(`"${form.label.trim()}" added`)
+      }
       setFormOpen(false)
       setEditingMode(null)
-    } catch {
-      setDraft(settings)
+      await loadModes()
+      onModesChanged?.()
+    } catch (error) {
+      if (error.status === 403) {
+        toast.error('Access denied')
+      } else {
+        toast.error(error.message || 'Failed to save payment mode')
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleDelete = (mode) => {
     if (!canEdit) return
-    if (!mode.isCustom) {
-      toast.error('Built-in payment modes cannot be deleted. Disable instead.')
-      return
-    }
     setConfirmDelete(mode)
   }
 
-  const activeCount = draft.filter((m) => m.enabled).length
-  const inactiveCount = draft.filter((m) => !m.enabled).length
+  const activeCount = summary.activeCount ?? draft.filter((m) => m.enabled).length
+  const inactiveCount = summary.inactiveCount ?? draft.filter((m) => !m.enabled).length
+  const totalCount = summary.totalCount ?? draft.length
+  const badgeActive = badgeSummary.activeCount ?? activeCount
+  const badgeTotal = badgeSummary.totalCount ?? totalCount
+
+  if (!canManage) return null
 
   return (
     <>
@@ -164,7 +222,7 @@ export default function FinancePaymentModeManager({
         <Settings2 className="h-4 w-4" />
         <span className="hidden sm:inline">Payment Modes</span>
         <span className="rounded-full bg-[#246392] px-2 py-0.5 text-xs font-bold text-white">
-          {enabledCount}/{settings.length || 8}
+          {badgeActive}/{badgeTotal || 8}
         </span>
       </button>
 
@@ -183,7 +241,7 @@ export default function FinancePaymentModeManager({
               {[
                 { label: 'Active', value: activeCount },
                 { label: 'Deactivated', value: inactiveCount },
-                { label: 'Total', value: draft.length },
+                { label: 'Total', value: totalCount },
               ].map((stat) => (
                 <span
                   key={stat.label}
@@ -227,7 +285,9 @@ export default function FinancePaymentModeManager({
             </p>
           )}
 
-          {filteredModes.length === 0 ? (
+          {loading ? (
+            <p className="py-8 text-center text-sm text-[#686868]">Loading payment modes…</p>
+          ) : filteredModes.length === 0 ? (
             <FinanceEmptyState
               icon={Layers}
               title="No payment modes found"
@@ -258,7 +318,7 @@ export default function FinancePaymentModeManager({
                           : undefined
                       }
                       onDelete={canEdit ? handleDelete : undefined}
-                      canDelete={canEdit && !!mode.isCustom}
+                      canDelete={canEdit}
                     />
                   ))}
                 </FinanceSettingsSection>
@@ -312,13 +372,20 @@ export default function FinancePaymentModeManager({
             setConfirmDelete(null)
             return
           }
-          const nextDraft = draft.filter((m) => m.id !== confirmDelete.id)
-          setDraft(nextDraft)
+          setSaving(true)
           try {
-            await persistSettings(nextDraft)
+            await deletePaymentMode(confirmDelete.paymentModeId || confirmDelete.id)
             toast.success(`"${confirmDelete.label}" removed`)
-          } catch {
-            setDraft(settings)
+            await loadModes()
+            onModesChanged?.()
+          } catch (error) {
+            if (error.status === 403) {
+              toast.error('Access denied')
+            } else {
+              toast.error(error.message || 'Failed to delete payment mode')
+            }
+          } finally {
+            setSaving(false)
           }
           setConfirmDelete(null)
         }}

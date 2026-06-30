@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import CbtTestsManagementTable from './CbtTestsManagementTable'
-import CbtTestsTableActions from './CbtTestsTableActions'
+import { CBT_DATA_PANEL, CBT_TABLE_CONTAINER } from './ui'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichCbtTestRow } from '../../../utils/cbtTestSeriesHierarchy'
 
@@ -23,9 +23,12 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
   const [search, setSearch] = useState('')
 
   const tests = useMemo(() => {
-    if (Array.isArray(testsProp)) return testsProp
+    if (Array.isArray(testsProp) && testsProp.length > 0) return testsProp
     const nodes = collectTestSeries(topic?.children || [])
-    return nodes.map((n) => enrichCbtTestRow(n, faculty))
+    if (nodes.length > 0) {
+      return nodes.map((n) => enrichCbtTestRow(n, faculty))
+    }
+    return Array.isArray(testsProp) ? testsProp : []
   }, [testsProp, topic, faculty])
 
   const filtered = useMemo(() => {
@@ -36,16 +39,12 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
 
   const openResults = useCallback(
     (test) => {
+      if (!test?.id || !faculty?.subjectId) return
       navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id), {
         state: { topicId: topic?.id, topicTitle: topic?.title },
       })
     },
     [navigate, faculty, topic],
-  )
-
-  const renderRowActions = useCallback(
-    (row) => <CbtTestsTableActions onView={() => openResults(row)} />,
-    [openResults],
   )
 
   const hasActiveFilters = Boolean(search.trim())
@@ -55,25 +54,25 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
     : 'No tests available for this topic.'
 
   return (
-    <div className="box-border flex w-full max-w-full flex-col rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+    <section className={CBT_DATA_PANEL}>
       <CourseFilterToolbar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search tests…"
+        searchPlaceholder="Search tests..."
         showStatusFilter={false}
         searchFullWidth
         disabled={loading && tests.length === 0}
       />
 
-      <div className="mt-5 w-full max-w-full overflow-x-auto rounded-xl border border-slate-100">
+      <div className={CBT_TABLE_CONTAINER}>
         <CbtTestsManagementTable
           tests={filtered}
           loading={loading}
           resetDeps={[search, tests.length]}
           emptyMessage={emptyMessage}
-          renderActions={renderRowActions}
+          onViewTest={openResults}
         />
       </div>
-    </div>
+    </section>
   )
 }

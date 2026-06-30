@@ -1,18 +1,19 @@
 import { Monitor } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import CbtMappingTable from '../../components/test-management/cbt/CbtMappingTable'
-import EvaluationProgressCards from '../../components/test-management/EvaluationProgressCards'
+import { CbtLatestTestSeries } from '../../components/test-management/cbt/ui'
 import { useCbtTestSeriesHierarchy } from '../../hooks/useCbtTestSeriesHierarchy'
 import { BannerButton } from '../../components/academics/AcademicsUi'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 
 export default function CbtManagementPage() {
+  const navigate = useNavigate()
   const { mappingRows, latestEvaluations, loading } = useCbtTestSeriesHierarchy()
 
-  const openResults = (card, navigate) => {
-    if (card.subjectId && card.id) {
-      navigate(TEST_MANAGEMENT_ROUTES.cbtResults(card.subjectId, card.id))
+  const openFacultyFromCard = (card) => {
+    if (card.subjectId) {
+      navigate(TEST_MANAGEMENT_ROUTES.cbtFaculty(card.subjectId))
     }
   }
 
@@ -28,14 +29,15 @@ export default function CbtManagementPage() {
         </Link>
       }
     >
-      <EvaluationProgressCards
+      <CbtLatestTestSeries
+        className="mb-4 sm:mb-5"
         cards={latestEvaluations}
         loading={loading}
         emptyMessage="No tests conducted yet."
         heading="Latest Test Series"
         showUploadedSheets={false}
         resultsLineLabel="published"
-        onCardClick={openResults}
+        onCardClick={openFacultyFromCard}
       />
       <CbtMappingTable rows={mappingRows} loading={loading} />
     </TestManagementPageShell>

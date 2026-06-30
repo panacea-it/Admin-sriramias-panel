@@ -27,7 +27,7 @@ function ContactCell({ row }) {
 }
 
 function LastAttemptCell({ row }) {
-  const { time, date } = formatLastAttemptDisplay(row.lastAttemptDate || row.dateTime)
+  const { time, date } = formatLastAttemptDisplay(row.lastAttemptDate || row.lastAttemptAt || row.dateTime)
   return (
     <div className="whitespace-nowrap text-[13px]">
       <p className="font-medium text-[#111]">{time}</p>
@@ -57,10 +57,12 @@ export default function PaymentAttemptTable({
   loading,
   resetDeps = [],
   emptyMessage,
+  emptyState,
   sortKey,
   sortDir,
   onSort,
   renderActions,
+  controlledPagination,
 }) {
   const columns = useMemo(
     () => [
@@ -95,7 +97,7 @@ export default function PaymentAttemptTable({
         ),
         headerClassName: 'min-w-[140px] cursor-pointer select-none',
         cellClassName: 'min-w-[140px] align-middle',
-        render: (row) => <span className="font-semibold text-slate-900">{row.student}</span>,
+        render: (row) => <span className="font-semibold text-slate-900">{row.student || row.studentName}</span>,
       },
       {
         key: 'contact',
@@ -161,7 +163,7 @@ export default function PaymentAttemptTable({
         headerClassName: 'min-w-[130px]',
         cellClassName: 'min-w-[130px] align-middle',
         render: (row) => (
-          <span className="font-medium text-[#111]">{row.counselorName || '—'}</span>
+          <span className="font-medium text-[#111]">{row.counselorName || row.assignedCounselorName || '—'}</span>
         ),
       },
       {
@@ -196,6 +198,7 @@ export default function PaymentAttemptTable({
         '[&_form_input]:h-9 [&_form_input]:leading-none',
         '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
       )}
+      controlledPagination={controlledPagination}
     />
   )
 }

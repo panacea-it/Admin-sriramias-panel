@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, ChevronDown, FileSpreadsheet, Search, SearchX, RotateCcw } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceStatusBadge from '../../components/finance/FinanceStatusBadge'
@@ -11,19 +11,23 @@ import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
 import ViewButton from '../../components/common/ViewButton'
 import EditButton from '../../components/common/EditButton'
 import {
-  fetchPaymentReports,
-  fetchPaymentModeSettings,
-  updatePaymentStatus,
-} from '../../api/financeAPI'
+  fetchStudentPaymentReportFilterOptions,
+  fetchStudentPaymentReportsList,
+  fetchStudentPaymentReportDetail,
+  updateStudentPayment,
+} from '../../api/studentPaymentReportsAPI'
+import { fetchPaymentModesList } from '../../api/paymentModesAPI'
+import { formatINR } from '../../utils/financeFilters'
 import {
-  filterPaymentReports,
-  formatINR,
-  DEFAULT_PAYMENT_REPORT_FILTERS,
-} from '../../utils/financeFilters'
-import { normalizePaymentModeLabel } from '../../utils/finance/paymentModeUtils'
+  mapApiStatusToDisplay,
+  mapDisplayStatusToApi,
+  mapGatewayLabel,
+  validateEditPaymentForm,
+} from '../../utils/studentPaymentReportsHelpers'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
+import { buildFilterSignature, createListFetchGuard, useEffectivePage } from '../../hooks/useMasterListQuery'
 import {
   ADMIN_DATA_PANEL,
   ADMIN_TABLE_CONTAINER,
@@ -49,54 +53,13 @@ const TABLE_COLUMNS = [
   { key: 'editComment', label: 'Comments' },
 ]
 
-const DISPLAY_PAYMENT_MODES = new Set([
-  'UPI',
-  'Card',
-  'Net Banking',
-  'Cash',
-  'Offline Cash',
-  'EMI',
-])
-
 const INITIAL_FILTERS = {
-  centerName: 'all',
+  centerId: '',
   paymentDate: '',
 }
 
-/** Latest admin edit note — reason and comment are stored together in adminLogs.comment */
-function parseLatestAdminNote(row) {
-  const logs = Array.isArray(row?.adminLogs) ? row.adminLogs : []
-  if (!logs.length) return { reason: '', comment: '' }
-
-  const latest = logs[logs.length - 1]
-  const raw = (latest.comment || '').trim()
-  if (!raw) return { reason: '', comment: '' }
-
-  const colonIdx = raw.indexOf(': ')
-  if (colonIdx > 0) {
-    return {
-      reason: raw.slice(0, colonIdx).trim(),
-      comment: raw.slice(colonIdx + 2).trim(),
-    }
-  }
-
-  return { reason: latest.action || '', comment: raw }
-}
-
-function deriveDisplayPaymentStatus(row) {
-  const paid = Math.max(0, Number(row.amountPaid) || 0)
-  const pending = Math.max(0, Number(row.pendingAmount) || 0)
-
-  if (row.paymentType === 'EMI' && pending === 0 && paid > 0) {
-    return 'EMI Completed'
-  }
-  if (row.emiStatus === 'EMI Completed' || row.paymentStatus === 'EMI Completed') {
-    return 'EMI Completed'
-  }
-  if (pending === 0 && paid > 0) return 'Paid'
-  if (paid > 0 && pending > 0) return 'Partially Paid'
-  return 'Pending'
-}
+const DEFAULT_PAGE_SIZE = 10
+const listFetchGuard = createListFetchGuard()
 
 function formatPaymentReportDate(iso) {
   if (!iso) return null
@@ -114,13 +77,6 @@ function formatPaymentReportDate(iso) {
       hour12: true,
     }),
   }
-}
-
-function formatDisplayPaymentMode(mode) {
-  if (!mode) return '—'
-  const label = normalizePaymentModeLabel(mode)
-  if (label === '—') return '—'
-  return DISPLAY_PAYMENT_MODES.has(label) ? label : '—'
 }
 
 function NoteCell({ value, variant = 'text' }) {
@@ -161,7 +117,7 @@ function PaymentDateCell({ iso }) {
 function countActiveFilters(filters, search) {
   let count = 0
   if (search.trim()) count++
-  if (filters.centerName && filters.centerName !== 'all') count++
+  if (filters.centerId) count++
   if (filters.paymentDate) count++
   return count
 }
@@ -215,12 +171,12 @@ function PaymentReportsFilterToolbar({
             disabled={disabled}
             className="h-10 w-full min-h-[38px] appearance-none rounded-lg border-0 bg-[#55ace7] pl-4 pr-9 text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-[#246392]/50 disabled:opacity-60 sm:text-base"
           >
-            <option value="all" className="bg-white text-[#222]">
+            <option value="" className="bg-white text-[#222]">
               All centers
             </option>
-            {centerOptions.map((name) => (
-              <option key={name} value={name} className="bg-white text-[#222]">
-                {name}
+            {centerOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-white text-[#222]">
+                {option.label}
               </option>
             ))}
           </select>
@@ -246,60 +202,142 @@ function PaymentReportsFilterToolbar({
 export default function StudentPaymentReportsPage() {
   const { canEdit, canExport } = useFinancePermissions()
   const { refreshToken } = useFinanceOperations()
+  const [filterOptions, setFilterOptions] = useState(null)
   const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [modeSettings, setModeSettings] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [bootstrapping, setBootstrapping] = useState(true)
+  const [listLoading, setListLoading] = useState(false)
+  const [modeBadge, setModeBadge] = useState({ activeCount: 0, totalCount: 0 })
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, 350)
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [viewRow, setViewRow] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
   const [editRow, setEditRow] = useState(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const [editForm, setEditForm] = useState({
     newStatus: 'Paid',
     amountAdjustment: '',
-    reason: 'Manual Approval',
+    reason: '',
     comment: '',
   })
   const [saving, setSaving] = useState(false)
+  const mountedRef = useRef(true)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    filters.centerId,
+    filters.paymentDate,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const listParams = useMemo(
+    () => ({
+      search: debouncedSearch.trim(),
+      centerId: filters.centerId || undefined,
+      fromDate: filters.paymentDate || undefined,
+      toDate: filters.paymentDate || undefined,
+      page: effectivePage,
+      limit: pageSize,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    }),
+    [debouncedSearch, filters, effectivePage, pageSize],
+  )
+
+  const centerOptions = useMemo(() => {
+    const centers = filterOptions?.centers || []
+    return centers.map((c) => ({
+      value: c._id,
+      label: c.centerName,
+    }))
+  }, [filterOptions])
+
+  const reasonOptions = useMemo(() => filterOptions?.reasons || [], [filterOptions])
+
+  const centerLabelById = useMemo(() => {
+    const map = new Map()
+    centerOptions.forEach((c) => map.set(c.value, c.label))
+    return map
+  }, [centerOptions])
+
+  const fetchList = useCallback(async (params, { signal } = {}) => {
+    const result = await fetchStudentPaymentReportsList(params, { signal })
+    if (!mountedRef.current) return
+    setRows(result.items)
+    setTotalCount(result.totalCount)
+    setTotalPages(result.totalPages || 1)
+  }, [])
+
+  const refreshModeBadge = useCallback(async () => {
     try {
-      const [data, modes] = await Promise.all([fetchPaymentReports(), fetchPaymentModeSettings()])
-      setRows(Array.isArray(data) ? data : [])
-      setModeSettings(Array.isArray(modes) ? modes : [])
+      const result = await fetchPaymentModesList()
+      if (!mountedRef.current) return
+      setModeBadge({
+        activeCount: result.summary?.activeCount ?? 0,
+        totalCount: result.summary?.totalCount ?? 0,
+      })
     } catch {
-      toast.error('Failed to load payment reports')
+      // Badge failure is non-blocking; keep previous counts.
+    }
+  }, [])
+
+  const loadBootstrap = useCallback(async () => {
+    setBootstrapping(true)
+    try {
+      const [options, modesResult] = await Promise.all([
+        fetchStudentPaymentReportFilterOptions(),
+        fetchPaymentModesList(),
+      ])
+      if (!mountedRef.current) return
+      setFilterOptions(options)
+      setModeBadge({
+        activeCount: modesResult.summary?.activeCount ?? 0,
+        totalCount: modesResult.summary?.totalCount ?? 0,
+      })
+    } catch {
+      if (mountedRef.current) toast.error('Failed to load payment reports')
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setBootstrapping(false)
     }
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load, refreshToken])
+    loadBootstrap()
+  }, [refreshToken, loadBootstrap])
 
-  const combinedFilters = useMemo(
-    () => ({
-      ...DEFAULT_PAYMENT_REPORT_FILTERS,
-      search: debouncedSearch,
-      centerName: filters.centerName,
-      dateFrom: filters.paymentDate,
-      dateTo: filters.paymentDate,
-    }),
-    [filters, debouncedSearch],
-  )
+  useEffect(() => {
+    const ctx = listFetchGuard.beginRequest()
+    if (!ctx) return
+    const { controller, seq } = ctx
 
-  const filtered = useMemo(
-    () => filterPaymentReports(rows ?? [], combinedFilters),
-    [rows, combinedFilters],
-  )
-
-  const centerOptions = useMemo(() => {
-    const names = [...new Set((rows ?? []).map((r) => r?.centerName).filter(Boolean))]
-    return names.sort()
-  }, [rows])
+    setListLoading(true)
+    fetchList(listParams, { signal: controller.signal })
+      .catch((error) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (listFetchGuard.isAbortError(error)) return
+        listFetchGuard.toastListError(
+          listFetchGuard.getListErrorMessage(error, 'Failed to load payment reports'),
+        )
+      })
+      .finally(() => {
+        if (listFetchGuard.endRequest(seq) && mountedRef.current) {
+          setListLoading(false)
+        }
+      })
+  }, [listParams, refreshToken, fetchList])
 
   const activeFilterCount = countActiveFilters(filters, search)
 
@@ -308,11 +346,11 @@ export default function StudentPaymentReportsPage() {
     if (search.trim()) {
       chips.push({ key: 'search', label: `Search: ${search.trim()}`, clear: () => setSearch('') })
     }
-    if (filters.centerName && filters.centerName !== 'all') {
+    if (filters.centerId) {
       chips.push({
         key: 'center',
-        label: `Center: ${filters.centerName}`,
-        clear: () => setFilters((f) => ({ ...f, centerName: 'all' })),
+        label: `Center: ${centerLabelById.get(filters.centerId) || filters.centerId}`,
+        clear: () => setFilters((f) => ({ ...f, centerId: '' })),
       })
     }
     if (filters.paymentDate) {
@@ -324,33 +362,118 @@ export default function StudentPaymentReportsPage() {
       })
     }
     return chips
-  }, [search, filters])
+  }, [search, filters, centerLabelById])
 
   const resetAllFilters = () => {
     setSearch('')
     setFilters({ ...INITIAL_FILTERS })
   }
 
+  const openView = useCallback(async (row) => {
+    setViewRow(row)
+    setViewDetail(null)
+    setViewLoading(true)
+    try {
+      const detail = await fetchStudentPaymentReportDetail(row._id || row.id)
+      if (mountedRef.current) setViewDetail(detail)
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(error.message || 'Failed to load payment details')
+        setViewRow(null)
+      }
+    } finally {
+      if (mountedRef.current) setViewLoading(false)
+    }
+  }, [])
+
+  const openEdit = useCallback(
+    (row) => {
+      const defaultReason = reasonOptions[0]?.value || ''
+      setEditRow(row)
+      setEditForm({
+        newStatus: mapApiStatusToDisplay(row.status) === 'Partially Paid' ? 'Partial' : mapApiStatusToDisplay(row.status),
+        amountAdjustment: String(row.amountPaid ?? row.paidAmount ?? ''),
+        reason: row.reason?.value || defaultReason,
+        comment: row.comment || row.editComment || '',
+      })
+    },
+    [reasonOptions],
+  )
+
   const handleSaveEdit = async () => {
     if (!editRow) return
+
+    const validationError = validateEditPaymentForm(
+      {
+        paymentId: editRow._id || editRow.id,
+        status: editForm.newStatus,
+        newStatus: editForm.newStatus,
+        paidAmount: editForm.amountAdjustment,
+        amountAdjustment: editForm.amountAdjustment,
+        reason: editForm.reason,
+        comment: editForm.comment,
+      },
+      editRow.totalAmount,
+    )
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
+
     setSaving(true)
     try {
-      await updatePaymentStatus(editRow.id, {
-        newStatus: editForm.newStatus,
-        amountAdjustment: editForm.amountAdjustment,
-        comment: `${editForm.reason}: ${editForm.comment}`,
-        adminName: 'Admin',
+      await updateStudentPayment(editRow._id || editRow.id, {
+        status: mapDisplayStatusToApi(editForm.newStatus),
+        paidAmount: Number(editForm.amountAdjustment),
+        reason: editForm.reason,
+        comment: editForm.comment,
       })
       toast.success('Payment updated')
       setEditRow(null)
       setConfirmSave(false)
-      load()
-    } catch {
-      toast.error('Update failed')
+      await fetchList(listParams)
+      if (viewRow && (viewRow._id === editRow._id || viewRow.id === editRow.id)) {
+        const detail = await fetchStudentPaymentReportDetail(editRow._id || editRow.id)
+        if (mountedRef.current) setViewDetail(detail)
+      }
+    } catch (error) {
+      if (error.status === 403) {
+        toast.error('Access denied')
+      } else {
+        toast.error(error.message || 'Update failed')
+      }
     } finally {
-      setSaving(false)
+      if (mountedRef.current) setSaving(false)
     }
   }
+
+  const pagination = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages || 1)
+    const startIndex = totalCount === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalCount)
+    return {
+      page: safePage,
+      pageSize,
+      totalItems: totalCount,
+      totalPages: totalPages || 1,
+      startIndex,
+      endIndex,
+    }
+  }, [page, pageSize, totalCount, totalPages])
+
+  const controlledPagination = useMemo(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      startIndex: pagination.startIndex,
+      endIndex: pagination.endIndex,
+      onPageChange: setPage,
+      onPageSizeChange: setPageSize,
+    }),
+    [pagination],
+  )
 
   const columns = useMemo(() => {
     const defs = TABLE_COLUMNS.map((c) => {
@@ -367,7 +490,7 @@ export default function StudentPaymentReportsPage() {
           cellClassName: 'min-w-[110px] align-middle',
           render: (r) => (
             <span className="block truncate font-mono text-[12px] font-medium text-[#686868]" title={r.studentId}>
-              {r.studentId || r.enrollmentNumber || '—'}
+              {r.studentId || '—'}
             </span>
           ),
         }
@@ -379,7 +502,7 @@ export default function StudentPaymentReportsPage() {
           headerClassName: 'min-w-[130px] whitespace-nowrap align-middle',
           cellClassName: 'min-w-[130px] align-middle',
           render: (r) => {
-            const status = deriveDisplayPaymentStatus(r)
+            const status = r.paymentStatus || mapApiStatusToDisplay(r.status)
             return (
               <div className="flex justify-center">
                 <FinanceStatusBadge status={status} truncate title={status} />
@@ -456,8 +579,8 @@ export default function StudentPaymentReportsPage() {
           headerClassName: 'min-w-[120px] whitespace-nowrap',
           cellClassName: 'min-w-[120px] whitespace-nowrap align-middle',
           render: (r) => (
-            <span className="font-medium text-[#111]" title={formatDisplayPaymentMode(r.paymentMode)}>
-              {formatDisplayPaymentMode(r.paymentMode)}
+            <span className="font-medium text-[#111]" title={r.paymentMode || ''}>
+              {r.paymentMode || '—'}
             </span>
           ),
         }
@@ -470,7 +593,7 @@ export default function StudentPaymentReportsPage() {
           cellClassName: 'min-w-[130px] whitespace-nowrap align-middle',
           render: (r) => (
             <span className="block truncate font-medium text-[#111]" title={r.paymentGateway || ''}>
-              {r.paymentGateway || '—'}
+              {r.paymentGateway || mapGatewayLabel(r.gateway) || '—'}
             </span>
           ),
         }
@@ -481,7 +604,7 @@ export default function StudentPaymentReportsPage() {
           ...base,
           headerClassName: 'min-w-[150px]',
           cellClassName: 'min-w-[150px] align-middle',
-          render: (r) => <NoteCell value={parseLatestAdminNote(r).reason} variant="reason" />,
+          render: (r) => <NoteCell value={r.editReason || r.reason?.label || ''} variant="reason" />,
         }
       }
 
@@ -490,7 +613,7 @@ export default function StudentPaymentReportsPage() {
           ...base,
           headerClassName: 'min-w-[160px]',
           cellClassName: 'min-w-[160px] align-middle',
-          render: (r) => <NoteCell value={parseLatestAdminNote(r).comment} />,
+          render: (r) => <NoteCell value={r.editComment || r.comment || ''} />,
         }
       }
 
@@ -503,21 +626,9 @@ export default function StudentPaymentReportsPage() {
         align: 'center',
         render: (row) => (
           <div className={TABLE_ACTIONS_WRAP_CENTER}>
-            <ViewButton onClick={() => setViewRow(row)} label={`View ${row.studentName}`} />
+            <ViewButton onClick={() => openView(row)} label={`View ${row.studentName}`} />
             {canEdit ? (
-              <EditButton
-                onClick={() => {
-                  const note = parseLatestAdminNote(row)
-                  setEditRow(row)
-                  setEditForm({
-                    newStatus: deriveDisplayPaymentStatus(row),
-                    amountAdjustment: String(row.amountPaid ?? ''),
-                    reason: note.reason || 'Manual Approval',
-                    comment: note.comment || '',
-                  })
-                }}
-                label={`Edit ${row.studentName}`}
-              />
+              <EditButton onClick={() => openEdit(row)} label={`Edit ${row.studentName}`} />
             ) : null}
           </div>
         ),
@@ -525,7 +636,10 @@ export default function StudentPaymentReportsPage() {
     )
 
     return defs
-  }, [canEdit])
+  }, [canEdit, openView, openEdit])
+
+  const loading = bootstrapping || listLoading
+  const showTableSkeleton = bootstrapping || (listLoading && rows.length === 0)
 
   return (
     <FinancePageShell
@@ -534,8 +648,8 @@ export default function StudentPaymentReportsPage() {
       breadcrumbs={[{ label: 'Student Payment Reports' }]}
       actions={
         <FinancePaymentModeManager
-          settings={modeSettings}
-          onUpdated={setModeSettings}
+          badgeSummary={modeBadge}
+          onModesChanged={refreshModeBadge}
           canManage={canExport || canEdit}
           readOnly={!canEdit}
         />
@@ -548,12 +662,12 @@ export default function StudentPaymentReportsPage() {
               <PaymentReportsFilterToolbar
                 search={search}
                 onSearchChange={(e) => setSearch(e.target.value)}
-                center={filters.centerName}
-                onCenterChange={(e) => setFilters((f) => ({ ...f, centerName: e.target.value }))}
+                center={filters.centerId}
+                onCenterChange={(e) => setFilters((f) => ({ ...f, centerId: e.target.value }))}
                 centerOptions={centerOptions}
                 paymentDate={filters.paymentDate}
                 onPaymentDateChange={(e) => setFilters((f) => ({ ...f, paymentDate: e.target.value }))}
-                disabled={loading && rows.length === 0}
+                disabled={bootstrapping && rows.length === 0}
               />
             </div>
             {activeFilterCount > 0 && (
@@ -579,17 +693,17 @@ export default function StudentPaymentReportsPage() {
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 sm:mt-5">
           <p className="text-sm font-medium text-[#686868]">
-            {loading ? 'Loading…' : `${filtered.length} records`}
+            {loading ? 'Loading…' : `${totalCount} records`}
           </p>
         </div>
 
         <div className={ADMIN_TABLE_CONTAINER}>
-          {loading ? (
+          {showTableSkeleton ? (
             <FinanceTableSkeleton rows={8} columns={8} />
           ) : (
             <PaginatedFigmaTable
               columns={columns}
-              data={filtered}
+              data={rows}
               itemLabel="payments"
               resetDeps={[debouncedSearch, filters]}
               density="comfortable"
@@ -597,6 +711,8 @@ export default function StudentPaymentReportsPage() {
               tableClassName="rounded-none border-0 shadow-none"
               paginationClassName={ADMIN_TABLE_PAGINATION_CLASS}
               tableMinWidth={1680}
+              loading={listLoading}
+              controlledPagination={controlledPagination}
               emptyState={
                 <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
@@ -604,7 +720,7 @@ export default function StudentPaymentReportsPage() {
                   </div>
                   <p className="text-base font-semibold text-slate-800">No finance reports available</p>
                   <p className="max-w-sm text-sm text-slate-500">
-                    {rows.length === 0
+                    {totalCount === 0 && !activeFilterCount
                       ? 'There are no payment reports to show yet.'
                       : 'No payments match your current filters. Try clearing search or adjusting filters.'}
                   </p>
@@ -624,11 +740,20 @@ export default function StudentPaymentReportsPage() {
         </div>
       </div>
 
-      <PaymentViewDrawer open={!!viewRow} payment={viewRow} onClose={() => setViewRow(null)} />
+      <PaymentViewDrawer
+        open={!!viewRow}
+        payment={viewDetail || viewRow}
+        loading={viewLoading}
+        onClose={() => {
+          setViewRow(null)
+          setViewDetail(null)
+        }}
+      />
       <PaymentEditModal
         open={!!editRow}
         payment={editRow}
         form={editForm}
+        reasonOptions={reasonOptions}
         onChange={setEditForm}
         onClose={() => setEditRow(null)}
         onSave={() => setConfirmSave(true)}

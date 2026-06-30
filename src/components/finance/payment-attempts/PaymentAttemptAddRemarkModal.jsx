@@ -17,10 +17,10 @@ export default function PaymentAttemptAddRemarkModal({ open, row, onClose, onSav
   useEffect(() => {
     if (open) {
       setSubject('')
-      setFailureAnalysis('')
+      setFailureAnalysis(row?.failureMessage || '')
       setRemark('')
     }
-  }, [open, row?.id])
+  }, [open, row?.id, row?.attemptId, row?.failureMessage])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -37,7 +37,7 @@ export default function PaymentAttemptAddRemarkModal({ open, row, onClose, onSav
       <div className="overflow-hidden rounded-2xl bg-white">
         <ModalPanelHeader
           title="Add Counselor Remark"
-          subtitle={row ? `${row.student} · ${row.attemptId || row.id}` : ''}
+          subtitle={row ? `${row.student || row.studentName} · ${row.attemptId || row.id}` : ''}
           onClose={onClose}
           icon={MessageSquarePlus}
           closeVariant="icon"

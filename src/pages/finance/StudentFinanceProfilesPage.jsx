@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UserCircle, Eye } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
@@ -10,64 +10,145 @@ import FinanceEmptyState from '../../components/finance/FinanceEmptyState'
 import FinanceActionMenu from '../../components/finance/FinanceActionMenu'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import ProfileListMobileCard from '../../components/finance/student-profiles/ProfileListMobileCard'
-import { fetchStudentFinanceProfiles } from '../../api/financeAPI'
+import {
+  fetchStudentFinanceFilterOptions,
+  fetchStudentFinanceDashboard,
+} from '../../api/studentFinanceProfilesAPI'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { filterStudentProfiles, filterProfilesByFinanceCenters } from '../../utils/studentFinanceProfile'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
-import { FINANCE_COURSES } from '../../data/financeMockData'
-import { ENROLLMENT_SOURCES, LOAN_STATUSES } from '../../constants/studentFinanceProfiles'
+import { buildFilterSignature, createListFetchGuard, useEffectivePage } from '../../hooks/useMasterListQuery'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
+const DEFAULT_PAGE_SIZE = 10
+const listFetchGuard = createListFetchGuard()
+
 export default function StudentFinanceProfilesPage() {
-  const { openStudentProfile } = useFinanceOperations()
+  const { openStudentProfile, refreshToken } = useFinanceOperations()
   const financeCenterFilter = useFinanceCenterFilter()
-  const [profiles, setProfiles] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [filterOptions, setFilterOptions] = useState(null)
+  const [rows, setRows] = useState([])
+  const [statistics, setStatistics] = useState(null)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [bootstrapping, setBootstrapping] = useState(true)
+  const [listLoading, setListLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
+  const debouncedSearch = useDebouncedValue(search, 400)
   const [courseFilter, setCourseFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [loanFilter, setLoanFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const mountedRef = useRef(true)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const centreId = useMemo(() => {
+    if (financeCenterFilter.isOverallView) return ''
+    if (financeCenterFilter.selectedIds.length === 1) return financeCenterFilter.selectedIds[0]
+    return ''
+  }, [financeCenterFilter.isOverallView, financeCenterFilter.selectedIds])
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    centreId,
+    courseFilter,
+    statusFilter,
+    sourceFilter,
+    loanFilter,
+    dateFrom,
+    dateTo,
+    pageSize,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const listParams = useMemo(
+    () => ({
+      search: debouncedSearch.trim(),
+      centreId,
+      courseId: courseFilter !== 'all' ? courseFilter : '',
+      source: sourceFilter !== 'all' ? sourceFilter : '',
+      loanStatus: loanFilter !== 'all' ? loanFilter : '',
+      paymentStatus: statusFilter !== 'all' ? statusFilter : '',
+      fromDate: dateFrom || '',
+      toDate: dateTo || '',
+      page: effectivePage,
+      limit: pageSize,
+      sortBy: 'lastUpdated',
+      sortOrder: 'desc',
+    }),
+    [
+      debouncedSearch,
+      centreId,
+      courseFilter,
+      statusFilter,
+      sourceFilter,
+      loanFilter,
+      dateFrom,
+      dateTo,
+      effectivePage,
+      pageSize,
+    ],
+  )
+
+  const fetchList = useCallback(async (params, { signal } = {}) => {
+    const result = await fetchStudentFinanceDashboard(params, { signal })
+    if (!mountedRef.current) return
+    setRows(result.items)
+    setStatistics(result.statistics)
+    setTotalCount(result.totalCount)
+    setTotalPages(result.totalPages || 1)
+  }, [])
+
+  const loadBootstrap = useCallback(async () => {
+    setBootstrapping(true)
     try {
-      setProfiles(await fetchStudentFinanceProfiles())
+      const options = await fetchStudentFinanceFilterOptions()
+      if (!mountedRef.current) return
+      setFilterOptions(options)
     } catch {
-      toast.error('Failed to load profiles')
+      if (mountedRef.current) toast.error('Failed to load filter options')
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setBootstrapping(false)
     }
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    loadBootstrap()
+  }, [refreshToken, loadBootstrap])
 
-  const centerScopedProfiles = useMemo(
-    () => filterProfilesByFinanceCenters(profiles, financeCenterFilter),
-    [profiles, financeCenterFilter],
-  )
+  useEffect(() => {
+    const ctx = listFetchGuard.beginRequest()
+    if (!ctx) return
+    const { controller, seq } = ctx
 
-  const filtered = useMemo(() => {
-    const courseName = courseFilter !== 'all' ? FINANCE_COURSES.find((c) => c.id === courseFilter)?.name : 'all'
-    return filterStudentProfiles(centerScopedProfiles, {
-      search: debouncedSearch,
-      course: courseName === 'all' ? 'all' : courseName,
-      status: statusFilter,
-      source: sourceFilter,
-      loanStatus: loanFilter,
-      dateFrom,
-      dateTo,
-    })
-  }, [centerScopedProfiles, debouncedSearch, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo])
+    setListLoading(true)
+    fetchList(listParams, { signal: controller.signal })
+      .catch((error) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (listFetchGuard.isAbortError(error)) return
+        listFetchGuard.toastListError(
+          listFetchGuard.getListErrorMessage(error, 'Failed to load student finance profiles'),
+        )
+      })
+      .finally(() => {
+        if (listFetchGuard.endRequest(seq) && mountedRef.current) {
+          setListLoading(false)
+        }
+      })
+  }, [listParams, refreshToken, fetchList])
 
   const openProfile = (profile) => {
     openStudentProfile(profile.id, profile)
@@ -115,6 +196,42 @@ export default function StudentFinanceProfilesPage() {
   const selectClass =
     'h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm transition focus:border-[#55ace7] focus:outline-none focus:ring-2 focus:ring-[#55ace7]/20'
 
+  const pagination = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages || 1)
+    const startIndex = totalCount === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalCount)
+    return {
+      page: safePage,
+      pageSize,
+      totalItems: totalCount,
+      totalPages: totalPages || 1,
+      startIndex,
+      endIndex,
+    }
+  }, [page, pageSize, totalCount, totalPages])
+
+  const controlledPagination = useMemo(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      startIndex: pagination.startIndex,
+      endIndex: pagination.endIndex,
+      onPageChange: setPage,
+      onPageSizeChange: setPageSize,
+    }),
+    [pagination],
+  )
+
+  const loading = bootstrapping || listLoading
+  const stats = statistics || {
+    totalProfiles: 0,
+    totalCollected: 0,
+    totalPending: 0,
+    averageRiskScore: 0,
+  }
+
   return (
     <FinancePageShell
       icon={UserCircle}
@@ -124,23 +241,16 @@ export default function StudentFinanceProfilesPage() {
       <FinanceCenterFilterBar className="mb-1" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <FinanceStatCard label="Total profiles" value={filtered.length} />
-        <FinanceStatCard
-          label="Total collected"
-          value={formatINR(filtered.reduce((s, p) => s + (p.totalPaid || 0), 0))}
-        />
+        <FinanceStatCard label="Total profiles" value={stats.totalProfiles} />
+        <FinanceStatCard label="Total collected" value={formatINR(stats.totalCollected)} />
         <FinanceStatCard
           label="Total pending"
-          value={formatINR(filtered.reduce((s, p) => s + (p.totalPending || 0), 0))}
+          value={formatINR(stats.totalPending)}
           accent="from-[#efb36d] to-[#b8887a]"
         />
         <FinanceStatCard
           label="Avg risk score"
-          value={
-            filtered.length
-              ? Math.round(filtered.reduce((s, p) => s + (p.riskScore || 0), 0) / filtered.length)
-              : 0
-          }
+          value={stats.averageRiskScore ?? 0}
           accent="from-[#df8284] to-[#b85c5e]"
         />
       </div>
@@ -155,39 +265,85 @@ export default function StudentFinanceProfilesPage() {
             inputClassName="h-10"
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass} aria-label="Course">
+            <select
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Course"
+              disabled={bootstrapping}
+            >
               <option value="all">All courses</option>
-              {FINANCE_COURSES.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {(filterOptions?.courses || []).map((c) => (
+                <option key={c.courseId} value={c.courseId}>
+                  {c.courseName}
+                </option>
               ))}
             </select>
-            <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className={selectClass} aria-label="Enrollment source">
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Enrollment source"
+              disabled={bootstrapping}
+            >
               <option value="all">All sources</option>
-              {ENROLLMENT_SOURCES.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
+              {(filterOptions?.sources || []).map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
-            <select value={loanFilter} onChange={(e) => setLoanFilter(e.target.value)} className={selectClass} aria-label="Loan status">
+            <select
+              value={loanFilter}
+              onChange={(e) => setLoanFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Loan status"
+              disabled={bootstrapping}
+            >
               <option value="all">All loan statuses</option>
-              {LOAN_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {(filterOptions?.loanStatuses || []).map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass} aria-label="Payment status">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Payment status"
+              disabled={bootstrapping}
+            >
               <option value="all">All statuses</option>
-              {['Paid', 'Partial', 'Pending', 'EMI Running'].map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {(filterOptions?.paymentStatuses || []).map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={selectClass} aria-label="From date" />
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={selectClass} aria-label="To date" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className={selectClass}
+              aria-label="From date"
+              disabled={bootstrapping}
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className={selectClass}
+              aria-label="To date"
+              disabled={bootstrapping}
+            />
           </div>
         </div>
       </div>
 
       {loading ? (
         <FinanceTableSkeleton rows={8} columns={8} />
-      ) : filtered.length === 0 ? (
+      ) : rows.length === 0 ? (
         <FinanceEmptyState title="No student profiles" description="Adjust filters or wait for student finance records." />
       ) : (
         <>
@@ -195,14 +351,14 @@ export default function StudentFinanceProfilesPage() {
             <h3 className="mb-3 text-sm font-bold text-[#246392]">Student profiles</h3>
             <PaginatedFigmaTable
               columns={profileColumns}
-              data={filtered}
+              data={rows}
               itemLabel="profiles"
-              resetDeps={[debouncedSearch, financeCenterFilter.selectedIds, courseFilter, statusFilter, sourceFilter, loanFilter, dateFrom, dateTo]}
+              controlledPagination={controlledPagination}
               tableClassName="overflow-x-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-[1] [&_thead]:bg-white"
             />
           </div>
           <div className="grid gap-3 md:hidden">
-            {filtered.map((row) => (
+            {rows.map((row) => (
               <ProfileListMobileCard key={row.id} row={row} onView={openProfile} />
             ))}
           </div>

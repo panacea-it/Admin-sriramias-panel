@@ -11,9 +11,11 @@ import { cn } from '../../../utils/cn'
 
 export default function CounselorRemarksTable({
   remarks,
+  loading = false,
   onViewRemark,
   onRequestDeleteRemark: _onRequestDeleteRemark,
   resetDeps = [],
+  controlledPagination,
 }) {
   const renderActions = (row) => (
     <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-1.5">
@@ -120,6 +122,7 @@ export default function CounselorRemarksTable({
       emptyMessage="No counselor remarks yet"
       emptyState={emptyState}
       itemLabel="remarks"
+      loading={loading}
       skeletonRowCount={5}
       resetDeps={resetDeps}
       density="comfortable"
@@ -133,6 +136,7 @@ export default function CounselorRemarksTable({
         '[&_form_input]:h-9 [&_form_input]:leading-none',
         '[&_form_button]:inline-flex [&_form_button]:h-9 [&_form_button]:items-center [&_form_button]:justify-center',
       )}
+      controlledPagination={controlledPagination}
     />
   )
 }

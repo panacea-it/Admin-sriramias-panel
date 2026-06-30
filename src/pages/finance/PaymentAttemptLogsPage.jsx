@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageBanner from '../../components/figma/PageBanner'
@@ -11,67 +11,197 @@ import PaymentAttemptViewModal from '../../components/finance/payment-attempts/P
 import PaymentAttemptCounselorModal from '../../components/finance/payment-attempts/PaymentAttemptCounselorModal'
 import PaymentAttemptAddRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptAddRemarkModal'
 import PaymentAttemptViewRemarkModal from '../../components/finance/payment-attempts/PaymentAttemptViewRemarkModal'
-import {
-  filterAttemptLogs,
-  filterAttemptsByFinanceCenters,
-  sortAttemptLogs,
-} from '../../utils/paymentAttemptAnalytics'
+import { sortAttemptLogs } from '../../utils/paymentAttemptAnalytics'
 import { usePaymentAttemptLogs } from '../../contexts/PaymentAttemptLogsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import { FINANCE_ROUTES } from '../../constants/financeNav'
+import { fetchPaymentAttemptDashboard, fetchPaymentAttemptDetails, fetchPaymentAttemptRemarkDetails } from '../../api/paymentAttemptLogsAPI'
+import { buildControlledPagination } from '../../utils/paymentAttemptLogsHelpers'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildFilterSignature, createListFetchGuard, useEffectivePage } from '../../hooks/useMasterListQuery'
+import { toast } from '../../utils/toast'
+
+const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_REMARKS_PAGE_SIZE = 10
+const listFetchGuard = createListFetchGuard()
 
 export default function PaymentAttemptLogsPage() {
   const financeCenterFilter = useFinanceCenterFilter()
   const {
-    logs,
-    loading,
-    sortedRemarks,
-    pendingAssignedLogs,
+    filterOptions,
+    optionsLoading,
+    refreshToken,
     assignCounselor,
     saveRemark,
-    deleteRemark,
-    getRemarkForAttempt,
+    canAssignCounselor,
+    canAddRemark,
   } = usePaymentAttemptLogs()
 
   const [search, setSearch] = useState('')
-  const [gatewayFilter, setGatewayFilter] = useState('all')
-  const [failureFilter, setFailureFilter] = useState('all')
-  const [counselorAssignmentFilter, setCounselorAssignmentFilter] = useState('all')
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const [gatewayFilter, setGatewayFilter] = useState('ALL')
+  const [failureFilter, setFailureFilter] = useState('ALL')
+  const [counselorAssignmentFilter, setCounselorAssignmentFilter] = useState('ALL')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortKey, setSortKey] = useState('lastAttempt')
   const [sortDir, setSortDir] = useState('desc')
+
+  const [attemptRows, setAttemptRows] = useState([])
+  const [remarkRows, setRemarkRows] = useState([])
+  const [assignedCounselorCount, setAssignedCounselorCount] = useState(0)
+  const [attemptsPage, setAttemptsPage] = useState(1)
+  const [attemptsPageSize, setAttemptsPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [attemptsTotal, setAttemptsTotal] = useState(0)
+  const [attemptsTotalPages, setAttemptsTotalPages] = useState(1)
+  const [remarksPage, setRemarksPage] = useState(1)
+  const [remarksPageSize, setRemarksPageSize] = useState(DEFAULT_REMARKS_PAGE_SIZE)
+  const [remarksTotal, setRemarksTotal] = useState(0)
+  const [remarksTotalPages, setRemarksTotalPages] = useState(1)
+  const [listLoading, setListLoading] = useState(true)
+
   const [viewRow, setViewRow] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
   const [counselorRow, setCounselorRow] = useState(null)
   const [remarkRow, setRemarkRow] = useState(null)
   const [viewRemark, setViewRemark] = useState(null)
-  const [deleteRemarkTarget, setDeleteRemarkTarget] = useState(null)
+  const [viewRemarkDetail, setViewRemarkDetail] = useState(null)
+  const [viewRemarkLoading, setViewRemarkLoading] = useState(false)
 
-  const filterState = useMemo(
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const centerId = useMemo(() => {
+    if (financeCenterFilter.isOverallView || !financeCenterFilter.selectedIds.length) {
+      return null
+    }
+    return financeCenterFilter.selectedIds[0]
+  }, [financeCenterFilter.isOverallView, financeCenterFilter.selectedIds])
+
+  const attemptsFilterSignature = buildFilterSignature([
+    debouncedSearch,
+    centerId,
+    gatewayFilter,
+    failureFilter,
+    counselorAssignmentFilter,
+    dateFrom,
+    dateTo,
+    attemptsPageSize,
+    refreshToken,
+  ])
+  const effectiveAttemptsPage = useEffectivePage(attemptsPage, setAttemptsPage, attemptsFilterSignature)
+
+  const remarksFilterSignature = buildFilterSignature([
+    debouncedSearch,
+    centerId,
+    gatewayFilter,
+    failureFilter,
+    counselorAssignmentFilter,
+    dateFrom,
+    dateTo,
+    remarksPageSize,
+    refreshToken,
+  ])
+  const effectiveRemarksPage = useEffectivePage(remarksPage, setRemarksPage, remarksFilterSignature)
+
+  const dashboardParams = useMemo(
     () => ({
-      search,
+      centerId,
+      search: debouncedSearch.trim(),
+      gateway: gatewayFilter,
+      failureReason: failureFilter,
+      assignmentStatus: counselorAssignmentFilter,
+      startDate: dateFrom || null,
+      endDate: dateTo || null,
+      page: effectiveAttemptsPage,
+      limit: attemptsPageSize,
+      remarksPage: effectiveRemarksPage,
+      remarksLimit: remarksPageSize,
+    }),
+    [
+      centerId,
+      debouncedSearch,
       gatewayFilter,
       failureFilter,
       counselorAssignmentFilter,
       dateFrom,
       dateTo,
-    }),
-    [search, gatewayFilter, failureFilter, counselorAssignmentFilter, dateFrom, dateTo],
+      effectiveAttemptsPage,
+      attemptsPageSize,
+      effectiveRemarksPage,
+      remarksPageSize,
+    ],
   )
 
-  const centerScopedLogs = useMemo(
-    () => filterAttemptsByFinanceCenters(logs, financeCenterFilter),
-    [logs, financeCenterFilter],
+  const fetchDashboard = useCallback(async (params, { signal } = {}) => {
+    const result = await fetchPaymentAttemptDashboard(params, { signal })
+    if (!mountedRef.current) return
+    setAttemptRows(result.paymentAttempts.items)
+    setAttemptsTotal(result.paymentAttempts.total)
+    setAttemptsTotalPages(result.paymentAttempts.totalPages || 1)
+    setRemarkRows(result.remarks.items)
+    setRemarksTotal(result.remarks.total)
+    setRemarksTotalPages(result.remarks.totalPages || 1)
+    setAssignedCounselorCount(result.assignedCounselorCount ?? 0)
+  }, [])
+
+  useEffect(() => {
+    const ctx = listFetchGuard.beginRequest()
+    if (!ctx) return
+    const { controller, seq } = ctx
+
+    setListLoading(true)
+    fetchDashboard(dashboardParams, { signal: controller.signal })
+      .catch((error) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (listFetchGuard.isAbortError(error)) return
+        listFetchGuard.toastListError(
+          listFetchGuard.getListErrorMessage(error, 'Failed to load payment attempt logs'),
+        )
+      })
+      .finally(() => {
+        if (listFetchGuard.endRequest(seq) && mountedRef.current) {
+          setListLoading(false)
+        }
+      })
+  }, [dashboardParams, fetchDashboard])
+
+  const sortedAttempts = useMemo(
+    () => sortAttemptLogs(attemptRows, sortKey, sortDir),
+    [attemptRows, sortKey, sortDir],
   )
 
-  const filtered = useMemo(
-    () => filterAttemptLogs(centerScopedLogs, filterState),
-    [centerScopedLogs, filterState],
+  const attemptsPagination = useMemo(
+    () =>
+      buildControlledPagination({
+        page: effectiveAttemptsPage,
+        pageSize: attemptsPageSize,
+        totalCount: attemptsTotal,
+        totalPages: attemptsTotalPages,
+        setPage: setAttemptsPage,
+        setPageSize: setAttemptsPageSize,
+      }),
+    [effectiveAttemptsPage, attemptsPageSize, attemptsTotal, attemptsTotalPages],
   )
 
-  const sorted = useMemo(
-    () => sortAttemptLogs(filtered, sortKey, sortDir),
-    [filtered, sortKey, sortDir],
+  const remarksPagination = useMemo(
+    () =>
+      buildControlledPagination({
+        page: effectiveRemarksPage,
+        pageSize: remarksPageSize,
+        totalCount: remarksTotal,
+        totalPages: remarksTotalPages,
+        setPage: setRemarksPage,
+        setPageSize: setRemarksPageSize,
+      }),
+    [effectiveRemarksPage, remarksPageSize, remarksTotal, remarksTotalPages],
   )
 
   const handleSort = useCallback((key) => {
@@ -84,53 +214,73 @@ export default function PaymentAttemptLogsPage() {
   }, [sortKey])
 
   const handleAssignCounselor = useCallback(
-    (payload) => {
-      assignCounselor(payload)
-      setCounselorRow(null)
+    async (payload) => {
+      const ok = await assignCounselor(payload)
+      if (ok) setCounselorRow(null)
     },
     [assignCounselor],
   )
 
   const handleSaveRemark = useCallback(
-    ({ subject, failureAnalysis, remark }) => {
+    async ({ subject, failureAnalysis, remark }) => {
       if (!remarkRow) return
-      saveRemark(remarkRow, { subject, failureAnalysis, remark })
-      setRemarkRow(null)
+      const ok = await saveRemark(remarkRow, { subject, failureAnalysis, remark })
+      if (ok) setRemarkRow(null)
     },
     [remarkRow, saveRemark],
   )
 
-  const handleRequestDeleteRemark = useCallback((remark) => {
-    setDeleteRemarkTarget(remark)
-  }, [])
-
-  const handleCancelDeleteRemark = useCallback(() => {
-    setDeleteRemarkTarget(null)
-  }, [])
-
-  const handleConfirmDeleteRemark = useCallback(() => {
-    if (!deleteRemarkTarget) return
-    deleteRemark(deleteRemarkTarget.id)
-    if (viewRemark?.id === deleteRemarkTarget.id) {
-      setViewRemark(null)
+  const openViewAttempt = useCallback(async (row) => {
+    setViewRow(row)
+    setViewDetail(null)
+    setViewLoading(true)
+    try {
+      const detail = await fetchPaymentAttemptDetails(row.attemptId || row.id)
+      if (mountedRef.current) setViewDetail(detail)
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(error.message || 'Failed to load payment attempt details')
+        setViewRow(null)
+      }
+    } finally {
+      if (mountedRef.current) setViewLoading(false)
     }
-    setDeleteRemarkTarget(null)
-  }, [deleteRemark, deleteRemarkTarget, viewRemark?.id])
+  }, [])
 
-  const showCounselorRemarksTable = counselorAssignmentFilter === 'all'
+  const openViewRemark = useCallback(async (remark) => {
+    setViewRemark(remark)
+    setViewRemarkDetail(null)
+    setViewRemarkLoading(true)
+    try {
+      const detail = await fetchPaymentAttemptRemarkDetails(remark.remarkId || remark.id)
+      if (mountedRef.current) setViewRemarkDetail(detail)
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(error.message || 'Failed to load remark details')
+        setViewRemark(null)
+      }
+    } finally {
+      if (mountedRef.current) setViewRemarkLoading(false)
+    }
+  }, [])
+
+  const showCounselorRemarksTable = counselorAssignmentFilter === 'ALL'
 
   const renderRowActions = useCallback(
     (row) => (
       <PaymentAttemptTableActions
         row={row}
-        hasRemark={Boolean(getRemarkForAttempt(row.id))}
-        onView={() => setViewRow(row)}
+        canAssign={canAssignCounselor}
+        canAddRemark={canAddRemark}
+        onView={() => openViewAttempt(row)}
         onAssignCounselor={() => setCounselorRow(row)}
         onAddRemark={() => setRemarkRow(row)}
       />
     ),
-    [getRemarkForAttempt],
+    [canAssignCounselor, canAddRemark, openViewAttempt],
   )
+
+  const loading = optionsLoading || listLoading
 
   const emptyState = (
     <div className="px-4 py-10 text-center sm:px-6">
@@ -148,9 +298,9 @@ export default function PaymentAttemptLogsPage() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/25 sm:w-auto"
           >
             Assigned Counselor
-            {pendingAssignedLogs.length > 0 && (
+            {assignedCounselorCount > 0 && (
               <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-[#246392]">
-                {pendingAssignedLogs.length}
+                {assignedCounselorCount}
               </span>
             )}
           </Link>
@@ -172,20 +322,24 @@ export default function PaymentAttemptLogsPage() {
             onDateFromChange={setDateFrom}
             dateTo={dateTo}
             onDateToChange={setDateTo}
-            disabled={loading && logs.length === 0}
+            gatewayOptions={filterOptions?.gateways}
+            failureOptions={filterOptions?.failureReasons}
+            assignmentOptions={filterOptions?.assignmentStatuses}
+            disabled={loading && attemptRows.length === 0}
           />
 
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
             <PaymentAttemptTable
-              rows={sorted}
+              rows={sortedAttempts}
               loading={loading}
-              resetDeps={[filterState, sortKey, sortDir, financeCenterFilter.selectedIds, sortedRemarks.length]}
+              resetDeps={[dashboardParams, sortKey, sortDir]}
               emptyMessage="No Payment Attempts Found"
               emptyState={emptyState}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
               renderActions={renderRowActions}
+              controlledPagination={attemptsPagination}
             />
           </div>
 
@@ -194,10 +348,11 @@ export default function PaymentAttemptLogsPage() {
               <h2 className="mb-4 text-lg font-bold text-[#1a3a5c] sm:text-xl">Counselor Remarks</h2>
               <div className="min-w-0 rounded-xl border border-slate-100">
                 <CounselorRemarksTable
-                  remarks={sortedRemarks}
-                  onViewRemark={setViewRemark}
-                  onRequestDeleteRemark={handleRequestDeleteRemark}
-                  resetDeps={[sortedRemarks.length]}
+                  remarks={remarkRows}
+                  loading={loading}
+                  onViewRemark={openViewRemark}
+                  resetDeps={[dashboardParams]}
+                  controlledPagination={remarksPagination}
                 />
               </div>
             </div>
@@ -205,7 +360,15 @@ export default function PaymentAttemptLogsPage() {
         </div>
       </section>
 
-      <PaymentAttemptViewModal open={!!viewRow} row={viewRow} onClose={() => setViewRow(null)} />
+      <PaymentAttemptViewModal
+        open={!!viewRow}
+        row={viewDetail || viewRow}
+        loading={viewLoading}
+        onClose={() => {
+          setViewRow(null)
+          setViewDetail(null)
+        }}
+      />
       <PaymentAttemptCounselorModal
         open={!!counselorRow}
         row={counselorRow}
@@ -220,10 +383,13 @@ export default function PaymentAttemptLogsPage() {
       />
       <PaymentAttemptViewRemarkModal
         open={!!viewRemark}
-        remark={viewRemark}
-        onClose={() => setViewRemark(null)}
+        remark={viewRemarkDetail || viewRemark}
+        loading={viewRemarkLoading}
+        onClose={() => {
+          setViewRemark(null)
+          setViewRemarkDetail(null)
+        }}
       />
-      
     </div>
   )
 }

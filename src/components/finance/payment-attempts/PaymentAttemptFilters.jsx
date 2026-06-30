@@ -2,17 +2,17 @@ import { Search, ChevronDown } from 'lucide-react'
 import { PAYMENT_FAILURE_CATEGORIES } from '../../../constants/paymentAttemptConstants'
 import { cn } from '../../../utils/cn'
 
-const GATEWAY_OPTIONS = [
-  { value: 'all', label: 'All gateways' },
-  { value: 'Razorpay', label: 'Razorpay' },
-  { value: 'Cashfree', label: 'Cashfree' },
-  { value: 'PayU', label: 'PayU' },
+const DEFAULT_GATEWAY_OPTIONS = [
+  { value: 'ALL', label: 'All gateways' },
+  { value: 'RAZORPAY', label: 'Razorpay' },
+  { value: 'CASHFREE', label: 'Cashfree' },
+  { value: 'PAYU', label: 'Payu' },
 ]
 
-const COUNSELOR_ASSIGNMENT_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'assigned', label: 'Assigned Counselor' },
-  { value: 'unassigned', label: 'Unassigned Counselor' },
+const DEFAULT_COUNSELOR_ASSIGNMENT_OPTIONS = [
+  { value: 'ALL', label: 'All' },
+  { value: 'ASSIGNED', label: 'Assigned' },
+  { value: 'UNASSIGNED', label: 'Unassigned' },
 ]
 
 function FilterSelect({ label, value, onChange, options, disabled }) {
@@ -64,13 +64,22 @@ export default function PaymentAttemptFilters({
   onDateFromChange,
   dateTo,
   onDateToChange,
+  gatewayOptions,
+  failureOptions: failureOptionsProp,
+  assignmentOptions,
   disabled = false,
   className,
 }) {
-  const failureOptions = [
-    { value: 'all', label: 'All failure reasons' },
-    ...PAYMENT_FAILURE_CATEGORIES.map((c) => ({ value: c, label: c })),
-  ]
+  const resolvedGatewayOptions = gatewayOptions?.length ? gatewayOptions : DEFAULT_GATEWAY_OPTIONS
+  const resolvedAssignmentOptions = assignmentOptions?.length
+    ? assignmentOptions
+    : DEFAULT_COUNSELOR_ASSIGNMENT_OPTIONS
+  const failureOptions = failureOptionsProp?.length
+    ? failureOptionsProp
+    : [
+        { value: 'ALL', label: 'All failure reasons' },
+        ...PAYMENT_FAILURE_CATEGORIES.map((c) => ({ value: c, label: c })),
+      ]
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -91,7 +100,7 @@ export default function PaymentAttemptFilters({
             label="Gateway"
             value={gatewayFilter}
             onChange={(e) => onGatewayChange(e.target.value)}
-            options={GATEWAY_OPTIONS}
+            options={resolvedGatewayOptions}
             disabled={disabled}
           />
           <FilterSelect
@@ -105,7 +114,7 @@ export default function PaymentAttemptFilters({
             label="Counselor assignment"
             value={counselorAssignmentFilter}
             onChange={(e) => onCounselorAssignmentChange(e.target.value)}
-            options={COUNSELOR_ASSIGNMENT_OPTIONS}
+            options={resolvedAssignmentOptions}
             disabled={disabled}
           />
         </div>

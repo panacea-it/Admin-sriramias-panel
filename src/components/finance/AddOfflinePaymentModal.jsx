@@ -8,11 +8,8 @@ import EditableStudentCard from './offline-payment/EditableStudentCard'
 import DownPaymentDetailsSection from './offline-payment/DownPaymentDetailsSection'
 import EmiStrategyConfig from './offline-payment/EmiStrategyConfig'
 import EmiScheduleTable from './offline-payment/EmiScheduleTable'
-import EmiEarlyClosurePanel from './offline-payment/EmiEarlyClosurePanel'
 import OfflinePaymentModeFields from './offline-payment/OfflinePaymentModeFields'
 import OfflinePaymentFooter from './offline-payment/OfflinePaymentFooter'
-import EmiInstallmentEditDialog from './offline-payment/EmiInstallmentEditDialog'
-import EmiInstallmentCollectDialog from './offline-payment/EmiInstallmentCollectDialog'
 
 const fieldClass =
   'mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
@@ -52,21 +49,10 @@ export default function AddOfflinePaymentModal({
     handleDownPaymentProofFilesChange,
     downPaymentFieldErrors,
     validationErrors,
-    editInstallment,
-    setEditInstallment,
-    collectInstallment,
-    setCollectInstallment,
-    collectDialogTitle,
-    collectDefaultAmount,
-    openEmiBalance,
-    emiPlanStatus,
     statusLabel,
     handleSearchSelect,
     handleWalkIn,
     updateInstallment,
-    collectInstallmentPayment,
-    openCollectDialog,
-    handleEarlyClosure,
     buildPayload,
     validate,
     paymentMode,
@@ -85,7 +71,6 @@ export default function AddOfflinePaymentModal({
       onSubmit?.(buildPayload(data, ACTIONS.APPROVE))
     })()
 
-  const planClosed = emiPlanStatus === 'Closed Early'
   const batchError = validationErrors.includes('Batch is required.')
     ? 'Please select a batch.'
     : undefined
@@ -95,19 +80,12 @@ export default function AddOfflinePaymentModal({
     (financials?.pendingAmount ?? 0) - (Number(emiConfig.downPayment) || 0),
   )
 
-  const handleInlineAmountChange = (row, amount) => {
+  const handleMonthlyAmountChange = (row, amount) => {
     updateInstallment({
       ...row,
       emiAmount: amount,
-      rebalanceRemaining: false,
-    })
-  }
-
-  const handleStatusChange = (row, status) => {
-    updateInstallment({
-      ...row,
-      status,
-      rebalanceRemaining: false,
+      rebalanceRemaining: true,
+      silent: true,
     })
   }
 
@@ -160,24 +138,12 @@ export default function AddOfflinePaymentModal({
                   installments={installments}
                 />
 
-                <EmiEarlyClosurePanel
-                  remainingBalance={openEmiBalance}
-                  planStatus={emiPlanStatus}
-                  disabled={planClosed || openEmiBalance <= 0}
-                  onCloseEmi={handleEarlyClosure}
-                />
-
                 <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
                   <h3 className="mb-3 text-sm font-bold text-[#246392]">Installment schedule</h3>
                   <EmiScheduleTable
                     installments={installments}
-                    planClosed={planClosed}
-                    onCollect={(row) => openCollectDialog(row)}
-                    onEdit={setEditInstallment}
-                    onStatusChange={handleStatusChange}
-                    customLayout
                     expectedPrincipal={expectedEmiPrincipal}
-                    onAmountChange={handleInlineAmountChange}
+                    onAmountChange={handleMonthlyAmountChange}
                   />
                 </section>
 
@@ -259,22 +225,6 @@ export default function AddOfflinePaymentModal({
           />
         </form>
       </div>
-
-      <EmiInstallmentEditDialog
-        open={!!editInstallment}
-        row={editInstallment}
-        onClose={() => setEditInstallment(null)}
-        onSave={updateInstallment}
-      />
-
-      <EmiInstallmentCollectDialog
-        open={!!collectInstallment}
-        row={collectInstallment}
-        title={collectDialogTitle}
-        defaultAmount={collectDefaultAmount}
-        onClose={() => setCollectInstallment(null)}
-        onCollect={collectInstallmentPayment}
-      />
     </Modal>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, Pencil, Eye, UserPlus, Wallet, Users, AlertTriangle, TrendingUp, IndianRupee, Bell, Banknote } from 'lucide-react'
+import { CalendarClock, Pencil, Eye, UserPlus, Wallet, Users, AlertTriangle, TrendingUp, Bell, Banknote } from 'lucide-react'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import FinanceBreadcrumbs from '../../components/finance/FinanceBreadcrumbs'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
@@ -34,9 +34,9 @@ import {
 import { formatDisplayDate, getEmiMonthLabel } from '../../utils/emiSchedule'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
+import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { FINANCE_MOCK_COUNSELORS, FINANCE_EMI_STATUSES } from '../../constants/financeConstants'
 import { EMI_SCHEDULE_FREQUENCIES } from '../../constants/emiManagement'
-import { OFFLINE_PAYMENT_MODES } from '../../constants/offlinePaymentEmi'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
@@ -417,117 +417,6 @@ function EmiViewModal({ open, plan, onClose }) {
   )
 }
 
-function EmiSettleDialog({ open, plan, onClose, onSave, saving }) {
-  const [form, setForm] = useState(null)
-
-  useEffect(() => {
-    if (!open || !plan) return
-    const next = getNextDueInstallment(plan)
-    setForm({
-      amountPaid: next?.emiAmount || plan.emiAmount || '',
-      paymentDate: new Date().toISOString().slice(0, 10),
-      paymentMode: 'UPI',
-      referenceNumber: '',
-      notes: '',
-      pendingAmount: plan.pendingAmount || 0,
-    })
-  }, [open, plan])
-
-  if (!open || !plan || !form) return null
-
-  const amount = Number(form.amountPaid) || 0
-  const newPending = Math.max(0, (form.pendingAmount || 0) - amount)
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    onSave?.({ ...form, newPending })
-  }
-
-  return (
-    <EmiModalShell open={open} onClose={onClose} size="md" title="Settle EMI">
-      <ModalPanelHeader
-        icon={IndianRupee}
-        iconClassName="text-[#246392]"
-        title="Settle EMI"
-        subtitle={`${plan.studentName} · ${plan.courseName}`}
-        onClose={onClose}
-        closeVariant="icon"
-      />
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4 p-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-[#eef6fc]/60 p-3">
-              <p className="text-xs font-semibold uppercase text-[#686868]">Current Pending</p>
-              <p className="mt-1 text-lg font-bold text-[#246392]">{formatINR(form.pendingAmount)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-              <p className="text-xs font-semibold uppercase text-[#686868]">After Payment</p>
-              <p className="mt-1 text-lg font-bold text-[#222]">{formatINR(newPending)}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-semibold text-[#333]">
-              Amount Paid (₹)
-              <input
-                type="number"
-                min={1}
-                required
-                value={form.amountPaid}
-                onChange={(e) => setForm((f) => ({ ...f, amountPaid: e.target.value }))}
-                className={fieldClass}
-              />
-            </label>
-            <label className="block text-sm font-semibold text-[#333]">
-              Payment Date
-              <input
-                type="date"
-                required
-                value={form.paymentDate}
-                onChange={(e) => setForm((f) => ({ ...f, paymentDate: e.target.value }))}
-                className={fieldClass}
-              />
-            </label>
-            <label className="block text-sm font-semibold text-[#333] sm:col-span-2">
-              Payment Mode
-              <select
-                value={form.paymentMode}
-                onChange={(e) => setForm((f) => ({ ...f, paymentMode: e.target.value }))}
-                className={fieldClass}
-              >
-                {OFFLINE_PAYMENT_MODES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm font-semibold text-[#333] sm:col-span-2">
-              Reference Number
-              <input
-                type="text"
-                value={form.referenceNumber}
-                onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))}
-                className={fieldClass}
-                placeholder="UTR / receipt reference"
-              />
-            </label>
-            <label className="block text-sm font-semibold text-[#333] sm:col-span-2">
-              Notes
-              <textarea
-                rows={3}
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className={cn(fieldClass, 'h-auto min-h-[4.5rem] py-2')}
-                placeholder="Optional remarks"
-              />
-            </label>
-          </div>
-        </div>
-        <EmiFormFooter onCancel={onClose} submitLabel="Record Payment" saving={saving} savingLabel="Processing…" />
-      </form>
-    </EmiModalShell>
-  )
-}
-
 function EmiAssignCounselorDialog({ open, plan, onClose, onSave, saving }) {
   const [form, setForm] = useState({ counselorId: '', priority: 'Medium', remarks: '' })
 
@@ -644,6 +533,7 @@ function EmiMobileCard({ row, actions }) {
 
 export default function EmiManagementPage() {
   const { canManageEmi } = useFinancePermissions()
+  const { refreshToken } = useFinanceOperations()
   const financeCenterFilter = useFinanceCenterFilter()
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
@@ -656,7 +546,6 @@ export default function EmiManagementPage() {
   const [monthFilter, setMonthFilter] = useState('all')
   const [viewPlan, setViewPlan] = useState(null)
   const [editPlan, setEditPlan] = useState(null)
-  const [settlePlan, setSettlePlan] = useState(null)
   const [assignPlan, setAssignPlan] = useState(null)
   const [saving, setSaving] = useState(false)
   const [sendingReminderId, setSendingReminderId] = useState(null)
@@ -676,8 +565,8 @@ export default function EmiManagementPage() {
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    load(refreshToken > 0)
+  }, [refreshToken, load])
 
   const centerFilteredPlans = useMemo(
     () => filterPlansByFinanceCenters(plans, financeCenterFilter),
@@ -758,55 +647,6 @@ export default function EmiManagementPage() {
     }
   }
 
-  const handleSettleSave = async (form) => {
-    if (!settlePlan) return
-    setSaving(true)
-    try {
-      const nextIdx = (settlePlan.installments || []).findIndex(
-        (i) => !['Paid', 'Closed', 'Cancelled'].includes(i.status),
-      )
-      if (nextIdx < 0) {
-        toast.error('No open installment to settle')
-        return
-      }
-
-      const amount = Number(form.amountPaid) || 0
-      const updated = (settlePlan.installments || []).map((inst, idx) => {
-        if (idx !== nextIdx) return inst
-        const paid = (Number(inst.paidAmount) || 0) + amount
-        const due = Number(inst.emiAmount) || 0
-        const status = paid >= due - 0.5 ? 'Paid' : 'Partial'
-        return {
-          ...inst,
-          paidAmount: paid,
-          status,
-          paidDate: form.paymentDate,
-          paymentMode: form.paymentMode,
-          referenceNumber: form.referenceNumber,
-          utrNumber: form.referenceNumber,
-          remarks: form.notes,
-          paymentHistory: [
-            ...(inst.paymentHistory || []),
-            {
-              action: `Collected ${formatINR(amount)} via ${form.paymentMode}`,
-              at: new Date().toISOString(),
-              by: 'Finance Admin',
-            },
-          ],
-        }
-      })
-
-      await updateEmiPlan(settlePlan.id, updated)
-      toast.success('Payment recorded')
-      setSettlePlan(null)
-      load(true)
-    } catch {
-      toast.error('Failed to record payment')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleAssignSave = async (form) => {
     if (!assignPlan) return
     const counselor = FINANCE_MOCK_COUNSELORS.find((c) => c.id === form.counselorId)
@@ -847,12 +687,6 @@ export default function EmiManagementPage() {
           show: canManageEmi,
         },
         {
-          label: 'Settle EMI',
-          icon: IndianRupee,
-          onClick: () => setSettlePlan(row),
-          show: canManageEmi,
-        },
-        {
           label: 'Assign Counselor',
           icon: UserPlus,
           onClick: () => setAssignPlan(row),
@@ -875,7 +709,7 @@ export default function EmiManagementPage() {
     { key: 'pendingAmount', label: 'Pending Amount', render: (r) => <span className="font-semibold text-[#246392]">{formatINR(r.pendingAmount)}</span> },
     { key: 'emiStatus', label: 'EMI Status', render: (r) => <FinanceStatusBadge status={r.emiStatus} /> },
     { key: 'counselorName', label: 'Assigned Counselor' },
-    { key: 'actions', label: 'Actions', render: (r) => rowActions(r) },
+    { key: 'actions', label: 'Actions', align: 'center', render: (r) => rowActions(r) },
   ]
 
   return (
@@ -981,7 +815,6 @@ export default function EmiManagementPage() {
         onSubmit={handleEditSave}
         saving={saving}
       />
-      <EmiSettleDialog open={!!settlePlan} plan={settlePlan} onClose={() => setSettlePlan(null)} onSave={handleSettleSave} saving={saving} />
       <EmiAssignCounselorDialog open={!!assignPlan} plan={assignPlan} onClose={() => setAssignPlan(null)} onSave={handleAssignSave} saving={saving} />
     </div>
   )

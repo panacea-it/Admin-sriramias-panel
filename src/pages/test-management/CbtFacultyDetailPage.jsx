@@ -1,15 +1,14 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Monitor } from 'lucide-react'
+import { ArrowLeft, BookOpen, ClipboardList, Loader2, Monitor, Users } from 'lucide-react'
 import TestManagementPageShell from '../../components/test-management/TestManagementPageShell'
 import CbtBreadcrumbNav from '../../components/test-management/cbt/CbtBreadcrumbNav'
 import CbtTopicsTable from '../../components/test-management/cbt/CbtTopicsTable'
 import StatCard from '../../components/dashboard/StatCard'
 import { BannerButton } from '../../components/academics/AcademicsUi'
+import { CbtBackButton, CbtStatsGrid } from '../../components/test-management/cbt/ui'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
-import { getCbtFacultyBySubjectId } from '../../utils/cbtTestSeriesHierarchy'
 import { useCbtFacultySubject } from '../../hooks/useCbtFacultySubject'
 import { useCbtFacultyTopics } from '../../hooks/useCbtFacultyTopics'
-import { BookOpen, ClipboardList, Users, Loader2 } from 'lucide-react'
 
 export default function CbtFacultyDetailPage() {
   const { subjectId } = useParams()
@@ -44,7 +43,9 @@ export default function CbtFacultyDetailPage() {
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm text-slate-600">Faculty mapping not found or has no TEST series.</p>
           <Link to={TEST_MANAGEMENT_ROUTES.cbt} className="mt-4 inline-block">
-            <BannerButton type="button" showPlusIcon={false}>Back to CBT Management</BannerButton>
+            <BannerButton type="button" showPlusIcon={false}>
+              Back to CBT Management
+            </BannerButton>
           </Link>
         </div>
       </TestManagementPageShell>
@@ -56,34 +57,28 @@ export default function CbtFacultyDetailPage() {
       icon={Monitor}
       title={`${faculty?.subjectName ?? 'Subject'} — ${faculty?.facultyName ?? 'Faculty'}`}
       actions={
-        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={() => navigate(TEST_MANAGEMENT_ROUTES.cbt)}>
+        <CbtBackButton onClick={() => navigate(TEST_MANAGEMENT_ROUTES.cbt)}>
           <ArrowLeft className="h-4 w-4" />
           Back
-        </BannerButton>
+        </CbtBackButton>
       }
     >
-      <div className="mb-4">
-        <CbtBreadcrumbNav items={breadcrumbs} />
-      </div>
+      <CbtBreadcrumbNav items={breadcrumbs} className="mt-1" />
 
-      {faculty && (
-        <>
-          <div className="mb-4 grid gap-3 sm:grid-cols-3">
-            <StatCard title="Topics" value={topics.length} color="#1a3a5c" icon={BookOpen} />
-            <StatCard title="Test Series" value={totalTests} color="#55ace7" icon={ClipboardList} />
-            <StatCard
-              title="Students Attempted"
-              value={faculty.studentsAttempted.toLocaleString()}
-              color="#10b981"
-              icon={Users}
-            />
-          </div>
-          <p className="mb-3 text-xs text-slate-500">
-            Select a topic to view tests and evaluation results.
-          </p>
-          <CbtTopicsTable faculty={faculty} topics={topics} loading={topicsLoading} />
-        </>
-      )}
+      <CbtStatsGrid className="mt-5 sm:mt-6">
+        <StatCard title="Topics" value={topics.length} color="#1a3a5c" icon={BookOpen} />
+        <StatCard title="Test Series" value={totalTests} color="#55ace7" icon={ClipboardList} />
+        <StatCard
+          title="Students Attempted"
+          value={faculty.studentsAttempted.toLocaleString()}
+          color="#10b981"
+          icon={Users}
+        />
+      </CbtStatsGrid>
+
+      <div className="mt-5 sm:mt-6">
+        <CbtTopicsTable faculty={faculty} topics={topics} loading={topicsLoading} />
+      </div>
     </TestManagementPageShell>
   )
 }

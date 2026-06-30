@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import CbtTopicsManagementTable from './CbtTopicsManagementTable'
 import CbtTopicsTableActions from './CbtTopicsTableActions'
+import { CBT_DATA_PANEL, CBT_TABLE_CONTAINER } from './ui'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
-import { getCbtTopics } from '../../../utils/cbtTestSeriesHierarchy'
+import { getCbtFacultyBySubjectId, getCbtTopics } from '../../../utils/cbtTestSeriesHierarchy'
 
 export default function CbtTopicsTable({ faculty, topics: topicsProp, loading }) {
   const navigate = useNavigate()
@@ -23,14 +24,29 @@ export default function CbtTopicsTable({ faculty, topics: topicsProp, loading })
 
   const openTopic = useCallback(
     (topic) => {
-      if (!faculty) return
-      navigate(TEST_MANAGEMENT_ROUTES.cbtTopic(faculty.subjectId, topic.id))
+      const subjectKey = faculty?.subjectId
+      if (!subjectKey) return
+
+      const topicKey = topic.id || topic.folderId
+      const fullFaculty = getCbtFacultyBySubjectId(subjectKey)
+      const facultyLabel = fullFaculty
+        ? `${fullFaculty.subjectName} — ${fullFaculty.facultyName}`
+        : faculty.facultySubjectLabel ||
+          `${faculty.subjectName || ''} — ${faculty.facultyName || ''}`.trim()
+
+      navigate(TEST_MANAGEMENT_ROUTES.cbtTopic(subjectKey, topicKey), {
+        state: {
+          topicId: topicKey,
+          topicName: topic.title,
+          facultySubjectLabel: facultyLabel,
+        },
+      })
     },
     [faculty, navigate],
   )
 
   const renderRowActions = useCallback(
-    (row) => <CbtTopicsTableActions row={row} onView={() => openTopic(row)} />,
+    (row) => <CbtTopicsTableActions onView={() => openTopic(row)} />,
     [openTopic],
   )
 
@@ -41,16 +57,17 @@ export default function CbtTopicsTable({ faculty, topics: topicsProp, loading })
     : 'No topics available for this faculty.'
 
   return (
-    <div className="box-border flex w-full max-w-full flex-col rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] sm:p-5">
+    <section className={CBT_DATA_PANEL}>
       <CourseFilterToolbar
         search={search}
         onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search topics…"
+        searchPlaceholder="Search topics..."
         showStatusFilter={false}
+        searchFullWidth
         disabled={loading && topics.length === 0}
       />
 
-      <div className="mt-5 w-full max-w-full overflow-hidden rounded-xl border border-slate-100">
+      <div className={CBT_TABLE_CONTAINER}>
         <CbtTopicsManagementTable
           topics={filtered}
           loading={loading}
@@ -59,6 +76,6 @@ export default function CbtTopicsTable({ faculty, topics: topicsProp, loading })
           renderActions={renderRowActions}
         />
       </div>
-    </div>
+    </section>
   )
 }

@@ -263,7 +263,7 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
 
   const updateInstallment = useCallback(
     (updated) => {
-      const { rebalanceRemaining, ...row } = updated
+      const { rebalanceRemaining, silent, ...row } = updated
       setInstallments((rows) => {
         let next = rows.map((r) =>
           r.installmentNo === row.installmentNo
@@ -280,7 +280,9 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
         }
         return next
       })
-      toast.success(`Installment #${row.installmentNo} updated`)
+      if (!silent) {
+        toast.success(`Installment #${row.installmentNo} updated`)
+      }
     },
     [financials, expectedPrincipal],
   )

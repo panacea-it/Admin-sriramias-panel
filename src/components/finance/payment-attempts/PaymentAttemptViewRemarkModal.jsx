@@ -21,7 +21,7 @@ function DetailBlock({ label, children }) {
   )
 }
 
-export default function PaymentAttemptViewRemarkModal({ open, remark, onClose }) {
+export default function PaymentAttemptViewRemarkModal({ open, remark, loading = false, onClose }) {
   if (!remark) return null
 
   return (
@@ -36,30 +36,40 @@ export default function PaymentAttemptViewRemarkModal({ open, remark, onClose })
           plainCloseIcon
         />
         <div className="space-y-5 p-5 sm:p-6">
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <DetailItem label="Attempt ID">
-              <span className="font-mono text-xs">{remark.attemptId}</span>
-            </DetailItem>
-            <DetailItem label="Center">{remark.center || '—'}</DetailItem>
-            <DetailItem label="Student Name">{remark.student || '—'}</DetailItem>
-            <DetailItem label="Assigned Counselor">{remark.counselor || '—'}</DetailItem>
-          </dl>
+          {loading ? (
+            <div className="space-y-3 py-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-4 animate-pulse rounded bg-slate-100" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailItem label="Attempt ID">
+                  <span className="font-mono text-xs">{remark.attemptId}</span>
+                </DetailItem>
+                <DetailItem label="Center">{remark.center || '—'}</DetailItem>
+                <DetailItem label="Student Name">{remark.student || '—'}</DetailItem>
+                <DetailItem label="Assigned Counselor">{remark.counselor || '—'}</DetailItem>
+              </dl>
 
-          <DetailBlock label="Remark Subject">
-            <span className="whitespace-pre-wrap font-semibold">{remark.subject || '—'}</span>
-          </DetailBlock>
+              <DetailBlock label="Remark Subject">
+                <span className="whitespace-pre-wrap font-semibold">{remark.subject || '—'}</span>
+              </DetailBlock>
 
-          <DetailBlock label="Failure Analysis">
-            <span className="whitespace-pre-wrap">{remark.failureAnalysis || '—'}</span>
-          </DetailBlock>
+              <DetailBlock label="Failure Analysis">
+                <span className="whitespace-pre-wrap">{remark.failureAnalysis || '—'}</span>
+              </DetailBlock>
 
-          <DetailBlock label="Complete Counselor Remark">
-            <span className="whitespace-pre-wrap">{remark.remark || '—'}</span>
-          </DetailBlock>
+              <DetailBlock label="Complete Counselor Remark">
+                <span className="whitespace-pre-wrap">{remark.remark || '—'}</span>
+              </DetailBlock>
 
-          <DetailItem label="Created Date & Time">
-            {formatCategoryDateTime(remark.createdAt)}
-          </DetailItem>
+              <DetailItem label="Created Date & Time">
+                {formatCategoryDateTime(remark.createdAt)}
+              </DetailItem>
+            </>
+          )}
 
           <div className="flex justify-end border-t border-slate-100 pt-4">
             <button

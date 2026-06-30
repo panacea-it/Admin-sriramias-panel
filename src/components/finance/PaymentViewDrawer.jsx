@@ -33,10 +33,12 @@ function DetailRow({ label, value, children }) {
   )
 }
 
-export default function PaymentViewDrawer({ open, onClose, payment }) {
+export default function PaymentViewDrawer({ open, onClose, payment, loading = false }) {
   if (!payment) return null
 
   const adminNote = parseLatestAdminNote(payment)
+  const reason = payment.reason || adminNote.reason || payment.editReason || '—'
+  const comment = payment.comment || adminNote.comment || payment.editComment || '—'
 
   return (
     <Modal open={open} onClose={onClose} size="md" title="Payment details" showCloseButton={false}>
@@ -51,33 +53,39 @@ export default function PaymentViewDrawer({ open, onClose, payment }) {
           plainCloseIcon
         />
         <div className="max-h-[70vh] overflow-y-auto px-5 py-2 sm:px-6">
-          <p className="mb-1 pt-2 text-xs font-bold uppercase tracking-wide text-[#246392]">Student details</p>
-          <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-4">
-            <DetailRow label="Student name" value={payment.studentName} />
-            <DetailRow label="Student ID" value={payment.studentId} />
-            <DetailRow label="Course" value={payment.courseName} />
-            <DetailRow label="Batch" value={payment.batchName} />
-            <DetailRow label="Center" value={payment.centerName} />
-            <DetailRow label="Mobile" value={payment.mobile} />
-            <DetailRow label="Email" value={payment.email} />
-            <DetailRow label="Payment status">
-              <FinanceStatusBadge status={payment.paymentStatus} className="rounded-full px-3 py-1 text-xs" />
-            </DetailRow>
-            <DetailRow label="Payment mode" value={payment.paymentMode} />
-            <DetailRow label="Amount" value={formatINR(payment.amountPaid)} />
-            <DetailRow label="Receipt number" value={payment.receiptNumber || 'Not generated'} />
-            <DetailRow label="Transaction ID" value={payment.transactionId} />
-            <DetailRow
-              label="Payment date"
-              value={payment.paymentDate ? formatCategoryDateTime(payment.paymentDate) : '—'}
-            />
-            <DetailRow label="Gateway" value={payment.paymentGateway} />
-            <DetailRow label="Verification status">
-              <FinanceStatusBadge status={payment.verificationStatus} className="rounded-full px-3 py-1 text-xs" />
-            </DetailRow>
-            <DetailRow label="Reason" value={adminNote.reason || '—'} />
-            <DetailRow label="Comments" value={adminNote.comment || '—'} />
-          </div>
+          {loading ? (
+            <p className="py-8 text-center text-sm text-[#686868]">Loading payment details…</p>
+          ) : (
+            <>
+              <p className="mb-1 pt-2 text-xs font-bold uppercase tracking-wide text-[#246392]">Student details</p>
+              <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-4">
+                <DetailRow label="Student name" value={payment.studentName} />
+                <DetailRow label="Student ID" value={payment.studentId} />
+                <DetailRow label="Course" value={payment.courseName} />
+                <DetailRow label="Batch" value={payment.batchName} />
+                <DetailRow label="Center" value={payment.centerName} />
+                <DetailRow label="Mobile" value={payment.mobile} />
+                <DetailRow label="Email" value={payment.email} />
+                <DetailRow label="Payment status">
+                  <FinanceStatusBadge status={payment.paymentStatus} className="rounded-full px-3 py-1 text-xs" />
+                </DetailRow>
+                <DetailRow label="Payment mode" value={payment.paymentMode} />
+                <DetailRow label="Amount" value={formatINR(payment.amountPaid)} />
+                <DetailRow label="Receipt number" value={payment.receiptNumber || 'Not generated'} />
+                <DetailRow label="Transaction ID" value={payment.transactionId} />
+                <DetailRow
+                  label="Payment date"
+                  value={payment.paymentDate ? formatCategoryDateTime(payment.paymentDate) : '—'}
+                />
+                <DetailRow label="Gateway" value={payment.paymentGateway} />
+                <DetailRow label="Verification status">
+                  <FinanceStatusBadge status={payment.verificationStatus} className="rounded-full px-3 py-1 text-xs" />
+                </DetailRow>
+                <DetailRow label="Reason" value={reason} />
+                <DetailRow label="Comments" value={comment} />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Modal>

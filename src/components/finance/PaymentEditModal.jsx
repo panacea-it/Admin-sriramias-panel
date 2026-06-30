@@ -6,6 +6,11 @@ import { cn } from '../../utils/cn'
 
 const STATUS_OPTIONS = ['Paid', 'Partial', 'Pending', 'Failed', 'Refunded']
 
+const DEFAULT_REASON_OPTIONS = EDIT_STATUS_REASONS.map((label) => ({
+  value: label,
+  label,
+}))
+
 const FIELD_CLASS =
   'mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-[#222] shadow-sm outline-none transition placeholder:text-[#9ca0a8] focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 [color-scheme:light]'
 
@@ -20,15 +25,27 @@ function FieldLabel({ children, htmlFor }) {
   )
 }
 
-export default function PaymentEditModal({ open, payment, form, onChange, onClose, onSave, saving }) {
+export default function PaymentEditModal({
+  open,
+  payment,
+  form,
+  onChange,
+  onClose,
+  onSave,
+  saving,
+  reasonOptions = DEFAULT_REASON_OPTIONS,
+}) {
   if (!payment) return null
+
+  const resolvedReasonOptions =
+    reasonOptions.length > 0 ? reasonOptions : DEFAULT_REASON_OPTIONS
 
   return (
     <Modal open={open} onClose={onClose} size="md" title="Edit payment" showCloseButton={false}>
       <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
         <ModalPanelHeader
           title={payment.studentName}
-          subtitle={`${payment.id} · Edit payment details`}
+          subtitle={`${payment.transactionId || payment.id} · Edit payment details`}
           onClose={onClose}
           icon={Pencil}
           iconClassName="text-[#246392]"
@@ -73,9 +90,9 @@ export default function PaymentEditModal({ open, payment, form, onChange, onClos
                 onChange={(e) => onChange({ ...form, reason: e.target.value })}
                 className={cn(FIELD_CLASS, 'cursor-pointer')}
               >
-                {EDIT_STATUS_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                {resolvedReasonOptions.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
                   </option>
                 ))}
               </select>

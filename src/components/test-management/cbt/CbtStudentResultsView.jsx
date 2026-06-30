@@ -10,11 +10,18 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Download, FileText, Search, Trophy, AlertTriangle } from 'lucide-react'
-import PaginatedFigmaTable from '../../figma/PaginatedFigmaTable'
+import { AlertTriangle, Award, Target, TrendingUp, Trophy, Users } from 'lucide-react'
 import StatCard from '../../dashboard/StatCard'
-import { BannerButton, StatusBadge } from '../../academics/AcademicsUi'
-import { Users, Target, TrendingUp, Award } from 'lucide-react'
+import {
+  CbtAdminTable,
+  CbtAttemptStatusBadge,
+  CbtChartCard,
+  CbtExportToolbar,
+  CbtRankListCard,
+  CbtResultStatusBadge,
+  CbtStatsGrid,
+  CBT_TABLE_CONTAINER,
+} from './ui'
 import {
   exportCbtResultsCsv,
   exportCbtResultsPdf,
@@ -22,11 +29,11 @@ import {
 import { getApiErrorMessage } from '../../../utils/apiError'
 import { toast } from '../../../utils/toast'
 
-const RESULT_OPTIONS = ['all', 'Published', 'Unpublished']
-
-function normalizeCbtResultStatus(status) {
-  return status === 'Published' ? 'Published' : 'Unpublished'
-}
+const RESULT_FILTER_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'Published', label: 'Published' },
+  { value: 'Unpublished', label: 'Unpublished' },
+]
 
 function resultFilterToStatus(filter) {
   if (filter === 'Published') return 'PUBLISHED'
@@ -36,7 +43,6 @@ function resultFilterToStatus(filter) {
 export default function CbtStudentResultsView({
   testItem,
   testId,
-  facultyLabel,
   rows = [],
   analytics,
   totalStudents = 0,
@@ -113,10 +119,10 @@ export default function CbtStudentResultsView({
     try {
       if (type === 'pdf') {
         await exportCbtResultsPdf({ testId, filters })
-        toast.success('PDF exported')
+        toast.success('PDF Exported')
       } else {
         await exportCbtResultsCsv({ testId, filters })
-        toast.success('CSV exported')
+        toast.success('CSV Exported')
       }
     } catch (error) {
       toast.error(getApiErrorMessage(error, `Failed to export ${type.toUpperCase()}`))
@@ -128,28 +134,22 @@ export default function CbtStudentResultsView({
   const columns = [
     {
       key: 'studentName',
-      label: (
-        <button type="button" onClick={() => toggleSort('studentName')} className="font-semibold">
-          Student Name {sortKey === 'studentName' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-        </button>
-      ),
+      label: 'Student Name',
       render: (row) => <span className="font-medium text-[#333]">{row.studentName}</span>,
     },
     { key: 'rollNumber', label: 'Roll Number' },
     {
       key: 'attemptStatus',
       label: 'Attempt Status',
-      render: (row) => <StatusBadge status={row.attemptStatus} />,
+      align: 'center',
+      render: (row) => <CbtAttemptStatusBadge status={row.attemptStatus} />,
     },
     {
       key: 'score',
-      label: (
-        <button type="button" onClick={() => toggleSort('score')} className="font-semibold">
-          Score {sortKey === 'score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-        </button>
-      ),
+      label: 'Score',
+      align: 'center',
       render: (row) => (
-        <span>
+        <span className="tabular-nums">
           {row.score}/{row.maxMarks}
         </span>
       ),
@@ -157,9 +157,15 @@ export default function CbtStudentResultsView({
     {
       key: 'accuracyPct',
       label: 'Accuracy %',
-      render: (row) => `${row.accuracyPct}%`,
+      align: 'center',
+      render: (row) => <span className="tabular-nums">{row.accuracyPct}%</span>,
     },
-    { key: 'negativeMarks', label: 'Negative Marks' },
+    {
+      key: 'negativeMarks',
+      label: 'Negative Marks',
+      align: 'center',
+      render: (row) => <span className="tabular-nums">{row.negativeMarks}</span>,
+    },
     {
       key: 'rank',
       label: (
@@ -167,30 +173,31 @@ export default function CbtStudentResultsView({
           Rank {sortKey === 'rank' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
         </button>
       ),
+      align: 'center',
     },
     { key: 'timeTaken', label: 'Time Taken' },
     { key: 'submissionDate', label: 'Submission Time' },
     {
       key: 'resultStatus',
       label: 'Result Status',
-      render: (row) => <StatusBadge status={normalizeCbtResultStatus(row.resultStatus)} />,
+      align: 'center',
+      render: (row) => <CbtResultStatusBadge status={row.resultStatus} />,
     },
   ]
 
   if (!testItem) return null
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <CbtStatsGrid columns={4}>
         <StatCard title="Total Students" value={summary.totalStudents} color="#55ace7" icon={Users} />
         <StatCard title="Attempted" value={summary.attempted} color="#10b981" icon={Target} />
         <StatCard title="Avg Score" value={summary.avgScore} color="#8b5cf6" icon={TrendingUp} />
         <StatCard title="Avg Accuracy" value={`${summary.avgAccuracy}%`} color="#f59e0b" icon={Award} />
-      </div>
+      </CbtStatsGrid>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)] lg:col-span-2">
-          <h3 className="mb-2 text-sm font-bold text-[#1a3a5c]">Score Distribution</h3>
+        <CbtChartCard title="Score Distribution" className="lg:col-span-2">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={performanceChart}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
@@ -200,12 +207,9 @@ export default function CbtStudentResultsView({
               <Bar dataKey="students" fill="#55ace7" radius={[6, 6, 0, 0]} name="Students" />
             </BarChart>
           </ResponsiveContainer>
-        </article>
-        <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-[#1a3a5c]">
-            <TrendingUp className="h-4 w-4 text-[#55ace7]" />
-            Average Accuracy Trend
-          </h3>
+        </CbtChartCard>
+
+        <CbtChartCard title="Average Accuracy Trend" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={accuracyTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
@@ -215,110 +219,70 @@ export default function CbtStudentResultsView({
               <Line type="monotone" dataKey="accuracy" stroke="#1a3a5c" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </article>
+        </CbtChartCard>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1a3a5c]">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            Top Scorers
-          </h3>
-          <ul className="space-y-2">
-            {topScorers.length === 0 ? (
-              <li className="text-sm text-slate-500">No completed attempts yet.</li>
-            ) : (
-              topScorers.map((s, i) => (
-                <li
-                  key={s.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm"
-                >
-                  <span>
-                    <span className="mr-2 font-bold text-[#55ace7]">#{s.rank ?? i + 1}</span>
-                    {s.studentName}
-                  </span>
-                  <span className="font-semibold tabular-nums">{s.score} pts</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </article>
-        <article className="rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-[var(--card-shadow)]">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1a3a5c]">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            Needs Improvement (&lt;50% accuracy)
-          </h3>
-          <ul className="space-y-2">
-            {failedStudents.length === 0 ? (
-              <li className="text-sm text-slate-500">No students below threshold.</li>
-            ) : (
-              failedStudents.map((s) => (
-                <li
-                  key={s.id}
-                  className="flex items-center justify-between rounded-lg border border-red-100 bg-red-50/50 px-3 py-2 text-sm"
-                >
-                  <span>{s.studentName}</span>
-                  <span className="font-semibold text-red-600 tabular-nums">{s.accuracyPct}%</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </article>
+        <CbtRankListCard
+          title="Top Scorers"
+          icon={Trophy}
+          iconClassName="text-amber-500"
+          items={topScorers}
+          emptyMessage="No completed attempts yet."
+          itemClassName="border-0 bg-transparent px-0 py-1.5"
+          renderItem={(student, index) => (
+            <>
+              <span className="min-w-0 truncate">
+                <span className="mr-2 font-bold text-[#55ace7]">#{student.rank ?? index + 1}</span>
+                {student.studentName}
+              </span>
+              <span className="shrink-0 font-semibold tabular-nums">{student.score} pts</span>
+            </>
+          )}
+        />
+
+        <CbtRankListCard
+          title="Needs Improvement (<50% accuracy)"
+          icon={AlertTriangle}
+          iconClassName="text-red-500"
+          items={failedStudents}
+          emptyMessage="No students below threshold."
+          itemClassName="border-0 bg-transparent px-0 py-1.5"
+          renderItem={(student) => (
+            <>
+              <span className="min-w-0 truncate">{student.studentName}</span>
+              <span className="shrink-0 font-semibold text-red-600 tabular-nums">
+                {student.accuracyPct}%
+              </span>
+            </>
+          )}
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or roll number…"
-            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#55ace7] focus:outline-none"
-          />
-        </div>
-        <select
-          value={resultFilter}
-          onChange={(e) => setResultFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-        >
-          {RESULT_OPTIONS.map((o) => (
-            <option key={o} value={o}>
-              {o === 'all' ? 'All' : o}
-            </option>
-          ))}
-        </select>
-        <BannerButton
-          type="button"
-          variant="secondary"
-          showPlusIcon={false}
-          disabled={exporting}
-          onClick={() => runExport('csv')}
-        >
-          <Download className="h-4 w-4" />
-          CSV
-        </BannerButton>
-        <BannerButton
-          type="button"
-          variant="secondary"
-          showPlusIcon={false}
-          disabled={exporting}
-          onClick={() => runExport('pdf')}
-        >
-          <FileText className="h-4 w-4" />
-          PDF
-        </BannerButton>
-      </div>
-
-      <PaginatedFigmaTable
-        columns={columns}
-        data={filtered}
-        itemLabel="students"
-        initialPageSize={10}
-        resetDeps={[search, resultFilter, testItem.id]}
-        stickyHeader
-        emptyMessage="No students match your filters."
+      <CbtExportToolbar
+        search={search}
+        onSearchChange={(e) => setSearch(e.target.value)}
+        searchPlaceholder="Search name or roll number…"
+        filterValue={resultFilter}
+        onFilterChange={(e) => setResultFilter(e.target.value)}
+        filterOptions={RESULT_FILTER_OPTIONS}
+        exporting={exporting}
+        onExportCsv={() => runExport('csv')}
+        onExportPdf={() => runExport('pdf')}
       />
+
+      <div className={CBT_TABLE_CONTAINER}>
+        <CbtAdminTable
+          columns={columns}
+          data={filtered}
+          itemLabel="students"
+          initialPageSize={10}
+          resetDeps={[search, resultFilter, testItem.id]}
+          tableMinWidth={1200}
+          tableLayoutFixed
+          emptyMessage="No students match your filters."
+        />
+      </div>
     </div>
   )
 }

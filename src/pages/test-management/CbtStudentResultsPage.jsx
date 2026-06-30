@@ -4,6 +4,7 @@ import TestManagementPageShell from '../../components/test-management/TestManage
 import CbtBreadcrumbNav from '../../components/test-management/cbt/CbtBreadcrumbNav'
 import CbtStudentResultsView from '../../components/test-management/cbt/CbtStudentResultsView'
 import { BannerButton } from '../../components/academics/AcademicsUi'
+import { CbtBackButton } from '../../components/test-management/cbt/ui'
 import { TEST_MANAGEMENT_ROUTES } from '../../constants/testManagementNav'
 import { useCbtTestResults } from '../../hooks/useCbtTestResults'
 
@@ -56,7 +57,9 @@ export default function CbtStudentResultsPage() {
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-sm text-slate-600">Test series or results not found.</p>
           <Link to={TEST_MANAGEMENT_ROUTES.cbtFaculty(subjectId)} className="mt-4 inline-block">
-            <BannerButton type="button" showPlusIcon={false}>Go Back</BannerButton>
+            <BannerButton type="button" showPlusIcon={false}>
+              Go Back
+            </BannerButton>
           </Link>
         </div>
       </TestManagementPageShell>
@@ -66,32 +69,35 @@ export default function CbtStudentResultsPage() {
   return (
     <TestManagementPageShell
       icon={Monitor}
-      title={testItem?.title || 'Student Results'}
+      title={testItem?.title || 'Test Analytics'}
       actions={
-        <BannerButton type="button" variant="secondary" showPlusIcon={false} onClick={goBack}>
+        <CbtBackButton onClick={goBack}>
           <ArrowLeft className="h-4 w-4" />
           Back to Tests
-        </BannerButton>
+        </CbtBackButton>
       }
     >
-      <div className="mb-4">
-        <CbtBreadcrumbNav items={breadcrumbs} />
-        {facultyLabel && <p className="mt-2 text-xs text-slate-500">{facultyLabel}</p>}
-      </div>
+      <CbtBreadcrumbNav items={breadcrumbs} />
+      {facultyLabel ? (
+        <p className="mt-2 text-sm text-slate-500">{facultyLabel}</p>
+      ) : null}
+
       {loading ? (
-        <div className="flex min-h-[320px] items-center justify-center">
+        <div className="mt-4 flex min-h-[320px] items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#55ace7] border-t-transparent" />
         </div>
       ) : (
-        <CbtStudentResultsView
-          testItem={testItem}
-          testId={testItemId}
-          facultyLabel={facultyLabel}
-          rows={rows}
-          analytics={analytics}
-          totalStudents={totalStudents}
-          attempted={attempted}
-        />
+        <div className="mt-4">
+          <CbtStudentResultsView
+            testItem={testItem}
+            testId={testItemId}
+            facultyLabel={facultyLabel}
+            rows={rows}
+            analytics={analytics}
+            totalStudents={totalStudents}
+            attempted={attempted}
+          />
+        </div>
       )}
     </TestManagementPageShell>
   )

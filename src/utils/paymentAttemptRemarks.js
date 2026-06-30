@@ -54,5 +54,6 @@ export function removeCounselorRemark(remarks = [], remarkId) {
 }
 
 export function isCounselorAssigned(row) {
-  return Boolean(row?.counselorName)
+  if (row?.isAssigned === true) return true
+  return Boolean(row?.counselorName || row?.assignedCounselorName)
 }

@@ -1,110 +1,141 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { fetchPaymentAttemptLogs } from '../api/financeAPI'
-import { buildPaymentAttemptDummyLogs } from '../data/paymentAttemptDummyData'
 import {
-  buildCounselorRemarkRecord,
-  getRemarkForAttempt,
-  isCounselorAssigned,
-  removeCounselorRemark,
-  sortRemarksByDateDesc,
-  upsertCounselorRemark,
-} from '../utils/paymentAttemptRemarks'
+  fetchPaymentAttemptFilterOptions,
+  assignPaymentAttemptCounselor,
+  addPaymentAttemptRemark,
+  deletePaymentAttemptRemark,
+} from '../api/paymentAttemptLogsAPI'
 import { toast } from '../utils/toast'
+import { usePermissions } from '../hooks/usePermissions'
+import { ROLES } from '../constants/roles'
 
 const PaymentAttemptLogsContext = createContext(null)
 
 export function PaymentAttemptLogsProvider({ children }) {
-  const [logs, setLogs] = useState([])
-  const [counselorRemarks, setCounselorRemarks] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { isSuperAdmin, hasRole } = usePermissions()
+  const [filterOptions, setFilterOptions] = useState(null)
+  const [optionsLoading, setOptionsLoading] = useState(true)
+  const [refreshToken, setRefreshToken] = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const isFinanceAdmin = isSuperAdmin || hasRole(ROLES.OPERATION_ADMIN)
+  const isCounselor = hasRole(ROLES.COUNSELING_ADMIN)
+  const canAssignCounselor = isFinanceAdmin
+  const canAddRemark = isFinanceAdmin || isCounselor
+  const canDeleteRemark = isSuperAdmin
+
+  const loadFilterOptions = useCallback(async () => {
+    setOptionsLoading(true)
     try {
-      const data = await fetchPaymentAttemptLogs()
-      const rows = Array.isArray(data) ? data : data?.logs ?? buildPaymentAttemptDummyLogs()
-      setLogs(
-        rows.map((log) => ({
-          ...log,
-          center: log.center || log.centerName?.replace(' Center', '') || 'Delhi',
-          centerName: log.centerName || `${log.center || 'Delhi'} Center`,
-          counselorId: log.counselorId ?? null,
-          counselorName: log.counselorName ?? null,
-        })),
-      )
-    } catch {
-      setLogs(buildPaymentAttemptDummyLogs())
-      toast.error('Failed to load payment attempt logs')
+      const data = await fetchPaymentAttemptFilterOptions()
+      setFilterOptions(data)
+    } catch (error) {
+      toast.error(error.message || 'Failed to load filter options')
+      setFilterOptions(null)
     } finally {
-      setLoading(false)
+      setOptionsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    loadFilterOptions()
+  }, [loadFilterOptions, refreshToken])
 
-  const assignCounselor = useCallback(({ attemptId, counselorId, counselorName }) => {
-    setLogs((prev) =>
-      prev.map((log) =>
-        log.id === attemptId ? { ...log, counselorId, counselorName } : log,
-      ),
-    )
-    toast.success('Counselor assigned')
+  const bumpRefresh = useCallback(() => {
+    setRefreshToken((t) => t + 1)
   }, [])
 
-  const saveRemark = useCallback((attemptRow, { subject, failureAnalysis, remark }) => {
-    const record = buildCounselorRemarkRecord({
-      attemptRow,
-      subject,
-      failureAnalysis,
-      remark,
-    })
-    setCounselorRemarks((prev) => upsertCounselorRemark(prev, record))
-    toast.success('Remark saved')
-  }, [])
-
-  const deleteRemark = useCallback((remarkId) => {
-    setCounselorRemarks((prev) => removeCounselorRemark(prev, remarkId))
-    toast.success('Remark deleted')
-  }, [])
-
-  const pendingAssignedLogs = useMemo(
-    () =>
-      logs.filter(
-        (log) => isCounselorAssigned(log) && !getRemarkForAttempt(counselorRemarks, log.id),
-      ),
-    [logs, counselorRemarks],
+  const assignCounselor = useCallback(
+    async ({ attemptId, counselorId }) => {
+      try {
+        await assignPaymentAttemptCounselor({ attemptId, counselorId })
+        toast.success('Counselor assigned successfully')
+        bumpRefresh()
+        return true
+      } catch (error) {
+        if (error.status === 403) {
+          toast.error('You do not have permission to assign counselors')
+        } else {
+          toast.error(error.message || 'Failed to assign counselor')
+        }
+        return false
+      }
+    },
+    [bumpRefresh],
   )
 
-  const sortedRemarks = useMemo(
-    () => sortRemarksByDateDesc(counselorRemarks),
-    [counselorRemarks],
+  const saveRemark = useCallback(
+    async (attemptRow, { subject, failureAnalysis, remark }) => {
+      const attemptId = attemptRow?.attemptId || attemptRow?.id
+      if (!attemptId) return false
+      try {
+        await addPaymentAttemptRemark({
+          attemptId,
+          remarkSubject: subject,
+          failureAnalysis,
+          counselorRemark: remark,
+        })
+        toast.success('Remark saved successfully')
+        bumpRefresh()
+        return true
+      } catch (error) {
+        if (error.status === 403) {
+          toast.error('You do not have permission to add remarks')
+        } else {
+          toast.error(error.message || 'Failed to save remark')
+        }
+        return false
+      }
+    },
+    [bumpRefresh],
+  )
+
+  const deleteRemark = useCallback(
+    async (remarkId) => {
+      if (!canDeleteRemark) {
+        toast.error('You do not have permission to delete remarks')
+        return false
+      }
+      try {
+        await deletePaymentAttemptRemark(remarkId)
+        toast.success('Remark deleted successfully')
+        bumpRefresh()
+        return true
+      } catch (error) {
+        toast.error(error.message || 'Failed to delete remark')
+        return false
+      }
+    },
+    [bumpRefresh, canDeleteRemark],
   )
 
   const value = useMemo(
     () => ({
-      logs,
-      counselorRemarks,
-      sortedRemarks,
-      pendingAssignedLogs,
-      loading,
-      reload: load,
+      filterOptions,
+      optionsLoading,
+      refreshToken,
+      bumpRefresh,
       assignCounselor,
       saveRemark,
       deleteRemark,
-      getRemarkForAttempt: (attemptRowId) => getRemarkForAttempt(counselorRemarks, attemptRowId),
+      canAssignCounselor,
+      canAddRemark,
+      canDeleteRemark,
+      isFinanceAdmin,
+      isCounselor,
     }),
     [
-      logs,
-      counselorRemarks,
-      sortedRemarks,
-      pendingAssignedLogs,
-      loading,
-      load,
+      filterOptions,
+      optionsLoading,
+      refreshToken,
+      bumpRefresh,
       assignCounselor,
       saveRemark,
       deleteRemark,
+      canAssignCounselor,
+      canAddRemark,
+      canDeleteRemark,
+      isFinanceAdmin,
+      isCounselor,
     ],
   )
 

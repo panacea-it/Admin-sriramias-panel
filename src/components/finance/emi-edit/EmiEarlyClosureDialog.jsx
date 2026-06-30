@@ -1,138 +1,189 @@
 import { useEffect, useState } from 'react'
-import { Lock, Upload, X } from 'lucide-react'
+import { Calendar, Lock, Receipt, Upload } from 'lucide-react'
+import Modal from '../../ui/Modal'
+import ModalPanelHeader from '../../courses/ModalPanelHeader'
+import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
 import { formatINR } from '../../../utils/financeFilters'
-import { readProofFile } from '../../../utils/emiEditModel'
+import { cn } from '../../../utils/cn'
 
-const fieldClass =
-  'mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#55ace7]/40'
+const FIELD_CLASS =
+  'mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-[#222] shadow-sm outline-none transition placeholder:text-[#9ca0a8] focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 [color-scheme:light]'
 
-export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance, onConfirm }) {
-  const [amount, setAmount] = useState('')
-  const [remarks, setRemarks] = useState('')
-  const [proof, setProof] = useState(null)
+const TEXTAREA_CLASS =
+  'mt-1.5 min-h-[88px] w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-[#222] shadow-sm outline-none transition placeholder:text-[#9ca0a8] focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 [color-scheme:light]'
+
+function FieldLabel({ children }) {
+  return <span className="block text-sm font-semibold text-[#222]">{children}</span>
+}
+
+export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance }) {
+  const [form, setForm] = useState({
+    amount: '',
+    paymentMode: 'Cash',
+    paymentDate: '',
+    receiptNumber: '',
+    referenceNumber: '',
+    remarks: '',
+  })
   const [proofName, setProofName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setAmount('')
-    setRemarks('')
-    setProof(null)
+    setForm({
+      amount: String(pendingBalance || ''),
+      paymentMode: 'Cash',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      receiptNumber: '',
+      referenceNumber: '',
+      remarks: '',
+    })
     setProofName('')
-    setSubmitting(false)
   }, [open, pendingBalance])
 
   if (!open) return null
 
-  const displayAmount = amount || String(pendingBalance || 0)
-
-  const handleProof = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const data = await readProofFile(file)
-      setProof(data)
-      setProofName(data.proofFileName)
-    } catch {
-      setProof(null)
-      setProofName('')
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e?.preventDefault?.()
-    if (submitting) return
-    setSubmitting(true)
-    try {
-      await onConfirm?.({
-        amount: Number(displayAmount) || pendingBalance,
-        remarks,
-        proofFileName: proofName,
-        proofUrl: proof?.proofUrl,
-        proofDataUrl: proof?.proofDataUrl,
-      })
-      onClose()
-    } finally {
-      setSubmitting(false)
-    }
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onClose()
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 bg-white/90 text-slate-600 shadow-sm transition hover:bg-white"
-        aria-label="Close"
-      >
-        <X className="h-5 w-5" />
-      </button>
+    <Modal open={open} onClose={onClose} size="md" title="Close EMI early" showCloseButton={false}>
+      <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_11px_25px_rgba(15,23,42,0.08)]">
+        <ModalPanelHeader
+          title="Close EMI Early"
+          subtitle="Collect full remaining balance and settle the plan"
+          onClose={onClose}
+          icon={Lock}
+          iconClassName="text-amber-700"
+          closeVariant="icon"
+          plainCloseIcon
+        />
 
-      <div className="space-y-4 p-5">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 pr-12 text-sm text-amber-900">
-          <p className="flex items-center gap-2 font-bold">
-            <Lock className="h-4 w-4" />
-            Early closure
-          </p>
-          <p className="mt-1 text-xs">
-            Collect the full remaining balance. Future installments will be marked closed and
-            disabled.
-          </p>
-        </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+            <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-white px-4 py-3.5 text-sm text-amber-900">
+              <p className="font-bold">Early closure</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-800/90">
+                Collect the full remaining balance of{' '}
+                <span className="font-bold tabular-nums">{formatINR(pendingBalance)}</span>.
+                Future installments will be marked closed.
+              </p>
+            </div>
 
-        <label className="block text-sm font-semibold text-[#333]">
-          Final collection amount (₹)
-          <input
-            type="number"
-            min="0"
-            required
-            value={displayAmount}
-            onChange={(e) => setAmount(e.target.value)}
-            className={fieldClass}
-          />
-          <span className="mt-1 block text-xs text-[#686868]">
-            Pending balance: {formatINR(pendingBalance)}
-          </span>
-        </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <FieldLabel>Amount Collecting Now (₹)</FieldLabel>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  className={cn(FIELD_CLASS, 'text-right tabular-nums')}
+                />
+              </label>
 
-        <label className="block text-sm font-semibold text-[#333]">
-          Closure remarks
-          <textarea
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Student paid remaining balance at counter…"
-          />
-        </label>
+              <label className="block">
+                <FieldLabel>Payment Mode</FieldLabel>
+                <select
+                  value={form.paymentMode}
+                  onChange={(e) => setForm((f) => ({ ...f, paymentMode: e.target.value }))}
+                  className={cn(FIELD_CLASS, 'cursor-pointer')}
+                >
+                  {OFFLINE_PAYMENT_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#55ace7]/50 bg-[#f8fbff] px-3 py-3 text-sm font-semibold text-[#246392]">
-          <Upload className="h-4 w-4" />
-          Upload final payment proof
-          <input type="file" accept="image/*,.pdf" className="sr-only" onChange={handleProof} />
-          {proofName && (
-            <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
-          )}
-        </label>
+              <label className="block">
+                <FieldLabel>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-[#246392]" aria-hidden />
+                    Payment Date
+                  </span>
+                </FieldLabel>
+                <input
+                  type="date"
+                  required
+                  value={form.paymentDate}
+                  onChange={(e) => setForm((f) => ({ ...f, paymentDate: e.target.value }))}
+                  className={FIELD_CLASS}
+                />
+              </label>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-semibold"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="h-10 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
-          >
-            Close EMI & generate receipt
-          </button>
-        </div>
+              <label className="block">
+                <FieldLabel>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Receipt className="h-3.5 w-3.5 text-[#246392]" aria-hidden />
+                    Receipt Number
+                  </span>
+                </FieldLabel>
+                <input
+                  value={form.receiptNumber}
+                  onChange={(e) => setForm((f) => ({ ...f, receiptNumber: e.target.value }))}
+                  placeholder="RCP-…"
+                  className={FIELD_CLASS}
+                />
+              </label>
+
+              <label className="block">
+                <FieldLabel>Reference / UTR</FieldLabel>
+                <input
+                  value={form.referenceNumber}
+                  onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))}
+                  placeholder="UPI ref, cheque no."
+                  className={FIELD_CLASS}
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <FieldLabel>Remarks</FieldLabel>
+                <textarea
+                  value={form.remarks}
+                  onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
+                  rows={3}
+                  placeholder="Student paid remaining balance at counter…"
+                  className={TEXTAREA_CLASS}
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-dashed border-[#55ace7]/40 bg-[#f8fbff] px-4 py-3.5 text-sm font-semibold text-[#246392] transition hover:bg-[#eef6fc] sm:col-span-2">
+                <Upload className="h-4 w-4 shrink-0" aria-hidden />
+                Upload Payment Proof
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="sr-only"
+                  onChange={(e) => setProofName(e.target.files?.[0]?.name || '')}
+                />
+                {proofName ? (
+                  <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
+                ) : null}
+              </label>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-w-[108px] rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#444] shadow-sm transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="min-w-[132px] rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95"
+            >
+              Mark as Paid
+            </button>
+          </div>
+        </form>
       </div>
-    </div>
+    </Modal>
   )
 }

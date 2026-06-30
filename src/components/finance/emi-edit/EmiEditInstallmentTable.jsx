@@ -1,40 +1,30 @@
-import { Download, Eye, Upload } from 'lucide-react'
+import { IndianRupee, Pencil } from 'lucide-react'
+import IconActionButton from '../../common/IconActionButton'
 import FinanceStatusBadge from '../FinanceStatusBadge'
 import { formatINR } from '../../../utils/financeFilters'
-import { installmentRemaining } from '../../../utils/emiSchedule'
+import { formatDisplayDate, installmentRemaining } from '../../../utils/emiSchedule'
 import { cn } from '../../../utils/cn'
-import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
-
-const cellInput =
-  'h-8 w-full min-w-0 rounded border border-slate-200 bg-white px-2 text-xs tabular-nums outline-none focus:border-[#55ace7] focus:ring-1 focus:ring-[#55ace7]/30 disabled:bg-slate-50 disabled:text-slate-500'
 
 export default function EmiEditInstallmentTable({
   installments,
   planClosed,
-  onFieldChange,
-  onUploadProof,
-  onViewProof,
-  onDownloadProof,
+  onCustomize,
+  onPay,
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="max-h-[min(420px,50vh)] overflow-auto">
-        <table className="w-full min-w-[1180px] border-collapse text-left text-xs">
-          <thead className="sticky top-0 z-10 bg-gradient-to-r from-[#246392] to-[#1a4d73] text-[10px] font-bold uppercase tracking-wide text-white">
-            <tr>
-              <th className="px-2 py-2.5">#</th>
-              <th className="px-2 py-2.5">EMI month</th>
-              <th className="px-2 py-2.5">Due date</th>
-              <th className="px-2 py-2.5 text-right">EMI amt</th>
-              <th className="px-2 py-2.5 text-right">Paid</th>
-              <th className="px-2 py-2.5 text-right">Balance</th>
-              <th className="px-2 py-2.5">Status</th>
-              <th className="px-2 py-2.5">Mode</th>
-              <th className="px-2 py-2.5">Receipt</th>
-              <th className="px-2 py-2.5">UTR</th>
-              <th className="px-2 py-2.5 text-center">Proof</th>
-              <th className="px-2 py-2.5">Paid date</th>
-              <th className="px-2 py-2.5 min-w-[100px]">Remarks</th>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+      <div className="max-h-[min(480px,55vh)] overflow-auto">
+        <table className="w-full min-w-[820px] border-collapse text-sm">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-gradient-to-r from-[#55ace7] via-[#4a8fc4] to-[#246392] text-left text-[11px] font-bold uppercase tracking-wide text-white">
+              <th className="w-14 px-4 py-4 first:pl-5 sm:first:pl-6">#</th>
+              <th className="min-w-[120px] px-4 py-4">EMI Month</th>
+              <th className="min-w-[120px] px-4 py-4">Due Date</th>
+              <th className="min-w-[120px] px-4 py-4 text-right">EMI Amount</th>
+              <th className="min-w-[110px] px-4 py-4 text-right">Paid Amount</th>
+              <th className="min-w-[110px] px-4 py-4 text-right">Balance</th>
+              <th className="min-w-[120px] px-4 py-4">Status</th>
+              <th className="w-[120px] px-4 py-4 text-center last:pr-5 sm:last:pr-6">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -48,112 +38,59 @@ export default function EmiEditInstallmentTable({
                 <tr
                   key={`${row.installmentNo}-${index}`}
                   className={cn(
-                    'border-t border-slate-100 transition-colors hover:bg-[#f8fbff]/80',
-                    index % 2 === 1 && 'bg-slate-50/60',
-                    row.status === 'Overdue' && 'bg-red-50/40',
-                    isPaid && 'bg-emerald-50/30',
-                    isPartial && 'bg-amber-50/40',
-                    row.status === 'Closed' && 'opacity-70',
+                    'min-h-[56px] border-b border-slate-100 transition-colors duration-200 last:border-0 hover:bg-[#eef6fc]/70',
+                    index % 2 === 1 && 'bg-slate-50/50',
+                    row.status === 'Overdue' && 'bg-red-50/35',
+                    isPaid && 'bg-emerald-50/25',
+                    isPartial && 'bg-amber-50/30',
+                    row.status === 'Closed' && 'opacity-75',
                   )}
                 >
-                  <td className="px-2 py-2 font-bold text-[#246392]">{row.installmentNo}</td>
-                  <td className="whitespace-nowrap px-2 py-2 text-[#333]">{row.emiMonth}</td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="date"
-                      disabled={locked}
-                      value={row.dueDate || ''}
-                      onChange={(e) => onFieldChange(index, 'dueDate', e.target.value)}
-                      className={cellInput}
-                    />
+                  <td className="px-4 py-4 align-middle text-base font-bold tabular-nums text-[#246392] first:pl-5 sm:first:pl-6">
+                    {row.installmentNo}
                   </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={locked}
-                      value={row.emiAmount}
-                      onChange={(e) => onFieldChange(index, 'emiAmount', e.target.value)}
-                      className={cn(cellInput, 'text-right')}
-                    />
+                  <td className="whitespace-nowrap px-4 py-4 align-middle font-medium text-[#333]">
+                    {row.emiMonth}
                   </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={locked}
-                      value={row.paidAmount ?? ''}
-                      onChange={(e) => onFieldChange(index, 'paidAmount', e.target.value)}
-                      className={cn(cellInput, 'text-right')}
-                    />
+                  <td className="whitespace-nowrap px-4 py-4 align-middle tabular-nums text-[#333]">
+                    {formatDisplayDate(row.dueDate)}
                   </td>
-                  <td className="px-2 py-2 text-right font-semibold tabular-nums text-[#246392]">
+                  <td className="px-4 py-4 align-middle text-right text-sm font-semibold tabular-nums text-[#111]">
+                    {formatINR(row.emiAmount)}
+                  </td>
+                  <td className="px-4 py-4 align-middle text-right text-sm font-semibold tabular-nums text-emerald-700">
+                    {formatINR(row.paidAmount ?? 0)}
+                  </td>
+                  <td className="px-4 py-4 align-middle text-right text-sm font-bold tabular-nums text-[#246392]">
                     {formatINR(remaining)}
                   </td>
-                  <td className="px-2 py-2">
-                    <FinanceStatusBadge status={row.status} className="text-[10px] px-1.5 py-0.5" />
+                  <td className="px-4 py-4 align-middle">
+                    <FinanceStatusBadge status={row.status} />
                   </td>
-                  <td className="px-2 py-2">
-                    <select
-                      disabled={locked}
-                      value={row.paymentMode || ''}
-                      onChange={(e) => onFieldChange(index, 'paymentMode', e.target.value)}
-                      className={cellInput}
-                    >
-                      <option value="">—</option>
-                      {OFFLINE_PAYMENT_MODES.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      disabled={locked}
-                      value={row.receiptNumber || ''}
-                      onChange={(e) => onFieldChange(index, 'receiptNumber', e.target.value)}
-                      placeholder="RCP-…"
-                      className={cellInput}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      disabled={locked}
-                      value={row.utrNumber || row.referenceNumber || ''}
-                      onChange={(e) => onFieldChange(index, 'utrNumber', e.target.value)}
-                      placeholder="UTR"
-                      className={cellInput}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <ProofCell
-                      row={row}
-                      disabled={planClosed}
-                      onUpload={() => onUploadProof(index)}
-                      onView={() => onViewProof(index)}
-                      onDownload={() => onDownloadProof(index)}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="date"
-                      disabled={locked}
-                      value={row.paidDate || ''}
-                      onChange={(e) => onFieldChange(index, 'paidDate', e.target.value)}
-                      className={cellInput}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      disabled={locked}
-                      value={row.remarks || ''}
-                      onChange={(e) => onFieldChange(index, 'remarks', e.target.value)}
-                      className={cellInput}
-                    />
+                  <td className="px-4 py-4 align-middle last:pr-5 sm:last:pr-6">
+                    <div className="flex items-center justify-center gap-2.5">
+                      <IconActionButton
+                        label="Customize Installment"
+                        disabled={locked}
+                        onClick={() => onCustomize?.(index)}
+                        className="border border-[#55ace7]/35 text-[#246392] hover:border-[#55ace7] hover:bg-[#eef6fc] hover:shadow-sm"
+                      >
+                        <Pencil className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
+                      </IconActionButton>
+                      <button
+                        type="button"
+                        disabled={locked}
+                        onClick={() => onPay?.(index)}
+                        className={cn(
+                          'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] px-3 text-xs font-bold text-white shadow-sm transition',
+                          'hover:from-[#4a9ad8] hover:to-[#1a4d73] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ace7]/40',
+                          'disabled:cursor-not-allowed disabled:opacity-45',
+                        )}
+                      >
+                        <IndianRupee className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        Pay
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -162,53 +99,9 @@ export default function EmiEditInstallmentTable({
         </table>
       </div>
       {installments.length === 0 && (
-        <p className="py-8 text-center text-sm text-[#686868]">No installments. Add one to begin.</p>
-      )}
-    </div>
-  )
-}
-
-function ProofCell({ row, disabled, onUpload, onView, onDownload }) {
-  const hasProof = row.proofFileName || row.proofUrl
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      {!hasProof ? (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onUpload}
-          className="inline-flex items-center gap-0.5 rounded bg-[#eef6fc] px-1.5 py-1 text-[10px] font-semibold text-[#246392] hover:bg-[#dceaf8] disabled:opacity-40"
-        >
-          <Upload className="h-3 w-3" />
-          Upload
-        </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={onView}
-            className="inline-flex items-center gap-0.5 rounded px-1.5 py-1 text-[10px] font-semibold text-[#246392] hover:bg-[#eef6fc]"
-          >
-            <Eye className="h-3 w-3" />
-            View
-          </button>
-          <button
-            type="button"
-            onClick={onUpload}
-            disabled={disabled}
-            className="text-[10px] font-medium text-[#686868] hover:text-[#246392] disabled:opacity-40"
-          >
-            Replace
-          </button>
-          <button
-            type="button"
-            onClick={onDownload}
-            className="inline-flex items-center gap-0.5 text-[10px] text-[#686868] hover:text-[#246392]"
-          >
-            <Download className="h-3 w-3" />
-          </button>
-        </>
+        <p className="py-12 text-center text-sm font-medium text-[#686868]">
+          No installments. Add one to begin.
+        </p>
       )}
     </div>
   )

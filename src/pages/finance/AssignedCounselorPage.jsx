@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageSquarePlus, UserCheck } from 'lucide-react'
 import PageBanner from '../../components/figma/PageBanner'
 import FinanceCenterFilterBar from '../../components/finance/FinanceCenterFilterBar'
@@ -9,13 +9,20 @@ import PaymentAttemptAddRemarkModal from '../../components/finance/payment-attem
 import IconActionButton from '../../components/common/IconActionButton'
 import ViewButton from '../../components/common/ViewButton'
 import { TABLE_ACTIONS_WRAP } from '../../utils/tableColumnHelpers'
-import {
-  filterAttemptLogs,
-  filterAttemptsByFinanceCenters,
-  sortAttemptLogs,
-} from '../../utils/paymentAttemptAnalytics'
+import { sortAttemptLogs } from '../../utils/paymentAttemptAnalytics'
 import { usePaymentAttemptLogs } from '../../contexts/PaymentAttemptLogsContext'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
+import {
+  fetchPaymentAttemptAssignedDashboard,
+  fetchPaymentAttemptDetails,
+} from '../../api/paymentAttemptLogsAPI'
+import { buildControlledPagination } from '../../utils/paymentAttemptLogsHelpers'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildFilterSignature, createListFetchGuard, useEffectivePage } from '../../hooks/useMasterListQuery'
+import { toast } from '../../utils/toast'
+
+const DEFAULT_PAGE_SIZE = 10
+const listFetchGuard = createListFetchGuard()
 
 function AssignedCounselorTableActions({ row, onView, onAddRemark }) {
   return (
@@ -37,29 +44,110 @@ function AssignedCounselorTableActions({ row, onView, onAddRemark }) {
 
 export default function AssignedCounselorPage() {
   const financeCenterFilter = useFinanceCenterFilter()
-  const { pendingAssignedLogs, loading, saveRemark } = usePaymentAttemptLogs()
+  const { refreshToken, saveRemark } = usePaymentAttemptLogs()
 
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [sortKey, setSortKey] = useState('lastAttempt')
   const [sortDir, setSortDir] = useState('desc')
+  const [rows, setRows] = useState([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(true)
+
   const [viewRow, setViewRow] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
   const [remarkRow, setRemarkRow] = useState(null)
 
-  const filterState = useMemo(() => ({ search }), [search])
+  const mountedRef = useRef(true)
 
-  const centerScopedLogs = useMemo(
-    () => filterAttemptsByFinanceCenters(pendingAssignedLogs, financeCenterFilter),
-    [pendingAssignedLogs, financeCenterFilter],
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const centerId = useMemo(() => {
+    if (financeCenterFilter.isOverallView || !financeCenterFilter.selectedIds.length) {
+      return null
+    }
+    return financeCenterFilter.selectedIds[0]
+  }, [financeCenterFilter.isOverallView, financeCenterFilter.selectedIds])
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    centerId,
+    pageSize,
+    refreshToken,
+  ])
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
+
+  const listParams = useMemo(
+    () => ({
+      centerId,
+      search: debouncedSearch.trim(),
+      gateway: 'ALL',
+      failureReason: 'ALL',
+      page: effectivePage,
+      limit: pageSize,
+      remarksPage: 1,
+      remarksLimit: 1,
+    }),
+    [centerId, debouncedSearch, effectivePage, pageSize],
   )
 
-  const filtered = useMemo(
-    () => filterAttemptLogs(centerScopedLogs, filterState),
-    [centerScopedLogs, filterState],
-  )
+  const fetchList = useCallback(async (params, { signal } = {}) => {
+    const result = await fetchPaymentAttemptAssignedDashboard(params, { signal })
+    if (!mountedRef.current) return
+    const pendingRows = (result.paymentAttempts.items || []).filter(
+      (row) => (row.remarksCount ?? 0) === 0,
+    )
+    setRows(pendingRows)
+    setTotalCount(result.paymentAttempts.total ?? pendingRows.length)
+    setTotalPages(result.paymentAttempts.totalPages || 1)
+  }, [])
+
+  useEffect(() => {
+    const ctx = listFetchGuard.beginRequest()
+    if (!ctx) return
+    const { controller, seq } = ctx
+
+    setLoading(true)
+    fetchList(listParams, { signal: controller.signal })
+      .catch((error) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (listFetchGuard.isAbortError(error)) return
+        listFetchGuard.toastListError(
+          listFetchGuard.getListErrorMessage(error, 'Failed to load assigned payment attempts'),
+        )
+      })
+      .finally(() => {
+        if (listFetchGuard.endRequest(seq) && mountedRef.current) {
+          setLoading(false)
+        }
+      })
+  }, [listParams, fetchList])
 
   const sorted = useMemo(
-    () => sortAttemptLogs(filtered, sortKey, sortDir),
-    [filtered, sortKey, sortDir],
+    () => sortAttemptLogs(rows, sortKey, sortDir),
+    [rows, sortKey, sortDir],
+  )
+
+  const controlledPagination = useMemo(
+    () =>
+      buildControlledPagination({
+        page: effectivePage,
+        pageSize,
+        totalCount,
+        totalPages,
+        setPage,
+        setPageSize,
+      }),
+    [effectivePage, pageSize, totalCount, totalPages],
   )
 
   const handleSort = useCallback((key) => {
@@ -72,23 +160,40 @@ export default function AssignedCounselorPage() {
   }, [sortKey])
 
   const handleSaveRemark = useCallback(
-    ({ subject, failureAnalysis, remark }) => {
+    async ({ subject, failureAnalysis, remark }) => {
       if (!remarkRow) return
-      saveRemark(remarkRow, { subject, failureAnalysis, remark })
-      setRemarkRow(null)
+      const ok = await saveRemark(remarkRow, { subject, failureAnalysis, remark })
+      if (ok) setRemarkRow(null)
     },
     [remarkRow, saveRemark],
   )
+
+  const openViewAttempt = useCallback(async (row) => {
+    setViewRow(row)
+    setViewDetail(null)
+    setViewLoading(true)
+    try {
+      const detail = await fetchPaymentAttemptDetails(row.attemptId || row.id)
+      if (mountedRef.current) setViewDetail(detail)
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(error.message || 'Failed to load payment attempt details')
+        setViewRow(null)
+      }
+    } finally {
+      if (mountedRef.current) setViewLoading(false)
+    }
+  }, [])
 
   const renderRowActions = useCallback(
     (row) => (
       <AssignedCounselorTableActions
         row={row}
-        onView={() => setViewRow(row)}
+        onView={() => openViewAttempt(row)}
         onAddRemark={() => setRemarkRow(row)}
       />
     ),
-    [],
+    [openViewAttempt],
   )
 
   const emptyState = (
@@ -114,7 +219,7 @@ export default function AssignedCounselorPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by attempt ID, student, mobile, or email…"
-              disabled={loading && pendingAssignedLogs.length === 0}
+              disabled={loading && rows.length === 0}
               className="h-10 w-full max-w-md rounded-lg bg-[#eef2fc] px-4 text-sm text-[#222] outline-none placeholder:text-[#9ca0a8] focus:ring-2 focus:ring-[#55ace7] disabled:opacity-60"
             />
           </div>
@@ -123,19 +228,28 @@ export default function AssignedCounselorPage() {
             <PaymentAttemptTable
               rows={sorted}
               loading={loading}
-              resetDeps={[filterState, sortKey, sortDir, financeCenterFilter.selectedIds, pendingAssignedLogs.length]}
+              resetDeps={[listParams, sortKey, sortDir]}
               emptyMessage="No pending assigned attempts"
               emptyState={emptyState}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
               renderActions={renderRowActions}
+              controlledPagination={controlledPagination}
             />
           </div>
         </div>
       </section>
 
-      <PaymentAttemptViewModal open={!!viewRow} row={viewRow} onClose={() => setViewRow(null)} />
+      <PaymentAttemptViewModal
+        open={!!viewRow}
+        row={viewDetail || viewRow}
+        loading={viewLoading}
+        onClose={() => {
+          setViewRow(null)
+          setViewDetail(null)
+        }}
+      />
       <PaymentAttemptAddRemarkModal
         open={!!remarkRow}
         row={remarkRow}
