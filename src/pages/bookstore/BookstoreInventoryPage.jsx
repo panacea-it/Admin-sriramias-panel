@@ -540,7 +540,7 @@ export default function BookstoreInventoryPage() {
       title="Inventory Management"
       subtitle="Track stock levels, adjust quantities, and review activity history"
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <BookstoreStatCard
           label="Total products"
           value={inventoryStats.totalProducts.toLocaleString()}
@@ -561,13 +561,6 @@ export default function BookstoreInventoryPage() {
           sub="Stock changes recorded"
           icon={ScrollText}
           accent="from-[#7c5cbf] to-[#4a3d8f]"
-        />
-        <BookstoreStatCard
-          label="Current page"
-          value={inventoryItems.length.toLocaleString()}
-          sub={`Showing ${pagination.startIndex + 1}–${pagination.endIndex} of ${totalItems}`}
-          icon={ClipboardList}
-          accent="from-[#df8284] to-[#b85c5e]"
         />
       </div>
 
