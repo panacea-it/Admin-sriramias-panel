@@ -366,8 +366,8 @@ export default function RankManagementTab() {
       },
       {
         key: 'displayOrder',
-        label: 'Display Order',
-        width: 120,
+        label: 'Top 10 Order',
+        width: 108,
         headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap',
@@ -397,6 +397,61 @@ export default function RankManagementTab() {
             onChange={() => handleToggleDisplay(row)}
           />
         ),
+      },
+      {
+        key: 'showOnHomepage',
+        label: 'Homepage',
+        width: 104,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-center',
+        align: 'center',
+        render: (row) => (
+          <span
+            className={cn(
+              'inline-flex min-w-[52px] items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide',
+              row.showOnHomepage
+                ? 'bg-[#eef6fc] text-[#246392] ring-1 ring-[#55ace7]/25'
+                : 'bg-[#f3f4f6] text-[#9ca0a8] ring-1 ring-[#e5e7eb]',
+            )}
+          >
+            {row.showOnHomepage ? 'Yes' : 'No'}
+          </span>
+        ),
+      },
+      {
+        key: 'homepageOrder',
+        label: 'Homepage Order',
+        width: 124,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-center',
+        align: 'center',
+        render: (row) =>
+          row.showOnHomepage && row.homepageOrder != null ? (
+            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-[#eef6fc] px-2 py-0.5 text-xs font-bold text-[#246392] ring-1 ring-[#55ace7]/20">
+              {row.homepageOrder}
+            </span>
+          ) : (
+            <span className="text-sm text-[#9ca0a8]">—</span>
+          ),
+      },
+      {
+        key: 'toppersPageOrder',
+        label: 'Toppers Page Order',
+        width: 136,
+        headerTruncate: false,
+        headerClassName: 'whitespace-nowrap',
+        cellClassName: 'align-middle whitespace-nowrap text-center',
+        align: 'center',
+        render: (row) =>
+          row.status === 'Active' && row.toppersPageOrder != null ? (
+            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-[#eef6fc] px-2 py-0.5 text-xs font-bold text-[#246392] ring-1 ring-[#55ace7]/20">
+              {row.toppersPageOrder}
+            </span>
+          ) : (
+            <span className="text-sm text-[#9ca0a8]">—</span>
+          ),
       },
       {
         key: 'created',
