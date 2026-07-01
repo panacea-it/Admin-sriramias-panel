@@ -1,6 +1,7 @@
 import { LayoutDashboard, Bookmark, Layers, Globe2, LibraryBig, TicketPercent, Settings, BookOpen, GraduationCap, FolderOpen, Gift, ClipboardList, Newspaper, Users, Wallet, Shield, UserPlus, MessageCircle, Headphones, BellRing, FileSearch, FileText, Tv, BarChart2, SlidersHorizontal, ScrollText, Database, Plug, ListOrdered, Building2, IdCard, LayoutGrid, TrendingUp, Layers3, Coins, BookOpenCheck, School } from 'lucide-react'
 import { ACADEMICS_LIVE_CLASSES_SUBMENU } from './liveClassesNav'
 import { ACADEMICS_CONTENT_LIBRARY_SUBMENU } from './contentLibraryNav'
+import { QUICK_LINKS_SUBMENU } from './quickLinksConstants'
 import { FINANCE_NAV_ITEMS } from './financeNav'
 import { SALES_ANALYTICS_NAV_ITEMS } from './salesAnalyticsNav'
 import { BOOKSTORE_NAV_ITEMS } from './bookstoreNav'
@@ -111,6 +112,7 @@ export const SIDEBAR_GROUPS = [
           },
         ],
       },
+      QUICK_LINKS_SUBMENU,
       { label: 'SEO Landing page', path: '/marketing/seo-landing', icon: FileSearch },
       { label: 'Blogs', path: '/marketing/blogs', icon: FileText },
     ],

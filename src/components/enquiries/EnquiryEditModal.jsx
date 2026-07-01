@@ -6,16 +6,16 @@ import ModalPanelHeader from '../courses/ModalPanelHeader'
 import EnquiryCounselorSelect from './EnquiryCounselorSelect'
 import EnquiryLeadStatusSelect from './EnquiryLeadStatusSelect'
 import { cn } from '../../utils/cn'
-import { ENQUIRY_CENTERS } from '../../data/enquiriesData'
-
-const ENQUIRY_TYPE_OPTIONS = ['Admission Enquiry', 'Demo']
 
 const fieldClass = cn(
   'h-11 w-full rounded-xl border border-slate-200/80 bg-[#eef2fc]/60 px-4 text-sm text-[#222] outline-none transition',
   'focus:border-[#55ace7] focus:bg-white focus:ring-2 focus:ring-[#55ace7]/25',
 )
 
-const selectClass = cn(fieldClass, 'cursor-pointer appearance-none pr-10')
+const readOnlyClass = cn(
+  fieldClass,
+  'cursor-not-allowed bg-slate-100/80 text-[#686868]',
+)
 
 function FormField({ label, children, className }) {
   return (
@@ -33,6 +33,7 @@ function buildFormFromEnquiry(enquiry, counselor, leadStatus) {
     phone: enquiry?.phone ?? '',
     center: enquiry?.center ?? '',
     enquiryType: enquiry?.enquiryType ?? '',
+    courseName: enquiry?.courseName ?? '',
     assignedCounselor: counselor ?? '',
     leadStatus: leadStatus ?? '',
   }
@@ -47,6 +48,7 @@ export default function EnquiryEditModal({
   counselorOptions,
   leadStatusOptions,
   onSave,
+  saving = false,
 }) {
   const [form, setForm] = useState(() =>
     buildFormFromEnquiry(enquiry, assignedCounselor, leadStatus),
@@ -64,12 +66,11 @@ export default function EnquiryEditModal({
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.student.trim() || !form.email.trim() || !form.phone.trim()) {
-      toast.error('Please fill all required fields')
+    if (!form.leadStatus) {
+      toast.error('Please select a lead status')
       return
     }
     onSave?.(form)
-    onClose?.()
   }
 
   return (
@@ -89,62 +90,57 @@ export default function EnquiryEditModal({
         />
 
         <div className="p-5 sm:p-6">
+          <p className="mb-4 text-xs text-[#686868]">
+            Student details are read-only. You can update the assigned counselor and lead status.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Student Name">
               <input
                 type="text"
                 value={form.student}
-                onChange={(e) => update('student', e.target.value)}
-                className={fieldClass}
-                placeholder="Enter student name"
-                required
+                readOnly
+                className={readOnlyClass}
               />
             </FormField>
             <FormField label="Enquiry Type">
-              <select
+              <input
+                type="text"
                 value={form.enquiryType}
-                onChange={(e) => update('enquiryType', e.target.value)}
-                className={selectClass}
-              >
-                {ENQUIRY_TYPE_OPTIONS.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
+                readOnly
+                className={readOnlyClass}
+              />
             </FormField>
             <FormField label="Email">
               <input
                 type="email"
                 value={form.email}
-                onChange={(e) => update('email', e.target.value)}
-                className={fieldClass}
-                placeholder="Enter email address"
-                required
+                readOnly
+                className={readOnlyClass}
               />
             </FormField>
             <FormField label="Phone">
               <input
                 type="tel"
                 value={form.phone}
-                onChange={(e) => update('phone', e.target.value)}
-                className={fieldClass}
-                placeholder="Enter phone number"
-                required
+                readOnly
+                className={readOnlyClass}
               />
             </FormField>
             <FormField label="Center">
-              <select
+              <input
+                type="text"
                 value={form.center}
-                onChange={(e) => update('center', e.target.value)}
-                className={selectClass}
-              >
-                {ENQUIRY_CENTERS.map((center) => (
-                  <option key={center} value={center}>
-                    {center}
-                  </option>
-                ))}
-              </select>
+                readOnly
+                className={readOnlyClass}
+              />
+            </FormField>
+            <FormField label="Course">
+              <input
+                type="text"
+                value={form.courseName}
+                readOnly
+                className={readOnlyClass}
+              />
             </FormField>
             <FormField label="Assigned Counselor">
               <EnquiryCounselorSelect
@@ -153,6 +149,7 @@ export default function EnquiryEditModal({
                 options={counselorOptions}
                 size="default"
                 usePortal={false}
+                disabled={saving}
               />
             </FormField>
             <FormField label="Lead Status" className="sm:col-span-2">
@@ -162,6 +159,7 @@ export default function EnquiryEditModal({
                 options={leadStatusOptions}
                 size="default"
                 usePortal={false}
+                disabled={saving}
               />
             </FormField>
           </div>
@@ -171,15 +169,17 @@ export default function EnquiryEditModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50"
+            disabled={saving}
+            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-[#686868] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98]"
+            disabled={saving}
+            className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg bg-gradient-to-r from-[#1a3a5c] to-[#03045e] px-6 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(3,4,94,0.35)] transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </footer>
       </form>

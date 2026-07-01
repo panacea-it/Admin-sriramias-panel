@@ -18,7 +18,7 @@ function DetailField({ label, value, className }) {
   );
 }
 
-export default function EnquiryViewModal({ open, onClose, enquiry }) {
+export default function EnquiryViewModal({ open, onClose, enquiry, loading = false }) {
   if (!enquiry) return null;
 
   // THE FIX: Explicitly use assignedCounselorName. assignedCounselor holds the ID!
@@ -32,8 +32,8 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
 
   // THE FIX: Expertly format the raw ISO date string into a beautiful readable date
   let formattedDate = enquiry.enquiryDate || "—";
-  if (enquiry.enquiryDate) {
-    const d = new Date(enquiry.enquiryDate);
+  if (enquiry.enquiryDateRaw || enquiry.enquiryDate) {
+    const d = new Date(enquiry.enquiryDateRaw || enquiry.enquiryDate);
     if (!isNaN(d)) {
       formattedDate = `${d.toLocaleDateString("en-GB")} at ${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
     }
@@ -57,12 +57,17 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
         />
 
         <div className="max-h-[min(70vh,560px)] overflow-y-auto px-5 py-6 sm:px-8 sm:py-7">
+          {loading ? (
+            <p className="text-sm text-[#686868]">Loading enquiry details...</p>
+          ) : (
           <dl className="grid gap-5 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-6">
             <DetailField label="Student Name" value={enquiry.student} />
             <DetailField label="Enquiry Type" value={enquiry.enquiryType} />
             <DetailField label="Email" value={enquiry.email} />
             <DetailField label="Phone" value={enquiry.phone} />
             <DetailField label="Center" value={enquiry.center} />
+            <DetailField label="Course" value={enquiry.courseName} />
+            <DetailField label="Source Page" value={enquiry.sourcePage} />
 
             {/* Display the newly formatted date */}
             <DetailField label="Date" value={formattedDate} />
@@ -88,11 +93,12 @@ export default function EnquiryViewModal({ open, onClose, enquiry }) {
 
             {/* Fallback to ACTIVE just in case it is missing from the payload */}
             <DetailField
-              label="Opened Status"
-              value={enquiry.status || "ACTIVE"}
+              label="Record Status"
+              value={enquiry.recordStatus || enquiry.status || "ACTIVE"}
               className="sm:col-span-2"
             />
           </dl>
+          )}
         </div>
 
         <div className="flex justify-end border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-8">

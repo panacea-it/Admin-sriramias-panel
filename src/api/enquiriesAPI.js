@@ -1,184 +1,237 @@
-import axiosInstance from "./axiosInstance";
+import axiosInstance from './axiosInstance'
 
-/**
- * Enterprise-grade retry wrapper for handling 429 Too Many Requests errors.
- */
 async function withRetry(apiCall, retries = 3, delay = 1500) {
   try {
-    return await apiCall();
+    return await apiCall()
   } catch (error) {
     if (error.response?.status === 429 && retries > 0) {
-      console.warn(
-        `[Rate Limited] Retrying API call in ${delay}ms... (${retries} retries left)`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return withRetry(apiCall, retries - 1, delay * 1.5); // Exponential backoff
+      console.warn(`[Rate Limited] Retrying API call in ${delay}ms... (${retries} retries left)`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      return withRetry(apiCall, retries - 1, delay * 1.5)
     }
-    throw error;
+    throw error
   }
 }
 
-/**
- * 1. Fetches the list of active centers for dropdowns
- */
-export async function fetchCentersDropdown(signal) {
-  const response = await withRetry(() =>
-    axiosInstance.get("/admin/centers/dropdown", { signal }),
-  );
-  return response?.data?.data || [];
+function formatEnquiryDateDisplay(isoOrDate) {
+  if (!isoOrDate) return '—'
+  const d = new Date(isoOrDate)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function extractCounselorId(assignedCounselorId) {
+  if (!assignedCounselorId) return ''
+  if (typeof assignedCounselorId === 'object') {
+    return assignedCounselorId._id || ''
+  }
+  return String(assignedCounselorId)
+}
+
+export function mapEnquiryRow(row) {
+  if (!row) return null
+
+  const counselorIdStr = extractCounselorId(row.assignedCounselorId)
+  const createdAt = row.createdAt || new Date().toISOString()
+
+  return {
+    id: row._id,
+    student: row.name || row.fullName || 'Unknown Student',
+    email: row.email || '—',
+    phone: row.phone || row.mobileNumber || '—',
+    center: row.center?.centerName || row.centerName || '—',
+    centerId: row.center?._id || row.centerId || '',
+    enquiryType: row.enquiryType || '—',
+    sourcePage: row.sourcePage || row.sourcePageName || 'Other',
+    enquiryDate: formatEnquiryDateDisplay(createdAt),
+    enquiryDateRaw: createdAt,
+    assignedCounselor: counselorIdStr,
+    assignedCounselorName: row.assignedCounselorName || '',
+    leadStatus: row.leadStatus || 'NEW',
+    recordStatus: row.status || 'ACTIVE',
+    courseName:
+      row.courseName ||
+      row.course?.courseName ||
+      row.course?.title ||
+      '—',
+    targetAttemptYear: row.targetAttemptYear || row.targetYear || '',
+    expectation: row.expectation || '',
+    source: row.source || '',
+  }
+}
+
+function formatDateParam(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
+function resolveSourceFilter(type) {
+  if (type === 'Admission') return 'main'
+  if (type === 'Demo') return 'demo'
+  if (type === 'Book Session') return 'book_session'
+  return ''
 }
 
 /**
- * 2. Fetches the list of Enquiries with Server-Side Filters & Pagination
+ * Filter dropdown options (centers, lead statuses, sources)
+ * POST /api/admin/enquiries/filter-options
+ */
+export async function fetchEnquiryFilterOptions(signal) {
+  const response = await withRetry(() =>
+    axiosInstance.post('/admin/enquiries/filter-options', {}, { signal }),
+  )
+  return (
+    response?.data?.data || {
+      centers: [],
+      leadStatuses: [],
+      recordStatuses: [],
+      sources: [],
+    }
+  )
+}
+
+/**
+ * Centers dropdown (fallback)
+ * GET /api/admin/centers/dropdown
+ */
+export async function fetchCentersDropdown(signal) {
+  const response = await withRetry(() =>
+    axiosInstance.get('/admin/centers/dropdown', { signal }),
+  )
+  return response?.data?.data || []
+}
+
+/**
+ * Paginated enquiries list
+ * POST /api/admin/enquiries/list
  */
 export async function fetchEnquiries(
   {
     page = 1,
     limit = 10,
-    search = "",
-    center = "",
-    type = "all",
+    search = '',
+    centerId = '',
+    type = 'all',
     date = null,
-    sourcePage = "all",
   } = {},
   signal,
 ) {
-  // Format Date strictly as YYYY-MM-DD
-  let formattedDate = "";
-  if (date) {
-    const d = new Date(date);
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    formattedDate = `${d.getFullYear()}-${month}-${day}`;
-  }
-
-  let backendSource = "";
-  if (type === "Admission") backendSource = "main";
-  if (type === "Demo") backendSource = "demo";
+  const formattedDate = formatDateParam(date)
+  const backendSource = resolveSourceFilter(type)
 
   const payload = {
     page,
     limit,
     search: search.trim(),
-    centerId: center,
+    centerId: centerId && centerId !== 'all' ? centerId : '',
     source: backendSource,
-  };
-
-  // Only attach the date parameter to the body if a date is actually selected
-  if (formattedDate) {
-    payload.date = formattedDate;
   }
 
-  if (sourcePage && sourcePage !== "all") {
-    payload.sourcePage = sourcePage;
+  if (formattedDate) {
+    payload.fromDate = formattedDate
+    payload.toDate = formattedDate
   }
 
   const response = await withRetry(() =>
-    axiosInstance.post("/admin/enquiries/list", payload, { signal }),
-  );
+    axiosInstance.post('/admin/enquiries/list', payload, { signal }),
+  )
 
-  const rows = response?.data?.data?.enquiries || [];
+  const rows = response?.data?.data?.enquiries || []
   const pagination = response?.data?.data?.pagination || {
     page: 1,
     limit: 10,
     total: 0,
     totalPages: 1,
-  };
+    hasNextPage: false,
+    hasPrevPage: false,
+  }
 
-  const mappedRows = rows.map((row) => {
-    // BUG FIX: The API sometimes returns an object for assignedCounselorId instead of a string.
-    let counselorIdStr = "";
-    if (
-      row.assignedCounselorId &&
-      typeof row.assignedCounselorId === "object"
-    ) {
-      counselorIdStr = row.assignedCounselorId._id;
-    } else if (typeof row.assignedCounselorId === "string") {
-      counselorIdStr = row.assignedCounselorId;
-    }
-
-    return {
-      id: row._id,
-      student: row.name || "Unknown Student",
-      email: row.email || "—",
-      phone: row.phone || "—",
-      center: row.center?.centerName || row.centerName || "—",
-      centerId: row.center?._id || "",
-      enquiryType: row.enquiryType || "—",
-      sourcePage: row.sourcePage || row.sourcePageName || "Other",
-      enquiryDate: row.createdAt || new Date().toISOString(),
-      assignedCounselor: counselorIdStr,
-      assignedCounselorName: row.assignedCounselorName || "",
-      leadStatus: row.leadStatus || "NEW",
-      courseName: row.course?.courseName || row.courseName || "—",
-    };
-  });
-
-  return { data: mappedRows, pagination };
+  return {
+    data: rows.map(mapEnquiryRow).filter(Boolean),
+    pagination,
+  }
 }
 
 /**
- * 3. Fetches Enquiry Dashboard Statistics
+ * Dashboard / summary stats
+ * GET /api/admin/enquiries/stats
  */
-export async function fetchEnquiryStats(centerId = "", signal) {
+export async function fetchEnquiryStats(centerId = '', signal) {
   const response = await withRetry(() =>
-    axiosInstance.get("/admin/enquiries/stats", {
-      params: { center: centerId },
+    axiosInstance.get('/admin/enquiries/stats', {
+      params: { center: centerId && centerId !== 'all' ? centerId : undefined },
       signal,
     }),
-  );
+  )
 
-  return (
-    response?.data?.data?.stats || {
-      totalEnquiries: 0,
-      convertedEnquiries: 0,
-      conversionRate: 0,
-      newEnquiries: 0,
-      actionPending: 0,
-    }
-  );
+  const stats = response?.data?.data?.stats || {}
+
+  return {
+    total: stats.totalEnquiries ?? stats.total ?? 0,
+    newThisWeek: stats.newThisWeek ?? 0,
+    conversionRate:
+      typeof stats.conversionRate === 'number'
+        ? `${stats.conversionRate}%`
+        : stats.conversionRate || '0%',
+    actionPending: stats.actionPending ?? stats.pending ?? 0,
+  }
 }
 
 /**
- * 4. Updates the Enquiry Status / Lead Status
+ * Single enquiry details
+ * POST /api/admin/enquiries/details
  */
-export async function updateEnquiryLeadStatus(
-  enquiryId,
-  leadStatus,
-  status = "ACTIVE",
-) {
-  const response = await axiosInstance.put("/admin/enquiries/status", {
-    enquiryId,
-    status,
-    leadStatus,
-  });
-  return response?.data?.data?.enquiry;
+export async function fetchEnquiryDetails(enquiryId, signal) {
+  const response = await withRetry(() =>
+    axiosInstance.post('/admin/enquiries/details', { enquiryId }, { signal }),
+  )
+  const enquiry = response?.data?.data?.enquiry
+  return mapEnquiryRow(enquiry)
 }
 
 /**
- * 5. Fetch Counselors by Center
+ * Update lead status
+ * PUT /api/admin/enquiries/status
+ */
+export async function updateEnquiryLeadStatus(enquiryId, leadStatus) {
+  const response = await axiosInstance.put('/admin/enquiries/status', {
+    enquiryId,
+    leadStatus,
+  })
+  return mapEnquiryRow(response?.data?.data?.enquiry)
+}
+
+/**
+ * Counselors for a center
+ * POST /api/crm/enquiries/counselors-by-center
  */
 export async function fetchCounselorsByCenter(centerId, signal) {
+  if (!centerId) return []
   const response = await withRetry(() =>
     axiosInstance.post(
-      "/crm/enquiries/counselors-by-center",
+      '/crm/enquiries/counselors-by-center',
       { centerId },
       { signal },
     ),
-  );
-  return response?.data?.data?.counselors || [];
+  )
+  return response?.data?.data?.counselors || []
 }
 
 /**
- * 6. Assign Counselor
+ * Assign counselor to enquiry
+ * POST /api/admin/enquiries/assign-counselor
  */
 export async function assignEnquiryCounselor(enquiryId, counselorId) {
-  const response = await axiosInstance.post(
-    "/admin/enquiries/assign-counselor",
-    {
-      enquiryId,
-      counselorId,
-    },
-  );
-  return response?.data;
+  const response = await axiosInstance.post('/admin/enquiries/assign-counselor', {
+    enquiryId,
+    counselorId,
+  })
+  return mapEnquiryRow(response?.data?.data?.enquiry)
 }

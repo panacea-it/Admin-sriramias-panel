@@ -30,10 +30,7 @@ export async function fetchAcademicCourseOptions({ signal } = {}) {
   }
 
   try {
-    const data = await getCoursesDropdown(
-      { status: 'ACTIVE', limit: 200 },
-      { signal },
-    )
+    const data = await getCoursesDropdown({ limit: 100 }, { signal })
     const options = normalizeCourseCatalogDropdownOptions(data)
     if (options.length) return options
   } catch {

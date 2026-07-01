@@ -5,17 +5,18 @@ import EnquiryLeadStatusSelect from "./EnquiryLeadStatusSelect";
 import EnquiryTableActions from "./EnquiryTableActions";
 import { cn } from "../../utils/cn";
 
-const ENQUIRIES_TABLE_MIN_WIDTH = 1470;
+const ENQUIRIES_TABLE_MIN_WIDTH = 1620;
 
 const COLUMN = {
   student: 160,
   contact: 260,
-  enquiryType: 160,
-  sourcePage: 150,
-  center: 130,
-  enquiryDate: 130,
-  counselor: 180,
-  leadStatus: 180,
+  enquiryType: 140,
+  courseName: 220,
+  sourcePage: 140,
+  center: 120,
+  enquiryDate: 120,
+  counselor: 170,
+  leadStatus: 170,
   actions: 120,
 };
 
@@ -46,6 +47,28 @@ function ContactCell({ email, phone }) {
   );
 }
 
+function resolveCounselorOptions(row, counselorsByCenterId) {
+  const base =
+    counselorsByCenterId[row.centerId] || [
+      { value: '', label: 'No Counselors', disabled: true },
+    ]
+
+  if (
+    row.assignedCounselor &&
+    !base.some((option) => option.value === row.assignedCounselor)
+  ) {
+    return [
+      ...base,
+      {
+        value: row.assignedCounselor,
+        label: row.assignedCounselorName || 'Assigned Counselor',
+      },
+    ]
+  }
+
+  return base
+}
+
 const TABLE_CLASS = cn(
   "rounded-none border-0 shadow-none",
   "[&_thead_tr]:!bg-gradient-to-r [&_thead_tr]:!from-[#7eb8e8] [&_thead_tr]:!to-[#55ace7]",
@@ -60,14 +83,16 @@ export default function EnquiriesTable({
   emptyMessage,
   emptyState,
   resetDeps,
-  counselorById,
-  leadStatusById,
-  counselorsByCenter, // NEW: The dictionary from the parent
+  counselorsByCenterId = {},
   leadStatusOptions,
   onCounselorChange,
   onLeadStatusChange,
   onView,
   onEdit,
+  loading = false,
+  controlledPagination,
+  counselorAssigning = false,
+  statusUpdating = false,
 }) {
   const columns = useMemo(
     () => [
@@ -102,6 +127,17 @@ export default function EnquiriesTable({
           <span className="block whitespace-nowrap text-sm font-medium leading-snug text-[#111111]">
             {row.enquiryType}
           </span>
+        ),
+      },
+      {
+        key: "courseName",
+        label: "Course Name",
+        width: COLUMN.courseName,
+        headerTruncate: false,
+        headerClassName: CELL,
+        cellClassName: CELL,
+        render: (row) => (
+          <TextCell value={row.courseName} className="font-medium" />
         ),
       },
       {
@@ -152,14 +188,11 @@ export default function EnquiriesTable({
         cellClassName: CELL,
         render: (row) => (
           <EnquiryCounselorSelect
-            value={counselorById[row.id] || row.assignedCounselor || ""}
+            value={row.assignedCounselor || ""}
             onChange={(value) => onCounselorChange(row.id, value)}
-            options={
-              counselorsByCenter[row.center] || [
-                { value: '', label: 'No Counselors', disabled: true },
-              ]
-            }
+            options={resolveCounselorOptions(row, counselorsByCenterId)}
             placeholder="Select Counselor"
+            disabled={counselorAssigning}
             ariaLabel={`Assigned counselor for ${row.student}`}
           />
         ),
@@ -173,10 +206,11 @@ export default function EnquiriesTable({
         cellClassName: CELL,
         render: (row) => (
           <EnquiryLeadStatusSelect
-            value={leadStatusById[row.id] || row.leadStatus || ""}
+            value={row.leadStatus || ""}
             onChange={(value) => onLeadStatusChange(row.id, value)}
             options={leadStatusOptions}
             placeholder="Select Status"
+            disabled={statusUpdating}
             ariaLabel={`Lead status for ${row.student}`}
           />
         ),
@@ -198,14 +232,14 @@ export default function EnquiriesTable({
       },
     ],
     [
-      counselorById,
-      leadStatusById,
-      counselorsByCenter, // Updated dependency
+      counselorsByCenterId,
       leadStatusOptions,
       onCounselorChange,
       onLeadStatusChange,
       onView,
       onEdit,
+      counselorAssigning,
+      statusUpdating,
     ],
   );
 
@@ -217,6 +251,8 @@ export default function EnquiriesTable({
       emptyState={emptyState}
       itemLabel="enquiries"
       resetDeps={resetDeps}
+      loading={loading}
+      controlledPagination={controlledPagination}
       rowClassName="hover:bg-[#eef6fc]/70"
       zebraStriping
       density="comfortable"

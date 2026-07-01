@@ -95,6 +95,8 @@ export function normalizeCourseCatalogDropdownOptions(data) {
   const itemsRaw = Array.isArray(payload?.data)
     ? payload.data
     : unwrapList(data, ['courses', 'data', 'items', 'results'])
+
+  return itemsRaw
     .map((row) => {
       const mongoId =
         row._id ??

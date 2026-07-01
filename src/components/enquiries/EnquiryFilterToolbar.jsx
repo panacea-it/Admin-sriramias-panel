@@ -27,6 +27,7 @@ export default function EnquiryFilterToolbar({
   onSearchChange,
   center,
   onCenterChange,
+  centerOptions,
   selectedDate,
   onDateChange,
   type,
@@ -34,6 +35,9 @@ export default function EnquiryFilterToolbar({
   sourcePage,
   onSourcePageChange,
 }) {
+  const resolvedCenterOptions = centerOptions?.length
+    ? centerOptions
+    : [{ value: 'all', label: 'Center' }]
   return (
     <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.07)] ring-1 ring-slate-100/80 sm:px-5">
       <div className="relative w-full min-w-0 flex-1 sm:max-w-xl">
@@ -51,12 +55,7 @@ export default function EnquiryFilterToolbar({
           label="Center"
           value={center}
           onChange={onCenterChange}
-          options={[
-            { value: 'all', label: 'Center' },
-            { value: 'New Delhi', label: 'New Delhi' },
-            { value: 'Hyderabad', label: 'Hyderabad' },
-            { value: 'Pune', label: 'Pune' },
-          ]}
+          options={resolvedCenterOptions}
         />
         <CrmDateFilterPicker value={selectedDate} onChange={onDateChange} />
         <FilterSelect

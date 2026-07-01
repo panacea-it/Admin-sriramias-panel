@@ -4,12 +4,14 @@ import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { fetchAcademicCourseOptions } from '../../api/academicCoursesAPI'
 import { usePortalMenuPosition } from '../ui/usePortalMenuPosition'
+import { toast } from '../../utils/toast'
 
 /**
  * Searchable course picker — Categories → Courses catalog.
  * @param {string} value - selected course _id (Mongo id or local row id)
  */
 export default function CourseCatalogSelect({
+  modalOpen = true,
   value,
   onChange,
   disabled,
@@ -30,19 +32,28 @@ export default function CourseCatalogSelect({
   const [fetchError, setFetchError] = useState(null)
 
   useEffect(() => {
+    if (!modalOpen) return undefined
+
     const ac = new AbortController()
     setLoading(true)
+    setFetchError(null)
     fetchAcademicCourseOptions({ signal: ac.signal })
       .then((rows) => {
-        setCourses(rows)
+        setCourses(Array.isArray(rows) ? rows : [])
         setFetchError(null)
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') setFetchError('Failed to load courses')
+        if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return
+        setCourses([])
+        setFetchError('Failed to load courses')
       })
       .finally(() => setLoading(false))
     return () => ac.abort()
-  }, [])
+  }, [modalOpen])
+
+  useEffect(() => {
+    if (fetchError) toast.error(fetchError)
+  }, [fetchError])
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -113,7 +124,7 @@ export default function CourseCatalogSelect({
     <div ref={rootRef} className={cn('relative', className)}>
       <button
         type="button"
-        disabled={disabled || loading}
+        disabled={disabled || loading || Boolean(fetchError) || (!loading && courses.length === 0)}
         onClick={() => setOpen((o) => !o)}
         ref={triggerRef}
         className={cn(

@@ -83,6 +83,7 @@ export default function BatchDetailsSection({
 
       <CourseFormField label="Course" required className="sm:col-span-2">
         <CourseCatalogSelect
+          modalOpen={modalOpen}
           value={form.academicCourseId || ''}
           fallbackCourseId={form.courseId}
           excludeCourseIds={excludeCourseIds}

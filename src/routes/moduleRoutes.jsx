@@ -12,6 +12,7 @@ import {
   AnalyticsPage,
   BooksPage,
   HomePageManagementLayout,
+  QuickLinksLayout,
   BlogsPage,
   ContentLibraryPage,
   ContentLibraryLayout,
@@ -125,6 +126,7 @@ export const MODULE_ROUTE_ELEMENTS = [
   { path: 'enquiries', element: <EnquiriesPage /> },
   { path: 'crm/help-desk', element: <HelpDeskPage /> },
   { path: 'crm/push-notifications', element: <PushNotificationsPage /> },
+  { path: 'marketing/quick-links/*', element: <QuickLinksLayout /> },
   { path: 'marketing/*', element: <HomePageManagementLayout /> },
   {
     path: 'marketing/seo-landing',

@@ -8,151 +8,152 @@ import EnquiryEmptyState from '../../components/enquiries/EnquiryEmptyState'
 import EnquiryFilterToolbar from '../../components/enquiries/EnquiryFilterToolbar'
 import EnquiryStatCards from '../../components/enquiries/EnquiryStatCards'
 import EnquiryViewModal from '../../components/enquiries/EnquiryViewModal'
-import {
-  ENQUIRY_CENTERS,
-  ENQUIRY_COUNSELORS,
-  ENQUIRY_LEAD_STATUS_OPTIONS,
-  ENQUIRY_STATS,
-  enquiryMatchesSelectedDate,
-  formatEnquiryLeadStatusLabel,
-  INITIAL_ENQUIRIES,
-  matchesSourcePage,
-} from '../../data/enquiriesData'
-
-function matchesType(rowType, filter) {
-  if (filter === 'all') return true
-  if (filter === 'Admission') {
-    return rowType.includes('Admission') || rowType.includes('ADMISSION')
-  }
-  if (filter === 'Demo') {
-    return rowType.includes('Demo') || rowType.includes('DEMO')
-  }
-  return true
-}
-
-function buildCounselorsByCenter() {
-  const options = [
-    { value: '', label: 'Select Counselor', disabled: true },
-    ...ENQUIRY_COUNSELORS.map((name) => ({ value: name, label: name })),
-  ]
-  return Object.fromEntries(ENQUIRY_CENTERS.map((center) => [center, options]))
-}
-
-const COUNSELORS_BY_CENTER = buildCounselorsByCenter()
+import { useEnquiryManagement } from '../../hooks/enquiries/useEnquiryManagement'
 
 export default function EnquiriesPage() {
-  const [enquiries, setEnquiries] = useState(INITIAL_ENQUIRIES)
-  const [search, setSearch] = useState('')
-  const [centerFilter, setCenterFilter] = useState('all')
-  const [dateFilter, setDateFilter] = useState(null)
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [sourcePageFilter, setSourcePageFilter] = useState('all')
+  const {
+    enquiries,
+    stats,
+    loading,
+    statsLoading,
+    loadError,
+    search,
+    setSearch,
+    centerFilter,
+    setCenterFilter,
+    dateFilter,
+    setDateFilter,
+    typeFilter,
+    setTypeFilter,
+    sourcePageFilter,
+    setSourcePageFilter,
+    centerOptions,
+    leadStatusOptions,
+    counselorsByCenterId,
+    fetchCounselorsForCenter,
+    controlledPagination,
+    statusMutation,
+    assignMutation,
+    fetchDetails,
+    tableResetDeps,
+  } = useEnquiryManagement()
+
   const [viewRow, setViewRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
-  const [counselorById, setCounselorById] = useState(() =>
-    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
-  )
-  const [leadStatusById, setLeadStatusById] = useState(() =>
-    Object.fromEntries(INITIAL_ENQUIRIES.map((row) => [row.id, ''])),
-  )
-
-  const leadStatusOptions = useMemo(
-    () => [
-      { value: '', label: 'Select Status', disabled: true },
-      ...ENQUIRY_LEAD_STATUS_OPTIONS.map((status) => ({
-        value: status,
-        label: formatEnquiryLeadStatusLabel(status),
-      })),
-    ],
-    [],
-  )
-
-  const enrichEnquiry = useCallback(
-    (row) => ({
-      ...row,
-      assignedCounselor: counselorById[row.id] || '',
-      leadStatus: leadStatusById[row.id] || '',
-    }),
-    [counselorById, leadStatusById],
-  )
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return enquiries.filter((row) => {
-      const matchSearch =
-        !q ||
-        row.student.toLowerCase().includes(q) ||
-        row.email.toLowerCase().includes(q) ||
-        row.phone.includes(q) ||
-        row.enquiryType.toLowerCase().includes(q)
-      const matchCenter =
-        centerFilter === 'all' || row.center === centerFilter
-      const matchDate = enquiryMatchesSelectedDate(row.enquiryDate, dateFilter)
-      const matchType = matchesType(row.enquiryType, typeFilter)
-      const matchSourcePage = matchesSourcePage(row.sourcePage, sourcePageFilter)
-      return matchSearch && matchCenter && matchDate && matchType && matchSourcePage
-    })
-  }, [enquiries, search, centerFilter, dateFilter, typeFilter, sourcePageFilter])
+  const [editCounselorOptions, setEditCounselorOptions] = useState([])
+  const [detailsLoading, setDetailsLoading] = useState(false)
 
   const handleView = useCallback(
-    (row) => setViewRow(enrichEnquiry(row)),
-    [enrichEnquiry],
+    async (row) => {
+      setDetailsLoading(true)
+      try {
+        const details = await fetchDetails(row.id)
+        setViewRow(details || row)
+      } catch {
+        toast.error('Failed to load enquiry details')
+        setViewRow(row)
+      } finally {
+        setDetailsLoading(false)
+      }
+    },
+    [fetchDetails],
   )
 
   const handleEdit = useCallback(
-    (row) => setEditRow(enrichEnquiry(row)),
-    [enrichEnquiry],
+    async (row) => {
+      setEditRow(row)
+      try {
+        const options = await fetchCounselorsForCenter(row.centerId)
+        setEditCounselorOptions(options)
+      } catch {
+        setEditCounselorOptions(
+          counselorsByCenterId[row.centerId] || [
+            { value: '', label: 'Select Counselor', disabled: true },
+          ],
+        )
+      }
+    },
+    [counselorsByCenterId, fetchCounselorsForCenter],
   )
 
-  const handleCounselorChange = useCallback((id, value) => {
-    setCounselorById((prev) => ({ ...prev, [id]: value }))
-    toast.success('Counselor assigned successfully')
-  }, [])
+  const handleCounselorChange = useCallback(
+    async (id, counselorId) => {
+      if (!counselorId) return
+      try {
+        await assignMutation.mutateAsync({ enquiryId: id, counselorId })
+        toast.success('Counselor assigned successfully')
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message || 'Failed to assign counselor',
+        )
+      }
+    },
+    [assignMutation],
+  )
 
-  const handleLeadStatusChange = useCallback((id, value) => {
-    setLeadStatusById((prev) => ({ ...prev, [id]: value }))
-    toast.success('Status updated successfully')
-  }, [])
+  const handleLeadStatusChange = useCallback(
+    async (id, leadStatus) => {
+      if (!leadStatus) return
+      try {
+        await statusMutation.mutateAsync({ enquiryId: id, leadStatus })
+        toast.success('Status updated successfully')
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message || 'Failed to update status',
+        )
+      }
+    },
+    [statusMutation],
+  )
 
   const handleEditSave = useCallback(
-    (form) => {
+    async (form) => {
       if (!editRow) return
 
-      setEnquiries((prev) =>
-        prev.map((row) =>
-          row.id === editRow.id
-            ? {
-                ...row,
-                student: form.student.trim(),
-                email: form.email.trim(),
-                phone: form.phone.trim(),
-                center: form.center,
-                enquiryType: form.enquiryType,
-              }
-            : row,
-        ),
-      )
+      try {
+        const tasks = []
 
-      setCounselorById((prev) => ({
-        ...prev,
-        [editRow.id]: form.assignedCounselor,
-      }))
-      setLeadStatusById((prev) => ({
-        ...prev,
-        [editRow.id]: form.leadStatus,
-      }))
+        if (form.assignedCounselor && form.assignedCounselor !== editRow.assignedCounselor) {
+          tasks.push(
+            assignMutation.mutateAsync({
+              enquiryId: editRow.id,
+              counselorId: form.assignedCounselor,
+            }),
+          )
+        }
 
-      toast.success('Enquiry updated successfully')
-      setEditRow(null)
+        if (form.leadStatus && form.leadStatus !== editRow.leadStatus) {
+          tasks.push(
+            statusMutation.mutateAsync({
+              enquiryId: editRow.id,
+              leadStatus: form.leadStatus,
+            }),
+          )
+        }
+
+        if (tasks.length === 0) {
+          toast.info('No changes to save')
+          setEditRow(null)
+          return
+        }
+
+        await Promise.all(tasks)
+        toast.success('Enquiry updated successfully')
+        setEditRow(null)
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message || 'Failed to update enquiry',
+        )
+      }
     },
-    [editRow],
+    [assignMutation, editRow, statusMutation],
   )
 
-  const emptyMessage = dateFilter
-    ? 'No enquiries found for the selected date.'
-    : 'No enquiries match your filters.'
-
-  const tableResetDeps = [search, centerFilter, dateFilter, typeFilter, sourcePageFilter]
+  const emptyMessage = useMemo(() => {
+    if (loadError) return 'Unable to load enquiries. Please try again.'
+    if (dateFilter) return 'No enquiries found for the selected date.'
+    return 'No enquiries match your filters.'
+  }, [dateFilter, loadError])
 
   return (
     <div className="figma-admin-section min-h-screen bg-[#f7f7f7] px-4 pb-8 pt-6 sm:px-5 lg:px-6">
@@ -169,6 +170,7 @@ export default function EnquiriesPage() {
           onSearchChange={(e) => setSearch(e.target.value)}
           center={centerFilter}
           onCenterChange={(e) => setCenterFilter(e.target.value)}
+          centerOptions={centerOptions}
           selectedDate={dateFilter}
           onDateChange={setDateFilter}
           type={typeFilter}
@@ -177,29 +179,33 @@ export default function EnquiriesPage() {
           onSourcePageChange={(e) => setSourcePageFilter(e.target.value)}
         />
 
-        <EnquiryStatCards stats={ENQUIRY_STATS} />
+        <EnquiryStatCards stats={stats} loading={statsLoading} />
 
         <EnquiriesTable
-          data={filtered}
+          data={enquiries}
+          loading={loading}
           emptyMessage={emptyMessage}
           emptyState={
             <EnquiryEmptyState
               message={
-                dateFilter
-                  ? 'No enquiries found for the selected date.'
-                  : 'No enquiries match your filters. Try adjusting your search or filters.'
+                loadError
+                  ? 'Unable to load enquiries. Please refresh or adjust your filters.'
+                  : dateFilter
+                    ? 'No enquiries found for the selected date.'
+                    : 'No enquiries match your filters. Try adjusting your search or filters.'
               }
             />
           }
           resetDeps={tableResetDeps}
-          counselorById={counselorById}
-          leadStatusById={leadStatusById}
-          counselorsByCenter={COUNSELORS_BY_CENTER}
+          counselorsByCenterId={counselorsByCenterId}
           leadStatusOptions={leadStatusOptions}
           onCounselorChange={handleCounselorChange}
           onLeadStatusChange={handleLeadStatusChange}
           onView={handleView}
           onEdit={handleEdit}
+          controlledPagination={controlledPagination}
+          counselorAssigning={assignMutation.isPending}
+          statusUpdating={statusMutation.isPending}
         />
       </section>
 
@@ -207,6 +213,7 @@ export default function EnquiriesPage() {
         open={Boolean(viewRow)}
         onClose={() => setViewRow(null)}
         enquiry={viewRow}
+        loading={detailsLoading}
       />
 
       {editRow && (
@@ -214,15 +221,18 @@ export default function EnquiriesPage() {
           open={Boolean(editRow)}
           onClose={() => setEditRow(null)}
           enquiry={editRow}
-          assignedCounselor={editRow?.assignedCounselor ?? ''}
-          leadStatus={editRow?.leadStatus ?? ''}
+          assignedCounselor={editRow.assignedCounselor ?? ''}
+          leadStatus={editRow.leadStatus ?? ''}
           counselorOptions={
-            COUNSELORS_BY_CENTER[editRow.center] || [
-              { value: '', label: 'Select Counselor' },
-            ]
+            editCounselorOptions.length
+              ? editCounselorOptions
+              : counselorsByCenterId[editRow.centerId] || [
+                  { value: '', label: 'Select Counselor', disabled: true },
+                ]
           }
           leadStatusOptions={leadStatusOptions}
           onSave={handleEditSave}
+          saving={assignMutation.isPending || statusMutation.isPending}
         />
       )}
     </div>
