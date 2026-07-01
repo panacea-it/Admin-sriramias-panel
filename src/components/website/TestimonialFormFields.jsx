@@ -151,6 +151,7 @@ export default function TestimonialFormFields({
 
       <WebsiteField
         label="Quote / Excerpt"
+        required
         className="sm:col-span-2"
       >
         <textarea
@@ -170,7 +171,7 @@ export default function TestimonialFormFields({
         />
         <FieldError message={formErrors.excerpt} />
         <p className="mt-1.5 text-xs text-[#686868]">
-          Preview text for the student panel quote card. Auto-generated on the website when left empty.
+          Shown inside the quote box on the student panel. Title line is auto-built from name, rank, exam, and year.
         </p>
       </WebsiteField>
 

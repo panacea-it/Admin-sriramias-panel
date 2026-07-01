@@ -22,7 +22,7 @@ export function mapApiTestimonialToRow(item) {
     examName: item.examName,
     year: item.year,
     title: item.title || buildTestimonialTitle(item),
-    excerpt: buildTestimonialExcerpt(item),
+    excerpt: item.excerpt || buildTestimonialExcerpt(item),
     testimonialImage: item.testimonialImage || { url: '' },
     displayOrder: item.displayOrder,
     status: item.status,
@@ -92,6 +92,7 @@ export function buildTestimonialFormData(form, { includeImage = false } = {}) {
   formData.append('year', String(form.year))
   formData.append('displayOrder', String(form.displayOrder))
   formData.append('status', form.status || 'ACTIVE')
+  formData.append('excerpt', String(form.excerpt || '').trim())
 
   if (includeImage && form.imageFile instanceof File) {
     formData.append('testimonialImage', form.imageFile)
@@ -108,7 +109,7 @@ export function formFromApiTestimonial(row) {
     year: String(row.year || ''),
     displayOrder: String(row.displayOrder || ''),
     status: row.status || 'ACTIVE',
-    excerpt: row.excerpt || buildTestimonialExcerpt(row),
+    excerpt: row.excerpt || '',
     imagePreview: row.testimonialImage?.url || '',
     imageFileName: row.testimonialImage?.url ? 'Existing image' : '',
     imageFile: null,
@@ -124,6 +125,7 @@ export function hasTestimonialFormChanges(form, editTarget) {
     String(form.examName || 'UPSC CSE').trim() !== String(editTarget.examName || 'UPSC CSE').trim() ||
     String(form.year) !== String(editTarget.year) ||
     String(form.displayOrder) !== String(editTarget.displayOrder) ||
+    String(form.excerpt || '').trim() !== String(editTarget.excerpt || '').trim() ||
     form.status !== editTarget.status ||
     form.imageFile instanceof File
   )

@@ -53,6 +53,7 @@ function validateTestimonialForm(form, { isEdit = false } = {}) {
   if (!String(form.rank || '').trim()) errors.rank = 'Rank is required'
   if (!String(form.year || '').trim()) errors.year = 'Year is required'
   if (!String(form.displayOrder || '').trim()) errors.displayOrder = 'Display order is required'
+  if (!String(form.excerpt || '').trim()) errors.excerpt = 'Quote excerpt is required'
 
   const year = Number(form.year)
   if (form.year && (!Number.isInteger(year) || year < 2000 || year > 2100)) {
