@@ -57,14 +57,10 @@ function validateToppersListForm(form, rows, editTarget) {
 
   const year = Number(form.year)
   const displayOrder = Number(form.displayOrder)
-  const duplicateYear = rows.some(
-    (row) => row.year === year && row.id !== editTarget?.id,
-  )
   const duplicateOrder = rows.some(
     (row) => row.displayOrder === displayOrder && row.id !== editTarget?.id,
   )
 
-  if (duplicateYear) errors.year = 'A toppers list for this year already exists'
   if (duplicateOrder) errors.displayOrder = 'Display order must be unique'
 
   return errors
