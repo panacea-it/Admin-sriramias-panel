@@ -39,7 +39,6 @@ export default function EditTopperPage() {
 
   const [form, setForm] = useState(emptyRankForm)
   const [formErrors, setFormErrors] = useState({})
-  const [initialized, setInitialized] = useState(false)
 
   const rankers = useMemo(() => mapApiToppersToRankerRows(allToppers), [allToppers])
   const top10Count = useMemo(
@@ -56,17 +55,19 @@ export default function EditTopperPage() {
   const goBack = () => navigate(RANK_MANAGEMENT_BASE)
 
   useEffect(() => {
-    if (!topper || initialized) return
-    setForm(formFromApiTopper(topper))
-    setFormErrors({})
-    setInitialized(true)
-  }, [topper, initialized])
-
-  useEffect(() => {
-    setInitialized(false)
     setForm(emptyRankForm())
     setFormErrors({})
   }, [decodedId])
+
+  useEffect(() => {
+    if (!topper) return
+
+    const topperId = String(topper._id || '')
+    if (topperId !== decodedId) return
+
+    setForm(formFromApiTopper(topper))
+    setFormErrors({})
+  }, [topper, decodedId])
 
   const clearFieldError = (field) => {
     if (!formErrors[field]) return

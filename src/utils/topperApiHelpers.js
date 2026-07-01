@@ -232,7 +232,7 @@ export function formFromApiTopper(topper) {
     studentId: topper.studentId || '',
     studentName: topper.studentName || '',
     rank: topper.rank || '',
-    image: topper.image?.url || '',
+    image: topper.image?.deliveryUrl || topper.image?.url || '',
     status: isDisplayed ? 'Active' : 'Deactivated',
     isTop10: parseTopperBoolean(topper.isTop10, false) && isDisplayed,
     showOnHomepage: parseTopperBoolean(topper.showOnHomepage, false) && isDisplayed,
