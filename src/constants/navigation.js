@@ -1,4 +1,4 @@
-import { LayoutDashboard, Bookmark, Layers, Globe2, LibraryBig, TicketPercent, Settings, BookOpen, GraduationCap, FolderOpen, Gift, ClipboardList, Newspaper, Users, Wallet, Shield, UserPlus, MessageCircle, Headphones, BellRing, FileSearch, FileText, Tv, BarChart2, SlidersHorizontal, ScrollText, Database, Plug, ListOrdered, Building2, IdCard, LayoutGrid, TrendingUp, Layers3, Coins, BookOpenCheck, School } from 'lucide-react'
+import { LayoutDashboard, Bookmark, Layers, Globe2, LibraryBig, TicketPercent, Settings, BookOpen, GraduationCap, FolderOpen, Gift, ClipboardList, Newspaper, Users, Wallet, Shield, UserPlus, MessageCircle, Headphones, BellRing, FileSearch, FileText, Tv, BarChart2, SlidersHorizontal, ScrollText, Database, Plug, ListOrdered, Building2, IdCard, LayoutGrid, TrendingUp, Layers3, Coins, BookOpenCheck, School, MessageSquareQuote, FileStack } from 'lucide-react'
 import { ACADEMICS_LIVE_CLASSES_SUBMENU } from './liveClassesNav'
 import { ACADEMICS_CONTENT_LIBRARY_SUBMENU } from './contentLibraryNav'
 import { QUICK_LINKS_SUBMENU } from './quickLinksConstants'
@@ -110,6 +110,8 @@ export const SIDEBAR_GROUPS = [
             path: '/marketing/free-learning-resources',
             icon: BookOpenCheck,
           },
+          { label: 'Testimonials', path: '/marketing/testimonials', icon: MessageSquareQuote },
+          { label: 'Toppers List', path: '/marketing/toppers-list', icon: FileStack },
         ],
       },
       QUICK_LINKS_SUBMENU,

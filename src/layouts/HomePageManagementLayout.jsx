@@ -28,6 +28,14 @@ const FreeLearningResourceEditPage = lazyRoute(
   () => import('../pages/marketing/FreeLearningResourceEditPage'),
   'Edit Free Learning Resource',
 )
+const TestimonialsPage = lazyRoute(
+  () => import('../pages/marketing/TestimonialsPage'),
+  'Testimonials',
+)
+const ToppersListPage = lazyRoute(
+  () => import('../pages/marketing/ToppersListPage'),
+  'Toppers List',
+)
 
 function PageFallback() {
   return (
@@ -59,6 +67,8 @@ export default function HomePageManagementLayout() {
               path="free-learning-resources/edit/:resourceType"
               element={<FreeLearningResourceEditPage />}
             />
+            <Route path="testimonials" element={<TestimonialsPage />} />
+            <Route path="toppers-list" element={<ToppersListPage />} />
             <Route path="*" element={<Navigate to="/marketing/website" replace />} />
           </Routes>
         </RouteErrorBoundary>
