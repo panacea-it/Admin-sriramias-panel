@@ -20,16 +20,32 @@ export default function ToppersListFormFields({
   formErrors = {},
   clearFieldError,
   isEdit = false,
+  rows = [],
 }) {
   const yearOptions = TOPPER_YEAR_OPTIONS.filter((opt) => opt.value !== 'all')
+
+  const suggestDisplayOrderForYear = (year) => {
+    const numericYear = Number(year)
+    if (!numericYear) return '1'
+
+    const orders = rows
+      .filter((row) => row.year === numericYear)
+      .map((row) => Number(row.displayOrder))
+      .filter((value) => Number.isFinite(value))
+
+    if (!orders.length) return '1'
+    return String(Math.max(...orders) + 1)
+  }
 
   const handleYearChange = (value) => {
     setForm((current) => ({
       ...current,
       year: value,
       title: current.title.trim() ? current.title : value ? buildToppersListTitle(value) : '',
+      displayOrder: isEdit ? current.displayOrder : suggestDisplayOrderForYear(value),
     }))
     clearFieldError?.('year')
+    clearFieldError?.('displayOrder')
   }
 
   const handlePdfPick = (event) => {
@@ -87,6 +103,9 @@ export default function ToppersListFormFields({
             placeholder="1"
           />
           <FieldError message={formErrors.displayOrder} />
+          <p className="mt-1.5 text-xs text-[#686868]">
+            Unique within the selected year. You can upload multiple PDFs for the same year.
+          </p>
         </WebsiteField>
 
         <WebsiteField label="Title" required className="sm:col-span-2">

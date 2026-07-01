@@ -58,10 +58,15 @@ function validateToppersListForm(form, rows, editTarget) {
   const year = Number(form.year)
   const displayOrder = Number(form.displayOrder)
   const duplicateOrder = rows.some(
-    (row) => row.displayOrder === displayOrder && row.id !== editTarget?.id,
+    (row) =>
+      row.year === year &&
+      row.displayOrder === displayOrder &&
+      row.id !== editTarget?.id,
   )
 
-  if (duplicateOrder) errors.displayOrder = 'Display order must be unique'
+  if (duplicateOrder) {
+    errors.displayOrder = `Display order ${displayOrder} is already used for ${year}`
+  }
 
   return errors
 }
@@ -350,6 +355,7 @@ export default function ToppersListTab() {
             formErrors={formErrors}
             clearFieldError={clearFieldError}
             isEdit={Boolean(editTarget)}
+            rows={rows}
           />
         </WebsiteFormShell>
       </WebsiteFormModal>
