@@ -63,6 +63,8 @@ const ROLE_ROUTE_PREFIXES = {
     '/marketing/website',
     '/marketing/rank-management',
     '/marketing/free-learning-resources',
+    '/marketing/testimonials',
+    '/marketing/toppers-list',
     '/marketing/quick-links',
     '/content-library',
     '/academics/content-library',
