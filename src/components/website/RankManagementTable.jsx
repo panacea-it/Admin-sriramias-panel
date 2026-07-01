@@ -1,6 +1,13 @@
+import { useMemo } from 'react'
 import PaginatedFigmaTable from '../figma/PaginatedFigmaTable'
 import { cn } from '../../utils/cn'
 import { getTop10RowClassName } from './rankManagementDisplay'
+
+const TABLE_CLASS = cn(
+  'rounded-none border-0 shadow-none',
+  '[&_thead_th]:align-middle [&_thead_th]:whitespace-nowrap',
+  '[&_thead_th_span]:overflow-visible [&_thead_th_span]:text-clip',
+)
 
 export default function RankManagementTable({
   columns,
@@ -11,6 +18,11 @@ export default function RankManagementTable({
   resetDeps = [],
   loading = false,
 }) {
+  const tableMinWidth = useMemo(
+    () => columns.reduce((sum, col) => sum + (Number(col.width) || 120), 0),
+    [columns],
+  )
+
   return (
     <PaginatedFigmaTable
       columns={columns}
@@ -24,8 +36,8 @@ export default function RankManagementTable({
       density="compact"
       rowClassName="hover:bg-[#eef6fc]/70"
       getRowClassName={getTop10RowClassName}
-      tableClassName="rounded-none border-0 shadow-none"
-      tableMinWidth={0}
+      tableClassName={TABLE_CLASS}
+      tableMinWidth={tableMinWidth}
       tableLayoutFixed
       gradientActivePage
       className="min-w-0 rounded-xl border border-slate-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.08)]"

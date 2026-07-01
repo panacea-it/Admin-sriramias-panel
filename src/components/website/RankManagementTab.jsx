@@ -276,7 +276,8 @@ export default function RankManagementTab() {
       {
         key: 'studentId',
         label: 'Student ID',
-        width: 96,
+        width: 108,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap pl-4 sm:pl-6',
         cellClassName: cn(
           OVERFLOW_CELL,
@@ -286,7 +287,8 @@ export default function RankManagementTab() {
       {
         key: 'name',
         label: 'Student Name',
-        width: 156,
+        width: 160,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: OVERFLOW_CELL,
         render: (row) => (
@@ -301,7 +303,8 @@ export default function RankManagementTab() {
       {
         key: 'program',
         label: 'Program',
-        width: 132,
+        width: 140,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: cn(OVERFLOW_CELL, 'text-[13px] text-[#686868]'),
         render: (row) => (
@@ -313,8 +316,9 @@ export default function RankManagementTab() {
       {
         key: 'image',
         label: 'Image',
-        width: 68,
+        width: 80,
         align: 'center',
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap text-center',
         render: (row) => <RankManagementImageCell name={row.name} imageUrl={row.imageUrl} />,
@@ -322,7 +326,8 @@ export default function RankManagementTab() {
       {
         key: 'rank',
         label: 'Rank',
-        width: 84,
+        width: 88,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap',
         render: (row) => <RankBadge rank={row.rank} />,
@@ -330,8 +335,9 @@ export default function RankManagementTab() {
       {
         key: 'year',
         label: 'Year',
-        width: 64,
+        width: 76,
         align: 'center',
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap text-center text-[13px] text-[#686868]',
         render: (row) => row.year || '—',
@@ -340,6 +346,7 @@ export default function RankManagementTab() {
         key: 'top10',
         label: 'Top 10',
         width: 96,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
@@ -355,7 +362,8 @@ export default function RankManagementTab() {
       {
         key: 'displayOrder',
         label: 'Display Order',
-        width: 88,
+        width: 120,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
@@ -371,7 +379,8 @@ export default function RankManagementTab() {
       {
         key: 'status',
         label: 'Display Status',
-        width: 108,
+        width: 128,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap',
         align: 'center',
@@ -387,7 +396,8 @@ export default function RankManagementTab() {
       {
         key: 'created',
         label: 'Created On',
-        width: 104,
+        width: 116,
+        headerTruncate: false,
         headerClassName: 'whitespace-nowrap',
         cellClassName: 'align-middle whitespace-nowrap pr-2',
         render: (row) => (
