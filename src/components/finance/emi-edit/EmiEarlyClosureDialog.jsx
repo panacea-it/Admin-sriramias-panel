@@ -4,6 +4,7 @@ import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
 import { formatINR } from '../../../utils/financeFilters'
+import { resolvePaymentModeId } from '../../../utils/emiManagementHelpers'
 import { cn } from '../../../utils/cn'
 
 const FIELD_CLASS =
@@ -16,36 +17,66 @@ function FieldLabel({ children }) {
   return <span className="block text-sm font-semibold text-[#222]">{children}</span>
 }
 
-export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance }) {
+export default function EmiEarlyClosureDialog({
+  open,
+  onClose,
+  pendingBalance,
+  paymentModes = [],
+  onSave,
+  saving = false,
+}) {
   const [form, setForm] = useState({
     amount: '',
-    paymentMode: 'Cash',
+    paymentMode: '',
     paymentDate: '',
     receiptNumber: '',
     referenceNumber: '',
     remarks: '',
   })
   const [proofName, setProofName] = useState('')
+  const [proofFile, setProofFile] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const modeOptions = paymentModes.length
+    ? paymentModes.map((m) => ({ value: m.paymentModeId, label: m.paymentModeName }))
+    : OFFLINE_PAYMENT_MODES.map((m) => ({ value: m, label: m }))
 
   useEffect(() => {
     if (!open) return
+    const defaultMode = paymentModes[0]?.paymentModeId || OFFLINE_PAYMENT_MODES[0] || 'Cash'
     setForm({
       amount: String(pendingBalance || ''),
-      paymentMode: 'Cash',
+      paymentMode: defaultMode,
       paymentDate: new Date().toISOString().slice(0, 10),
       receiptNumber: '',
       referenceNumber: '',
       remarks: '',
     })
     setProofName('')
-  }, [open, pendingBalance])
+    setProofFile(null)
+    setSubmitting(false)
+  }, [open, pendingBalance, paymentModes])
 
   if (!open) return null
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    onClose()
+    if (submitting || saving) return
+    setSubmitting(true)
+    try {
+      await onSave?.(
+        {
+          ...form,
+          paymentModeId: resolvePaymentModeId(paymentModes, form.paymentMode),
+        },
+        proofFile,
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  const isSaving = submitting || saving
 
   return (
     <Modal open={open} onClose={onClose} size="md" title="Close EMI early" showCloseButton={false}>
@@ -78,9 +109,10 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance })
                   type="number"
                   min="0"
                   required
+                  readOnly
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                  className={cn(FIELD_CLASS, 'text-right tabular-nums')}
+                  className={cn(FIELD_CLASS, 'text-right tabular-nums bg-slate-50')}
                 />
               </label>
 
@@ -91,9 +123,9 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance })
                   onChange={(e) => setForm((f) => ({ ...f, paymentMode: e.target.value }))}
                   className={cn(FIELD_CLASS, 'cursor-pointer')}
                 >
-                  {OFFLINE_PAYMENT_MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
+                  {modeOptions.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
                     </option>
                   ))}
                 </select>
@@ -157,8 +189,14 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance })
                 <input
                   type="file"
                   accept="image/*,.pdf"
+                  required
                   className="sr-only"
-                  onChange={(e) => setProofName(e.target.files?.[0]?.name || '')}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    setProofFile(file || null)
+                    setProofName(file?.name || '')
+                    e.target.value = ''
+                  }}
                 />
                 {proofName ? (
                   <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
@@ -171,15 +209,17 @@ export default function EmiEarlyClosureDialog({ open, onClose, pendingBalance })
             <button
               type="button"
               onClick={onClose}
+              disabled={isSaving}
               className="min-w-[108px] rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#444] shadow-sm transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="min-w-[132px] rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95"
+              disabled={isSaving}
+              className="min-w-[132px] rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
             >
-              Mark as Paid
+              {isSaving ? 'Processing…' : 'Mark as Paid'}
             </button>
           </div>
         </form>

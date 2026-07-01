@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CourseFilterToolbar from '../../courses/CourseFilterToolbar'
 import CbtTestsManagementTable from './CbtTestsManagementTable'
-import { CBT_DATA_PANEL, CBT_TABLE_CONTAINER } from './ui'
+import { CbtCardSearchInput, CbtTestsListCard, CBT_TABLE_SCROLL_WRAP } from './ui'
 import { TEST_MANAGEMENT_ROUTES } from '../../../constants/testManagementNav'
 import { enrichCbtTestRow } from '../../../utils/cbtTestSeriesHierarchy'
 
@@ -39,10 +38,22 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
 
   const openResults = useCallback(
     (test) => {
-      if (!test?.id || !faculty?.subjectId) return
-      navigate(TEST_MANAGEMENT_ROUTES.cbtResults(faculty.subjectId, test.id), {
-        state: { topicId: topic?.id, topicTitle: topic?.title },
-      })
+      if (!test?.id || !faculty?.subjectId || !topic?.id) return
+      const facultyLabel =
+        faculty.subjectName && faculty.facultyName
+          ? `${faculty.subjectName} — ${faculty.facultyName}`
+          : undefined
+      navigate(
+        TEST_MANAGEMENT_ROUTES.cbtTopicTestResults(faculty.subjectId, topic.id, test.id),
+        {
+          state: {
+            topicId: topic.id,
+            topicTitle: topic.title,
+            testTitle: test.title,
+            facultySubjectLabel: facultyLabel,
+          },
+        },
+      )
     },
     [navigate, faculty, topic],
   )
@@ -54,17 +65,19 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
     : 'No tests available for this topic.'
 
   return (
-    <section className={CBT_DATA_PANEL}>
-      <CourseFilterToolbar
-        search={search}
-        onSearchChange={(e) => setSearch(e.target.value)}
-        searchPlaceholder="Search tests..."
-        showStatusFilter={false}
-        searchFullWidth
-        disabled={loading && tests.length === 0}
-      />
-
-      <div className={CBT_TABLE_CONTAINER}>
+    <CbtTestsListCard
+      title="Tests"
+      subtitle={topic?.title}
+      search={
+        <CbtCardSearchInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search tests..."
+          disabled={loading && tests.length === 0}
+        />
+      }
+    >
+      <div className={CBT_TABLE_SCROLL_WRAP}>
         <CbtTestsManagementTable
           tests={filtered}
           loading={loading}
@@ -73,6 +86,6 @@ export default function CbtTestsTable({ faculty, topic, tests: testsProp, loadin
           onViewTest={openResults}
         />
       </div>
-    </section>
+    </CbtTestsListCard>
   )
 }

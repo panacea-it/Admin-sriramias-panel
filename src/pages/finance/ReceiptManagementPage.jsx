@@ -25,40 +25,33 @@ import EditReceiptDialog from '../../components/finance/receipt-center/EditRecei
 import BulkResendDialog from '../../components/finance/receipt-center/BulkResendDialog'
 
 import {
-
-  fetchCompletedReceipts,
-
-  sendReceiptCommunication,
-
-  fetchPaymentReportById,
-
-  fetchGstSettings,
-
-  bulkResendReceipts,
-
-  updateCompletedReceipt,
-
-} from '../../api/financeAPI'
+  fetchReceiptFilterOptions,
+  fetchReceiptList,
+  viewReceipt,
+  previewReceipt,
+  downloadReceipt,
+  printReceipt,
+  updateReceipt,
+  fetchReceiptEmailPreview,
+  sendReceiptEmail,
+  sendReceiptWhatsapp,
+  sendReceiptSms,
+  bulkSendReceiptEmails,
+  mapUpdatedReceiptToListRow,
+} from '../../api/receiptManagementAPI'
 
 import {
-
-  filterReceiptCenterRows,
-
-  sortReceiptRows,
-
-  printReceiptDocument,
-
-  downloadReceiptHtml,
-
-} from '../../utils/receiptCompletion'
+  buildPaymentTypeFilterOptions,
+  buildReceiptStatusFilterOptions,
+  handleReceiptPrintResponse,
+  openReceiptDownloadUrl,
+} from '../../utils/receiptManagementHelpers'
 
 import { RECEIPT_LIFECYCLE_STATUSES } from '../../constants/receiptConstants'
 
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
-
-import { FINANCE_COURSES } from '../../data/financeMockData'
 
 import { toast } from '../../utils/toast'
 
@@ -96,9 +89,11 @@ export default function ReceiptManagementPage() {
 
   const [searchParams, setSearchParams] = useSearchParams()
 
+  const [filterOptions, setFilterOptions] = useState(null)
+
   const [rows, setRows] = useState([])
 
-  const [gstSettings, setGstSettings] = useState(null)
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 })
 
   const [loading, setLoading] = useState(true)
 
@@ -110,9 +105,9 @@ export default function ReceiptManagementPage() {
 
   const [paymentType, setPaymentType] = useState('all')
 
-  const [centerName, setCenterName] = useState('all')
+  const [centerId, setCenterId] = useState('all')
 
-  const [branchCode, setBranchCode] = useState('all')
+  const [branchId, setBranchId] = useState('all')
 
   const [receiptStatus, setReceiptStatus] = useState('all')
 
@@ -121,6 +116,14 @@ export default function ReceiptManagementPage() {
   const [dateTo, setDateTo] = useState('')
 
   const [sendRow, setSendRow] = useState(null)
+
+  const [sendPreviewRow, setSendPreviewRow] = useState(null)
+
+  const [sendEmailDefaults, setSendEmailDefaults] = useState(null)
+
+  const [sendChannelsEnabled, setSendChannelsEnabled] = useState({ whatsapp: false, sms: false, email: true })
+
+  const [sendPreviewLoading, setSendPreviewLoading] = useState(false)
 
   const [sending, setSending] = useState(false)
 
@@ -148,17 +151,61 @@ export default function ReceiptManagementPage() {
 
 
 
-  const load = useCallback(async () => {
+  const loadFilterOptions = useCallback(async () => {
+
+    try {
+
+      const options = await fetchReceiptFilterOptions()
+
+      setFilterOptions(options)
+
+    } catch {
+
+      toast.error('Failed to load filter options')
+
+    }
+
+  }, [])
+
+
+
+  const loadList = useCallback(async () => {
 
     setLoading(true)
 
     try {
 
-      const [receipts, gst] = await Promise.all([fetchCompletedReceipts(), fetchGstSettings()])
+      const result = await fetchReceiptList({
 
-      setGstSettings(gst)
+        search: debouncedSearch,
 
-      setRows(receipts)
+        courseId,
+
+        branchId,
+
+        centerId,
+
+        paymentType,
+
+        receiptStatus,
+
+        dateFrom,
+
+        dateTo,
+
+        page,
+
+        limit: PAGE_SIZE,
+
+        sortKey,
+
+        sortDir,
+
+      })
+
+      setRows(result.rows)
+
+      setPagination(result.pagination)
 
     } catch {
 
@@ -170,15 +217,55 @@ export default function ReceiptManagementPage() {
 
     }
 
-  }, [])
+  }, [
+
+    debouncedSearch,
+
+    courseId,
+
+    branchId,
+
+    centerId,
+
+    paymentType,
+
+    receiptStatus,
+
+    dateFrom,
+
+    dateTo,
+
+    page,
+
+    sortKey,
+
+    sortDir,
+
+  ])
 
 
 
   useEffect(() => {
 
-    load()
+    loadFilterOptions()
 
-  }, [load])
+  }, [loadFilterOptions])
+
+
+
+  useEffect(() => {
+
+    loadList()
+
+  }, [loadList])
+
+
+
+  useEffect(() => {
+
+    setPage(1)
+
+  }, [debouncedSearch, courseId, paymentType, centerId, branchId, receiptStatus, dateFrom, dateTo, sortKey, sortDir])
 
 
 
@@ -190,7 +277,7 @@ export default function ReceiptManagementPage() {
 
     setPreviewLoading(true)
 
-    fetchPaymentReportById(previewId)
+    viewReceipt(previewId)
 
       .then((payment) => {
 
@@ -205,6 +292,66 @@ export default function ReceiptManagementPage() {
       .finally(() => setPreviewLoading(false))
 
   }, [searchParams])
+
+
+
+  useEffect(() => {
+
+    if (!sendRow) {
+
+      setSendPreviewRow(null)
+
+      setSendEmailDefaults(null)
+
+      return
+
+    }
+
+    const receiptId = sendRow.receiptId || sendRow.id
+
+    let cancelled = false
+
+    setSendPreviewLoading(true)
+
+    Promise.all([previewReceipt(receiptId), fetchReceiptEmailPreview(receiptId)])
+
+      .then(([preview, emailPreview]) => {
+
+        if (cancelled) return
+
+        setSendPreviewRow(preview)
+
+        setSendEmailDefaults(emailPreview)
+
+        const comms = sendRow.communications || {}
+
+        setSendChannelsEnabled({
+          whatsapp: preview?.communications?.whatsapp?.enabled ?? sendRow.communications?.whatsapp?.enabled ?? false,
+          sms: preview?.communications?.sms?.enabled ?? sendRow.communications?.sms?.enabled ?? false,
+          email: preview?.communications?.email?.enabled ?? sendRow.communications?.email?.enabled ?? true,
+        })
+
+      })
+
+      .catch(() => {
+
+        if (!cancelled) toast.error('Failed to load send preview')
+
+      })
+
+      .finally(() => {
+
+        if (!cancelled) setSendPreviewLoading(false)
+
+      })
+
+    return () => {
+
+      cancelled = true
+
+    }
+
+  }, [sendRow])
 
 
 
@@ -224,59 +371,45 @@ export default function ReceiptManagementPage() {
 
 
 
-  const centerOptions = useMemo(() => {
-
-    const names = [...new Set(rows.map((r) => r.centerName).filter(Boolean))]
-
-    return names.sort()
-
-  }, [rows])
+  const courseOptions = useMemo(() => filterOptions?.courses || [], [filterOptions])
 
 
 
-  const branchOptions = useMemo(() => {
-
-    const codes = [...new Set(rows.map((r) => r.branchCode).filter(Boolean))]
-
-    return codes.sort()
-
-  }, [rows])
+  const branchOptions = useMemo(() => filterOptions?.branches || [], [filterOptions])
 
 
 
-  const filtered = useMemo(() => {
-
-    const list = filterReceiptCenterRows(rows, {
-
-      search: debouncedSearch,
-
-      courseId,
-
-      paymentType,
-
-      centerName,
-
-      branchCode,
-
-      receiptStatus,
-
-      dateFrom,
-
-      dateTo,
-
-    })
-
-    return sortReceiptRows(list, sortKey, sortDir)
-
-  }, [rows, debouncedSearch, courseId, paymentType, centerName, branchCode, receiptStatus, dateFrom, dateTo, sortKey, sortDir])
+  const centerOptions = useMemo(() => filterOptions?.centers || [], [filterOptions])
 
 
 
-  useEffect(() => {
+  const statusOptions = useMemo(() => {
 
-    setPage(1)
+    if (filterOptions?.receiptStatuses?.length) {
 
-  }, [debouncedSearch, courseId, paymentType, centerName, branchCode, receiptStatus, dateFrom, dateTo])
+      return buildReceiptStatusFilterOptions(filterOptions.receiptStatuses)
+
+    }
+
+    return RECEIPT_LIFECYCLE_STATUSES.map((s) => ({ value: s, label: s }))
+
+  }, [filterOptions])
+
+
+
+  const paymentTypeOptions = useMemo(() => {
+
+    if (filterOptions?.paymentTypes?.length) {
+
+      const fromApi = buildPaymentTypeFilterOptions(filterOptions.paymentTypes)
+
+      return [{ value: 'all', label: 'All types' }, ...fromApi]
+
+    }
+
+    return PAYMENT_TYPE_OPTIONS
+
+  }, [filterOptions])
 
 
 
@@ -304,7 +437,7 @@ export default function ReceiptManagementPage() {
 
 
 
-  const paginatedIds = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => r.id)
+  const paginatedIds = rows.map((r) => r.id)
 
 
 
@@ -326,25 +459,93 @@ export default function ReceiptManagementPage() {
 
 
 
+  const refreshRowInList = useCallback(async () => {
+
+    await loadList()
+
+  }, [loadList])
+
+
+
   const handleSend = async (payload) => {
 
     if (!sendRow) return
+
+    const receiptId = sendRow.receiptId || sendRow.id
 
     setSending(true)
 
     try {
 
-      const updated = await sendReceiptCommunication(sendRow.id, payload)
+      if (payload.channel === 'Email') {
 
-      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+        await sendReceiptEmail({
 
-      toast.success(`Receipt sent via ${payload.channel}`)
+          receiptId,
+
+          email: payload.email,
+
+          subject: payload.subject,
+
+          message: payload.message,
+
+        })
+
+        toast.success('Receipt sent via Email')
+
+      } else if (payload.channel === 'WhatsApp') {
+
+        const result = await sendReceiptWhatsapp({
+
+          receiptId,
+
+          mobile: payload.mobile,
+
+          message: payload.message,
+
+        })
+
+        if (result?.enabled === false) {
+
+          toast.error(result.message || 'WhatsApp sending is not available yet')
+
+          return
+
+        }
+
+        toast.success('Receipt sent via WhatsApp')
+
+      } else if (payload.channel === 'SMS') {
+
+        const result = await sendReceiptSms({
+
+          receiptId,
+
+          mobile: payload.mobile,
+
+          message: payload.message,
+
+        })
+
+        if (result?.enabled === false) {
+
+          toast.error(result.message || 'SMS sending is not available yet')
+
+          return
+
+        }
+
+        toast.success('Receipt sent via SMS')
+
+      }
 
       setSendRow(null)
 
-    } catch {
+      await refreshRowInList()
 
-      toast.error('Failed to send receipt')
+    } catch (error) {
+
+      toast.error(error?.message || 'Failed to send receipt')
 
     } finally {
 
@@ -356,42 +557,111 @@ export default function ReceiptManagementPage() {
 
 
 
-  const openPreview = (row) => {
+  const openPreview = async (row) => {
 
     setEditRow(null)
 
-    setPreviewPayment(row)
+    const receiptId = row.receiptId || row.id
 
-    searchParams.set('preview', row.id)
+    setPreviewLoading(true)
+
+    setPreviewPayment(null)
+
+    searchParams.set('preview', receiptId)
 
     setSearchParams(searchParams, { replace: true })
+
+    try {
+
+      const payment = await viewReceipt(receiptId)
+
+      if (payment) setPreviewPayment(payment)
+
+      else toast.error('Receipt not found')
+
+    } catch {
+
+      toast.error('Failed to load receipt')
+
+    } finally {
+
+      setPreviewLoading(false)
+
+    }
 
   }
 
 
 
   const handleEditReceipt = (row) => {
+
     closePreview()
+
     setEditRow(row)
+
   }
 
 
 
-  const handleDownload = (row) => {
+  const handleDownload = async (row) => {
 
-    downloadReceiptHtml(row, gstSettings || {})
+    const receiptId = row.receiptId || row.id
 
-    setRows((prev) =>
+    try {
 
-      prev.map((r) =>
+      const data = await downloadReceipt(receiptId)
 
-        r.id === row.id ? { ...r, receiptLifecycleStatus: 'Downloaded', receiptDownloadedAt: new Date().toISOString() } : r,
+      if (data?.downloadUrl) {
 
-      ),
+        openReceiptDownloadUrl(data.downloadUrl, data.fileName)
 
-    )
+        toast.success('Receipt downloaded')
 
-    toast.success('Receipt downloaded')
+        await refreshRowInList()
+
+        if (previewPayment?.id === receiptId || previewPayment?.receiptId === receiptId) {
+
+          const updated = await viewReceipt(receiptId)
+
+          if (updated) setPreviewPayment(updated)
+
+        }
+
+      } else {
+
+        toast.error('Download link not available')
+
+      }
+
+    } catch (error) {
+
+      toast.error(error?.message || 'Failed to download receipt')
+
+    }
+
+  }
+
+
+
+  const handlePrint = async (row) => {
+
+    const receiptId = row?.receiptId || row?.id || previewPayment?.receiptId || previewPayment?.id
+
+    if (!receiptId) return
+
+    try {
+
+      const data = await printReceipt(receiptId)
+
+      const printed = handleReceiptPrintResponse(data)
+
+      if (!printed) toast.error('Print data not available')
+
+    } catch (error) {
+
+      toast.error(error?.message || 'Failed to print receipt')
+
+    }
 
   }
 
@@ -399,23 +669,33 @@ export default function ReceiptManagementPage() {
 
   const handleBulkSend = async ({ channel }) => {
 
+    if (channel !== 'Email') {
+
+      toast.error(`${channel} bulk resend is not available yet`)
+
+      return
+
+    }
+
     setBulkLoading(true)
 
     try {
 
-      const result = await bulkResendReceipts(selectedIds, { channel })
+      const rowsById = Object.fromEntries(rows.map((r) => [r.id, r]))
+
+      const result = await bulkSendReceiptEmails(selectedIds, rowsById)
 
       setBulkResult(result)
 
-      await load()
+      await refreshRowInList()
 
       toast.success(`Bulk resend: ${result.succeeded} succeeded, ${result.failed} failed`)
 
       setSelectedIds([])
 
-    } catch {
+    } catch (error) {
 
-      toast.error('Bulk resend failed')
+      toast.error(error?.message || 'Bulk resend failed')
 
     } finally {
 
@@ -441,23 +721,33 @@ export default function ReceiptManagementPage() {
 
     if (!editRow) return
 
+    const receiptId = editRow.receiptId || editRow.id
+
     setEditSaving(true)
 
     try {
 
-      const updated = await updateCompletedReceipt(editRow.id, payload)
+      const updated = await updateReceipt(payload, receiptId)
 
-      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      const listRow = mapUpdatedReceiptToListRow(updated, editRow)
 
-      if (previewPayment?.id === updated.id) setPreviewPayment(updated)
+      setRows((prev) => prev.map((r) => (r.id === receiptId ? { ...r, ...listRow } : r)))
+
+      if (previewPayment?.id === receiptId || previewPayment?.receiptId === receiptId) {
+
+        setPreviewPayment(updated)
+
+      }
 
       toast.success('Receipt updated successfully')
 
       setEditRow(null)
 
-    } catch {
+      await refreshRowInList()
 
-      toast.error('Failed to update receipt')
+    } catch (error) {
+
+      toast.error(error?.message || 'Failed to update receipt')
 
     } finally {
 
@@ -466,6 +756,45 @@ export default function ReceiptManagementPage() {
     }
 
   }
+
+
+
+  const hasRows = pagination.total > 0 || rows.length > 0
+
+  const previewGstSettings = useMemo(() => {
+    const institute = previewPayment?.institute
+    if (!institute) return null
+    return {
+      companyName: institute.name,
+      companyAddress: institute.address,
+      logoUrl: institute.logoUrl,
+      taxEnabled: true,
+      footerNotes: previewPayment?.branding?.footerNotes,
+      termsAndConditions: previewPayment?.branding?.termsAndConditions,
+      signatoryName: previewPayment?.branding?.signatoryName,
+      signatoryDesignation: previewPayment?.branding?.signatoryDesignation,
+      branchGst: [
+        {
+          gstNumber: institute.gstin,
+          address: institute.address,
+          logoUrl: institute.logoUrl,
+          signatoryName: previewPayment?.branding?.signatoryName,
+          signatureUrl: previewPayment?.branding?.signatureImageUrl,
+        },
+      ],
+    }
+  }, [previewPayment])
+
+  const sendGstSettings = useMemo(() => {
+    const institute = sendPreviewRow?.institute
+    if (!institute) return null
+    return {
+      companyName: institute.name,
+      companyAddress: institute.address,
+      logoUrl: institute.logoUrl,
+      branchGst: [{ gstNumber: institute.gstin, address: institute.address, logoUrl: institute.logoUrl }],
+    }
+  }, [sendPreviewRow])
 
 
 
@@ -511,9 +840,9 @@ export default function ReceiptManagementPage() {
 
               <option value="all">All courses</option>
 
-              {FINANCE_COURSES.map((c) => (
+              {courseOptions.map((c) => (
 
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c._id} value={c._id}>{c.courseName}</option>
 
               ))}
 
@@ -527,7 +856,7 @@ export default function ReceiptManagementPage() {
 
             <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className={FILTER_CLASS} aria-label="Payment type">
 
-              {PAYMENT_TYPE_OPTIONS.map((o) => (
+              {paymentTypeOptions.map((o) => (
 
                 <option key={o.value} value={o.value}>{o.label}</option>
 
@@ -541,13 +870,13 @@ export default function ReceiptManagementPage() {
 
             <span className={FILTER_LABEL_CLASS}>Branch</span>
 
-            <select value={branchCode} onChange={(e) => setBranchCode(e.target.value)} className={FILTER_CLASS} aria-label="Branch">
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={FILTER_CLASS} aria-label="Branch">
 
               <option value="all">All branches</option>
 
-              {branchOptions.map((code) => (
+              {branchOptions.map((b) => (
 
-                <option key={code} value={code}>{code}</option>
+                <option key={b._id} value={b._id}>{b.branchCode}</option>
 
               ))}
 
@@ -563,9 +892,9 @@ export default function ReceiptManagementPage() {
 
               <option value="all">All statuses</option>
 
-              {RECEIPT_LIFECYCLE_STATUSES.map((s) => (
+              {statusOptions.map((s) => (
 
-                <option key={s} value={s}>{s}</option>
+                <option key={s.value} value={s.value}>{s.label}</option>
 
               ))}
 
@@ -577,13 +906,13 @@ export default function ReceiptManagementPage() {
 
             <span className={FILTER_LABEL_CLASS}>Center</span>
 
-            <select value={centerName} onChange={(e) => setCenterName(e.target.value)} className={FILTER_CLASS} aria-label="Center">
+            <select value={centerId} onChange={(e) => setCenterId(e.target.value)} className={FILTER_CLASS} aria-label="Center">
 
               <option value="all">All centers</option>
 
-              {centerOptions.map((name) => (
+              {centerOptions.map((c) => (
 
-                <option key={name} value={name}>{name}</option>
+                <option key={c._id} value={c._id}>{c.centerName}</option>
 
               ))}
 
@@ -659,7 +988,7 @@ export default function ReceiptManagementPage() {
 
         <FinanceTableSkeleton rows={6} columns={8} />
 
-      ) : filtered.length === 0 ? (
+      ) : !hasRows ? (
 
         <FinanceEmptyState
 
@@ -675,7 +1004,7 @@ export default function ReceiptManagementPage() {
 
           <ReceiptCenterTable
 
-            rows={filtered}
+            rows={rows}
 
             canSend={canReceipts}
 
@@ -705,13 +1034,15 @@ export default function ReceiptManagementPage() {
 
             pageSize={PAGE_SIZE}
 
+            totalCount={pagination.total}
+
             onPageChange={setPage}
 
           />
 
           <ReceiptMobileCards
 
-            rows={filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)}
+            rows={rows}
 
             selectedIds={selectedIds}
 
@@ -741,13 +1072,25 @@ export default function ReceiptManagementPage() {
 
         row={sendRow}
 
-        gstSettings={gstSettings}
+        previewRow={sendPreviewRow}
+
+        emailDefaults={sendEmailDefaults}
+
+        channelsEnabled={sendChannelsEnabled}
+
+        gstSettings={sendGstSettings}
 
         onClose={() => setSendRow(null)}
 
         onSend={handleSend}
 
+        onPrint={handlePrint}
+
+        onDownload={handleDownload}
+
         sending={sending}
+
+        previewLoading={sendPreviewLoading}
 
       />
 
@@ -763,9 +1106,9 @@ export default function ReceiptManagementPage() {
 
         loading={previewLoading}
 
-        gstSettings={gstSettings}
+        gstSettings={previewGstSettings}
 
-        onPrint={() => previewPayment && printReceiptDocument(previewPayment, gstSettings || {})}
+        onPrint={() => handlePrint(previewPayment)}
 
         onDownload={() => previewPayment && handleDownload(previewPayment)}
 
@@ -828,5 +1171,3 @@ export default function ReceiptManagementPage() {
   )
 
 }
-
-

@@ -138,7 +138,7 @@ export default function CbtTopicDetailPage() {
         </CbtBackButton>
       }
     >
-      <CbtBreadcrumbNav items={breadcrumbs} className="mt-1" />
+      <CbtBreadcrumbNav items={breadcrumbs} />
 
       <div className="mt-5 sm:mt-6">
         <CbtTestsTable

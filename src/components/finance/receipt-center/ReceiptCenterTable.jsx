@@ -22,9 +22,11 @@ export default function ReceiptCenterTable({
   page = 1,
   pageSize = 20,
   onPageChange,
+  totalCount,
 }) {
-  const paginated = rows.slice((page - 1) * pageSize, page * pageSize)
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const recordTotal = totalCount ?? rows.length
+  const paginated = totalCount != null ? rows : rows.slice((page - 1) * pageSize, page * pageSize)
+  const totalPages = Math.max(1, Math.ceil(recordTotal / pageSize))
   const allSelected = paginated.length > 0 && paginated.every((r) => selectedIds.includes(r.id))
 
   const SortIcon = ({ col }) => {
@@ -198,10 +200,10 @@ export default function ReceiptCenterTable({
         </p>
       )}
 
-      {rows.length > pageSize && (
+      {recordTotal > pageSize && (
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-[#686868]">
           <span>
-            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, rows.length)} of {rows.length}
+            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, recordTotal)} of {recordTotal}
           </span>
           <div className="flex gap-1">
             <button

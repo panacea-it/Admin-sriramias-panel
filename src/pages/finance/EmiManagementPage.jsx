@@ -16,32 +16,39 @@ import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
 import Modal from '../../components/ui/Modal'
 import ModalPanelHeader from '../../components/courses/ModalPanelHeader'
 import {
-  fetchEmiPlans,
-  updateEmiPlan,
+  fetchEmiFilterOptions,
+  fetchEmiDashboard,
+  fetchEmiDetails,
   assignEmiCounselor,
   sendEmiReminder,
-} from '../../api/financeAPI'
-import { FINANCE_COURSES } from '../../data/financeMockData'
+} from '../../api/emiManagementAPI'
 import { formatINR } from '../../utils/financeFilters'
+import { formatDisplayDate } from '../../utils/emiSchedule'
 import {
-  enrichEmiPlans,
-  filterEmiPlans,
-  filterPlansByFinanceCenters,
-  formatEmiCityLabel,
-  getNextDueInstallment,
-  resolveEmiPlanCenter,
-} from '../../utils/emiManagement'
-import { formatDisplayDate, getEmiMonthLabel } from '../../utils/emiSchedule'
+  mapFilterOptionsToUi,
+  resolveDashboardCenterId,
+  buildAssignCounselorBody,
+  buildStudentPaginationControl,
+  canEditEmiPlan,
+  canAssignCounselor,
+} from '../../utils/emiManagementHelpers'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
-import { FINANCE_MOCK_COUNSELORS, FINANCE_EMI_STATUSES } from '../../constants/financeConstants'
-import { EMI_SCHEDULE_FREQUENCIES } from '../../constants/emiManagement'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
 const ASSIGN_PRIORITIES = ['High', 'Medium', 'Low']
+
+function formatPriorityForForm(priority) {
+  if (!priority) return 'Medium'
+  const normalized = String(priority).toLowerCase()
+  if (normalized === 'high') return 'High'
+  if (normalized === 'low') return 'Low'
+  return 'Medium'
+}
 const REMINDER_WINDOW_DAYS = 30
+const DEFAULT_PAGE_SIZE = 10
 
 const selectClass =
   'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[#222] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 min-w-[140px]'
@@ -89,132 +96,12 @@ function EmiFormFooter({ onCancel, submitLabel, saving, savingLabel = 'Saving…
   )
 }
 
-function resolvePlanCenter(plan) {
-  return resolveEmiPlanCenter(plan)
-}
-
 function getEmiPageCenterLabel({ isOverallView, selectedCenters, headerLabel }) {
   if (isOverallView) return 'All Centres'
   if (selectedCenters?.length) {
-    return selectedCenters.map((center) => formatEmiCityLabel(center.centerName)).join(', ')
+    return selectedCenters.map((center) => center.city || center.centerName).join(', ')
   }
-  return formatEmiCityLabel(headerLabel)
-}
-
-function countPaidInstallments(plan) {
-  return (plan.installments || []).filter((i) => i.status === 'Paid' || i.status === 'Closed').length
-}
-
-function countRemainingInstallments(plan) {
-  return (plan.installments || []).filter((i) => !['Paid', 'Closed', 'Cancelled'].includes(i.status)).length
-}
-
-function getEmiPlanLabel(plan) {
-  const total = (plan.installments || []).length
-  const freq = plan.frequency || plan.emiFrequency || 'monthly'
-  const freqLabel = EMI_SCHEDULE_FREQUENCIES.find((f) => f.id === freq)?.label || 'Monthly EMI'
-  return total ? `${total} × ${formatINR(plan.emiAmount || 0)} · ${freqLabel}` : freqLabel
-}
-
-function enrichPlanRow(plan) {
-  const rawCenter = resolvePlanCenter(plan)
-  return {
-    ...plan,
-    centerName: rawCenter,
-    centerCity: formatEmiCityLabel(rawCenter),
-    installmentsPaid: countPaidInstallments(plan),
-    remainingInstallments: countRemainingInstallments(plan),
-    emiPlanLabel: getEmiPlanLabel(plan),
-  }
-}
-
-function computeOverviewMetrics(plans = []) {
-  const today = new Date()
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10)
-
-  let activePlans = 0
-  let pendingCollection = 0
-  let overdueCount = 0
-  let collectedThisMonth = 0
-  let totalRevenue = 0
-
-  for (const plan of plans) {
-    if ((plan.pendingAmount || 0) > 0 && plan.status !== 'EMI Completed') activePlans += 1
-    pendingCollection += plan.pendingAmount || 0
-    if (plan.overdueDays > 0) overdueCount += 1
-    totalRevenue += plan.totalPaid || 0
-
-    for (const inst of plan.installments || []) {
-      const paidDate = inst.paidDate?.slice(0, 10)
-      if (inst.status === 'Paid' && paidDate && paidDate >= monthStart && paidDate <= monthEnd) {
-        collectedThisMonth += Number(inst.paidAmount) || Number(inst.emiAmount) || 0
-      }
-    }
-  }
-
-  return {
-    totalStudents: plans.length,
-    activePlans,
-    pendingCollection,
-    overdueCount,
-    collectedThisMonth,
-    totalRevenue,
-  }
-}
-
-function daysUntil(dueDate) {
-  if (!dueDate) return null
-  const today = new Date().toISOString().slice(0, 10)
-  const start = new Date(today)
-  const end = new Date(dueDate)
-  return Math.ceil((end - start) / 86400000)
-}
-
-function buildUpcomingReminders(plans = []) {
-  const rows = []
-  for (const plan of plans) {
-    const next = getNextDueInstallment(plan)
-    if (!next?.dueDate) continue
-    const days = daysUntil(next.dueDate)
-    if (days == null || days < 0 || days > REMINDER_WINDOW_DAYS) continue
-    const lastLog = (plan.reminderLogs || [])[0]
-    rows.push({
-      id: `${plan.id}-${next.emiNo || next.installmentNo}`,
-      planId: plan.id,
-      studentName: plan.studentName,
-      dueDate: next.dueDate,
-      emiAmount: next.emiAmount || plan.emiAmount,
-      daysRemaining: days,
-      reminderStatus: lastLog?.deliveryStatus || lastLog?.status || 'Not sent',
-      mobile: plan.mobile,
-      email: plan.email,
-      courseName: plan.courseName,
-      centerName: formatEmiCityLabel(resolvePlanCenter(plan)),
-      pendingAmount: plan.pendingAmount,
-      overdueDays: plan.overdueDays,
-    })
-  }
-  return rows.sort((a, b) => a.daysRemaining - b.daysRemaining)
-}
-
-function filterEmiStudentPlans(plans, filters) {
-  const base = filterEmiPlans(plans, {
-    search: filters.search,
-    statusFilter: filters.statusFilter,
-    counselorFilter: filters.counselorFilter,
-    dateFrom: '',
-    dateTo: '',
-  })
-
-  return base.filter((plan) => {
-    if (filters.courseFilter !== 'all' && plan.courseName !== filters.courseFilter) return false
-    if (filters.monthFilter !== 'all') {
-      const due = plan.nextDueDate?.slice(0, 7)
-      if (due !== filters.monthFilter) return false
-    }
-    return true
-  })
+  return headerLabel || 'All Centres'
 }
 
 function OverviewSection({ metrics, loading }) {
@@ -268,8 +155,8 @@ function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabe
         <IconActionButton
           label={sendingId === r.id ? 'Sending reminder…' : 'Send reminder'}
           onClick={() => onSendReminder(r)}
-          disabled={sendingId === r.id}
-          className="text-white hover:border-[#1a4d73] hover:bg-[#1a4d73] hover:shadow-sm bg-[#246392]"
+          disabled={sendingId === r.id || !r.canResend}
+          className="text-white hover:border-[#1a4d73] hover:bg-[#1a4d73] hover:shadow-sm bg-[#246392] disabled:opacity-45"
         >
           <Bell className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden />
         </IconActionButton>
@@ -281,7 +168,7 @@ function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabe
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <FinanceSectionHeader
         title="Automation Reminder"
-        subtitle={`Upcoming EMI reminders for the next 30 days · ${centerLabel}`}
+        subtitle={`Upcoming EMI reminders for the next ${REMINDER_WINDOW_DAYS} days · ${centerLabel}`}
       />
       <div className="mt-4">
         {rows.length === 0 ? (
@@ -301,14 +188,10 @@ function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabe
   )
 }
 
-function EmiViewModal({ open, plan, onClose }) {
-  if (!plan) return null
+function EmiViewModal({ open, plan, loading, onClose }) {
+  if (!open) return null
 
-  const paidInstallments = (plan.installments || []).filter((i) => i.status === 'Paid')
-  const paidTotal = paidInstallments.reduce(
-    (s, i) => s + (Number(i.paidAmount) || Number(i.emiAmount) || 0),
-    0,
-  )
+  const paymentHistory = plan?.paymentHistory || []
 
   return (
     <EmiModalShell open={open} onClose={onClose} size="lg" title="EMI student details">
@@ -316,92 +199,98 @@ function EmiViewModal({ open, plan, onClose }) {
         icon={Eye}
         iconClassName="text-[#246392]"
         title="EMI Student Details"
-        subtitle={`${plan.studentName} · ${plan.studentId}`}
+        subtitle={plan ? `${plan.studentName} · ${plan.studentId}` : 'Loading…'}
         onClose={onClose}
         closeVariant="icon"
       />
       <div className="max-h-[min(70vh,560px)] overflow-y-auto px-5 py-4 sm:px-6">
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-100 bg-[#eef6fc]/50 p-3">
-            <p className="text-xs font-semibold uppercase text-[#686868]">Amount Paid</p>
-            <p className="mt-1 text-lg font-bold text-[#246392]">{formatINR(paidTotal)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-red-50/40 p-3">
-            <p className="text-xs font-semibold uppercase text-[#686868]">Pending Amount</p>
-            <p className="mt-1 text-lg font-bold text-[#df8284]">{formatINR(plan.pendingAmount || 0)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-            <p className="text-xs font-semibold uppercase text-[#686868]">Next Due Date</p>
-            <p className="mt-1 text-lg font-bold text-[#222]">{formatDisplayDate(plan.nextDueDate)}</p>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-4">
-          <EmiDetailRow label="Student ID">{plan.studentId}</EmiDetailRow>
-          <EmiDetailRow label="Mobile">{plan.mobile || '—'}</EmiDetailRow>
-          <EmiDetailRow label="Email">{plan.email || '—'}</EmiDetailRow>
-          <EmiDetailRow label="City">{formatEmiCityLabel(resolvePlanCenter(plan))}</EmiDetailRow>
-          <EmiDetailRow label="Course">{plan.courseName}</EmiDetailRow>
-          <EmiDetailRow label="Total Fees">{formatINR(plan.totalFees || 0)}</EmiDetailRow>
-          <EmiDetailRow label="EMI Plan">{getEmiPlanLabel(plan)}</EmiDetailRow>
-          <EmiDetailRow label="EMI Status">
-            <FinanceStatusBadge status={plan.emiStatus} />
-          </EmiDetailRow>
-          <EmiDetailRow label="Assigned Counselor">{plan.counselorName || '—'}</EmiDetailRow>
-        </div>
-
-        <h4 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#686868]">Installment Schedule</h4>
-        <div className="overflow-x-auto rounded-xl border border-slate-100">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-[#eef2fc] text-left text-xs uppercase text-[#246392]">
-                <th className="px-3 py-2.5">#</th>
-                <th className="px-3 py-2.5">Due Date</th>
-                <th className="px-3 py-2.5">Amount</th>
-                <th className="px-3 py-2.5">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(plan.installments || []).map((inst, idx) => (
-                <tr key={inst.emiNo || inst.installmentNo || idx} className={cn('border-b border-slate-50', idx % 2 === 1 && 'bg-slate-50/40')}>
-                  <td className="px-3 py-2.5 font-medium">{inst.emiNo || inst.installmentNo}</td>
-                  <td className="px-3 py-2.5">{formatDisplayDate(inst.dueDate || inst.emiDate)}</td>
-                  <td className="px-3 py-2.5">{formatINR(inst.emiAmount)}</td>
-                  <td className="px-3 py-2.5"><FinanceStatusBadge status={inst.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <h4 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#686868]">Payment History</h4>
-        {paidInstallments.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-[#686868]">
-            No payments recorded yet.
-          </p>
+        {loading || !plan ? (
+          <FinanceTableSkeleton rows={4} columns={4} />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-[#eef2fc] text-left text-xs uppercase text-[#246392]">
-                  <th className="px-3 py-2.5">EMI #</th>
-                  <th className="px-3 py-2.5">Paid Date</th>
-                  <th className="px-3 py-2.5">Amount</th>
-                  <th className="px-3 py-2.5">Mode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paidInstallments.map((inst) => (
-                  <tr key={inst.emiNo || inst.installmentNo} className="border-b border-slate-50">
-                    <td className="px-3 py-2.5">{inst.emiNo || inst.installmentNo}</td>
-                    <td className="px-3 py-2.5">{formatDisplayDate(inst.paidDate)}</td>
-                    <td className="px-3 py-2.5 font-medium">{formatINR(inst.paidAmount || inst.emiAmount)}</td>
-                    <td className="px-3 py-2.5">{inst.paymentMode || '—'}</td>
+          <>
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-100 bg-[#eef6fc]/50 p-3">
+                <p className="text-xs font-semibold uppercase text-[#686868]">Amount Paid</p>
+                <p className="mt-1 text-lg font-bold text-[#246392]">{formatINR(plan.amountPaid || 0)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-red-50/40 p-3">
+                <p className="text-xs font-semibold uppercase text-[#686868]">Pending Amount</p>
+                <p className="mt-1 text-lg font-bold text-[#df8284]">{formatINR(plan.pendingAmount || 0)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                <p className="text-xs font-semibold uppercase text-[#686868]">Next Due Date</p>
+                <p className="mt-1 text-lg font-bold text-[#222]">{formatDisplayDate(plan.nextDueDate)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-4">
+              <EmiDetailRow label="Student ID">{plan.studentId}</EmiDetailRow>
+              <EmiDetailRow label="Mobile">{plan.mobile || '—'}</EmiDetailRow>
+              <EmiDetailRow label="Email">{plan.email || '—'}</EmiDetailRow>
+              <EmiDetailRow label="City">{plan.city || plan.centerName || '—'}</EmiDetailRow>
+              <EmiDetailRow label="Course">{plan.courseName}</EmiDetailRow>
+              <EmiDetailRow label="Total Fees">{formatINR(plan.totalFees || 0)}</EmiDetailRow>
+              <EmiDetailRow label="EMI Plan">{plan.emiPlanSummary || '—'}</EmiDetailRow>
+              <EmiDetailRow label="EMI Status">
+                <FinanceStatusBadge status={plan.emiStatus} />
+              </EmiDetailRow>
+              <EmiDetailRow label="Assigned Counselor">{plan.counselorName || '—'}</EmiDetailRow>
+            </div>
+
+            <h4 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#686868]">Installment Schedule</h4>
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-[#eef2fc] text-left text-xs uppercase text-[#246392]">
+                    <th className="px-3 py-2.5">#</th>
+                    <th className="px-3 py-2.5">Due Date</th>
+                    <th className="px-3 py-2.5">Amount</th>
+                    <th className="px-3 py-2.5">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {(plan.installments || []).map((inst, idx) => (
+                    <tr key={inst._id || inst.emiNo || idx} className={cn('border-b border-slate-50', idx % 2 === 1 && 'bg-slate-50/40')}>
+                      <td className="px-3 py-2.5 font-medium">{inst.emiNo || inst.installmentNo}</td>
+                      <td className="px-3 py-2.5">{formatDisplayDate(inst.dueDate || inst.emiDate)}</td>
+                      <td className="px-3 py-2.5">{formatINR(inst.emiAmount)}</td>
+                      <td className="px-3 py-2.5"><FinanceStatusBadge status={inst.statusLabel || inst.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h4 className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-[#686868]">Payment History</h4>
+            {paymentHistory.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-[#686868]">
+                No payments recorded yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full min-w-[480px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-[#eef2fc] text-left text-xs uppercase text-[#246392]">
+                      <th className="px-3 py-2.5">EMI #</th>
+                      <th className="px-3 py-2.5">Paid Date</th>
+                      <th className="px-3 py-2.5">Amount</th>
+                      <th className="px-3 py-2.5">Mode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentHistory.map((entry) => (
+                      <tr key={`${entry.installmentNo}-${entry.paidDate}`} className="border-b border-slate-50">
+                        <td className="px-3 py-2.5">{entry.installmentNo}</td>
+                        <td className="px-3 py-2.5">{formatDisplayDate(entry.paidDate)}</td>
+                        <td className="px-3 py-2.5 font-medium">{formatINR(entry.amount)}</td>
+                        <td className="px-3 py-2.5">{entry.mode || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="flex justify-end border-t border-slate-100 bg-slate-50/60 px-5 py-4">
@@ -417,14 +306,14 @@ function EmiViewModal({ open, plan, onClose }) {
   )
 }
 
-function EmiAssignCounselorDialog({ open, plan, onClose, onSave, saving }) {
+function EmiAssignCounselorDialog({ open, plan, counselors, onClose, onSave, saving }) {
   const [form, setForm] = useState({ counselorId: '', priority: 'Medium', remarks: '' })
 
   useEffect(() => {
     if (!open || !plan) return
     setForm({
       counselorId: plan.counselorId || '',
-      priority: plan.assignmentPriority || 'Medium',
+      priority: formatPriorityForForm(plan.counselorPriority),
       remarks: '',
     })
   }, [open, plan])
@@ -436,7 +325,7 @@ function EmiAssignCounselorDialog({ open, plan, onClose, onSave, saving }) {
     onSave?.(form)
   }
 
-  const selectedCounselor = FINANCE_MOCK_COUNSELORS.find((c) => c.id === form.counselorId)
+  const selectedCounselor = counselors.find((c) => c.value === form.counselorId)
 
   return (
     <EmiModalShell open={open} onClose={onClose} size="md" title="Assign counselor">
@@ -467,15 +356,15 @@ function EmiAssignCounselorDialog({ open, plan, onClose, onSave, saving }) {
               className={fieldClass}
             >
               <option value="">Select counselor</option>
-              {FINANCE_MOCK_COUNSELORS.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {counselors.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
           </label>
 
           {selectedCounselor && (
             <p className="text-xs text-[#686868]">
-              Assigning to <span className="font-semibold text-[#246392]">{selectedCounselor.name}</span>
+              Assigning to <span className="font-semibold text-[#246392]">{selectedCounselor.label}</span>
             </p>
           )}
 
@@ -535,162 +424,210 @@ export default function EmiManagementPage() {
   const { canManageEmi } = useFinancePermissions()
   const { refreshToken } = useFinanceOperations()
   const financeCenterFilter = useFinanceCenterFilter()
-  const [plans, setPlans] = useState([])
+
+  const [filterOptions, setFilterOptions] = useState(null)
+  const [metrics, setMetrics] = useState(null)
+  const [reminderRows, setReminderRows] = useState([])
+  const [students, setStudents] = useState([])
+  const [studentPagination, setStudentPagination] = useState({
+    page: 1,
+    limit: DEFAULT_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  })
+
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
+  const debouncedSearch = useDebouncedValue(search, 400)
   const [courseFilter, setCourseFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [counselorFilter, setCounselorFilter] = useState('all')
   const [monthFilter, setMonthFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+
+  const [viewPlanId, setViewPlanId] = useState(null)
   const [viewPlan, setViewPlan] = useState(null)
-  const [editPlan, setEditPlan] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [editPlanId, setEditPlanId] = useState(null)
   const [assignPlan, setAssignPlan] = useState(null)
   const [saving, setSaving] = useState(false)
   const [sendingReminderId, setSendingReminderId] = useState(null)
 
-  const load = useCallback(async (silent = false) => {
-    if (silent) setRefreshing(true)
-    else setLoading(true)
-    try {
-      const raw = await fetchEmiPlans()
-      setPlans(enrichEmiPlans(raw).map(enrichPlanRow))
-    } catch {
-      toast.error('Failed to load EMI plans')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load(refreshToken > 0)
-  }, [refreshToken, load])
-
-  const centerFilteredPlans = useMemo(
-    () => filterPlansByFinanceCenters(plans, financeCenterFilter),
-    [plans, financeCenterFilter],
+  const uiFilterOptions = useMemo(
+    () => mapFilterOptionsToUi(filterOptions || {}),
+    [filterOptions],
   )
 
-  const overviewMetrics = useMemo(
-    () => computeOverviewMetrics(centerFilteredPlans),
-    [centerFilteredPlans],
-  )
-  const reminderRows = useMemo(
-    () => buildUpcomingReminders(centerFilteredPlans),
-    [centerFilteredPlans],
-  )
   const centerLabel = useMemo(
     () => getEmiPageCenterLabel(financeCenterFilter),
     [financeCenterFilter],
   )
 
-  const courseOptions = useMemo(() => {
-    const fromPlans = new Set(plans.map((p) => p.courseName).filter(Boolean))
-    FINANCE_COURSES.forEach((c) => fromPlans.add(c.name))
-    return [...fromPlans].sort()
-  }, [plans])
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const data = await fetchEmiFilterOptions()
+      setFilterOptions(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to load filter options')
+    }
+  }, [])
 
-  const monthOptions = useMemo(() => {
-    const set = new Set(
-      plans.map((p) => p.nextDueDate?.slice(0, 7)).filter(Boolean),
-    )
-    return [...set].sort().reverse()
-  }, [plans])
+  const loadDashboard = useCallback(
+    async (silent = false) => {
+      if (silent) setRefreshing(true)
+      else setLoading(true)
 
-  const filteredPlans = useMemo(
-    () =>
-      filterEmiStudentPlans(centerFilteredPlans, {
-        search: debouncedSearch,
-        statusFilter,
-        counselorFilter,
-        courseFilter,
-        monthFilter,
-      }),
-    [centerFilteredPlans, debouncedSearch, statusFilter, counselorFilter, courseFilter, monthFilter],
+      try {
+        const result = await fetchEmiDashboard({
+          centerId: resolveDashboardCenterId(financeCenterFilter),
+          courseId: courseFilter,
+          emiStatus: statusFilter,
+          counselorId: counselorFilter,
+          month: monthFilter,
+          search: debouncedSearch,
+          page,
+          limit: pageSize,
+          nextDays: REMINDER_WINDOW_DAYS,
+          reminderPage: 1,
+          reminderLimit: 50,
+        })
+
+        setMetrics(result.metrics)
+        setReminderRows(result.reminders)
+        setStudents(result.students)
+        setStudentPagination(result.studentPagination)
+      } catch (err) {
+        toast.error(err.message || 'Failed to load EMI dashboard')
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [
+      financeCenterFilter,
+      courseFilter,
+      statusFilter,
+      counselorFilter,
+      monthFilter,
+      debouncedSearch,
+      page,
+      pageSize,
+    ],
   )
 
+  useEffect(() => {
+    loadFilterOptions()
+  }, [loadFilterOptions])
+
+  useEffect(() => {
+    loadDashboard(refreshToken > 0)
+  }, [loadDashboard, refreshToken])
+
+  useEffect(() => {
+    setPage(1)
+  }, [
+    debouncedSearch,
+    courseFilter,
+    statusFilter,
+    counselorFilter,
+    monthFilter,
+    financeCenterFilter.selectedIds,
+    financeCenterFilter.isOverallView,
+    pageSize,
+  ])
+
+  useEffect(() => {
+    if (!viewPlanId) {
+      setViewPlan(null)
+      return undefined
+    }
+
+    let cancelled = false
+    setViewLoading(true)
+    fetchEmiDetails(viewPlanId)
+      .then((details) => {
+        if (!cancelled) setViewPlan(details)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toast.error(err.message || 'Failed to load EMI details')
+          setViewPlanId(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setViewLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [viewPlanId])
+
   const handleSendReminder = async (row) => {
+    if (!row.canResend) return
     setSendingReminderId(row.id)
     try {
-      await sendEmiReminder({
-        planId: row.planId,
-        studentName: row.studentName,
-        mobile: row.mobile,
-        email: row.email,
-        channel: 'WhatsApp',
-        trigger: row.daysRemaining <= 0 ? 'after_overdue' : 'before_due',
-        message: `Dear ${row.studentName}, your EMI of ${formatINR(row.emiAmount)} is due on ${formatDisplayDate(row.dueDate)}.`,
-      })
+      await sendEmiReminder(row.emiPlanId, row.installmentId)
       toast.success('Reminder sent')
-      load(true)
-    } catch {
-      toast.error('Failed to send reminder')
+      loadDashboard(true)
+    } catch (err) {
+      toast.error(err.message || 'Failed to send reminder')
     } finally {
       setSendingReminderId(null)
     }
   }
 
-  const handleEditSave = async (installments, meta) => {
-    if (!meta?.planId) return
-    setSaving(true)
-    try {
-      await updateEmiPlan(meta.planId, installments, meta.plan)
-      toast.success('EMI plan updated')
-      setEditPlan(null)
-      load(true)
-    } catch {
-      toast.error('Failed to update EMI plan')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleAssignSave = async (form) => {
     if (!assignPlan) return
-    const counselor = FINANCE_MOCK_COUNSELORS.find((c) => c.id === form.counselorId)
-    if (!counselor) return toast.error('Select a counselor')
+    if (!form.counselorId) return toast.error('Select a counselor')
 
     setSaving(true)
     try {
-      await assignEmiCounselor(assignPlan.id, {
-        counselorId: counselor.id,
-        counselorName: counselor.name,
-      })
-      if (form.remarks || form.priority) {
-        await updateEmiPlan(assignPlan.id, assignPlan.installments, {
-          assignmentPriority: form.priority,
-          followUpRemarks: form.remarks,
-          followUpStatus: 'Contacted',
-        })
-      }
+      await assignEmiCounselor(
+        buildAssignCounselorBody({
+          emiPlanId: assignPlan.emiPlanId || assignPlan.id,
+          counselorId: form.counselorId,
+          priority: form.priority,
+          remarks: form.remarks,
+        }),
+      )
       toast.success('Counselor assigned')
       setAssignPlan(null)
-      load(true)
-    } catch {
-      toast.error('Assignment failed')
+      loadDashboard(true)
+    } catch (err) {
+      toast.error(err.message || 'Assignment failed')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleEditComplete = useCallback(() => {
+    setEditPlanId(null)
+    loadDashboard(true)
+  }, [loadDashboard])
 
   const rowActions = (row) => (
     <FinanceActionMenu
       inlineFrom="lg"
       actions={[
-        { label: 'View', icon: Eye, onClick: () => setViewPlan(row) },
+        {
+          label: 'View',
+          icon: Eye,
+          onClick: () => setViewPlanId(row.emiPlanId || row.id),
+        },
         {
           label: 'Edit',
           icon: Pencil,
-          onClick: () => setEditPlan(row),
-          show: canManageEmi,
+          onClick: () => setEditPlanId(row.emiPlanId || row.id),
+          show: canManageEmi && canEditEmiPlan(row),
         },
         {
           label: 'Assign Counselor',
           icon: UserPlus,
           onClick: () => setAssignPlan(row),
-          show: canManageEmi,
+          show: canManageEmi && canAssignCounselor(row),
         },
       ]}
     />
@@ -712,6 +649,23 @@ export default function EmiManagementPage() {
     { key: 'actions', label: 'Actions', align: 'center', render: (r) => rowActions(r) },
   ]
 
+  const paginationControl = useMemo(() => {
+    const base = buildStudentPaginationControl({
+      page: studentPagination.page,
+      pageSize: studentPagination.limit,
+      total: studentPagination.total,
+      totalPages: studentPagination.totalPages,
+    })
+    return {
+      ...base,
+      onPageChange: setPage,
+      onPageSizeChange: (size) => {
+        setPageSize(Number(size))
+        setPage(1)
+      },
+    }
+  }, [studentPagination])
+
   return (
     <div className="flex flex-col gap-5 p-4 sm:gap-6 sm:p-6">
       <FinanceBreadcrumbs items={[{ label: 'EMI Management' }]} />
@@ -732,7 +686,7 @@ export default function EmiManagementPage() {
 
       <FinanceCenterFilterBar />
 
-      <OverviewSection metrics={overviewMetrics} loading={loading} />
+      <OverviewSection metrics={metrics} loading={loading && !metrics} />
 
       <AutomationReminderSection
         rows={reminderRows}
@@ -755,42 +709,42 @@ export default function EmiManagementPage() {
             />
             <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass} aria-label="Course">
               <option value="all">All courses</option>
-              {courseOptions.map((c) => (
-                <option key={c} value={c}>{c}</option>
+              {uiFilterOptions.courses.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass} aria-label="EMI status">
               <option value="all">All EMI statuses</option>
-              {FINANCE_EMI_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {uiFilterOptions.emiStatuses.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
             <select value={counselorFilter} onChange={(e) => setCounselorFilter(e.target.value)} className={selectClass} aria-label="Counselor">
               <option value="all">All counselors</option>
-              {FINANCE_MOCK_COUNSELORS.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {uiFilterOptions.counselors.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
             <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className={selectClass} aria-label="Month">
               <option value="all">All months</option>
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>{getEmiMonthLabel(`${m}-01`)}</option>
+              {uiFilterOptions.months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </div>
 
           {loading ? (
             <FinanceTableSkeleton rows={6} columns={8} />
-          ) : filteredPlans.length === 0 ? (
+          ) : students.length === 0 ? (
             <FinanceEmptyState title="No EMI students found" description="Adjust filters or search to find students." />
           ) : (
             <>
               <div className="hidden lg:block">
                 <PaginatedFigmaTable
                   columns={tableColumns}
-                  data={filteredPlans}
+                  data={students}
                   itemLabel="students"
-                  resetDeps={[debouncedSearch, financeCenterFilter.selectedIds, courseFilter, statusFilter, counselorFilter, monthFilter]}
+                  controlledPagination={paginationControl}
                   zebraStriping
                   stickyHeader
                   tableClassName="overflow-x-auto"
@@ -798,7 +752,7 @@ export default function EmiManagementPage() {
                 />
               </div>
               <div className="space-y-3 lg:hidden">
-                {filteredPlans.map((row) => (
+                {students.map((row) => (
                   <EmiMobileCard key={row.id} row={row} actions={rowActions(row)} />
                 ))}
               </div>
@@ -807,15 +761,29 @@ export default function EmiManagementPage() {
         </div>
       </section>
 
-      <EmiViewModal open={!!viewPlan} plan={viewPlan} onClose={() => setViewPlan(null)} />
+      <EmiViewModal
+        open={!!viewPlanId}
+        plan={viewPlan}
+        loading={viewLoading}
+        onClose={() => setViewPlanId(null)}
+      />
+
       <EmiEditModal
-        open={!!editPlan}
-        plan={editPlan}
-        onClose={() => setEditPlan(null)}
-        onSubmit={handleEditSave}
+        open={!!editPlanId}
+        emiPlanId={editPlanId}
+        paymentModes={uiFilterOptions.paymentModes}
+        onClose={() => setEditPlanId(null)}
+        onComplete={handleEditComplete}
+      />
+
+      <EmiAssignCounselorDialog
+        open={!!assignPlan}
+        plan={assignPlan}
+        counselors={uiFilterOptions.counselors}
+        onClose={() => setAssignPlan(null)}
+        onSave={handleAssignSave}
         saving={saving}
       />
-      <EmiAssignCounselorDialog open={!!assignPlan} plan={assignPlan} onClose={() => setAssignPlan(null)} onSave={handleAssignSave} saving={saving} />
     </div>
   )
 }

@@ -4,7 +4,7 @@ const EVALUATION_STATUS_STYLES = {
   Completed: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
   Evaluated: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
   Published: 'bg-emerald-500/15 text-emerald-800 ring-emerald-500/25',
-  'In Progress': 'bg-[#efb36d] text-white ring-[#efb36d]/40',
+  'In Progress': 'bg-[#efb36d] text-white shadow-sm',
   Unpublished: 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
   'Under Review': 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
   'Not Started': 'bg-slate-500/15 text-slate-600 ring-slate-400/25',
@@ -17,9 +17,6 @@ const SCORE_TIER_STYLES = {
   low: 'bg-amber-500/15 text-amber-900 ring-amber-500/25',
 }
 
-const STATUS_PILL_BASE =
-  'inline-flex min-w-[92px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold ring-1 ring-inset'
-
 export function CbtEvaluationStatusPill({ status, className }) {
   const label = status || 'Not Started'
   const isInProgress = label === 'In Progress'
@@ -27,9 +24,10 @@ export function CbtEvaluationStatusPill({ status, className }) {
   return (
     <span
       className={cn(
-        STATUS_PILL_BASE,
-        isInProgress ? 'font-semibold normal-case tracking-normal' : 'uppercase tracking-wide',
+        'inline-flex min-w-[108px] items-center justify-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold',
+        isInProgress && 'font-medium normal-case tracking-normal',
         EVALUATION_STATUS_STYLES[label] ?? EVALUATION_STATUS_STYLES['Not Started'],
+        !isInProgress && 'text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset',
         className,
       )}
     >
@@ -45,8 +43,7 @@ export function CbtScorePill({ pct, className }) {
   return (
     <span
       className={cn(
-        STATUS_PILL_BASE,
-        'tabular-nums',
+        'inline-flex min-w-[72px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold tabular-nums ring-1 ring-inset',
         SCORE_TIER_STYLES[tier],
         className,
       )}

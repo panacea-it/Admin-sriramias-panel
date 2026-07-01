@@ -5,25 +5,33 @@ import ModalPanelHeader from '../courses/ModalPanelHeader'
 import { cn } from '../../utils/cn'
 import { REJECTION_REMARK_MIN_LENGTH, validateRejectionRemarks } from '../../utils/financeVerificationWorkflow'
 
-const REJECT_REASONS = [
-  'Invalid or unclear payment proof',
-  'UTR / reference not found',
-  'Amount mismatch',
-  'Duplicate payment',
-  'Other',
+const DEFAULT_REJECT_REASONS = [
+  { value: 'INVALID_PROOF', label: 'Invalid or unclear payment proof' },
+  { value: 'UTR_NOT_FOUND', label: 'UTR / reference not found' },
+  { value: 'AMOUNT_MISMATCH', label: 'Amount mismatch' },
+  { value: 'DUPLICATE_PAYMENT', label: 'Duplicate payment' },
+  { value: 'OTHER', label: 'Other' },
 ]
 
-export default function VerificationRejectDialog({ open, row, onClose, onConfirm, loading }) {
-  const [reason, setReason] = useState(REJECT_REASONS[0])
+export default function VerificationRejectDialog({
+  open,
+  row,
+  onClose,
+  onConfirm,
+  loading,
+  rejectionReasons = DEFAULT_REJECT_REASONS,
+}) {
+  const reasons = rejectionReasons.length ? rejectionReasons : DEFAULT_REJECT_REASONS
+  const [reason, setReason] = useState(reasons[0]?.value || '')
   const [comment, setComment] = useState('')
   const [touched, setTouched] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setReason(REJECT_REASONS[0])
+    setReason(reasons[0]?.value || '')
     setComment('')
     setTouched(false)
-  }, [open, row?.id])
+  }, [open, row?.id, reasons])
 
   const validationError = touched ? validateRejectionRemarks(comment) : null
   const charCount = comment.trim().length
@@ -66,9 +74,9 @@ export default function VerificationRejectDialog({ open, row, onClose, onConfirm
               onChange={(e) => setReason(e.target.value)}
               className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium"
             >
-              {REJECT_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+              {reasons.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>

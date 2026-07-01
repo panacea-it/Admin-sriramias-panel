@@ -1263,22 +1263,13 @@ export async function resetVerificationQueue() {
   )
 }
 
-export async function fetchGstSettings() {
-  return tryApi(
-    () => api.get('/finance/gst-settings'),
-    () => ({ ...mockGst }),
-  )
-}
-
-export async function updateGstSettings(payload) {
-  return tryApi(
-    () => api.put('/finance/gst-settings', payload),
-    () => {
-      mockGst = { ...mockGst, ...payload }
-      return mockGst
-    },
-  )
-}
+export {
+  fetchGstSettings,
+  updateGstSettings,
+  fetchGstSettingsDetails,
+  previewGstSettings,
+  saveGstSettings,
+} from './gstSettingsAPI'
 
 export async function fetchCompletedReceipts(params = {}) {
   return tryApi(

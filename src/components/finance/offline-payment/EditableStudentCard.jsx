@@ -1,8 +1,5 @@
 import { useMemo } from 'react'
 import { Search, UserPlus } from 'lucide-react'
-import { FINANCE_COURSES } from '../../../data/financeMockData'
-import { VERIFICATION_STUDENT_OPTIONS } from '../../../data/financeVerificationData'
-import { useBatchSelectOptions } from '../../../hooks/useBatchSelectOptions'
 import { formatINR } from '../../../utils/financeFilters'
 import SearchableSelect from '../../categories/SearchableSelect'
 
@@ -15,14 +12,26 @@ const batchTriggerClass =
 export default function EditableStudentCard({
   profile,
   onChange,
-  centerOptions,
+  centerOptions = [],
+  courseOptions = [],
+  studentOptions = [],
+  batchOptions = [],
+  batchesLoading = false,
+  batchesFetchError,
   financials,
   onSearchSelect,
   onWalkIn,
   batchError,
 }) {
-  const { options: batchOptions, loading: batchesLoading, error: batchesFetchError } =
-    useBatchSelectOptions()
+  const normalizedCenterOptions = useMemo(() => {
+    return centerOptions.map((center) => {
+      if (typeof center === 'string') return { id: center, name: center }
+      return {
+        id: center.id || center._id || center.value,
+        name: center.name || center.centerName || center.label,
+      }
+    })
+  }, [centerOptions])
 
   const filteredBatchOptions = useMemo(() => {
     if (!profile.courseId) return batchOptions
@@ -35,7 +44,12 @@ export default function EditableStudentCard({
   const set = (key, value) => onChange({ ...profile, [key]: value })
 
   const setCourseId = (courseId) => {
-    const next = { ...profile, courseId }
+    const course = courseOptions.find((c) => c.value === courseId || c.id === courseId)
+    const next = {
+      ...profile,
+      courseId,
+      courseName: course?.name || course?.label || '',
+    }
     if (profile.batchId) {
       const selected = batchOptions.find((opt) => opt.value === profile.batchId)
       if (selected?.courseId && selected.courseId !== courseId) {
@@ -44,6 +58,19 @@ export default function EditableStudentCard({
       }
     }
     onChange(next)
+  }
+
+  const setCenterId = (centerId) => {
+    const center = normalizedCenterOptions.find((c) => c.id === centerId)
+    onChange({
+      ...profile,
+      centerId,
+      centerName: center?.name || '',
+      courseId: '',
+      courseName: '',
+      batchId: '',
+      batchName: '',
+    })
   }
 
   return (
@@ -68,13 +95,13 @@ export default function EditableStudentCard({
           Search registered student
         </span>
         <select
-          value={profile.studentId || ''}
+          value={profile.studentObjectId || profile.studentId || ''}
           onChange={(e) => onSearchSelect(e.target.value)}
           className={fieldClass}
         >
           <option value="">— Or enter details manually below —</option>
-          {VERIFICATION_STUDENT_OPTIONS.map((s) => (
-            <option key={s.studentId} value={s.studentId}>
+          {studentOptions.map((s) => (
+            <option key={s.studentObjectId || s.studentId} value={s.studentObjectId || s.studentId}>
               {s.studentName} · {s.centerName}
             </option>
           ))}
@@ -115,14 +142,14 @@ export default function EditableStudentCard({
         <label className="block text-xs font-semibold text-[#555]">
           Center *
           <select
-            value={profile.centerName}
-            onChange={(e) => set('centerName', e.target.value)}
+            value={profile.centerId || ''}
+            onChange={(e) => setCenterId(e.target.value)}
             className={fieldClass}
           >
             <option value="">Select center</option>
-            {centerOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {normalizedCenterOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </select>
@@ -135,9 +162,9 @@ export default function EditableStudentCard({
             className={fieldClass}
           >
             <option value="">Select course</option>
-            {FINANCE_COURSES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+            {courseOptions.map((c) => (
+              <option key={c.value || c.id} value={c.value || c.id}>
+                {c.label || c.name}
               </option>
             ))}
           </select>

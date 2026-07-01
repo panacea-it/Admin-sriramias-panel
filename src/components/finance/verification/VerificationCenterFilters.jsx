@@ -13,8 +13,12 @@ function FilterSelect({ label, value, onChange, options }) {
           'hover:bg-[#4a9ad4] focus:ring-2 focus:ring-[#246392]/50',
         )}
       >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-white text-[#222]">
+        {options.map((opt, index) => (
+          <option
+            key={`${String(opt.value ?? 'option')}-${index}`}
+            value={opt.value}
+            className="bg-white text-[#222]"
+          >
             {opt.label}
           </option>
         ))}

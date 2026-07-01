@@ -2,54 +2,60 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Settings2, Save, FileText } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
 import FinanceTableSkeleton from '../../components/finance/FinanceTableSkeleton'
-import { fetchGstSettings, updateGstSettings } from '../../api/financeAPI'
+import {
+  fetchGstSettingsDetails,
+  previewGstSettings,
+  saveGstSettings,
+} from '../../api/gstSettingsAPI'
+import {
+  mapDetailsToForm,
+  mapFormToPayload,
+  serializeFormPayload,
+} from '../../utils/finance/gstSettingsMapper'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { isValidGstin, gstinValidationMessage } from '../../utils/finance/gstValidation'
 import { formatINR } from '../../utils/financeFilters'
+import { getApiErrorMessage } from '../../utils/apiError'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
+const PREVIEW_DEBOUNCE_MS = 400
+
 export default function GstInvoiceSettingsPage() {
   const { canManageGst } = useFinancePermissions()
-  const [form, setForm] = useState({
-    gstPercent: 18,
-    invoicePrefix: '',
-    receiptPrefix: '',
-    taxEnabled: true,
-    financialYear: new Date().getFullYear(),
-    companyName: 'Sriram IAS',
-    companyAddress: '',
-    logoUrl: '',
-    signatureUrl: '',
-    signatoryName: '',
-    signatoryDesignation: '',
-    footerNotes: '',
-    termsAndConditions: '',
-    watermarkEnabled: true,
-    autoSendReceipt: false,
-    branchGst: [],
-  })
-  const [initialForm, setInitialForm] = useState(null)
+  const [form, setForm] = useState(() => mapDetailsToForm(null))
+  const [preview, setPreview] = useState(null)
+  const [savedSnapshot, setSavedSnapshot] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [gstinErrors, setGstinErrors] = useState({})
-  const [isDirty, setIsDirty] = useState(false)
   const dirtyRef = useRef(false)
+  const previewTimerRef = useRef(null)
+  const skipPreviewRef = useRef(true)
+
+  const isDirty = savedSnapshot ? serializeFormPayload(form) !== savedSnapshot : false
+
+  const applyDetails = useCallback((details) => {
+    const nextForm = mapDetailsToForm(details)
+    setForm(nextForm)
+    setPreview(details.preview || null)
+    setSavedSnapshot(serializeFormPayload(nextForm))
+    dirtyRef.current = false
+    skipPreviewRef.current = true
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchGstSettings()
-      setForm(data)
-      setInitialForm(JSON.stringify(data))
-      dirtyRef.current = false
-      setIsDirty(false)
-    } catch {
-      toast.error('Failed to load GST settings')
+      const data = await fetchGstSettingsDetails()
+      applyDetails(data)
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to load GST settings'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [applyDetails])
 
   useEffect(() => {
     load()
@@ -66,9 +72,39 @@ export default function GstInvoiceSettingsPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [])
 
+  useEffect(() => {
+    if (loading || skipPreviewRef.current) {
+      skipPreviewRef.current = false
+      return undefined
+    }
+    if (!isDirty) return undefined
+
+    if (previewTimerRef.current) {
+      window.clearTimeout(previewTimerRef.current)
+    }
+
+    previewTimerRef.current = window.setTimeout(async () => {
+      setPreviewLoading(true)
+      try {
+        const payload = mapFormToPayload(form)
+        const nextPreview = await previewGstSettings(payload)
+        setPreview(nextPreview)
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, 'Failed to update preview'))
+      } finally {
+        setPreviewLoading(false)
+      }
+    }, PREVIEW_DEBOUNCE_MS)
+
+    return () => {
+      if (previewTimerRef.current) {
+        window.clearTimeout(previewTimerRef.current)
+      }
+    }
+  }, [form, isDirty, loading])
+
   const markDirty = () => {
     dirtyRef.current = true
-    setIsDirty(true)
   }
 
   const handleSave = async (e) => {
@@ -93,13 +129,11 @@ export default function GstInvoiceSettingsPage() {
 
     setSaving(true)
     try {
-      await updateGstSettings(form)
-      toast.success('GST settings saved')
-      setInitialForm(JSON.stringify(form))
-      dirtyRef.current = false
-      setIsDirty(false)
-    } catch {
-      toast.error('Save failed')
+      const saved = await saveGstSettings(mapFormToPayload(form))
+      applyDetails(saved)
+      toast.success('GST settings saved successfully')
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to save settings'))
     } finally {
       setSaving(false)
     }
@@ -120,12 +154,21 @@ export default function GstInvoiceSettingsPage() {
     }
   }
 
-  const sampleFy = form.financialYear || 2026
-  const sampleBranch = (form.branchGst || [])[0]?.branchCode || 'DEL'
-  const sampleInvoiceNo = `${sampleBranch}-INV-${sampleFy}-00125`
-  const sampleReceiptNo = `${sampleBranch}-RCP-${sampleFy}-00125`
-  const sampleBase = 100000
-  const sampleGst = form.taxEnabled ? Math.round(sampleBase * (form.gstPercent / 100)) : 0
+  const previewData = preview || {
+    companyName: form.companyName || 'Sriram IAS',
+    financialYear: String(form.financialYear || new Date().getFullYear()),
+    invoiceNumber: '—',
+    receiptNumber: '—',
+    gstRateLabel: form.taxEnabled ? `${form.gstPercent}%` : 'Disabled',
+    showTaxRows: false,
+    taxableAmount: 100000,
+    cgstRate: 0,
+    sgstRate: 0,
+    cgst: 0,
+    sgst: 0,
+    total: 100000,
+    branchFormatExamples: [],
+  }
 
   const inputClass =
     'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:bg-slate-50 focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20'
@@ -388,42 +431,47 @@ export default function GstInvoiceSettingsPage() {
           <div className="rounded-xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)] lg:sticky lg:top-4 lg:self-start">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-[#246392]">
               <FileText className="h-4 w-4" /> Invoice preview
+              {previewLoading && (
+                <span className="text-xs font-normal text-slate-400">Updating…</span>
+              )}
             </h3>
             <div className="rounded-lg border border-slate-200 p-4 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>
               <div className="border-b border-[#246392] pb-3">
-                <p className="text-lg font-bold text-[#1a3a5c]">{form.companyName || 'Sriram IAS'}</p>
-                <p className="text-xs text-[#686868]">Tax Invoice Preview · FY {sampleFy}</p>
+                <p className="text-lg font-bold text-[#1a3a5c]">{previewData.companyName || 'Sriram IAS'}</p>
+                <p className="text-xs text-[#686868]">Tax Invoice Preview · FY {previewData.financialYear}</p>
               </div>
               <div className="mt-4 space-y-2">
-                <p><span className="text-[#686868]">Invoice #:</span> <span className="font-semibold">{sampleInvoiceNo}</span></p>
-                <p><span className="text-[#686868]">Receipt #:</span> <span className="font-semibold">{sampleReceiptNo}</span></p>
-                <p><span className="text-[#686868]">GST rate:</span> {form.taxEnabled ? `${form.gstPercent}%` : 'Disabled'}</p>
+                <p><span className="text-[#686868]">Invoice #:</span> <span className="font-semibold">{previewData.invoiceNumber}</span></p>
+                <p><span className="text-[#686868]">Receipt #:</span> <span className="font-semibold">{previewData.receiptNumber}</span></p>
+                <p><span className="text-[#686868]">GST rate:</span> {previewData.gstRateLabel}</p>
               </div>
               <div className="mt-4 space-y-1 border-t border-slate-100 pt-3">
                 <div className="flex justify-between">
                   <span className="text-[#686868]">Taxable amount</span>
-                  <span>{formatINR(sampleBase)}</span>
+                  <span>{formatINR(previewData.taxableAmount)}</span>
                 </div>
-                {form.taxEnabled && (
+                {previewData.showTaxRows && (
                   <>
                     <div className="flex justify-between">
-                      <span className="text-[#686868]">CGST ({form.gstPercent / 2}%)</span>
-                      <span>{formatINR(Math.round(sampleGst / 2))}</span>
+                      <span className="text-[#686868]">CGST ({previewData.cgstRate}%)</span>
+                      <span>{formatINR(previewData.cgst)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#686868]">SGST ({form.gstPercent / 2}%)</span>
-                      <span>{formatINR(sampleGst - Math.round(sampleGst / 2))}</span>
+                      <span className="text-[#686868]">SGST ({previewData.sgstRate}%)</span>
+                      <span>{formatINR(previewData.sgst)}</span>
                     </div>
                   </>
                 )}
                 <div className="flex justify-between border-t border-[#246392] pt-2 font-bold text-[#1a3a5c]">
                   <span>Total</span>
-                  <span>{formatINR(sampleBase + sampleGst)}</span>
+                  <span>{formatINR(previewData.total)}</span>
                 </div>
               </div>
-              <p className="mt-4 text-center text-[10px] text-[#9ca0a8]">
-                Branch format: DEL-INV-{sampleFy}-00125 · HYD-INV-{sampleFy}-00456 · PUN-INV-{sampleFy}-00089
-              </p>
+              {(previewData.branchFormatExamples?.length ?? 0) > 0 && (
+                <p className="mt-4 text-center text-[10px] text-[#9ca0a8]">
+                  Branch format: {previewData.branchFormatExamples.join(' · ')}
+                </p>
+              )}
             </div>
             {isDirty && (
               <p className="mt-3 text-xs font-medium text-[#efb36d]">You have unsaved changes</p>

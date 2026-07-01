@@ -1,30 +1,22 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import FormModalSubmitBar from '../../common/FormModalSubmitBar'
 import { getModalEditKey, useInitOnModalOpen } from '../../../hooks/modalFormSync'
-import { FINANCE_BATCHES } from '../../../constants/financeConstants'
-import { FINANCE_COURSES } from '../../../data/financeMockData'
-import { RECEIPT_LIFECYCLE_STATUSES } from '../../../constants/receiptConstants'
 import { validateReceiptEdit } from '../../../utils/receiptCompletion'
+import { mapApiReceiptStatusToUi } from '../../../utils/receiptManagementHelpers'
+import {
+  fetchReceiptCoursesList,
+  fetchReceiptPaymentModesList,
+  fetchReceiptStatusesList,
+  fetchBatchesByCourse,
+} from '../../../api/receiptManagementAPI'
 import { formatINR } from '../../../utils/financeFilters'
 import { toast } from '../../../utils/toast'
 
 const FIELD_CLASS =
   'mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25'
-
-const PAYMENT_MODE_OPTIONS = [
-  'UPI',
-  'Card',
-  'Bank Transfer',
-  'Cash',
-  'Net Banking',
-  'Cheque',
-  'DD',
-  'NACH',
-  'Wallet',
-]
 
 function emptyForm() {
   return {
@@ -50,8 +42,8 @@ function formFromRow(row) {
     studentName: row.studentName || '',
     courseId: row.courseId || '',
     courseName: row.courseName || '',
-    batchId: row.batchId || FINANCE_BATCHES[0]?.id || '',
-    batchName: row.batchName || FINANCE_BATCHES[0]?.name || '',
+    batchId: row.batchId || '',
+    batchName: row.batchName || '',
     paymentDate: paymentDate ? String(paymentDate).slice(0, 10) : '',
     paymentMode: row.paymentMode || 'UPI',
     amountPaid: String(row.amountPaid ?? row.totalAmount ?? ''),
@@ -64,6 +56,11 @@ function formFromRow(row) {
 
 export default function EditReceiptDialog({ open, row, onClose, onSave, saving = false }) {
   const [form, setForm] = useState(emptyForm)
+  const [courses, setCourses] = useState([])
+  const [paymentModes, setPaymentModes] = useState([])
+  const [receiptStatuses, setReceiptStatuses] = useState([])
+  const [batches, setBatches] = useState([])
+  const [dropdownsLoading, setDropdownsLoading] = useState(false)
   const rowRef = useRef(row)
   rowRef.current = row
   const editKey = row ? getModalEditKey(row) : '__closed__'
@@ -72,25 +69,71 @@ export default function EditReceiptDialog({ open, row, onClose, onSave, saving =
     setForm(formFromRow(rowRef.current))
   })
 
+  useEffect(() => {
+    if (!open || !row) return
+    let cancelled = false
+    setDropdownsLoading(true)
+    Promise.all([
+      fetchReceiptCoursesList(),
+      fetchReceiptPaymentModesList(),
+      fetchReceiptStatusesList(),
+    ])
+      .then(([courseList, modeList, statusList]) => {
+        if (cancelled) return
+        setCourses(courseList)
+        setPaymentModes(modeList)
+        setReceiptStatuses(statusList)
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Failed to load edit form options')
+      })
+      .finally(() => {
+        if (!cancelled) setDropdownsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, row])
+
+  useEffect(() => {
+    if (!open || !form.courseId) {
+      setBatches([])
+      return
+    }
+    let cancelled = false
+    fetchBatchesByCourse(form.courseId)
+      .then((items) => {
+        if (!cancelled) setBatches(items)
+      })
+      .catch(() => {
+        if (!cancelled) setBatches([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, form.courseId])
+
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
   const handleCourseChange = (e) => {
     const courseId = e.target.value
-    const course = FINANCE_COURSES.find((c) => c.id === courseId)
+    const course = courses.find((c) => c._id === courseId || c.courseId === courseId)
     setForm((f) => ({
       ...f,
       courseId,
-      courseName: course?.name || '',
+      courseName: course?.courseName || course?.label || '',
+      batchId: '',
+      batchName: '',
     }))
   }
 
   const handleBatchChange = (e) => {
     const batchId = e.target.value
-    const batch = FINANCE_BATCHES.find((b) => b.id === batchId)
+    const batch = batches.find((b) => b._id === batchId || b.batchId === batchId)
     setForm((f) => ({
       ...f,
       batchId,
-      batchName: batch?.name || '',
+      batchName: batch?.batchName || '',
     }))
   }
 
@@ -167,24 +210,41 @@ export default function EditReceiptDialog({ open, row, onClose, onSave, saving =
 
             <label className="block text-sm">
               <span className="font-semibold text-[#222]">Course *</span>
-              <select value={form.courseId} onChange={handleCourseChange} className={FIELD_CLASS}>
+              <select
+                value={form.courseId}
+                onChange={handleCourseChange}
+                className={FIELD_CLASS}
+                disabled={dropdownsLoading}
+              >
                 <option value="">Select course</option>
-                {FINANCE_COURSES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {courses.map((c) => {
+                  const id = c._id || c.courseId
+                  return (
+                    <option key={id} value={id}>
+                      {c.courseName || c.label}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 
             <label className="block text-sm">
               <span className="font-semibold text-[#222]">Batch</span>
-              <select value={form.batchId} onChange={handleBatchChange} className={FIELD_CLASS}>
-                {FINANCE_BATCHES.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
+              <select
+                value={form.batchId}
+                onChange={handleBatchChange}
+                className={FIELD_CLASS}
+                disabled={!form.courseId}
+              >
+                <option value="">Select batch</option>
+                {batches.map((b) => {
+                  const id = b._id || b.batchId
+                  return (
+                    <option key={id} value={id}>
+                      {b.batchName}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 
@@ -195,12 +255,20 @@ export default function EditReceiptDialog({ open, row, onClose, onSave, saving =
 
             <label className="block text-sm">
               <span className="font-semibold text-[#222]">Payment mode *</span>
-              <select value={form.paymentMode} onChange={update('paymentMode')} className={FIELD_CLASS}>
-                {PAYMENT_MODE_OPTIONS.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {mode}
-                  </option>
-                ))}
+              <select
+                value={form.paymentMode}
+                onChange={update('paymentMode')}
+                className={FIELD_CLASS}
+                disabled={dropdownsLoading}
+              >
+                {paymentModes.map((mode) => {
+                  const value = mode.value || mode.paymentModeName || mode.label
+                  return (
+                    <option key={mode.paymentModeId || value} value={value}>
+                      {mode.label || mode.paymentModeName}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 
@@ -236,12 +304,17 @@ export default function EditReceiptDialog({ open, row, onClose, onSave, saving =
                 value={form.receiptLifecycleStatus}
                 onChange={update('receiptLifecycleStatus')}
                 className={FIELD_CLASS}
+                disabled={dropdownsLoading}
               >
-                {RECEIPT_LIFECYCLE_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                {receiptStatuses.map((s) => {
+                  const label = s.label || mapApiReceiptStatusToUi(s.value)
+                  const value = mapApiReceiptStatusToUi(s.value)
+                  return (
+                    <option key={s.value} value={value}>
+                      {label}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 

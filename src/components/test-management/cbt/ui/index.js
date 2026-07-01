@@ -19,7 +19,15 @@ export {
   CBT_DATA_PANEL,
   CBT_TABLE_CONTAINER,
   CBT_TABLE_CONTAINER_INSET,
+  CBT_TABLE_SCROLL_WRAP,
   CBT_TABLE_PAGINATION_CLASS,
+  CBT_TABLE_HEADER,
+  CBT_TABLE_CELL,
+  CBT_TABLE_CELL_LEFT,
+  CBT_TABLE_CELL_CENTER,
+  CBT_TABLE_BADGE,
+  CBT_ADMIN_TABLE_PROPS,
+  CBT_RESULTS_TABLE_MIN_WIDTH,
 } from './cbtTableStyles'
 export { default as CbtTableContainer } from './CbtTableContainer'
 export * from './cbtUiConstants'

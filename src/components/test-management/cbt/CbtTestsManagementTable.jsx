@@ -1,6 +1,10 @@
 import { useMemo } from 'react'
 import { CbtAdminTable, CbtEvaluationStatusPill } from './ui'
-import { createActionsColumn } from '../../../utils/tableColumnHelpers'
+import {
+  CBT_TABLE_CELL_CENTER,
+  CBT_TABLE_CELL_LEFT,
+  CBT_TABLE_HEADER,
+} from './ui/cbtTableStyles'
 import CbtTestsTableActions from './CbtTestsTableActions'
 
 export default function CbtTestsManagementTable({
@@ -15,77 +19,77 @@ export default function CbtTestsManagementTable({
       {
         key: 'title',
         label: 'Test Name',
-        headerClassName: 'min-w-[220px]',
-        cellClassName: 'min-w-[220px] align-middle',
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[220px] pl-5 text-left`,
+        cellClassName: `${CBT_TABLE_CELL_LEFT} min-w-[220px] pl-5`,
         render: (row) => (
-          <div className="min-w-0">
-            <span
-              className="block truncate font-semibold text-slate-900"
-              title={row.title || ''}
-            >
-              {row.title || '—'}
-            </span>
-          </div>
+          <span
+            className="block truncate font-semibold text-slate-900"
+            title={row.title || ''}
+          >
+            {row.title || '—'}
+          </span>
         ),
       },
       {
         key: 'uploadedDate',
         label: 'Uploaded Date',
-        headerClassName: 'min-w-[130px] whitespace-nowrap',
-        cellClassName: 'min-w-[130px] whitespace-nowrap align-middle',
-        render: (row) => (
-          <span className="font-medium text-[#686868]">{row.uploadedDate || '—'}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[150px] text-left`,
+        cellClassName: `${CBT_TABLE_CELL_LEFT} min-w-[150px] font-medium text-[#686868]`,
+        render: (row) => row.uploadedDate || '—',
       },
       {
         key: 'studentsAssigned',
         label: 'Students Assigned',
         align: 'center',
-        headerClassName: 'min-w-[150px] whitespace-nowrap text-center',
-        cellClassName: 'min-w-[150px] whitespace-nowrap align-middle text-center',
-        render: (row) => (
-          <span className="font-medium tabular-nums text-[#111]">{row.studentsAssigned ?? 0}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[160px] text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[160px] font-medium tabular-nums text-[#111]`,
+        render: (row) => row.studentsAssigned ?? 0,
       },
       {
         key: 'studentsDownloaded',
         label: 'PDF Downloads',
         align: 'center',
-        headerClassName: 'min-w-[130px] whitespace-nowrap text-center',
-        cellClassName: 'min-w-[130px] whitespace-nowrap align-middle text-center',
-        render: (row) => (
-          <span className="font-medium tabular-nums text-[#111]">{row.studentsDownloaded ?? 0}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[140px] text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[140px] font-medium tabular-nums text-[#111]`,
+        render: (row) => row.studentsDownloaded ?? 0,
       },
       {
         key: 'studentsUploaded',
         label: 'Answer Sheets Uploaded',
         align: 'center',
-        headerClassName: 'min-w-[180px] whitespace-nowrap text-center',
-        cellClassName: 'min-w-[180px] whitespace-nowrap align-middle text-center',
-        render: (row) => (
-          <span className="font-medium tabular-nums text-[#111]">{row.studentsUploaded ?? 0}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[190px] text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[190px] font-medium tabular-nums text-[#111]`,
+        render: (row) => row.studentsUploaded ?? 0,
       },
       {
         key: 'evaluationStatus',
         label: 'Evaluation Status',
         align: 'center',
-        headerClassName: 'min-w-[150px] whitespace-nowrap text-center',
-        cellClassName: 'min-w-[150px] align-middle text-center',
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[170px] text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[170px]`,
         render: (row) => (
-          <div className="flex w-full items-center justify-center">
+          <div className="flex justify-center">
             <CbtEvaluationStatusPill
               status={row.evaluationStatusLabel || row.evaluationStatus}
             />
           </div>
         ),
       },
-      createActionsColumn({
-        buttonCount: 1,
+      {
+        key: 'actions',
+        label: 'Actions',
         align: 'center',
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[120px] pr-5 text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[120px] pr-5`,
         render: (row) => <CbtTestsTableActions onView={() => onViewTest?.(row)} />,
-      }),
+      },
     ],
     [onViewTest],
   )
@@ -97,10 +101,10 @@ export default function CbtTestsManagementTable({
       emptyMessage={emptyMessage}
       itemLabel="tests"
       loading={loading}
-      skeletonRowCount={8}
+      skeletonRowCount={6}
       initialPageSize={10}
       resetDeps={resetDeps}
-      fullWidth
+      tableMinWidth={1100}
     />
   )
 }

@@ -13,7 +13,8 @@ export default function CommunicationStatusChips({ communications = {}, compact 
     <div className={cn('flex flex-col gap-1', compact && 'gap-0.5')}>
       {CHANNELS.map(({ key, label, icon: Icon, color }) => {
         const entry = communications[key] || {}
-        const sent = entry.status === 'Delivered' || entry.status === 'Sent'
+        const disabled = entry.enabled === false
+        const sent = entry.sent === true || entry.status === 'Delivered' || entry.status === 'Sent'
         const failed = entry.status === 'Failed'
 
         return (
@@ -25,7 +26,13 @@ export default function CommunicationStatusChips({ communications = {}, compact 
               failed && 'bg-red-50',
               !sent && !failed && 'bg-slate-50',
             )}
-            title={entry.sentAt ? formatCategoryDateTime(entry.sentAt) : 'Not sent'}
+            title={
+              disabled
+                ? entry.message || 'Coming Soon'
+                : entry.sentAt
+                  ? formatCategoryDateTime(entry.sentAt)
+                  : 'Not sent'
+            }
           >
             <Icon className={cn('h-3 w-3 shrink-0', color)} />
             <span className="font-medium text-[#333]">{label}</span>

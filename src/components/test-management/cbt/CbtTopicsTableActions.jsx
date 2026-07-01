@@ -1,10 +1,10 @@
-import ViewButton from '../../common/ViewButton'
+import CbtPrimaryActionButton from './ui/CbtPrimaryActionButton'
 import { TABLE_ACTIONS_WRAP_CENTER } from '../../../utils/tableColumnHelpers'
 
-export default function CbtTopicsTableActions({ onView, label = 'View' }) {
+export default function CbtTopicsTableActions({ onView }) {
   return (
     <div className={TABLE_ACTIONS_WRAP_CENTER}>
-      <ViewButton onClick={onView} label={label} />
+      <CbtPrimaryActionButton onClick={onView} label="View Topics" />
     </div>
   )
 }

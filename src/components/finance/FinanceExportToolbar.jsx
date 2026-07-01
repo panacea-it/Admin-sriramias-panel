@@ -10,10 +10,20 @@ export default function FinanceExportToolbar({
   canExport = true,
   className,
   variant = 'light',
+  onExportCsv,
+  exportLoading = false,
 }) {
   if (!canExport) return null
 
-  const handleCsv = () => {
+  const handleCsv = async () => {
+    if (onExportCsv) {
+      try {
+        await onExportCsv()
+      } catch (err) {
+        toast.error(err?.message || 'Export failed')
+      }
+      return
+    }
     if (!rows.length) {
       toast.error('No records to export')
       return
@@ -29,8 +39,8 @@ export default function FinanceExportToolbar({
 
   return (
     <div className={cn('flex flex-wrap gap-2', className)}>
-      <button type="button" onClick={handleCsv} className={btn}>
-        <Download className="h-4 w-4" /> CSV
+      <button type="button" onClick={handleCsv} disabled={exportLoading} className={btn}>
+        <Download className="h-4 w-4" /> {exportLoading ? 'Exporting…' : 'CSV'}
       </button>
     </div>
   )

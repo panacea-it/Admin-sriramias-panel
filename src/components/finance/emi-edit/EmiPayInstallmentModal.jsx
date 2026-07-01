@@ -3,7 +3,7 @@ import { IndianRupee, Upload } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
 import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
-import { readProofFile } from '../../../utils/emiEditModel'
+import { resolvePaymentModeId } from '../../../utils/emiManagementHelpers'
 import { toast } from '../../../utils/toast'
 import { cn } from '../../../utils/cn'
 
@@ -19,26 +19,39 @@ function FieldLabel({ children }) {
   return <span className="block text-sm font-semibold text-[#222]">{children}</span>
 }
 
-export default function EmiPayInstallmentModal({ open, row, locked, onClose, onSave }) {
+export default function EmiPayInstallmentModal({
+  open,
+  row,
+  locked,
+  onClose,
+  onSave,
+  paymentModes = [],
+  saving = false,
+}) {
   const [form, setForm] = useState(null)
   const [proofName, setProofName] = useState('')
   const [proofFile, setProofFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const modeOptions = paymentModes.length
+    ? paymentModes.map((m) => ({ value: m.paymentModeId, label: m.paymentModeName }))
+    : OFFLINE_PAYMENT_MODES.map((m) => ({ value: m, label: m }))
+
   useEffect(() => {
     if (!open || !row) return
+    const defaultMode = row.paymentModeId || resolvePaymentModeId(paymentModes, row.paymentMode) || ''
     setForm({
       status: row.status || 'Due',
-      paymentMode: row.paymentMode || '',
+      paymentMode: defaultMode,
       receiptNumber: row.receiptNumber || '',
       referenceNumber: row.referenceNumber || row.utrNumber || '',
-      paidDate: row.paidDate || '',
+      paidDate: row.paidDate || new Date().toISOString().slice(0, 10),
       remarks: row.remarks || '',
     })
     setProofName(row.proofFileName || '')
     setProofFile(null)
     setSubmitting(false)
-  }, [open, row])
+  }, [open, row, paymentModes])
 
   if (!open || !form || !row) return null
 
@@ -52,38 +65,33 @@ export default function EmiPayInstallmentModal({ open, row, locked, onClose, onS
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (submitting) return
+    if (submitting || saving) return
     setSubmitting(true)
 
     try {
-      let proofData = {}
-      if (proofFile) {
-        proofData = await readProofFile(proofFile)
-      } else if (row.proofFileName) {
-        proofData = {
-          proofFileName: row.proofFileName,
-          proofUrl: row.proofUrl,
-          proofDataUrl: row.proofDataUrl,
-        }
-      }
-
-      onSave?.({
-        ...row,
-        status: form.status,
-        paymentMode: form.paymentMode,
-        receiptNumber: form.receiptNumber,
-        referenceNumber: form.referenceNumber,
-        utrNumber: form.referenceNumber,
-        paidDate: form.paidDate,
-        remarks: form.remarks,
-        ...proofData,
-      })
+      await onSave?.(
+        {
+          ...row,
+          paymentMode: form.paymentMode,
+          paymentModeId: resolvePaymentModeId(paymentModes, form.paymentMode),
+          receiptNumber: form.receiptNumber,
+          referenceNumber: form.referenceNumber,
+          utrNumber: form.referenceNumber,
+          paidDate: form.paidDate,
+          remarks: form.remarks,
+          installmentNo: row.installmentNo,
+        },
+        proofFile,
+      )
       onClose()
     } catch (err) {
-      toast.error(err.message || 'Failed to upload proof')
+      toast.error(err.message || 'Failed to save payment')
+    } finally {
       setSubmitting(false)
     }
   }
+
+  const isSaving = submitting || saving
 
   return (
     <Modal open={open} onClose={onClose} size="md" title="Pay installment" showCloseButton={false}>
@@ -131,9 +139,9 @@ export default function EmiPayInstallmentModal({ open, row, locked, onClose, onS
                   className={cn(FIELD_CLASS, 'cursor-pointer')}
                 >
                   <option value="">—</option>
-                  {OFFLINE_PAYMENT_MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
+                  {modeOptions.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
                     </option>
                   ))}
                 </select>
@@ -213,17 +221,17 @@ export default function EmiPayInstallmentModal({ open, row, locked, onClose, onS
             <button
               type="button"
               onClick={onClose}
-              disabled={submitting}
+              disabled={isSaving}
               className="min-w-[108px] rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#444] shadow-sm transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={locked || submitting}
+              disabled={locked || isSaving}
               className="min-w-[148px] rounded-lg bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-6 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? 'Saving…' : 'Save Payment'}
+              {isSaving ? 'Saving…' : 'Save Payment'}
             </button>
           </div>
         </form>

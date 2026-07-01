@@ -63,7 +63,7 @@ export default function CbtFacultyDetailPage() {
         </CbtBackButton>
       }
     >
-      <CbtBreadcrumbNav items={breadcrumbs} className="mt-1" />
+      <CbtBreadcrumbNav items={breadcrumbs} />
 
       <CbtStatsGrid className="mt-5 sm:mt-6">
         <StatCard title="Topics" value={topics.length} color="#1a3a5c" icon={BookOpen} />
@@ -75,6 +75,10 @@ export default function CbtFacultyDetailPage() {
           icon={Users}
         />
       </CbtStatsGrid>
+
+      <p className="mt-5 text-sm text-slate-500 sm:mt-6">
+        Select a topic to view tests and evaluation results.
+      </p>
 
       <div className="mt-5 sm:mt-6">
         <CbtTopicsTable faculty={faculty} topics={topics} loading={topicsLoading} />

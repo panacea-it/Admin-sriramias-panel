@@ -11,6 +11,8 @@ export const TEST_MANAGEMENT_ROUTES = {
     `${TEST_MANAGEMENT_BASE}/cbt/faculty/${encodeURIComponent(String(subjectId))}/results/${encodeURIComponent(String(testItemId))}`,
   cbtTopic: (subjectId, topicId) =>
     `${TEST_MANAGEMENT_BASE}/cbt/faculty/${encodeURIComponent(String(subjectId))}/topic/${encodeURIComponent(String(topicId))}`,
+  cbtTopicTestResults: (subjectId, topicId, testId) =>
+    `${TEST_MANAGEMENT_BASE}/cbt/faculty/${encodeURIComponent(String(subjectId))}/topic/${encodeURIComponent(String(topicId))}/test/${encodeURIComponent(String(testId))}/results`,
   mains: `${TEST_MANAGEMENT_BASE}/mains`,
   mainsFaculty: (subjectId) =>
     `${TEST_MANAGEMENT_BASE}/mains/faculty/${encodeURIComponent(String(subjectId))}`,

@@ -2,23 +2,36 @@ import { useEffect, useState } from 'react'
 import { Download, Mail, MessageCircle, MessageSquare, Printer, Send } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import CompletionReceiptDocument from './CompletionReceiptDocument'
-import { buildReceiptMessage, printReceiptDocument, downloadReceiptHtml } from '../../../utils/receiptCompletion'
 import { cn } from '../../../utils/cn'
 import Modal from '../../ui/Modal'
 
 const CHANNELS = [
-  { id: 'WhatsApp', icon: MessageCircle, color: 'border-[#25D366] text-[#128C7E]' },
-  { id: 'SMS', icon: MessageSquare, color: 'border-[#246392] text-[#246392]' },
-  { id: 'Email', icon: Mail, color: 'border-indigo-300 text-indigo-700' },
+  { id: 'WhatsApp', icon: MessageCircle, color: 'border-[#25D366] text-[#128C7E]', key: 'whatsapp' },
+  { id: 'SMS', icon: MessageSquare, color: 'border-[#246392] text-[#246392]', key: 'sms' },
+  { id: 'Email', icon: Mail, color: 'border-indigo-300 text-indigo-700', key: 'email' },
 ]
 
-export default function SendReceiptDialog({ open, row, gstSettings = null, onClose, onSend, sending = false }) {
+export default function SendReceiptDialog({
+  open,
+  row,
+  previewRow = null,
+  gstSettings = null,
+  emailDefaults = null,
+  channelsEnabled = { whatsapp: false, sms: false, email: true },
+  onClose,
+  onSend,
+  onPrint,
+  onDownload,
+  sending = false,
+  previewLoading = false,
+}) {
   const [channel, setChannel] = useState('WhatsApp')
 
   const { register, handleSubmit, reset, setValue } = useForm({
     defaultValues: {
       mobile: '',
       email: '',
+      subject: '',
       message: '',
     },
   })
@@ -27,27 +40,37 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
     if (!open || !row) return
     reset({
       mobile: row.mobile || '',
-      email: row.email || '',
-      message: buildReceiptMessage(row, 'WhatsApp'),
+      email: emailDefaults?.email || row.email || '',
+      subject: emailDefaults?.subject || '',
+      message: emailDefaults?.message || '',
     })
     setChannel('WhatsApp')
-  }, [open, row, reset])
+  }, [open, row, emailDefaults, reset])
 
   useEffect(() => {
-    if (!row) return
-    setValue('message', buildReceiptMessage(row, channel))
-  }, [channel, row, setValue])
+    if (!open || channel !== 'Email' || !emailDefaults) return
+    setValue('email', emailDefaults.email || row?.email || '')
+    setValue('subject', emailDefaults.subject || '')
+    setValue('message', emailDefaults.message || '')
+  }, [channel, emailDefaults, open, row, setValue])
+
+  const activeChannel = CHANNELS.find((c) => c.id === channel)
+  const channelKey = activeChannel?.key || 'email'
+  const isChannelEnabled = channelsEnabled[channelKey] !== false
 
   const onSubmit = async (data) => {
     await onSend?.({
       channel,
       mobile: data.mobile,
       email: data.email,
+      subject: data.subject,
       message: data.message,
     })
   }
 
   if (!open || !row) return null
+
+  const displayRow = previewRow || row
 
   return (
     <Modal open={open} onClose={onClose} size="xl" title="Send receipt">
@@ -69,13 +92,19 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#246392]">
               Receipt preview
             </p>
-            <div className="origin-top scale-[0.92] sm:scale-100">
-              <CompletionReceiptDocument row={row} gstSettings={gstSettings} compact />
-            </div>
+            {previewLoading ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-[#686868]">
+                Loading preview…
+              </div>
+            ) : (
+              <div className="origin-top scale-[0.92] sm:scale-100">
+                <CompletionReceiptDocument row={displayRow} gstSettings={gstSettings} compact />
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2 print:hidden">
               <button
                 type="button"
-                onClick={() => printReceiptDocument(row, gstSettings || {})}
+                onClick={() => onPrint?.(row)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#444] hover:bg-slate-50"
               >
                 <Printer className="h-3.5 w-3.5" />
@@ -83,7 +112,7 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
               </button>
               <button
                 type="button"
-                onClick={() => downloadReceiptHtml(row, gstSettings || {})}
+                onClick={() => onDownload?.(row)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#444] hover:bg-slate-50"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -120,21 +149,30 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
                 <label className="block text-xs font-semibold text-[#333]">
                   Mobile number
                   <input
-                    {...register('mobile', { required: true })}
+                    {...register('mobile', { required: isChannelEnabled })}
                     className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
                   />
                 </label>
               )}
 
               {channel === 'Email' && (
-                <label className="block text-xs font-semibold text-[#333]">
-                  Email ID
-                  <input
-                    type="email"
-                    {...register('email', { required: true })}
-                    className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                  />
-                </label>
+                <>
+                  <label className="block text-xs font-semibold text-[#333]">
+                    Email ID
+                    <input
+                      type="email"
+                      {...register('email', { required: isChannelEnabled })}
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-[#333]">
+                    Subject
+                    <input
+                      {...register('subject')}
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                    />
+                  </label>
+                </>
               )}
 
               <label className="block text-xs font-semibold text-[#333]">
@@ -148,8 +186,14 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
 
               {channel === 'WhatsApp' && (
                 <p className="rounded-lg bg-[#dcf8e8] px-3 py-2 text-[11px] text-[#128C7E]">
-                  Receipt PDF will be attached automatically when WhatsApp is connected to the
-                  backend.
+                  {isChannelEnabled
+                    ? 'Receipt PDF will be attached automatically when WhatsApp is connected to the backend.'
+                    : 'Coming Soon — WhatsApp sending is not yet available.'}
+                </p>
+              )}
+              {channel === 'SMS' && !isChannelEnabled && (
+                <p className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-[#686868]">
+                  Coming Soon — SMS sending is not yet available.
                 </p>
               )}
             </div>
@@ -164,7 +208,8 @@ export default function SendReceiptDialog({ open, row, gstSettings = null, onClo
               </button>
               <button
                 type="submit"
-                disabled={sending}
+                disabled={sending || !isChannelEnabled}
+                title={!isChannelEnabled ? 'Coming Soon' : undefined}
                 className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-[#246392] to-[#1a4d73] px-5 text-sm font-bold text-white disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />

@@ -55,18 +55,37 @@ export default function AddOfflinePaymentModal({
     updateInstallment,
     buildPayload,
     validate,
+    validateScheduleWithApi,
     paymentMode,
     paymentId,
     centerOptions,
+    courseOptions,
+    batchOptions,
+    studentOptions,
+    batchesLoading,
+    batchesFetchError,
+    paymentModeOptions,
     OFFLINE_SUBMIT_ACTIONS: ACTIONS,
   } = form
 
+  const modeSelectOptions =
+    paymentModeOptions.length > 0
+      ? paymentModeOptions
+      : OFFLINE_PAYMENT_MODES.map((m) => ({ label: m, name: m, value: m }))
+
   const submitApprove = () =>
-    handleSubmit((data) => {
+    handleSubmit(async (data) => {
       const errs = validate(data)
       if (errs.length > 0) {
         toast.error(errs[0])
         return
+      }
+      if (emiEnabled) {
+        const scheduleCheck = await validateScheduleWithApi()
+        if (!scheduleCheck.valid) {
+          toast.error(scheduleCheck.message || 'Invalid EMI schedule')
+          return
+        }
       }
       onSubmit?.(buildPayload(data, ACTIONS.APPROVE))
     })()
@@ -114,6 +133,11 @@ export default function AddOfflinePaymentModal({
               profile={studentProfile}
               onChange={setStudentProfile}
               centerOptions={centerOptions}
+              courseOptions={courseOptions}
+              studentOptions={studentOptions}
+              batchOptions={batchOptions}
+              batchesLoading={batchesLoading}
+              batchesFetchError={batchesFetchError}
               financials={financials}
               onSearchSelect={handleSearchSelect}
               onWalkIn={handleWalkIn}
@@ -156,9 +180,9 @@ export default function AddOfflinePaymentModal({
                   <label className={labelClass}>
                     Payment mode
                     <select {...register('paymentMode', { required: true })} className={fieldClass}>
-                      {OFFLINE_PAYMENT_MODES.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
+                      {modeSelectOptions.map((m) => (
+                        <option key={m.paymentModeId || m.name || m.label} value={m.name || m.label}>
+                          {m.label || m.name}
                         </option>
                       ))}
                     </select>

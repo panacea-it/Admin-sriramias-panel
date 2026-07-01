@@ -12,7 +12,7 @@ function FieldLabel({ children }) {
   return <span className="block text-sm font-semibold text-[#222]">{children}</span>
 }
 
-export default function EmiCustomizeInstallmentModal({ open, row, locked, onClose, onSave }) {
+export default function EmiCustomizeInstallmentModal({ open, row, locked, onClose, onSave, saving = false }) {
   const [form, setForm] = useState(null)
 
   useEffect(() => {
@@ -29,10 +29,11 @@ export default function EmiCustomizeInstallmentModal({ open, row, locked, onClos
 
   if (!open || !form || !row) return null
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    if (saving) return
     const dueDate = form.dueDate || row.dueDate
-    onSave?.({
+    await onSave?.({
       ...row,
       emiAmount: form.emiAmount === '' ? 0 : Number(form.emiAmount),
       dueDate,
@@ -43,7 +44,6 @@ export default function EmiCustomizeInstallmentModal({ open, row, locked, onClos
       customCharge: Number(form.customCharge) || 0,
       rebalanceRemaining: form.rebalanceRemaining,
     })
-    onClose()
   }
 
   return (
@@ -151,10 +151,10 @@ export default function EmiCustomizeInstallmentModal({ open, row, locked, onClos
             </button>
             <button
               type="submit"
-              disabled={locked}
+              disabled={locked || saving}
               className="min-w-[148px] rounded-lg bg-gradient-to-r from-[#0d3b66] to-[#05192d] px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Save Installment
+              {saving ? 'Saving…' : 'Save Installment'}
             </button>
           </div>
         </form>

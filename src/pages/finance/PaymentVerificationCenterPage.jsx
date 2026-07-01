@@ -15,33 +15,49 @@ import AddOfflinePaymentModal from '../../components/finance/AddOfflinePaymentMo
 import VerificationCenterFilters from '../../components/finance/verification/VerificationCenterFilters'
 import VerificationPaymentViewModal from '../../components/finance/verification/VerificationPaymentViewModal'
 import PaginatedFigmaTable from '../../components/figma/PaginatedFigmaTable'
-import { FINANCE_COURSES } from '../../data/financeMockData'
 import {
-  fetchVerificationQueue,
-  verifyPayment,
-  financeHeadApproveVerification,
-  rejectVerification,
-  markDuplicatePaymentValid,
-  submitOfflinePaymentReport,
-  generateReceipt,
-} from '../../api/financeAPI'
+  fetchVerificationFilterOptions,
+  fetchVerificationPaymentModes,
+  fetchVerificationCentersDropdown,
+  fetchVerificationList,
+  fetchAllVerificationRecords,
+  fetchVerificationDetail,
+  approveVerificationRecord,
+  rejectVerificationRecord,
+  submitFullPayment,
+  saveEmiPlan,
+  fetchCoursesByCenter,
+} from '../../api/paymentVerificationAPI'
 import {
-  FINANCE_VERIFICATION_STATUSES,
-  FINANCE_STANDARD_PAYMENT_MODES,
-} from '../../constants/financeConstants'
-import { FINANCE_APPROVAL_STATUSES, VERIFICATION_QUEUE_EXPORT_COLUMNS } from '../../constants/financeVerification'
+  buildFullPaymentFormData,
+  buildEmiPlanFormData,
+  canVerifyRecord,
+  canRejectRecord,
+  canFinanceHeadApproveRecord,
+  mapCoursesToOptions,
+  mapPaymentModesToOptions,
+  VERIFICATION_EXPORT_COLUMNS,
+} from '../../utils/paymentVerificationHelpers'
+import { VERIFICATION_QUEUE_EXPORT_COLUMNS } from '../../constants/financeVerification'
 import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
-import { canVerifierAct, canFinanceHeadAct } from '../../utils/financeVerificationWorkflow'
+import { exportFinanceCsv } from '../../utils/financeExport'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
-import { useAuth } from '../../contexts/AuthContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
-function adminDisplayName(user, roleLabel) {
-  return user?.name || user?.email || roleLabel || 'Finance Admin'
+const PAGE_SIZE = 25
+
+function dedupeFilterOptions(options = []) {
+  const seen = new Set()
+  return options.filter((opt) => {
+    const key = String(opt?.value ?? '')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return opt?.value != null && opt?.value !== ''
+  })
 }
 
 function DuplicateBadge({ row, onClick }) {
@@ -92,7 +108,7 @@ function VerificationMobileCard({ row, actions, onDuplicateClick }) {
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         {(row.proofFiles?.length > 0 || row.paymentProof) && (
           <ProofThumbnail
-            proof={row.proofFiles?.[0] || { name: row.paymentProof }}
+            proof={row.proofFiles?.[0] || { name: row.paymentProof, url: row.paymentProofUrl }}
             onClick={() => actions.onViewProof(row)}
           />
         )}
@@ -103,16 +119,25 @@ function VerificationMobileCard({ row, actions, onDuplicateClick }) {
 }
 
 export default function PaymentVerificationCenterPage() {
-  const { user, roleLabel } = useAuth()
-  const adminName = adminDisplayName(user, roleLabel)
-  const { canVerify, canFinanceHeadApprove, canEdit, canReceipts, canExport } = useFinancePermissions()
+  const { canVerify, canFinanceHeadApprove, canEdit, canExport } = useFinancePermissions()
   const { bumpRefresh } = useFinanceOperations()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const [filterOptions, setFilterOptions] = useState(null)
+  const [paymentModes, setPaymentModes] = useState([])
+  const [centers, setCenters] = useState([])
+  const [courseOptions, setCourseOptions] = useState([])
   const [queue, setQueue] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [exportLoading, setExportLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
+
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, 200)
+  const debouncedSearch = useDebouncedValue(search, 400)
   const [statusFilter, setStatusFilter] = useState('all')
   const [approvalFilter, setApprovalFilter] = useState('all')
   const [modeFilter, setModeFilter] = useState('all')
@@ -120,6 +145,7 @@ export default function PaymentVerificationCenterPage() {
   const [courseFilter, setCourseFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+
   const [viewRow, setViewRow] = useState(null)
   const [proofRow, setProofRow] = useState(null)
   const [verifyRow, setVerifyRow] = useState(null)
@@ -128,20 +154,93 @@ export default function PaymentVerificationCenterPage() {
   const [duplicateRow, setDuplicateRow] = useState(null)
   const [offlineOpen, setOfflineOpen] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const listParams = useMemo(
+    () => ({
+      search: debouncedSearch,
+      verificationStatus: statusFilter,
+      financeHeadStatus: approvalFilter,
+      paymentModeId: modeFilter,
+      centerId: centerFilter,
+      courseId: courseFilter,
+      dateFrom,
+      dateTo,
+      page,
+      limit: pageSize,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    }),
+    [
+      debouncedSearch,
+      statusFilter,
+      approvalFilter,
+      modeFilter,
+      centerFilter,
+      courseFilter,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+    ],
+  )
+
+  const loadSetup = useCallback(async () => {
     try {
-      setQueue(await fetchVerificationQueue())
+      const [options, modes, centerList] = await Promise.all([
+        fetchVerificationFilterOptions(),
+        fetchVerificationPaymentModes(),
+        fetchVerificationCentersDropdown(),
+      ])
+      setFilterOptions(options)
+      setPaymentModes(modes)
+      setCenters(
+        centerList.map((c) => ({
+          id: c.value || c.id || c._id,
+          name: c.centerName || c.name || c.label,
+        })),
+      )
     } catch {
-      toast.error('Failed to load verification queue')
-    } finally {
-      setLoading(false)
+      toast.error('Failed to load verification filters')
     }
   }, [])
 
+  const loadList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const result = await fetchVerificationList(listParams)
+      setQueue(result.items || [])
+      setTotalCount(result.totalCount ?? 0)
+      setTotalPages(result.totalPages ?? 1)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to load verification queue')
+      setQueue([])
+      setTotalCount(0)
+      setTotalPages(1)
+    } finally {
+      setLoading(false)
+    }
+  }, [listParams])
+
   useEffect(() => {
-    load()
-  }, [load])
+    loadSetup()
+  }, [loadSetup])
+
+  useEffect(() => {
+    loadList()
+  }, [loadList])
+
+  useEffect(() => {
+    setPage(1)
+  }, [
+    debouncedSearch,
+    statusFilter,
+    approvalFilter,
+    modeFilter,
+    centerFilter,
+    courseFilter,
+    dateFrom,
+    dateTo,
+    pageSize,
+  ])
 
   useEffect(() => {
     if (searchParams.get('addOffline') === '1' && (canVerify || canEdit)) {
@@ -151,65 +250,89 @@ export default function PaymentVerificationCenterPage() {
     }
   }, [searchParams, setSearchParams, canVerify, canEdit])
 
-  const centerOptions = useMemo(() => {
-    const names = [...new Set(queue.map((r) => r.centerName).filter(Boolean))]
-    return names.sort()
-  }, [queue])
+  useEffect(() => {
+    if (centerFilter === 'all') {
+      setCourseOptions([])
+      return
+    }
+    let cancelled = false
+    fetchCoursesByCenter(centerFilter)
+      .then((items) => {
+        if (!cancelled) setCourseOptions(mapCoursesToOptions(items))
+      })
+      .catch(() => {
+        if (!cancelled) setCourseOptions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [centerFilter])
+
+  const handleCenterFilterChange = (e) => {
+    setCenterFilter(e.target.value)
+    setCourseFilter('all')
+  }
+
+  const verificationStatusOptions = useMemo(() => {
+    const fromApi = dedupeFilterOptions(
+      (filterOptions?.verificationStatuses || []).filter((s) => s.value && s.value !== 'ALL'),
+    )
+    return [{ value: 'all', label: 'All verification' }, ...fromApi]
+  }, [filterOptions])
+
+  const approvalStatusOptions = useMemo(() => {
+    const fromApi = dedupeFilterOptions(filterOptions?.financeHeadStatuses || [])
+    return [{ value: 'all', label: 'All approval' }, ...fromApi]
+  }, [filterOptions])
 
   const modeOptions = useMemo(() => {
-    const modes = [...new Set(queue.map((r) => r.paymentMode).filter(Boolean))]
-    return modes.sort()
-  }, [queue])
+    const fromApi = dedupeFilterOptions(mapPaymentModesToOptions(paymentModes))
+    return [{ value: 'all', label: 'All modes' }, ...fromApi]
+  }, [paymentModes])
 
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase()
-    return queue.filter((row) => {
-      const st = row.verificationStatus
-      const ap = row.approvalStatus
-      if (statusFilter !== 'all' && st !== statusFilter) return false
-      if (approvalFilter !== 'all' && ap !== approvalFilter) return false
-      if (modeFilter !== 'all' && row.paymentMode !== modeFilter) return false
-      if (centerFilter !== 'all' && row.centerName !== centerFilter) return false
-      if (courseFilter !== 'all' && row.course !== FINANCE_COURSES.find((c) => c.id === courseFilter)?.name)
-        return false
-      const dateVal = row.updatedAt || row.submittedAt
-      if (dateFrom && dateVal && new Date(dateVal) < new Date(dateFrom)) return false
-      if (dateTo && dateVal && new Date(dateVal) > new Date(`${dateTo}T23:59:59`)) return false
-      if (!q) return true
-      const hay = [
-        row.student,
-        row.studentId,
-        row.id,
-        row.utrNumber,
-        row.transactionId,
-        row.course,
-        row.centerName,
-        row.paymentMode,
-        row.approvalStatus,
-        row.verificationStatus,
-      ]
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(q)
-    })
-  }, [
-    queue,
-    debouncedSearch,
-    statusFilter,
-    approvalFilter,
-    modeFilter,
-    centerFilter,
-    courseFilter,
-    dateFrom,
-    dateTo,
-  ])
+  const centerOptions = useMemo(() => {
+    const fromCenters = dedupeFilterOptions(
+      centers.map((c) => ({ value: c.id, label: c.name })),
+    )
+    return [{ value: 'all', label: 'All centers' }, ...fromCenters]
+  }, [centers])
+
+  const courseFilterOptions = useMemo(() => {
+    return [
+      { value: 'all', label: 'All courses' },
+      ...dedupeFilterOptions(courseOptions.map((c) => ({ value: c.value, label: c.label }))),
+    ]
+  }, [courseOptions])
+
+  const pagination = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages || 1)
+    const startIndex = totalCount === 0 ? 0 : (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalCount)
+    return {
+      page: safePage,
+      pageSize,
+      totalItems: totalCount,
+      totalPages: totalPages || 1,
+      startIndex,
+      endIndex,
+    }
+  }, [page, pageSize, totalCount, totalPages])
+
+  const controlledPagination = useMemo(
+    () => ({
+      ...pagination,
+      onPageChange: setPage,
+      onPageSizeChange: setPageSize,
+    }),
+    [pagination],
+  )
 
   const runAction = async (fn, successMsg, errorMsg = 'Action failed') => {
     setActionLoading(true)
     try {
       await fn()
       if (successMsg) toast.success(successMsg)
-      await load()
+      await loadList()
       bumpRefresh()
     } catch (err) {
       toast.error(err?.message || errorMsg)
@@ -218,71 +341,115 @@ export default function PaymentVerificationCenterPage() {
     }
   }
 
+  const resolveRecordId = (row) => row?.verificationId || row?.id || row?._id
+
+  const handleViewRow = async (row) => {
+    setViewRow(row)
+    try {
+      const detail = await fetchVerificationDetail(resolveRecordId(row))
+      if (detail) setViewRow(detail)
+      await loadList()
+    } catch (err) {
+      toast.error(err?.message || 'Failed to load payment details')
+    }
+  }
+
+  const handleViewProof = (row) => {
+    if (row?.paymentProofUrl) {
+      window.open(row.paymentProofUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setProofRow(row)
+  }
+
   const handleVerifyConfirm = async () => {
     if (!verifyRow) return
+    const recordId = resolveRecordId(verifyRow)
     await runAction(
-      () => verifyPayment(verifyRow.id, { adminName, comment: 'Payment verified by officer' }),
-      `${verifyRow.student} verified — sent to Finance Head`,
+      () => approveVerificationRecord(recordId),
+      'Payment verified successfully.',
     )
     setVerifyRow(null)
+    setViewRow(null)
   }
 
   const handleHeadApproveConfirm = async () => {
     if (!headApproveRow) return
-    await runAction(async () => {
-      await financeHeadApproveVerification(headApproveRow.id, {
-        adminName,
-        comment: 'Final approval by Finance Head',
-      })
-      if (canReceipts) {
-        try {
-          await generateReceipt(headApproveRow.id)
-        } catch {
-          /* optional */
-        }
-      }
-    }, `${headApproveRow.student} approved — moved to Student Payment Reports`)
+    const recordId = resolveRecordId(headApproveRow)
+    await runAction(
+      () => approveVerificationRecord(recordId),
+      `${headApproveRow.student} approved — moved to Student Payment Reports`,
+    )
     setHeadApproveRow(null)
+    setViewRow(null)
   }
 
   const handleReject = async (payload) => {
     if (!rejectRow) return
+    const recordId = resolveRecordId(rejectRow)
     await runAction(
-      () => rejectVerification(rejectRow.id, { ...payload, adminName }),
+      () =>
+        rejectVerificationRecord(recordId, {
+          reason: payload.reason,
+          comment: payload.comment || payload.rejectionRemarks,
+        }),
       'Payment rejected',
     )
     setRejectRow(null)
+    setViewRow(null)
   }
 
-  const handleMarkDuplicateValid = async (row) => {
-    await runAction(
-      () => markDuplicatePaymentValid(row.id, { adminName, remark: 'Duplicate reviewed and marked valid' }),
-      'Duplicate override saved — approval unlocked',
-    )
-    setDuplicateRow(null)
+  const handleExportCsv = async () => {
+    setExportLoading(true)
+    try {
+      const allRows = await fetchAllVerificationRecords({
+        ...listParams,
+        page: undefined,
+        limit: undefined,
+      })
+      if (!allRows.length) {
+        toast.error('No records to export')
+        return
+      }
+      const ok = exportFinanceCsv(
+        allRows,
+        `payment-verification-export-${Date.now()}.csv`,
+        VERIFICATION_EXPORT_COLUMNS.length ? VERIFICATION_EXPORT_COLUMNS : VERIFICATION_QUEUE_EXPORT_COLUMNS,
+      )
+      if (ok !== false) toast.success('CSV ready')
+    } catch (err) {
+      toast.error(err?.message || 'Export failed')
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   const handleOfflineSubmit = async (form) => {
     setActionLoading(true)
     try {
-      const result = await submitOfflinePaymentReport(form)
-      if (result?.draft) {
-        toast.success('Offline payment saved as draft')
-      } else if (form.submitAction === 'emi_plan') {
-        toast.success('EMI plan saved successfully')
-      } else if (form.submitAction === 'receipt' && result?.receiptId) {
-        await generateReceipt(result.receiptId)
-        toast.success('Payment approved and receipt generated')
-      } else if (form.emiEnabled && result?.emiPlan) {
-        toast.success('Offline payment approved with EMI plan activated')
+      if (form.emiEnabled) {
+        const result = await saveEmiPlan(buildEmiPlanFormData(form, paymentModes))
+        const verificationId = result?.verificationId || result?.data?.verificationId
+        toast.success(
+          verificationId
+            ? `EMI plan submitted for verification (${verificationId})`
+            : 'EMI plan submitted for verification',
+        )
       } else {
-        toast.success('Offline payment approved and added to Student Payment Reports')
+        const result = await submitFullPayment(buildFullPaymentFormData(form, paymentModes))
+        const verificationId =
+          result?.verifications?.[0]?.verificationId || result?.data?.verifications?.[0]?.verificationId
+        toast.success(
+          verificationId
+            ? `Payment submitted for verification (${verificationId})`
+            : 'Payment submitted for verification',
+        )
       }
       setOfflineOpen(false)
-      await load()
+      await loadList()
       bumpRefresh()
-    } catch {
-      toast.error('Failed to submit offline payment')
+    } catch (err) {
+      toast.error(err?.message || 'Failed to submit offline payment')
     } finally {
       setActionLoading(false)
     }
@@ -290,16 +457,13 @@ export default function PaymentVerificationCenterPage() {
 
   const buildRowActions = useCallback(
     (row) => {
-      const verifierCanAct = canVerify && canVerifierAct(row)
-      const headCanAct = canFinanceHeadApprove && canFinanceHeadAct(row)
+      const verifierCanAct = canVerify && canVerifyRecord(row)
+      const headCanAct = canFinanceHeadApprove && canFinanceHeadApproveRecord(row)
       const canActOnPayment = verifierCanAct || headCanAct
-      const duplicateBlocked = row.isDuplicate && !row.duplicateOverride
 
-      const actions = [
-        { label: 'View', icon: Eye, onClick: () => setViewRow(row) },
-      ]
+      const actions = [{ label: 'View', icon: Eye, onClick: () => handleViewRow(row) }]
 
-      if (canActOnPayment && !duplicateBlocked) {
+      if (canActOnPayment) {
         actions.push({
           label: 'Approve',
           icon: Check,
@@ -307,7 +471,7 @@ export default function PaymentVerificationCenterPage() {
         })
       }
 
-      if (canActOnPayment && row.approvalStatus !== 'Approved' && row.verificationStatus !== 'Rejected') {
+      if (canActOnPayment && canRejectRecord(row)) {
         actions.push({
           label: 'Reject',
           icon: X,
@@ -371,11 +535,15 @@ export default function PaymentVerificationCenterPage() {
         label: 'Uploaded Proof',
         cellClassName: 'whitespace-nowrap align-middle',
         render: (r) => {
-          const files = r.proofFiles?.length ? r.proofFiles : r.paymentProof ? [{ name: r.paymentProof }] : []
+          const files = r.proofFiles?.length
+            ? r.proofFiles
+            : r.paymentProof
+              ? [{ name: r.paymentProof, url: r.paymentProofUrl }]
+              : []
           if (!files.length) return <span className="text-xs text-[#686868]">—</span>
           return (
             <div className="flex items-center gap-1">
-              <ProofThumbnail proof={files[0]} onClick={() => setProofRow(r)} />
+              <ProofThumbnail proof={files[0]} onClick={() => handleViewProof(r)} />
               {files.length > 1 && (
                 <span className="text-[10px] font-semibold text-[#686868]">+{files.length - 1}</span>
               )}
@@ -405,7 +573,7 @@ export default function PaymentVerificationCenterPage() {
               </div>
             )
           }
-          if (r.approvalStatus === 'Rejected') {
+          if (r.approvalStatus === 'Rejected' || r.verificationStatusRaw === 'REJECTED') {
             return (
               <div className="text-xs">
                 <span className="font-semibold text-[#df8284]">Rejected</span>
@@ -453,9 +621,11 @@ export default function PaymentVerificationCenterPage() {
     'inline-flex h-10 items-center gap-2 rounded-lg bg-white/20 px-3 text-sm font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/30'
 
   const mobileActions = {
-    onViewProof: setProofRow,
+    onViewProof: handleViewProof,
     renderMenu: (row) => <FinanceActionMenu actions={buildRowActions(row)} inlineFrom="sm" />,
   }
+
+  const rejectionReasons = filterOptions?.rejectionReasons || []
 
   return (
     <FinancePageShell
@@ -470,11 +640,11 @@ export default function PaymentVerificationCenterPage() {
             </button>
           )}
           <FinanceExportToolbar
-            rows={filtered}
-            filenameBase="verification-queue"
+            filenameBase="payment-verification-export"
             canExport={canExport}
             variant="banner"
-            columnDefs={VERIFICATION_QUEUE_EXPORT_COLUMNS}
+            onExportCsv={handleExportCsv}
+            exportLoading={exportLoading}
           />
         </div>
       }
@@ -493,64 +663,50 @@ export default function PaymentVerificationCenterPage() {
             label: 'Verification status',
             value: statusFilter,
             onChange: (e) => setStatusFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All verification' },
-              ...FINANCE_VERIFICATION_STATUSES.map((s) => ({ value: s, label: s })),
-            ],
+            options: verificationStatusOptions,
           },
           {
             key: 'approval',
             label: 'Approval status',
             value: approvalFilter,
             onChange: (e) => setApprovalFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All approval' },
-              ...FINANCE_APPROVAL_STATUSES.map((s) => ({ value: s, label: s })),
-            ],
+            options: approvalStatusOptions,
           },
           {
             key: 'mode',
             label: 'Payment mode',
             value: modeFilter,
             onChange: (e) => setModeFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All modes' },
-              ...modeOptions.map((m) => ({ value: m, label: m })),
-              ...FINANCE_STANDARD_PAYMENT_MODES.filter((m) => !modeOptions.includes(m.label)).map((m) => ({
-                value: m.label,
-                label: m.label,
-              })),
-            ],
+            options: modeOptions,
           },
           {
             key: 'center',
             label: 'Center',
             value: centerFilter,
-            onChange: (e) => setCenterFilter(e.target.value),
-            options: [{ value: 'all', label: 'All centers' }, ...centerOptions.map((n) => ({ value: n, label: n }))],
+            onChange: handleCenterFilterChange,
+            options: centerOptions,
           },
           {
             key: 'course',
             label: 'Course',
             value: courseFilter,
             onChange: (e) => setCourseFilter(e.target.value),
-            options: [
-              { value: 'all', label: 'All courses' },
-              ...FINANCE_COURSES.map((c) => ({ value: c.id, label: c.name })),
-            ],
+            options: courseFilterOptions,
           },
         ]}
       />
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-[#686868]">
-          {loading ? 'Loading verification queue…' : `${filtered.length} verification record${filtered.length === 1 ? '' : 's'}`}
+          {loading
+            ? 'Loading verification queue…'
+            : `${totalCount} verification record${totalCount === 1 ? '' : 's'}`}
         </p>
       </div>
 
       {loading ? (
         <FinanceTableSkeleton rows={6} columns={9} />
-      ) : filtered.length === 0 ? (
+      ) : queue.length === 0 ? (
         <FinanceEmptyState
           title="No verification records"
           description="No payments match your filters, or the queue is empty."
@@ -560,19 +716,9 @@ export default function PaymentVerificationCenterPage() {
           <div className="hidden md:block">
             <PaginatedFigmaTable
               columns={columns}
-              data={filtered}
+              data={queue}
               itemLabel="verifications"
-              resetDeps={[
-                debouncedSearch,
-                statusFilter,
-                approvalFilter,
-                modeFilter,
-                centerFilter,
-                courseFilter,
-                dateFrom,
-                dateTo,
-                queue.length,
-              ]}
+              controlledPagination={controlledPagination}
               density="compact"
               stickyHeader
               rowClassName="hover:bg-slate-50/90 [&_td]:align-middle transition-colors"
@@ -581,7 +727,7 @@ export default function PaymentVerificationCenterPage() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {filtered.map((row) => (
+            {queue.map((row) => (
               <VerificationMobileCard
                 key={row.id}
                 row={row}
@@ -597,7 +743,7 @@ export default function PaymentVerificationCenterPage() {
         open={!!viewRow}
         row={viewRow}
         onClose={() => setViewRow(null)}
-        onViewProof={setProofRow}
+        onViewProof={handleViewProof}
       />
 
       <ProofViewerModal
@@ -605,6 +751,7 @@ export default function PaymentVerificationCenterPage() {
         onClose={() => setProofRow(null)}
         title="Payment verification proof"
         proofName={proofRow?.paymentProof}
+        proofUrl={proofRow?.paymentProofUrl}
         proofFiles={proofRow?.proofFiles}
         utr={proofRow?.utrNumber}
         notes={proofRow?.remarks}
@@ -645,15 +792,16 @@ export default function PaymentVerificationCenterPage() {
         onClose={() => setRejectRow(null)}
         onConfirm={handleReject}
         loading={actionLoading}
+        rejectionReasons={rejectionReasons}
       />
 
       <VerificationDuplicateDialog
         open={!!duplicateRow}
         row={duplicateRow}
         onClose={() => setDuplicateRow(null)}
-        onMarkValid={handleMarkDuplicateValid}
-        loading={actionLoading}
-        canMarkValid={canFinanceHeadApprove}
+        onMarkValid={() => toast.info('Duplicate review is handled through verification actions')}
+        loading={false}
+        canMarkValid={false}
       />
 
       <AddOfflinePaymentModal

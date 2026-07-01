@@ -43,6 +43,10 @@ const CbtTopicDetailPage = lazyRoute(
   () => import('../pages/test-management/CbtTopicDetailPage'),
   'CBT topic detail',
 )
+const CbtTopicTestResultsPage = lazyRoute(
+  () => import('../pages/test-management/CbtTopicTestResultsPage'),
+  'CBT topic test results',
+)
 const QuestionBankPage = lazyRoute(
   () => import('../pages/testManagement/QuestionBankPage'),
   'Question bank',
@@ -121,6 +125,10 @@ export default function TestManagementLayout() {
               <Route path="dashboard" element={<TestManagementDashboardPage />} />
               <Route path="cbt" element={<CbtManagementPage />} />
               <Route path="cbt/faculty/:subjectId" element={<CbtFacultyDetailPage />} />
+              <Route
+                path="cbt/faculty/:subjectId/topic/:topicId/test/:testId/results"
+                element={<CbtTopicTestResultsPage />}
+              />
               <Route path="cbt/faculty/:subjectId/topic/:topicId" element={<CbtTopicDetailPage />} />
               <Route
                 path="cbt/faculty/:subjectId/results/:testItemId"

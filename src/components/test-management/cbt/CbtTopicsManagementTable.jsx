@@ -1,6 +1,10 @@
 import { useMemo } from 'react'
 import { CbtAdminTable } from './ui'
-import { createActionsColumn } from '../../../utils/tableColumnHelpers'
+import {
+  CBT_TABLE_CELL_CENTER,
+  CBT_TABLE_CELL_LEFT,
+  CBT_TABLE_HEADER,
+} from './ui/cbtTableStyles'
 import { formatCategoryDateTime } from '../../../utils/formatDateTime'
 
 function formatLastUpdated(iso) {
@@ -21,43 +25,41 @@ export default function CbtTopicsManagementTable({
       {
         key: 'title',
         label: 'Topic',
-        headerClassName: 'min-w-[200px]',
-        cellClassName: 'min-w-[200px] align-middle',
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[200px] pl-5 text-left`,
+        cellClassName: `${CBT_TABLE_CELL_LEFT} min-w-[200px] pl-5 font-semibold text-slate-900`,
         render: (row) => (
-          <div className="min-w-0">
-            <span
-              className="block truncate font-semibold text-slate-900"
-              title={row.title || ''}
-            >
-              {row.title || '—'}
-            </span>
-          </div>
+          <span className="block truncate" title={row.title || ''}>
+            {row.title || '—'}
+          </span>
         ),
       },
       {
         key: 'testCount',
         label: 'Test Series',
         align: 'center',
-        headerClassName: 'min-w-[120px] whitespace-nowrap text-center',
-        cellClassName: 'min-w-[120px] whitespace-nowrap align-middle text-center',
-        render: (row) => (
-          <span className="font-medium tabular-nums text-[#111]">{row.testCount ?? 0}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[130px] text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[130px] font-medium tabular-nums text-[#111]`,
+        render: (row) => row.testCount ?? 0,
       },
       {
         key: 'updatedAt',
         label: 'Last Updated',
-        headerClassName: 'min-w-[150px] whitespace-nowrap',
-        cellClassName: 'min-w-[150px] whitespace-nowrap align-middle',
-        render: (row) => (
-          <span className="font-medium text-[#686868]">{formatLastUpdated(row.updatedAt)}</span>
-        ),
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[170px] text-left`,
+        cellClassName: `${CBT_TABLE_CELL_LEFT} min-w-[170px] font-medium text-[#686868]`,
+        render: (row) => formatLastUpdated(row.updatedAt),
       },
-      createActionsColumn({
-        buttonCount: 1,
+      {
+        key: 'actions',
+        label: 'Actions',
         align: 'center',
+        headerTruncate: false,
+        headerClassName: `${CBT_TABLE_HEADER} min-w-[148px] pr-5 text-center`,
+        cellClassName: `${CBT_TABLE_CELL_CENTER} min-w-[148px] pr-5`,
         render: (row) => renderActions(row),
-      }),
+      },
     ],
     [renderActions],
   )
@@ -73,7 +75,7 @@ export default function CbtTopicsManagementTable({
       skeletonRowCount={8}
       initialPageSize={10}
       resetDeps={resetDeps}
-      fullWidth
+      tableMinWidth={720}
     />
   )
 }
