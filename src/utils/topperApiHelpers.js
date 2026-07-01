@@ -144,13 +144,23 @@ export function parseTopperBoolean(value, defaultValue = false) {
 
 export function buildTopperFormData(form, { imageFile, includeImage = true } = {}) {
   const formData = new FormData()
+  const isDisplayed = form.status === 'Active'
 
   formData.append('studentId', form.studentId.trim())
   formData.append('courseOrProgram', form.course.trim())
   formData.append('rank', form.rank.trim())
   formData.append('year', form.year)
   formData.append('isTop10', form.isTop10 ? 'true' : 'false')
-  formData.append('isDisplayed', form.status === 'Active' ? 'true' : 'false')
+  formData.append('isDisplayed', isDisplayed ? 'true' : 'false')
+  formData.append('showOnHomepage', form.showOnHomepage ? 'true' : 'false')
+
+  if (form.showOnHomepage && form.homepageOrder !== '') {
+    formData.append('homepageOrder', String(form.homepageOrder))
+  }
+
+  if (isDisplayed && form.toppersPageOrder !== '') {
+    formData.append('toppersPageOrder', String(form.toppersPageOrder))
+  }
 
   if (form.studentName?.trim()) {
     formData.append('studentName', form.studentName.trim())
@@ -179,6 +189,11 @@ export function mapApiTopperToRankerRow(topper, index = 0) {
     isTop10Enabled: parseTopperBoolean(topper.isTop10, false),
     status: parseTopperBoolean(topper.isDisplayed, true) ? 'Active' : 'Deactivated',
     isTop10: parseTopperBoolean(topper.isTop10, false) && parseTopperBoolean(topper.isDisplayed, true),
+    showOnHomepage:
+      parseTopperBoolean(topper.showOnHomepage, false) &&
+      parseTopperBoolean(topper.isDisplayed, true),
+    homepageOrder: topper.homepageOrder ?? null,
+    toppersPageOrder: topper.toppersPageOrder ?? null,
     displayOrder: null,
     createdAt,
     time: created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
@@ -209,6 +224,8 @@ export function enrichRankersWithDisplayOrder(rows = []) {
 }
 
 export function formFromApiTopper(topper) {
+  const isDisplayed = parseTopperBoolean(topper.isDisplayed, true)
+
   return {
     course: topper.courseOrProgram || '',
     year: topper.year ? String(topper.year) : String(new Date().getFullYear()),
@@ -216,10 +233,39 @@ export function formFromApiTopper(topper) {
     studentName: topper.studentName || '',
     rank: topper.rank || '',
     image: topper.image?.url || '',
-    status: parseTopperBoolean(topper.isDisplayed, true) ? 'Active' : 'Deactivated',
-    isTop10: parseTopperBoolean(topper.isTop10, false) && parseTopperBoolean(topper.isDisplayed, true),
+    status: isDisplayed ? 'Active' : 'Deactivated',
+    isTop10: parseTopperBoolean(topper.isTop10, false) && isDisplayed,
+    showOnHomepage: parseTopperBoolean(topper.showOnHomepage, false) && isDisplayed,
+    homepageOrder:
+      topper.homepageOrder != null && topper.homepageOrder !== ''
+        ? String(topper.homepageOrder)
+        : '',
+    toppersPageOrder:
+      topper.toppersPageOrder != null && topper.toppersPageOrder !== ''
+        ? String(topper.toppersPageOrder)
+        : '',
     displayOrder: '',
   }
+}
+
+export function suggestNextHomepageOrder(rankers = []) {
+  const orders = rankers
+    .filter((row) => row.showOnHomepage)
+    .map((row) => Number(row.homepageOrder))
+    .filter((value) => Number.isInteger(value) && value > 0)
+
+  if (!orders.length) return '1'
+  return String(Math.max(...orders) + 1)
+}
+
+export function suggestNextToppersPageOrder(rankers = []) {
+  const orders = rankers
+    .filter((row) => row.status === 'Active')
+    .map((row) => Number(row.toppersPageOrder))
+    .filter((value) => Number.isInteger(value) && value > 0)
+
+  if (!orders.length) return '1'
+  return String(Math.max(...orders) + 1)
 }
 
 export function hasTopperImageForSubmit(imageValue) {

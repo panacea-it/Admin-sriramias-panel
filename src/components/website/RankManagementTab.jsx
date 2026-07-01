@@ -29,6 +29,8 @@ import {
   buildTopperFormData,
   mapApiToppersToRankerRows,
   prepareTopperImageForUpload,
+  suggestNextHomepageOrder,
+  suggestNextToppersPageOrder,
 } from '../../utils/topperApiHelpers'
 import {
   useCreateTopper,
@@ -136,7 +138,10 @@ export default function RankManagementTab() {
   }, [rankers, search, selectedDate, statusFilter])
 
   const openAddRank = () => {
-    setRankForm(emptyRankForm())
+    setRankForm({
+      ...emptyRankForm(),
+      toppersPageOrder: suggestNextToppersPageOrder(rankers),
+    })
     clearFormErrors()
     setRankFormOpen(true)
   }
@@ -510,6 +515,7 @@ export default function RankManagementTab() {
             clearFieldError={clearFieldError}
             top10LimitReached={top10LimitReached}
             requireRegisteredStudent
+            rankers={rankers}
           />
         </WebsiteFormShell>
       </WebsiteFormModal>
@@ -558,8 +564,13 @@ export default function RankManagementTab() {
                   ['Program', viewTarget.program || viewTarget.course],
                   ['Rank', viewTarget.rank],
                   ...(isActiveTop10Ranker(viewTarget)
-                    ? [['Display Order', viewTarget.displayOrder ?? '—']]
+                    ? [['Top 10 Order', viewTarget.displayOrder ?? '—']]
                     : []),
+                  ['Show on Homepage', viewTarget.showOnHomepage ? 'Yes' : 'No'],
+                  ...(viewTarget.showOnHomepage
+                    ? [['Homepage Order', viewTarget.homepageOrder ?? '—']]
+                    : []),
+                  ['Toppers Page Order', viewTarget.toppersPageOrder ?? '—'],
                   ['Created On', formatCreatedOn(viewTarget)],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg bg-[#f4f8fc] px-4 py-3">

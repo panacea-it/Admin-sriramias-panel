@@ -3,6 +3,7 @@ import { WebsiteField, WebsiteImageInput, websiteInputClass } from './websiteUi'
 import { getRankYearOptions } from '../../constants/rankManagementConstants'
 import { TOP10_INACTIVE_MESSAGE } from './rankManagementDisplay'
 import { lookupStudentByStudentId } from '../../utils/rankStudentLookup'
+import { suggestNextHomepageOrder, suggestNextToppersPageOrder } from '../../utils/topperApiHelpers'
 import { toast } from '@/utils/toast'
 import { cn } from '../../utils/cn'
 
@@ -55,6 +56,9 @@ export const emptyRankForm = () => ({
   image: '',
   status: 'Active',
   isTop10: false,
+  showOnHomepage: false,
+  homepageOrder: '',
+  toppersPageOrder: '',
   displayOrder: '',
 })
 
@@ -67,6 +71,7 @@ export default function RankerFormFields({
   top10LimitReached = false,
   wasTop10 = false,
   requireRegisteredStudent = false,
+  rankers = [],
 }) {
   const isDisplayed = form.status === 'Active'
   const [studentLookupLoading, setStudentLookupLoading] = useState(false)
@@ -237,10 +242,24 @@ export default function RankerFormFields({
               setForm((f) => ({
                 ...f,
                 status,
-                ...(checked ? {} : { displayOrder: '', isTop10: false }),
+                ...(checked
+                  ? {
+                      toppersPageOrder:
+                        f.toppersPageOrder || suggestNextToppersPageOrder(rankers),
+                    }
+                  : {
+                      displayOrder: '',
+                      isTop10: false,
+                      showOnHomepage: false,
+                      homepageOrder: '',
+                      toppersPageOrder: '',
+                    }),
               }))
               clearFieldError?.('status')
               clearFieldError?.('isTop10')
+              clearFieldError?.('showOnHomepage')
+              clearFieldError?.('homepageOrder')
+              clearFieldError?.('toppersPageOrder')
             }}
           />
           <FieldError message={formErrors.status} />
@@ -272,6 +291,85 @@ export default function RankerFormFields({
           <FieldError message={formErrors.isTop10} />
         </div>
       </div>
+
+      <div className="flex flex-col gap-4 sm:col-span-2 sm:grid sm:grid-cols-2">
+        <div>
+          <FormSwitch
+            id="topper-show-on-homepage"
+            label="Show on homepage"
+            checked={Boolean(form.showOnHomepage)}
+            disabled={!isDisplayed}
+            onChange={(checked) => {
+              if (checked && !isDisplayed) {
+                toast.error('Only active rankers can be shown on the homepage.')
+                return
+              }
+              setForm((f) => ({
+                ...f,
+                showOnHomepage: checked,
+                homepageOrder: checked
+                  ? f.homepageOrder || suggestNextHomepageOrder(rankers)
+                  : '',
+              }))
+              clearFieldError?.('showOnHomepage')
+              clearFieldError?.('homepageOrder')
+            }}
+          />
+          <FieldError message={formErrors.showOnHomepage} />
+        </div>
+
+        <WebsiteField label="Homepage Order" required={Boolean(form.showOnHomepage)}>
+          <input
+            type="number"
+            min={1}
+            value={form.homepageOrder}
+            disabled={!isDisplayed || !form.showOnHomepage}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, homepageOrder: e.target.value }))
+              clearFieldError?.('homepageOrder')
+            }}
+            aria-invalid={Boolean(formErrors.homepageOrder)}
+            className={cn(
+              websiteInputClass,
+              (!isDisplayed || !form.showOnHomepage) && 'cursor-not-allowed opacity-60',
+              formErrors.homepageOrder && inputErrorClass,
+            )}
+            placeholder="1"
+          />
+          <p className="mt-1.5 text-xs text-[#686868]">
+            Lower numbers appear first in the homepage toppers section.
+          </p>
+          <FieldError message={formErrors.homepageOrder} />
+        </WebsiteField>
+      </div>
+
+      <WebsiteField
+        label="Toppers Page Order"
+        required={isDisplayed}
+        className="sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]"
+      >
+        <input
+          type="number"
+          min={1}
+          value={form.toppersPageOrder}
+          disabled={!isDisplayed}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, toppersPageOrder: e.target.value }))
+            clearFieldError?.('toppersPageOrder')
+          }}
+          aria-invalid={Boolean(formErrors.toppersPageOrder)}
+          className={cn(
+            websiteInputClass,
+            !isDisplayed && 'cursor-not-allowed opacity-60',
+            formErrors.toppersPageOrder && inputErrorClass,
+          )}
+          placeholder="1"
+        />
+        <p className="mt-1.5 text-xs text-[#686868]">
+          Controls sort order on the Our Toppers Gallery page.
+        </p>
+        <FieldError message={formErrors.toppersPageOrder} />
+      </WebsiteField>
 
       <WebsiteField label="Student Image" required className="sm:col-span-2">
         <WebsiteImageInput

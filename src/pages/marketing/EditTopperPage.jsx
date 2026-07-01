@@ -203,6 +203,7 @@ export default function EditTopperPage() {
               clearFieldError={clearFieldError}
               top10LimitReached={top10LimitReached}
               wasTop10={wasTop10}
+              rankers={rankers}
             />
           </div>
 

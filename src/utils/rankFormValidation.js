@@ -57,5 +57,23 @@ export function validateRankerForm(form, { editingId = null, rankers = [] } = {}
     errors.status = 'Display status is required.'
   }
 
+  const homepageOrder = Number(form.homepageOrder)
+  if (form.showOnHomepage) {
+    if (!String(form.homepageOrder || '').trim()) {
+      errors.homepageOrder = 'Homepage order is required.'
+    } else if (!Number.isInteger(homepageOrder) || homepageOrder < 1) {
+      errors.homepageOrder = 'Homepage order must be a positive integer.'
+    }
+  }
+
+  if (form.status === 'Active') {
+    const toppersPageOrder = Number(form.toppersPageOrder)
+    if (!String(form.toppersPageOrder || '').trim()) {
+      errors.toppersPageOrder = 'Toppers page order is required.'
+    } else if (!Number.isInteger(toppersPageOrder) || toppersPageOrder < 1) {
+      errors.toppersPageOrder = 'Toppers page order must be a positive integer.'
+    }
+  }
+
   return errors
 }
