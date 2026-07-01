@@ -54,19 +54,20 @@ export function mapMentorDropdownRow(mentor = {}) {
   const value = resolveMentorDropdownId(mentor)
   if (!value) return null
 
+  const mentorName = String(mentor.mentorName ?? '').trim()
   const name = String(
-    mentor.fullName ?? mentor.name ?? mentor.employeeName ?? '',
+    mentorName || mentor.fullName || mentor.name || mentor.employeeName || '',
   ).trim()
-  const employeeId = String(mentor.employeeId ?? mentor.employeeCode ?? '').trim()
-  const displayName = name || employeeId || 'Mentor'
+  const businessMentorId = String(mentor.mentorId ?? mentor.employeeId ?? mentor.employeeCode ?? '').trim()
+  const displayName = name || businessMentorId || 'Mentor'
 
   return {
     value,
-    label: formatMentorOptionLabel(
-      { name: displayName, fullName: displayName, employeeId },
+    label: mentorName || formatMentorOptionLabel(
+      { name: displayName, fullName: displayName, employeeId: businessMentorId },
       'Mentor',
     ),
-    searchText: `${displayName} ${employeeId}`.trim().toLowerCase(),
+    searchText: `${displayName} ${businessMentorId}`.trim().toLowerCase(),
   }
 }
 

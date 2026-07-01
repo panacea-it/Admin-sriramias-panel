@@ -72,16 +72,7 @@ export default function BatchDetailsSection({
         )}
       </CourseFormField>
 
-      <BatchMentorSelect
-        open={modalOpen}
-        form={form}
-        setForm={setForm}
-        error={errors.mentorId}
-        onClearError={() => clearError('mentorId')}
-        className="sm:col-span-1 lg:col-span-1"
-      />
-
-      <CourseFormField label="Course" required className="sm:col-span-2">
+      <CourseFormField label="Course" required className="sm:col-span-1 lg:col-span-1">
         <CourseCatalogSelect
           modalOpen={modalOpen}
           value={form.academicCourseId || ''}
@@ -90,16 +81,39 @@ export default function BatchDetailsSection({
           error={errors.courseId}
           required
           onChange={({ academicCourseId, courseId, courseName }) => {
+            const courseChanged =
+              String(form.academicCourseId || '') !== String(academicCourseId || '')
             setForm((f) => ({
               ...f,
               academicCourseId,
               courseId,
               courseName,
+              ...(courseChanged
+                ? {
+                    mentorId: '',
+                    mentorEmail: '',
+                    mentorEmployeeId: '',
+                    mentorName: '',
+                    mentorRoleId: '',
+                    mentorRoleLabel: '',
+                    trainerName: '',
+                  }
+                : {}),
             }))
             clearError('courseId')
+            if (courseChanged) clearError('mentorId')
           }}
         />
       </CourseFormField>
+
+      <BatchMentorSelect
+        open={modalOpen}
+        form={form}
+        setForm={setForm}
+        error={errors.mentorId}
+        onClearError={() => clearError('mentorId')}
+        className="sm:col-span-1 lg:col-span-1"
+      />
 
       <CourseFormField label="Date of Commencement" required>
         <CourseDateInput

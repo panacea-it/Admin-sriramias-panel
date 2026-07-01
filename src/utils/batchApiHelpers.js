@@ -2,6 +2,7 @@ import { normalizeLinkedSubjects } from './batchHelpers'
 import { normalizeAcademicFeeDetails, serializeAcademicFeeDetails } from './feeDetailsForm'
 import { isMongoObjectId } from './facultySubjectHelpers'
 import { normalizeBatchUiStatus } from './batchOperations'
+import { fileNameFromMediaUrl } from './courseMediaPrefill'
 
 /** Extract a 24-char Mongo ObjectId from an API document field. */
 export function parseMongoIdFromField(raw) {
@@ -405,8 +406,17 @@ export function mapBatchFromApi(doc) {
     courseRef.courseName ||
     courseRef.name ||
     ''
-  const courseMongoId = courseRef._id || doc.academicCourseId || ''
-  const courseCode = courseRef.courseId || doc.courseId || ''
+  const courseMongoId =
+    parseMongoIdFromField(courseRef._id) ||
+    parseMongoIdFromField(doc.academicCourseId) ||
+    ''
+  const courseCode = (() => {
+    const fromRef = String(courseRef.courseId || '').trim()
+    if (fromRef && !isMongoObjectId(fromRef)) return fromRef
+    const docCode = String(doc.courseId || '').trim()
+    if (docCode && !isMongoObjectId(docCode)) return docCode
+    return String(fd.courseId || '').trim()
+  })()
   const bannerUrl =
     resolveMediaUrl(doc.bannerImage) ||
     doc.bannerImageUrl ||
@@ -431,7 +441,11 @@ export function mapBatchFromApi(doc) {
     doc.formData?.durationLabel ||
     (doc.durationInMonths ? `${doc.durationInMonths} Months` : '')
   const mentor = doc.mentor && typeof doc.mentor === 'object' ? doc.mentor : null
-  const mentorId = doc.mentorId || mentor?._id || fd.mentorId || ''
+  const mentorId =
+    parseMongoIdFromField(doc.mentorId) ||
+    parseMongoIdFromField(mentor?._id) ||
+    parseMongoIdFromField(fd.mentorId) ||
+    ''
   const mentorName =
     doc.mentorName || mentor?.fullName || mentor?.name || fd.mentorName || ''
   const mentorEmail =
@@ -454,9 +468,15 @@ export function mapBatchFromApi(doc) {
     batchEndTo,
     bannerPreview: bannerUrl || fd.bannerPreview || fd.bannerUrl || '',
     bannerUrl: bannerUrl || fd.bannerUrl || '',
-    bannerFileName: doc.bannerFileName || fd.bannerFileName || '',
+    bannerFileName:
+      doc.bannerFileName ||
+      fd.bannerFileName ||
+      (bannerUrl ? fileNameFromMediaUrl(bannerUrl) || 'banner-image' : ''),
     brochureUrl: brochureUrl || fd.brochureUrl || '',
-    brochureFileName: doc.brochureFileName || fd.brochureFileName || '',
+    brochureFileName:
+      doc.brochureFileName ||
+      fd.brochureFileName ||
+      (brochureUrl ? fileNameFromMediaUrl(brochureUrl) || 'batch-brochure.pdf' : ''),
     brochureFileSize: doc.brochureFileSize ?? fd.brochureFileSize ?? null,
     status: mapApiBatchStatusToUi(doc.status || fd.status),
     capacity: doc.capacity ?? fd.capacity,
@@ -486,7 +506,15 @@ export function mapBatchFromApi(doc) {
       batchEndTo,
       bannerPreview: bannerUrl || fd.bannerPreview || fd.bannerUrl || '',
       bannerUrl: bannerUrl || fd.bannerUrl || '',
+      bannerFileName:
+        doc.bannerFileName ||
+        fd.bannerFileName ||
+        (bannerUrl ? fileNameFromMediaUrl(bannerUrl) || 'banner-image' : ''),
       brochureUrl: brochureUrl || fd.brochureUrl || '',
+      brochureFileName:
+        doc.brochureFileName ||
+        fd.brochureFileName ||
+        (brochureUrl ? fileNameFromMediaUrl(brochureUrl) || 'batch-brochure.pdf' : ''),
       feeDetails: mapApiFeesToUi(fees),
       linkedSubjects,
       status: mapApiBatchStatusToUi(doc.status || fd.status),

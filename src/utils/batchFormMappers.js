@@ -9,6 +9,34 @@ import {
 import { normalizeLinkedSubjects } from './batchHelpers'
 import { enrichLinkedSubjectsWithFaculty } from './facultySubjectBatch'
 import { loadAcademicsSubjects } from './academicsSubjectsStorage'
+import { fileNameFromMediaUrl } from './courseMediaPrefill'
+import { isMongoObjectId } from './facultySubjectHelpers'
+
+function deriveMediaFileName(explicitName, url, fallback) {
+  const name = String(explicitName || '').trim()
+  if (name) return name
+  const fromUrl = fileNameFromMediaUrl(url)
+  if (fromUrl) return fromUrl
+  return url ? fallback : ''
+}
+
+function resolveRowAcademicCourseId(row = {}, fd = {}) {
+  const candidates = [row.academicCourseId, fd.academicCourseId, row.courseId, fd.courseId]
+  for (const raw of candidates) {
+    const id = String(raw || '').trim()
+    if (isMongoObjectId(id)) return id
+  }
+  return String(row.academicCourseId || fd.academicCourseId || '').trim()
+}
+
+function resolveRowCourseCode(row = {}, fd = {}) {
+  const candidates = [row.courseId, fd.courseId]
+  for (const raw of candidates) {
+    const id = String(raw || '').trim()
+    if (id && !isMongoObjectId(id)) return id
+  }
+  return ''
+}
 function resolveBatchLinkedSubjects(row = {}, fd = {}) {
   const fromArray = normalizeLinkedSubjects({
     linkedSubjects: row.linkedSubjects || fd.linkedSubjects,
@@ -113,6 +141,10 @@ export function batchRowToDuplicateForm(row) {
 export function batchRowToForm(row) {
   if (!row) return createEmptyBatchForm()
   const fd = row.formData || {}
+  const bannerPreview =
+    row.bannerPreview || fd.bannerPreview || row.bannerUrl || fd.bannerUrl || ''
+  const bannerUrl = row.bannerUrl || fd.bannerUrl || bannerPreview
+  const brochureUrl = row.brochureUrl || fd.brochureUrl || ''
   return {
     ...createEmptyBatchForm(),
     batchId: row.batchId || fd.batchId || '',
@@ -125,18 +157,26 @@ export function batchRowToForm(row) {
     mentorRoleId: row.mentorRoleId || fd.mentorRoleId || '',
     mentorRoleLabel: row.mentorRoleLabel || fd.mentorRoleLabel || '',
     trainerName: row.trainerName || fd.trainerName || fd.mentorName || '',
-    academicCourseId: row.academicCourseId || fd.academicCourseId || '',
-    courseId: row.courseId || fd.courseId || '',
-    courseName: row.courseName || fd.courseName || '',
+    academicCourseId: resolveRowAcademicCourseId(row, fd),
+    courseId: resolveRowCourseCode(row, fd),
+    courseName: row.courseName || row.linkedCourseName || fd.courseName || '',
     commencement: row.commencement || fd.commencement || '',
     durationLabel: row.durationLabel || fd.durationLabel || '',
     batchStartFrom: row.batchStartFrom || fd.batchStartFrom || '',
     batchEndTo: row.batchEndTo || fd.batchEndTo || '',
-    bannerPreview: row.bannerPreview || fd.bannerPreview || fd.bannerUrl || '',
-    bannerFileName: row.bannerFileName || fd.bannerFileName || '',
-    bannerUrl: row.bannerUrl || fd.bannerUrl || '',
-    brochureUrl: row.brochureUrl || fd.brochureUrl || '',
-    brochureFileName: row.brochureFileName || fd.brochureFileName || '',
+    bannerPreview,
+    bannerFileName: deriveMediaFileName(
+      row.bannerFileName || fd.bannerFileName,
+      bannerPreview,
+      'banner-image',
+    ),
+    bannerUrl,
+    brochureUrl,
+    brochureFileName: deriveMediaFileName(
+      row.brochureFileName || fd.brochureFileName,
+      brochureUrl,
+      'batch-brochure.pdf',
+    ),
     brochureFileSize: row.brochureFileSize ?? fd.brochureFileSize ?? null,
     demoVideoUrl: row.demoVideoUrl || fd.demoVideoUrl || '',
     demoVideoFileName: row.demoVideoFileName || fd.demoVideoFileName || '',

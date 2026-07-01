@@ -3,6 +3,7 @@ import { Download, Eye, FileText, Loader2, RefreshCw, Upload, X } from 'lucide-r
 import { UploadFieldHint, UploadValidationMessage } from '../common/UploadFieldHint'
 import { cn } from '../../utils/cn'
 import { validateUploadFile } from '../../utils/uploadValidation'
+import { fileNameFromMediaUrl } from '../../utils/courseMediaPrefill'
 import {
   downloadBrochurePdf,
   formatBrochureFileSize,
@@ -28,7 +29,10 @@ export default function BrochurePdfUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState('')
 
-  const hasBrochure = Boolean(brochureUrl && fileName)
+  const displayFileName =
+    String(fileName || '').trim() ||
+    (brochureUrl ? fileNameFromMediaUrl(brochureUrl) || 'batch-brochure.pdf' : '')
+  const hasBrochure = Boolean(brochureUrl)
 
   const applyFile = async (file) => {
     if (!file || disabled || uploading) return
@@ -102,7 +106,7 @@ export default function BrochurePdfUpload({
                 <FileText className="h-6 w-6 text-[#246392]" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[#111]">{fileName}</p>
+                <p className="truncate text-sm font-semibold text-[#111]">{displayFileName}</p>
                 {fileSize != null ? (
                   <p className="mt-0.5 text-xs text-[#686868]">
                     {formatBrochureFileSize(fileSize)}
@@ -124,7 +128,7 @@ export default function BrochurePdfUpload({
               <ActionButton
                 icon={Download}
                 label="Download"
-                onClick={() => downloadBrochurePdf(brochureUrl, fileName)}
+                onClick={() => downloadBrochurePdf(brochureUrl, displayFileName)}
                 disabled={disabled || uploading}
               />
               <ActionButton

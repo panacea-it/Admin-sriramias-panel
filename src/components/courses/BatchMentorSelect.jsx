@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import SearchableSelect from '../categories/SearchableSelect'
 import { CourseFormField } from './CourseFormField'
 import { useMentorEmployees } from '../../hooks/useMentorEmployees'
+import { resolveBatchCourseId } from '../../utils/batchApiHelpers'
 import { cn } from '../../utils/cn'
 import { toast } from '../../utils/toast'
 
@@ -19,7 +20,11 @@ export default function BatchMentorSelect({
   onClearError,
   className,
 }) {
-  const { options, loading, error: fetchError } = useMentorEmployees({ enabled: open })
+  const selectedCourseId = resolveBatchCourseId(form)
+  const { options, loading, error: fetchError } = useMentorEmployees({
+    enabled: open,
+    courseId: selectedCourseId,
+  })
 
   useEffect(() => {
     if (fetchError) toast.error(fetchError || 'Unable to load mentors')
@@ -27,26 +32,55 @@ export default function BatchMentorSelect({
 
   const selectedValue = String(form.mentorId || '').trim()
 
+  const optionsWithSaved = useMemo(() => {
+    if (!selectedValue || options.some((opt) => String(opt.value) === selectedValue)) {
+      return options
+    }
+    const savedLabel = String(form.mentorName || form.trainerName || 'Saved mentor').trim()
+    return [
+      ...options,
+      {
+        value: selectedValue,
+        label: savedLabel || 'Saved mentor',
+        searchText: `${savedLabel} ${selectedValue}`.trim().toLowerCase(),
+      },
+    ]
+  }, [options, selectedValue, form.mentorName, form.trainerName])
+
   const emptyMessage = useMemo(() => {
+    if (!selectedCourseId) return 'Select a course first'
     if (loading) return 'Loading mentors…'
-    if (options.length === 0) return 'No mentors available'
+    if (optionsWithSaved.length === 0) return 'No mentors available for this course'
     return 'No mentors match your search'
-  }, [loading, options.length])
+  }, [loading, optionsWithSaved.length, selectedCourseId])
 
   const handleChange = (mentorId) => {
     setForm((f) => ({ ...f, mentorId: String(mentorId || '').trim() }))
     onClearError?.()
   }
 
+  const mentorDisabled =
+    !selectedCourseId ||
+    loading ||
+    Boolean(fetchError) ||
+    (!loading && selectedCourseId && optionsWithSaved.length === 0)
+
   return (
     <CourseFormField label="Mentor" required className={className}>
       <SearchableSelect
-        options={options}
+        key={selectedCourseId || 'no-course'}
+        options={optionsWithSaved}
         value={selectedValue}
         onChange={handleChange}
-        placeholder={loading ? 'Loading mentors…' : 'Select mentor'}
+        placeholder={
+          !selectedCourseId
+            ? 'Select mentor'
+            : loading
+              ? 'Loading mentors…'
+              : 'Select mentor'
+        }
         emptyMessage={emptyMessage}
-        disabled={loading || options.length === 0}
+        disabled={mentorDisabled}
         loading={loading}
         error={error}
         triggerClassName={mentorTriggerClass}

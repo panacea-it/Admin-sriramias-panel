@@ -408,17 +408,28 @@ export async function duplicateBatch(batchId, form, { includeStudents } = {}) {
   }
 }
 
-/** GET /api/admin/admin-access/mentors/dropdown */
-export async function fetchMentorsDropdown({ signal } = {}) {
+/** POST /api/admin/admin-access/mentors/dropdown — mentors for a selected course. */
+export async function fetchMentorsDropdown({ courseId, signal } = {}) {
   if (isFrontendOnly) return []
 
+  const resolvedCourseId = String(courseId || '').trim()
+  if (!resolvedCourseId) return []
+
   try {
-    const response = await axiosInstance.get('/admin/admin-access/mentors/dropdown', {
-      signal,
-      skipAuthRedirect: true,
-    })
+    const response = await axiosInstance.post(
+      '/admin/admin-access/mentors/dropdown',
+      { courseId: resolvedCourseId },
+      {
+        signal,
+        skipAuthRedirect: true,
+      },
+    )
     const rows = unwrapMentorsDropdownList(response.data)
-    logBatchApiDev('fetchMentorsDropdown response', { raw: response.data, count: rows.length })
+    logBatchApiDev('fetchMentorsDropdown response', {
+      courseId: resolvedCourseId,
+      raw: response.data,
+      count: rows.length,
+    })
     return rows
   } catch (error) {
     if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') throw error
