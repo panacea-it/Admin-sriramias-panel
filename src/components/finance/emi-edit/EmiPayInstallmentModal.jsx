@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { IndianRupee, Upload } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
-import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
 import { resolvePaymentModeId } from '../../../utils/emiManagementHelpers'
-import { toast } from '../../../utils/toast'
 import { cn } from '../../../utils/cn'
 
 const FIELD_CLASS =
@@ -35,7 +33,7 @@ export default function EmiPayInstallmentModal({
 
   const modeOptions = paymentModes.length
     ? paymentModes.map((m) => ({ value: m.paymentModeId, label: m.paymentModeName }))
-    : OFFLINE_PAYMENT_MODES.map((m) => ({ value: m, label: m }))
+    : []
 
   useEffect(() => {
     if (!open || !row) return
@@ -84,8 +82,8 @@ export default function EmiPayInstallmentModal({
         proofFile,
       )
       onClose()
-    } catch (err) {
-      toast.error(err.message || 'Failed to save payment')
+    } catch {
+      // onSave surfaces errors via toast
     } finally {
       setSubmitting(false)
     }

@@ -91,6 +91,8 @@ export function createEmptyBatchForm() {
   return {
     batchId: '',
     batchCode: '',
+    centerId: '',
+    centerName: '',
     batchName: '',
     mentorId: '',
     mentorEmail: '',
@@ -149,6 +151,9 @@ export function batchRowToForm(row) {
     ...createEmptyBatchForm(),
     batchId: row.batchId || fd.batchId || '',
     batchCode: row.batchCode || fd.batchCode || row.batchId || fd.batchId || '',
+    centerId: String(row.centerId || fd.centerId || '').trim(),
+    centerName:
+      row.centerName || fd.centerName || row.center || fd.center || '',
     batchName: row.batchName || row.name || fd.batchName || '',
     mentorId: row.mentorId || fd.mentorId || '',
     mentorEmail: row.mentorEmail || fd.mentorEmail || '',

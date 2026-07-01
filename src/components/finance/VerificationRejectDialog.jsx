@@ -74,8 +74,8 @@ export default function VerificationRejectDialog({
               onChange={(e) => setReason(e.target.value)}
               className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium"
             >
-              {reasons.map((r) => (
-                <option key={r.value} value={r.value}>
+              {reasons.map((r, index) => (
+                <option key={`${r.value}-${index}`} value={r.value}>
                   {r.label}
                 </option>
               ))}

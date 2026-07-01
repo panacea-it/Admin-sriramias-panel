@@ -122,6 +122,23 @@ export default function BatchManagementTable({
         },
       },
       {
+        key: 'center',
+        label: 'Center',
+        width: '12%',
+        headerClassName: OVERFLOW_CELL,
+        cellClassName: OVERFLOW_CELL,
+        render: (batch) => {
+          const centerLabel = batch.centerName || batch.center || '—'
+          return (
+            <CellWrap>
+              <CellText className="text-sm font-medium text-[#686868]" title={centerLabel}>
+                {centerLabel}
+              </CellText>
+            </CellWrap>
+          )
+        },
+      },
+      {
         key: 'mentor',
         label: 'Mentor Name',
         width: '14%',

@@ -1,14 +1,9 @@
 import axios from 'axios'
-import { BASE_URL } from '../config/api'
+import { resolveApiHostBaseUrl } from '../config/api'
 import { getAuthToken } from '../utils/authStorage'
 
 function resolveBaseURL() {
-  if (import.meta.env.DEV) {
-    return ''
-  }
-
-  const raw = String(BASE_URL).replace(/\/$/, '')
-  return raw.endsWith('/api') ? raw.slice(0, -4) : raw
+  return resolveApiHostBaseUrl()
 }
 
 const axiosInstance = axios.create({

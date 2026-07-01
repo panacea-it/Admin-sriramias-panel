@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   CourseDateInput,
   CourseFormField,
@@ -9,6 +10,8 @@ import BrochurePdfUpload from './BrochurePdfUpload'
 import BannerImageUpload from './BannerImageUpload'
 import CourseCatalogSelect from './CourseCatalogSelect'
 import BatchMentorSelect from './BatchMentorSelect'
+import SearchableSelect from '../categories/SearchableSelect'
+import { useCentersDropdownOptions } from '../../hooks/useCentersDropdownOptions'
 import { BATCH_STATUSES } from '../../data/batchManagementData'
 import { cn } from '../../utils/cn'
 
@@ -22,9 +25,30 @@ export default function BatchDetailsSection({
   isEditMode = false,
   modalOpen = false,
 }) {
+  const { options: centerOptions, loading: centersLoading } = useCentersDropdownOptions({
+    enabled: modalOpen,
+  })
+
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
   }
+
+  useEffect(() => {
+    if (form.centerId || !form.centerName || !centerOptions.length) return
+    const needle = String(form.centerName).trim().toLowerCase()
+    const match = centerOptions.find((option) => {
+      const candidates = [option.centerName, option.label, option.value]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean)
+      return candidates.includes(needle)
+    })
+    if (!match) return
+    setForm((current) => ({
+      ...current,
+      centerId: match.value,
+      centerName: match.centerName || match.label || current.centerName,
+    }))
+  }, [form.centerId, form.centerName, centerOptions, setForm])
 
   const validateDates = (start, end) => {
     if (start && end && end < start) {
@@ -56,25 +80,53 @@ export default function BatchDetailsSection({
         {fieldError('batchName')}
       </CourseFormField>
 
-      <CourseFormField label="Batch Code" required className="sm:col-span-1 lg:col-span-1">
-        <CourseInput
-          value={form.batchCode}
-          onChange={(e) => {
-            setForm((f) => ({ ...f, batchCode: e.target.value }))
-            clearError('batchCode')
+      <CourseFormField label="Center" required className="sm:col-span-1 lg:col-span-1">
+        <SearchableSelect
+          options={centerOptions}
+          value={form.centerId || ''}
+          onChange={(centerId) => {
+            const selected = centerOptions.find(
+              (option) => String(option.value) === String(centerId),
+            )
+            const centerChanged = String(form.centerId || '') !== String(centerId || '')
+            setForm((f) => ({
+              ...f,
+              centerId,
+              centerName: selected?.centerName || selected?.label || '',
+              ...(centerChanged
+                ? {
+                    academicCourseId: '',
+                    courseId: '',
+                    courseName: '',
+                    mentorId: '',
+                    mentorEmail: '',
+                    mentorEmployeeId: '',
+                    mentorName: '',
+                    mentorRoleId: '',
+                    mentorRoleLabel: '',
+                    trainerName: '',
+                  }
+                : {}),
+            }))
+            clearError('centerId')
+            if (centerChanged) {
+              clearError('courseId')
+              clearError('mentorId')
+            }
           }}
-          placeholder="e.g. UPSC-B01"
-          disabled={isEditMode}
+          placeholder={centersLoading ? 'Loading centers…' : 'Select Center'}
+          emptyMessage="No centers available — add one in Centre Management"
+          disabled={centersLoading}
+          error={errors.centerId}
         />
-        {fieldError('batchCode')}
-        {isEditMode && (
-          <p className="mt-1 text-[11px] text-gray-500">Batch code cannot be changed after creation.</p>
-        )}
       </CourseFormField>
 
       <CourseFormField label="Course" required className="sm:col-span-1 lg:col-span-1">
         <CourseCatalogSelect
+          key={form.centerId || 'no-center'}
           modalOpen={modalOpen}
+          centerId={form.centerId}
+          requireCenter
           value={form.academicCourseId || ''}
           fallbackCourseId={form.courseId}
           excludeCourseIds={excludeCourseIds}

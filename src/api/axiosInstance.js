@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { BASE_URL, buildApiUrl } from '../config/api'
+import { resolveApiBaseUrlWithSuffix } from '../config/api'
 import { isFrontendOnly } from '../config/appMode'
 import { emitAuthLogout } from '../utils/authEvents'
 import { clearAuthStorage, getAuthToken, isOfflineAuthToken } from '../utils/authStorage'
@@ -11,17 +11,7 @@ export function resolveApiBaseUrl() {
   if (isFrontendOnly) {
     return '/api'
   }
-
-  if (import.meta.env.DEV) {
-    return '/api'
-  }
-
-  const configured = BASE_URL
-  if (configured) {
-    return configured.endsWith('/api') ? configured : `${configured}/api`
-  }
-
-  return '/api'
+  return resolveApiBaseUrlWithSuffix()
 }
 
 const api = axios.create({
@@ -80,5 +70,5 @@ api.interceptors.response.use(
   },
 )
 
-export { buildApiUrl }
+export { buildApiUrl } from '../config/api'
 export default api

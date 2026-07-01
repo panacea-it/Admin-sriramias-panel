@@ -11,11 +11,19 @@ import { validateStudentProfile } from '../utils/offlinePaymentValidation'
 import {
   mapBatchAmountsToFinancials,
   mapBatchesToOptions,
+  mapCentersDropdownToOptions,
   mapCoursesToOptions,
   mapEligibleStudentToProfile,
   mapEmiInstallmentsToUi,
+  mapEmiPlanOptionsToPreviews,
   mapPaymentModesToOptions,
   resolvePaymentModeId,
+  isMongoObjectId,
+  isBatchFeesConfigured,
+  buildEligibleStudentsBody,
+  buildBatchAmountsBody,
+  buildCalculateEmiBody,
+  buildValidateScheduleBody,
 } from '../utils/paymentVerificationHelpers'
 import {
   calculateEmiPlan,
@@ -89,6 +97,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   const [batchesLoading, setBatchesLoading] = useState(false)
   const [batchesFetchError, setBatchesFetchError] = useState('')
   const [setupLoading, setSetupLoading] = useState(false)
+  const [emiPlanOptions, setEmiPlanOptions] = useState([])
+  const [financialsError, setFinancialsError] = useState('')
 
   const emiEnabled = paymentType === 'emi'
 
@@ -105,6 +115,7 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
 
   const openSessionRef = useRef(false)
   const emiRequestRef = useRef(0)
+  const emiPlansRequestRef = useRef(0)
 
   const paymentModeOptions = useMemo(() => {
     const fromApi = mapPaymentModesToOptions(paymentModes)
@@ -151,15 +162,12 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
     setBatchOptions([])
     setStudentOptions([])
 
+    setEmiPlanOptions([])
+    setFinancialsError('')
     setSetupLoading(true)
     Promise.all([fetchVerificationCentersDropdown(), fetchVerificationPaymentModes()])
       .then(([centers, modes]) => {
-        setCenterOptions(
-          centers.map((c) => ({
-            id: c.id || c._id,
-            name: c.centerName || c.name || c.label,
-          })),
-        )
+        setCenterOptions(mapCentersDropdownToOptions(centers))
         const mappedModes = mapPaymentModesToOptions(modes)
         setPaymentModes(modes)
         if (mappedModes[0]?.name) {
@@ -174,13 +182,35 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   }, [open])
 
   useEffect(() => {
+    if (!open || !centerOptions.length || !studentProfile.centerId) return
+    const isValid = centerOptions.some((center) => center.id === studentProfile.centerId)
+    if (!isValid) {
+      setStudentProfile((profile) => ({
+        ...profile,
+        centerId: '',
+        centerName: '',
+        courseId: '',
+        courseName: '',
+        batchId: '',
+        batchName: '',
+      }))
+    }
+  }, [open, centerOptions, studentProfile.centerId])
+
+  useEffect(() => {
     if (!open || studentProfile.isWalkIn) return
+    if (!isMongoObjectId(studentProfile.centerId)) {
+      setStudentOptions([])
+      return
+    }
     let cancelled = false
-    searchEligibleStudents({
-      search: '',
-      centerId: studentProfile.centerId || undefined,
-      limit: 25,
-    })
+    searchEligibleStudents(
+      buildEligibleStudentsBody({
+        search: '',
+        centerId: studentProfile.centerId,
+        limit: 25,
+      }),
+    )
       .then((items) => {
         if (cancelled) return
         setStudentOptions(
@@ -202,7 +232,7 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   }, [open, studentProfile.centerId, studentProfile.isWalkIn])
 
   useEffect(() => {
-    if (!open || !studentProfile.centerId) {
+    if (!open || !isMongoObjectId(studentProfile.centerId)) {
       setCourseOptions([])
       return
     }
@@ -211,8 +241,11 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       .then((items) => {
         if (!cancelled) setCourseOptions(mapCoursesToOptions(items))
       })
-      .catch(() => {
-        if (!cancelled) setCourseOptions([])
+      .catch((err) => {
+        if (!cancelled) {
+          setCourseOptions([])
+          toast.error(err?.message || 'Failed to load courses')
+        }
       })
     return () => {
       cancelled = true
@@ -220,7 +253,7 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   }, [open, studentProfile.centerId])
 
   useEffect(() => {
-    if (!open || !studentProfile.courseId) {
+    if (!open || !isMongoObjectId(studentProfile.courseId)) {
       setBatchOptions([])
       return
     }
@@ -246,48 +279,103 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   }, [open, studentProfile.courseId])
 
   useEffect(() => {
-    if (!open || !studentProfile.batchId) {
+    if (!open || !isMongoObjectId(studentProfile.batchId)) {
       setFinancials(null)
+      setFinancialsError('')
       return
     }
     let cancelled = false
-    fetchBatchAmounts({
-      batchId: studentProfile.batchId,
-      studentId: studentProfile.studentObjectId || undefined,
-      centerId: studentProfile.centerId || undefined,
-      deliveryMode: 'OFFLINE',
-    })
+    setFinancialsError('')
+    fetchBatchAmounts(
+      buildBatchAmountsBody({
+        batchId: studentProfile.batchId,
+        studentId: studentProfile.studentObjectId,
+        centerId: studentProfile.centerId,
+        deliveryMode: 'OFFLINE',
+      }),
+    )
       .then((data) => {
-        if (!cancelled) {
-          setFinancials(mapBatchAmountsToFinancials(data, studentProfile))
+        if (cancelled) return
+        if (!isBatchFeesConfigured(data)) {
+          setFinancials(null)
+          setFinancialsError(
+            'Offline fees are not configured for this batch. Set offline payment amount in batch admin, or choose another batch.',
+          )
+          return
         }
+        setFinancials(mapBatchAmountsToFinancials(data, studentProfile))
+        setFinancialsError('')
       })
-      .catch(() => {
-        if (!cancelled) setFinancials(null)
+      .catch((err) => {
+        if (!cancelled) {
+          setFinancials(null)
+          setFinancialsError(
+            err?.message ||
+              'Failed to load batch fees. Configure offline fees for this batch in admin.',
+          )
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [open, studentProfile.batchId, studentProfile.studentObjectId, studentProfile.centerId, studentProfile])
+  }, [open, studentProfile.batchId, studentProfile.studentObjectId, studentProfile.centerId])
+
+  useEffect(() => {
+    if (!open || emiEnabled || !financials?.pendingAmount) return
+    setValue('amount', String(Math.round(Number(financials.pendingAmount) || 0)))
+  }, [open, emiEnabled, financials?.pendingAmount, setValue])
+
+  useEffect(() => {
+    if (!open || !emiEnabled || !isMongoObjectId(studentProfile.batchId) || !financials) {
+      setEmiPlanOptions([])
+      return
+    }
+    const requestId = ++emiPlansRequestRef.current
+    calculateEmiPlan(
+      buildCalculateEmiBody({
+        batchId: studentProfile.batchId,
+        studentId: studentProfile.studentObjectId,
+        downPayment: Number(emiConfig.downPayment) || 0,
+        emiStartDate: emiConfig.startDate,
+        includeAllPlans: true,
+      }),
+    )
+      .then((data) => {
+        if (requestId !== emiPlansRequestRef.current) return
+        setEmiPlanOptions(mapEmiPlanOptionsToPreviews(data?.planOptions || []))
+      })
+      .catch(() => {
+        if (requestId !== emiPlansRequestRef.current) return
+        setEmiPlanOptions([])
+      })
+  }, [
+    open,
+    emiEnabled,
+    studentProfile.batchId,
+    studentProfile.studentObjectId,
+    emiConfig.downPayment,
+    emiConfig.startDate,
+    financials,
+  ])
 
   const emiConfigKey = `${emiConfig.installmentCount}|${emiConfig.downPayment}|${emiConfig.startDate}|${emiConfig.frequency}|${financials?.pendingAmount}|${emiConfig.durationPreset}|${studentProfile.batchId}`
 
   useEffect(() => {
-    if (!open || !emiEnabled || emiPlanStatus === 'Closed Early' || !studentProfile.batchId) return
+    if (!open || !emiEnabled || emiPlanStatus === 'Closed Early' || !isMongoObjectId(studentProfile.batchId)) return
     const months = Number(emiConfig.installmentCount)
     if (!months && emiConfig.durationPreset !== 'custom') return
 
     const requestId = ++emiRequestRef.current
-    calculateEmiPlan({
-      batchId: studentProfile.batchId,
-      studentId: studentProfile.studentObjectId || undefined,
-      deliveryMode: 'OFFLINE',
-      downPayment: Number(emiConfig.downPayment) || 0,
-      months: months || undefined,
-      emiStartDate: emiConfig.startDate,
-      isCustom: emiConfig.durationPreset === 'custom',
-      includeAllPlans: false,
-    })
+    calculateEmiPlan(
+      buildCalculateEmiBody({
+        batchId: studentProfile.batchId,
+        studentId: studentProfile.studentObjectId,
+        downPayment: Number(emiConfig.downPayment) || 0,
+        months: months || undefined,
+        emiStartDate: emiConfig.startDate,
+        isCustom: emiConfig.durationPreset === 'custom',
+      }),
+    )
       .then((data) => {
         if (requestId !== emiRequestRef.current) return
         if (data?.installments?.length) {
@@ -499,7 +587,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
               pendingAmount: financials?.pendingAmount,
             }
           : null,
-        isWalkIn: studentProfile.isWalkIn,
+        isWalkIn:
+          studentProfile.isWalkIn || !isMongoObjectId(studentProfile.studentObjectId),
       }
     },
     [
@@ -540,11 +629,15 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       if (!studentProfile.centerId) errs.push('Center is required.')
       if (!studentProfile.courseId) errs.push('Course is required.')
       if (!studentProfile.batchId) errs.push('Batch is required.')
+      if (!isMongoObjectId(studentProfile.centerId)) errs.push('Select a valid center.')
+      if (!isMongoObjectId(studentProfile.courseId)) errs.push('Select a valid course.')
+      if (!isMongoObjectId(studentProfile.batchId)) errs.push('Select a valid batch.')
+      if (financialsError) errs.push(financialsError)
       if (!data.paymentDate) errs.push('Payment date is required.')
 
       if (emiEnabled) {
-        if (!financials?.pendingAmount && !studentProfile.customFee) {
-          errs.push('Select a course with fee details for EMI calculation.')
+        if (!financials || !isBatchFeesConfigured(financials)) {
+          errs.push('Select a batch with configured offline fees before creating an EMI plan.')
         }
         const dpFieldErrors = validateDownPaymentFields()
         if (dpFieldErrors.receivedBy) errs.push(dpFieldErrors.receivedBy)
@@ -558,7 +651,23 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
           }),
         )
       } else {
+        if (!financials || !isBatchFeesConfigured(financials)) {
+          errs.push(
+            'Select a batch with configured offline fees before submitting full payment.',
+          )
+        }
         if (!data.amount || Number(data.amount) <= 0) errs.push('Amount paid is required.')
+        if (
+          financials?.pendingAmount > 0 &&
+          Math.round(Number(data.amount) || 0) !== Math.round(Number(financials.pendingAmount))
+        ) {
+          errs.push(
+            `Amount paid must match the pending balance (₹${Math.round(financials.pendingAmount).toLocaleString('en-IN')}).`,
+          )
+        }
+        if (!resolvePaymentModeId(data.paymentMode, paymentModes)) {
+          errs.push('Select a valid payment mode.')
+        }
         const needsRef = ['UPI', 'Bank Transfer', 'POS Machine', 'Card', 'Net Banking'].includes(
           data.paymentMode,
         )
@@ -579,6 +688,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
       financials,
       emiConfig,
       installments,
+      financials,
+      financialsError,
       validateDownPaymentFields,
       proofFile,
       proofFiles,
@@ -586,17 +697,18 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
   )
 
   const validateScheduleWithApi = useCallback(async () => {
-    if (!emiEnabled || !studentProfile.batchId) return { valid: true }
+    if (!emiEnabled || !isMongoObjectId(studentProfile.batchId)) return { valid: true }
     try {
-      const result = await validateEmiSchedule({
-        batchId: studentProfile.batchId,
-        studentId: studentProfile.studentObjectId || undefined,
-        deliveryMode: 'OFFLINE',
-        downPayment: Number(emiConfig.downPayment) || 0,
-        installments: installments.map((row) => ({
-          amount: Math.round(Number(row.emiAmount) || 0),
-        })),
-      })
+      const result = await validateEmiSchedule(
+        buildValidateScheduleBody({
+          batchId: studentProfile.batchId,
+          studentId: studentProfile.studentObjectId,
+          downPayment: Number(emiConfig.downPayment) || 0,
+          installments: installments.map((row) => ({
+            amount: Math.round(Number(row.emiAmount) || 0),
+          })),
+        }),
+      )
       if (result?.valid === false) {
         return { valid: false, message: 'Installment schedule does not match payable amount.' }
       }
@@ -672,6 +784,8 @@ export function useOfflinePaymentEmiForm({ open, initialStudentProfile } = {}) {
     batchesFetchError,
     setupLoading,
     paymentModes,
+    emiPlanOptions,
+    financialsError,
     OFFLINE_SUBMIT_ACTIONS,
   }
 }

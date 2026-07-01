@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchMentorsDropdown } from '../api/batchesAPI'
 import { mapMentorDropdownRow } from '../utils/mentorEmployees'
+import { isMongoObjectId } from '../utils/facultySubjectHelpers'
 
 const LOAD_ERROR = 'Unable to load mentors'
 
@@ -11,7 +12,7 @@ export function useMentorEmployees({ enabled = false, courseId = '' } = {}) {
   const [error, setError] = useState(null)
 
   const resolvedCourseId = String(courseId || '').trim()
-  const shouldFetch = Boolean(enabled && resolvedCourseId)
+  const shouldFetch = Boolean(enabled && isMongoObjectId(resolvedCourseId))
 
   useEffect(() => {
     if (!shouldFetch) {

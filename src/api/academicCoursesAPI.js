@@ -1,5 +1,9 @@
 import { isFrontendOnly } from '../config/appMode'
-import { getCourses, getCoursesDropdown } from '../services/courseService'
+import {
+  getCourses,
+  getCoursesDropdown,
+  postCoursesDropdown,
+} from '../services/courseService'
 import { loadAcademicCourses } from '../utils/academicCoursesStorage'
 import { normalizeCourseCatalogDropdownOptions } from '../utils/courseDropdownApiHelpers'
 
@@ -21,12 +25,35 @@ function mapLocalToOptions(rows) {
     .sort((a, b) => a.courseName.localeCompare(b.courseName))
 }
 
-/** Active courses from Categories → Courses for batch creation dropdown */
-export async function fetchAcademicCourseOptions({ signal } = {}) {
+/** Active courses for batch creation — optionally scoped to a center. */
+export async function fetchAcademicCourseOptions({ centerId, signal } = {}) {
+  const resolvedCenterId = String(centerId || '').trim()
+
   if (isFrontendOnly) {
     await delay(80)
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    return mapLocalToOptions(loadAcademicCourses())
+    const rows = mapLocalToOptions(loadAcademicCourses())
+    if (!resolvedCenterId) return rows
+    return rows.filter(
+      (row) => !row.centerId || String(row.centerId) === resolvedCenterId,
+    )
+  }
+
+  if (resolvedCenterId) {
+    try {
+      const data = await postCoursesDropdown({ centerId: resolvedCenterId }, { signal })
+      return normalizeCourseCatalogDropdownOptions(data)
+    } catch {
+      try {
+        const data = await getCoursesDropdown(
+          { centerId: resolvedCenterId, status: 'ACTIVE', limit: 200 },
+          { signal },
+        )
+        return normalizeCourseCatalogDropdownOptions(data)
+      } catch {
+        return []
+      }
+    }
   }
 
   try {

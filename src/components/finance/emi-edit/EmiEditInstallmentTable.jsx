@@ -3,6 +3,7 @@ import IconActionButton from '../../common/IconActionButton'
 import FinanceStatusBadge from '../FinanceStatusBadge'
 import { formatINR } from '../../../utils/financeFilters'
 import { formatDisplayDate, installmentRemaining } from '../../../utils/emiSchedule'
+import { canCustomizeInstallment, canPayInstallment } from '../../../utils/emiManagementHelpers'
 import { cn } from '../../../utils/cn'
 
 export default function EmiEditInstallmentTable({
@@ -32,7 +33,9 @@ export default function EmiEditInstallmentTable({
               const isPaid = ['Paid', 'Closed'].includes(row.status)
               const isPartial = row.status === 'Partial'
               const locked = planClosed || row.status === 'Closed'
-              const remaining = installmentRemaining(row)
+              const remaining = row.remainingBalance ?? installmentRemaining(row)
+              const allowCustomize = !locked && canCustomizeInstallment(row)
+              const allowPay = !locked && canPayInstallment(row)
 
               return (
                 <tr
@@ -71,7 +74,7 @@ export default function EmiEditInstallmentTable({
                     <div className="flex items-center justify-center gap-2.5">
                       <IconActionButton
                         label="Customize Installment"
-                        disabled={locked}
+                        disabled={!allowCustomize}
                         onClick={() => onCustomize?.(index)}
                         className="border border-[#55ace7]/35 text-[#246392] hover:border-[#55ace7] hover:bg-[#eef6fc] hover:shadow-sm"
                       >
@@ -79,7 +82,7 @@ export default function EmiEditInstallmentTable({
                       </IconActionButton>
                       <button
                         type="button"
-                        disabled={locked}
+                        disabled={!allowPay}
                         onClick={() => onPay?.(index)}
                         className={cn(
                           'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#55ace7] to-[#246392] px-3 text-xs font-bold text-white shadow-sm transition',

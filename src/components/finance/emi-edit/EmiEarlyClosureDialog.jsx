@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Calendar, Lock, Receipt, Upload } from 'lucide-react'
 import Modal from '../../ui/Modal'
 import ModalPanelHeader from '../../courses/ModalPanelHeader'
-import { OFFLINE_PAYMENT_MODES } from '../../../constants/offlinePaymentEmi'
 import { formatINR } from '../../../utils/financeFilters'
 import { resolvePaymentModeId } from '../../../utils/emiManagementHelpers'
 import { cn } from '../../../utils/cn'
@@ -35,15 +34,16 @@ export default function EmiEarlyClosureDialog({
   })
   const [proofName, setProofName] = useState('')
   const [proofFile, setProofFile] = useState(null)
+  const [proofError, setProofError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const modeOptions = paymentModes.length
     ? paymentModes.map((m) => ({ value: m.paymentModeId, label: m.paymentModeName }))
-    : OFFLINE_PAYMENT_MODES.map((m) => ({ value: m, label: m }))
+    : []
 
   useEffect(() => {
     if (!open) return
-    const defaultMode = paymentModes[0]?.paymentModeId || OFFLINE_PAYMENT_MODES[0] || 'Cash'
+    const defaultMode = paymentModes[0]?.paymentModeId || ''
     setForm({
       amount: String(pendingBalance || ''),
       paymentMode: defaultMode,
@@ -54,6 +54,7 @@ export default function EmiEarlyClosureDialog({
     })
     setProofName('')
     setProofFile(null)
+    setProofError('')
     setSubmitting(false)
   }, [open, pendingBalance, paymentModes])
 
@@ -62,6 +63,11 @@ export default function EmiEarlyClosureDialog({
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (submitting || saving) return
+    if (!proofFile) {
+      setProofError('Payment proof is required.')
+      return
+    }
+    setProofError('')
     setSubmitting(true)
     try {
       await onSave?.(
@@ -183,25 +189,38 @@ export default function EmiEarlyClosureDialog({
                 />
               </label>
 
-              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-dashed border-[#55ace7]/40 bg-[#f8fbff] px-4 py-3.5 text-sm font-semibold text-[#246392] transition hover:bg-[#eef6fc] sm:col-span-2">
-                <Upload className="h-4 w-4 shrink-0" aria-hidden />
-                Upload Payment Proof
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  required
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    setProofFile(file || null)
-                    setProofName(file?.name || '')
-                    e.target.value = ''
-                  }}
-                />
-                {proofName ? (
-                  <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
+              <div className="sm:col-span-2">
+                <FieldLabel>Upload Payment Proof</FieldLabel>
+                <label
+                  className={cn(
+                    'mt-1.5 flex cursor-pointer items-center gap-2.5 rounded-xl border border-dashed px-4 py-3.5 text-sm font-semibold text-[#246392] transition hover:bg-[#eef6fc]',
+                    proofError
+                      ? 'border-[#df8284] bg-red-50/40'
+                      : 'border-[#55ace7]/40 bg-[#f8fbff]',
+                  )}
+                >
+                  <Upload className="h-4 w-4 shrink-0" aria-hidden />
+                  <span>{proofName ? 'Replace proof file' : 'Choose proof file'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg,application/pdf,.pdf"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setProofFile(file)
+                      setProofName(file.name)
+                      setProofError('')
+                    }}
+                  />
+                  {proofName ? (
+                    <span className="ml-auto truncate text-xs font-normal text-[#686868]">{proofName}</span>
+                  ) : null}
+                </label>
+                {proofError ? (
+                  <p className="mt-1.5 text-xs font-medium text-[#df8284]">{proofError}</p>
                 ) : null}
-              </label>
+              </div>
             </div>
           </div>
 

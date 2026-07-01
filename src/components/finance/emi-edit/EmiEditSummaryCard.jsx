@@ -47,7 +47,7 @@ export default function EmiEditSummaryCard({ plan, analytics }) {
 
         <div className="grid grid-cols-2 gap-2 sm:col-span-1 lg:col-span-2">
           <Stat label="Total fee" value={formatINR(plan.totalFees)} />
-          <Stat label="Paid" value={formatINR(plan.totalPaid)} accent="text-emerald-700" />
+          <Stat label="Paid" value={formatINR(plan.totalPaid ?? plan.amountPaid ?? 0)} accent="text-emerald-700" />
           <Stat label="Pending" value={formatINR(plan.pendingAmount)} accent="text-[#246392]" />
           <Stat
             label="Overdue"

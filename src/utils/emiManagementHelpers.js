@@ -3,6 +3,8 @@
  * Contract: docs/EMI_MANAGEMENT_FRONTEND_API_GUIDE.md
  */
 
+import { isMongoObjectId } from './paymentVerificationHelpers'
+
 const INSTALLMENT_STATUS_MAP = {
   PAID: 'Paid',
   OVERDUE: 'Overdue',
@@ -42,7 +44,7 @@ export function toIsoDateOnly(value) {
 export function mapInstallmentRowToUi(row) {
   if (!row) return null
   return {
-    _id: row._id,
+    _id: row._id || row.installmentId || row.emiInstallmentId,
     installmentNo: row.installmentNo,
     emiNo: row.installmentNo,
     emiMonth: row.emiMonth,
@@ -290,9 +292,16 @@ export function resolveDashboardCenterId(financeCenterFilter) {
 }
 
 export function buildCustomizeInstallmentBody({ emiPlanId, installmentId, row, reason = '' }) {
+  if (!isMongoObjectId(emiPlanId)) {
+    throw new Error('Invalid EMI plan ID. Reload the EMI details and try again.')
+  }
+  if (!isMongoObjectId(installmentId)) {
+    throw new Error('Invalid installment ID. Reload the EMI details and try again.')
+  }
+
   return {
-    emiPlanId,
-    installmentId,
+    emiPlanId: String(emiPlanId).trim(),
+    installmentId: String(installmentId).trim(),
     emiAmount: Number(row.emiAmount) || 0,
     dueDate: row.dueDate || undefined,
     lateFee: Number(row.lateFee) || 0,
@@ -307,16 +316,31 @@ export function buildPayInstallmentFormData({
   emiPlanId,
   installmentId,
   paymentModeId,
+  paymentMode,
+  paymentModes = [],
   paymentDate,
   receiptNumber,
   referenceNumber,
   remarks,
   proofFile,
 }) {
+  if (!isMongoObjectId(emiPlanId)) {
+    throw new Error('Invalid EMI plan ID. Reload the EMI details and try again.')
+  }
+  if (!isMongoObjectId(installmentId)) {
+    throw new Error('Invalid installment ID. Reload the EMI details and try again.')
+  }
+
+  const resolvedPaymentModeId =
+    paymentModeId || resolvePaymentModeId(paymentModes, paymentMode || paymentModeId)
+  if (!resolvedPaymentModeId) {
+    throw new Error('Select a valid payment mode.')
+  }
+
   const formData = new FormData()
-  formData.append('emiPlanId', emiPlanId)
-  formData.append('installmentId', installmentId)
-  if (paymentModeId) formData.append('paymentModeId', paymentModeId)
+  formData.append('emiPlanId', String(emiPlanId).trim())
+  formData.append('installmentId', String(installmentId).trim())
+  formData.append('paymentModeId', resolvedPaymentModeId)
   if (paymentDate) formData.append('paymentDate', paymentDate)
   if (receiptNumber) formData.append('receiptNumber', receiptNumber)
   if (referenceNumber) {
@@ -324,7 +348,7 @@ export function buildPayInstallmentFormData({
     formData.append('utrNumber', referenceNumber)
   }
   if (remarks) formData.append('remarks', remarks)
-  if (proofFile) {
+  if (proofFile instanceof File) {
     formData.append('paymentProof', proofFile)
     formData.append('proofFile', proofFile)
   }

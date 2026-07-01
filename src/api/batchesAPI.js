@@ -413,7 +413,12 @@ export async function fetchMentorsDropdown({ courseId, signal } = {}) {
   if (isFrontendOnly) return []
 
   const resolvedCourseId = String(courseId || '').trim()
-  if (!resolvedCourseId) return []
+  if (!resolvedCourseId || !isMongoObjectId(resolvedCourseId)) {
+    logBatchApiDev('fetchMentorsDropdown skipped — courseId must be a MongoDB _id', {
+      courseId: resolvedCourseId,
+    })
+    return []
+  }
 
   try {
     const response = await axiosInstance.post(

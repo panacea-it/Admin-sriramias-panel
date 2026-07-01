@@ -2,7 +2,8 @@ import { useEffect, useMemo } from 'react'
 import SearchableSelect from '../categories/SearchableSelect'
 import { CourseFormField } from './CourseFormField'
 import { useMentorEmployees } from '../../hooks/useMentorEmployees'
-import { resolveBatchCourseId } from '../../utils/batchApiHelpers'
+import { parseMongoIdFromField } from '../../utils/batchApiHelpers'
+import { isMongoObjectId } from '../../utils/facultySubjectHelpers'
 import { cn } from '../../utils/cn'
 import { toast } from '../../utils/toast'
 
@@ -20,7 +21,7 @@ export default function BatchMentorSelect({
   onClearError,
   className,
 }) {
-  const selectedCourseId = resolveBatchCourseId(form)
+  const selectedCourseId = parseMongoIdFromField(form.academicCourseId)
   const { options, loading, error: fetchError } = useMentorEmployees({
     enabled: open,
     courseId: selectedCourseId,
@@ -55,7 +56,13 @@ export default function BatchMentorSelect({
   }, [loading, optionsWithSaved.length, selectedCourseId])
 
   const handleChange = (mentorId) => {
-    setForm((f) => ({ ...f, mentorId: String(mentorId || '').trim() }))
+    const nextMentorId = String(mentorId || '').trim()
+    const picked = optionsWithSaved.find((opt) => String(opt.value) === nextMentorId)
+    setForm((f) => ({
+      ...f,
+      mentorId: isMongoObjectId(nextMentorId) ? nextMentorId : '',
+      mentorName: picked?.label || f.mentorName || '',
+    }))
     onClearError?.()
   }
 

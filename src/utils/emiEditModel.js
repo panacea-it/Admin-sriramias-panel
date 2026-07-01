@@ -1,6 +1,5 @@
 import {
   applyEarlyEmiClosure,
-  computeCurrentPlanAnalytics,
   getEmiMonthLabel,
   installmentNetAmount,
   installmentPaidAmount,
@@ -64,7 +63,14 @@ export function normalizeInstallment(raw, index = 0) {
   const receiptNumber =
     source.receiptNumber || (typeof source.receipt === 'string' ? source.receipt : '') || ''
 
+  const statusRaw = source.statusRaw || null
+  const remainingBalance =
+    source.remainingBalance != null
+      ? Number(source.remainingBalance) || 0
+      : Math.max(0, emiAmount + (Number(source.lateFee) || 0) + (Number(source.customCharge) || 0) - (Number(source.discount) || 0) - paidAmount)
+
   const base = {
+    _id: source._id,
     installmentNo: no,
     emiNo: no,
     emiMonth: source.emiMonth || getEmiMonthLabel(dueDate),
@@ -72,10 +78,12 @@ export function normalizeInstallment(raw, index = 0) {
     emiDate: dueDate,
     emiAmount,
     paidAmount,
+    remainingBalance,
     lateFee: Number(source.lateFee) || 0,
     discount: Number(source.discount) || 0,
     customCharge: Number(source.customCharge) || 0,
-    paymentMode: source.paymentMode || '',
+    paymentMode: source.paymentMode || source.paymentModeName || '',
+    paymentModeId: source.paymentModeId || '',
     paymentType: source.paymentType || 'Offline',
     receiptNumber,
     referenceNumber: source.referenceNumber || source.utrNumber || '',
@@ -89,11 +97,17 @@ export function normalizeInstallment(raw, index = 0) {
     paymentHistory: Array.isArray(source.paymentHistory) ? [...source.paymentHistory] : [],
     studentSubmission: raw?.studentSubmission || null,
     submittedByStudent: Boolean(raw?.studentSubmission || raw?.submittedBy === 'student'),
+    statusRaw,
+    statusLabel: source.statusLabel || '',
   }
+
+  const status = statusRaw
+    ? source.statusLabel || source.status || deriveInstallmentStatus({ ...base, status: statusRaw })
+    : deriveInstallmentStatus({ ...base, status: source.status })
 
   return {
     ...base,
-    status: deriveInstallmentStatus({ ...base, status: source.status }),
+    status,
   }
 }
 
@@ -109,11 +123,13 @@ export function normalizeEmiPlan(plan) {
     ...plan,
     mobile: plan.mobile || '',
     email: plan.email || '',
+    totalPaid: plan.totalPaid ?? plan.amountPaid ?? 0,
     emiStartDate: startDate,
     emiEndDate: endDate,
     emiDurationMonths: plan.emiDurationMonths || installments.length,
     planStatus: plan.planStatus || derivePlanStatus(installments, plan),
     overdueAmount: plan.overdueAmount ?? computeOverdueAmount(installments),
+    completionPercent: plan.completionPercent ?? plan.schedule?.completionPercent ?? 0,
     planHistory: Array.isArray(plan.planHistory) ? [...plan.planHistory] : [],
     installments,
   }
@@ -138,18 +154,27 @@ function todayIso() {
 
 export function recalcPlanFromInstallments(plan, installments) {
   const rows = installments.map((r, i) => normalizeInstallment(r, i))
-  const analytics = computeCurrentPlanAnalytics({ schedule: rows })
   const totalPaidFromRows = rows.reduce((s, r) => s + installmentPaidAmount(r), 0)
   const totalFees = plan.totalFees || 0
-  const pendingAmount = Math.max(0, totalFees - totalPaidFromRows)
-  const completionPercent = totalFees
-    ? Math.min(100, Math.round((totalPaidFromRows / totalFees) * 100))
-    : 0
+  const apiAmountPaid = Number(plan.totalPaid ?? plan.amountPaid)
+  const totalPaid =
+    !Number.isNaN(apiAmountPaid) && apiAmountPaid > 0 ? apiAmountPaid : totalPaidFromRows
+  const apiPending = Number(plan.pendingAmount)
+  const pendingAmount =
+    !Number.isNaN(apiPending) && apiPending >= 0
+      ? apiPending
+      : Math.max(0, totalFees - totalPaidFromRows)
+  const completionPercent =
+    plan.completionPercent != null && plan.completionPercent > 0
+      ? plan.completionPercent
+      : totalFees
+        ? Math.min(100, Math.round((totalPaid / totalFees) * 100))
+        : 0
 
   return {
     ...plan,
     installments: rows,
-    totalPaid: totalPaidFromRows,
+    totalPaid,
     pendingAmount,
     completionPercent,
     overdueAmount: computeOverdueAmount(rows),

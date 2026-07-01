@@ -20,6 +20,7 @@ export default function VerificationPaymentViewModal({
   row,
   onClose,
   onViewProof,
+  loading = false,
 }) {
   if (!row) return null
 
@@ -40,7 +41,12 @@ export default function VerificationPaymentViewModal({
           iconClassName="text-[#246392]"
           closeVariant="icon"
         />
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-2 sm:px-6">
+        <div className="relative max-h-[70vh] overflow-y-auto px-5 py-2 sm:px-6">
+          {loading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+              <p className="text-sm font-medium text-[#686868]">Loading payment details…</p>
+            </div>
+          )}
           <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-4">
             <DetailRow label="Payment ID" value={row.id} />
             <DetailRow label="Student" value={row.student} />

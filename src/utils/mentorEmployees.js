@@ -1,8 +1,10 @@
 /** Mentor employees for batch assignment — sourced from Admin Management API. */
 
+import { isMongoObjectId } from './facultySubjectHelpers'
+
 export const EMPLOYEES_UPDATED_EVENT = 'employees-updated'
 
-/** Unwrap GET /api/admin/admin-access/mentors/dropdown list payloads. */
+/** Unwrap POST /api/admin/admin-access/mentors/dropdown list payloads. */
 export function unwrapMentorsDropdownList(body) {
   if (!body) return []
   if (Array.isArray(body)) return body
@@ -25,16 +27,10 @@ export function unwrapMentorsDropdownList(body) {
 }
 
 export function resolveMentorDropdownId(mentor = {}) {
-  const candidates = [
-    mentor._id,
-    mentor.id,
-    mentor.mentorId,
-    mentor.adminId,
-    mentor.userId,
-  ]
+  const candidates = [mentor._id, mentor.id]
   for (const raw of candidates) {
     const id = String(raw ?? '').trim()
-    if (id) return id
+    if (isMongoObjectId(id)) return id
   }
   return ''
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ShieldCheck, Check, X, Eye, Plus, AlertTriangle } from 'lucide-react'
 import FinancePageShell from '../../components/finance/FinancePageShell'
@@ -35,7 +35,9 @@ import {
   canRejectRecord,
   canFinanceHeadApproveRecord,
   mapCoursesToOptions,
+  mapCentersDropdownToOptions,
   mapPaymentModesToOptions,
+  isMongoObjectId,
   VERIFICATION_EXPORT_COLUMNS,
 } from '../../utils/paymentVerificationHelpers'
 import { VERIFICATION_QUEUE_EXPORT_COLUMNS } from '../../constants/financeVerification'
@@ -43,12 +45,14 @@ import { formatINR } from '../../utils/financeFilters'
 import { formatCategoryDateTime } from '../../utils/formatDateTime'
 import { exportFinanceCsv } from '../../utils/financeExport'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildFilterSignature, createListFetchGuard, useEffectivePage } from '../../hooks/useMasterListQuery'
 import { useFinancePermissions } from '../../hooks/useFinancePermissions'
 import { useFinanceOperations } from '../../contexts/FinanceOperationsContext'
 import { toast } from '../../utils/toast'
 import { cn } from '../../utils/cn'
 
 const PAGE_SIZE = 25
+const listFetchGuard = createListFetchGuard()
 
 function dedupeFilterOptions(options = []) {
   const seen = new Set()
@@ -147,12 +151,36 @@ export default function PaymentVerificationCenterPage() {
   const [dateTo, setDateTo] = useState('')
 
   const [viewRow, setViewRow] = useState(null)
+  const [viewDetailLoading, setViewDetailLoading] = useState(false)
   const [proofRow, setProofRow] = useState(null)
   const [verifyRow, setVerifyRow] = useState(null)
   const [headApproveRow, setHeadApproveRow] = useState(null)
   const [rejectRow, setRejectRow] = useState(null)
   const [duplicateRow, setDuplicateRow] = useState(null)
   const [offlineOpen, setOfflineOpen] = useState(false)
+  const [listRefreshToken, setListRefreshToken] = useState(0)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const filterSignature = buildFilterSignature([
+    debouncedSearch,
+    statusFilter,
+    approvalFilter,
+    modeFilter,
+    centerFilter,
+    courseFilter,
+    dateFrom,
+    dateTo,
+    pageSize,
+  ])
+
+  const effectivePage = useEffectivePage(page, setPage, filterSignature)
 
   const listParams = useMemo(
     () => ({
@@ -164,7 +192,7 @@ export default function PaymentVerificationCenterPage() {
       courseId: courseFilter,
       dateFrom,
       dateTo,
-      page,
+      page: effectivePage,
       limit: pageSize,
       sortBy: 'updatedAt',
       sortOrder: 'desc',
@@ -178,10 +206,14 @@ export default function PaymentVerificationCenterPage() {
       courseFilter,
       dateFrom,
       dateTo,
-      page,
+      effectivePage,
       pageSize,
     ],
   )
+
+  const refreshList = useCallback(() => {
+    setListRefreshToken((token) => token + 1)
+  }, [])
 
   const loadSetup = useCallback(async () => {
     try {
@@ -190,57 +222,50 @@ export default function PaymentVerificationCenterPage() {
         fetchVerificationPaymentModes(),
         fetchVerificationCentersDropdown(),
       ])
+      if (!mountedRef.current) return
       setFilterOptions(options)
       setPaymentModes(modes)
-      setCenters(
-        centerList.map((c) => ({
-          id: c.value || c.id || c._id,
-          name: c.centerName || c.name || c.label,
-        })),
-      )
+      setCenters(mapCentersDropdownToOptions(centerList))
     } catch {
-      toast.error('Failed to load verification filters')
+      if (mountedRef.current) toast.error('Failed to load verification filters')
     }
   }, [])
-
-  const loadList = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await fetchVerificationList(listParams)
-      setQueue(result.items || [])
-      setTotalCount(result.totalCount ?? 0)
-      setTotalPages(result.totalPages ?? 1)
-    } catch (err) {
-      toast.error(err?.message || 'Failed to load verification queue')
-      setQueue([])
-      setTotalCount(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
-    }
-  }, [listParams])
 
   useEffect(() => {
     loadSetup()
   }, [loadSetup])
 
   useEffect(() => {
-    loadList()
-  }, [loadList])
+    const ctx = listFetchGuard.beginRequest()
+    if (!ctx) return
+    const { controller, seq } = ctx
 
-  useEffect(() => {
-    setPage(1)
-  }, [
-    debouncedSearch,
-    statusFilter,
-    approvalFilter,
-    modeFilter,
-    centerFilter,
-    courseFilter,
-    dateFrom,
-    dateTo,
-    pageSize,
-  ])
+    setLoading(true)
+    fetchVerificationList(listParams, { signal: controller.signal })
+      .then((result) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (!mountedRef.current) return
+        setQueue(result.items || [])
+        setTotalCount(result.totalCount ?? 0)
+        setTotalPages(result.totalPages ?? 1)
+      })
+      .catch((error) => {
+        if (!listFetchGuard.shouldApplyResult(seq, controller)) return
+        if (listFetchGuard.isAbortError(error)) return
+        listFetchGuard.toastListError(
+          listFetchGuard.getListErrorMessage(error, 'Failed to load verification queue'),
+        )
+        if (!mountedRef.current) return
+        setQueue([])
+        setTotalCount(0)
+        setTotalPages(1)
+      })
+      .finally(() => {
+        if (listFetchGuard.endRequest(seq) && mountedRef.current) {
+          setLoading(false)
+        }
+      })
+  }, [listParams, listRefreshToken])
 
   useEffect(() => {
     if (searchParams.get('addOffline') === '1' && (canVerify || canEdit)) {
@@ -251,7 +276,7 @@ export default function PaymentVerificationCenterPage() {
   }, [searchParams, setSearchParams, canVerify, canEdit])
 
   useEffect(() => {
-    if (centerFilter === 'all') {
+    if (centerFilter === 'all' || !isMongoObjectId(centerFilter)) {
       setCourseOptions([])
       return
     }
@@ -305,7 +330,7 @@ export default function PaymentVerificationCenterPage() {
   }, [courseOptions])
 
   const pagination = useMemo(() => {
-    const safePage = Math.min(Math.max(1, page), totalPages || 1)
+    const safePage = Math.min(Math.max(1, effectivePage), totalPages || 1)
     const startIndex = totalCount === 0 ? 0 : (safePage - 1) * pageSize
     const endIndex = Math.min(startIndex + pageSize, totalCount)
     return {
@@ -316,7 +341,7 @@ export default function PaymentVerificationCenterPage() {
       startIndex,
       endIndex,
     }
-  }, [page, pageSize, totalCount, totalPages])
+  }, [effectivePage, pageSize, totalCount, totalPages])
 
   const controlledPagination = useMemo(
     () => ({
@@ -332,10 +357,12 @@ export default function PaymentVerificationCenterPage() {
     try {
       await fn()
       if (successMsg) toast.success(successMsg)
-      await loadList()
+      refreshList()
       bumpRefresh()
+      return true
     } catch (err) {
       toast.error(err?.message || errorMsg)
+      return false
     } finally {
       setActionLoading(false)
     }
@@ -345,12 +372,16 @@ export default function PaymentVerificationCenterPage() {
 
   const handleViewRow = async (row) => {
     setViewRow(row)
+    setViewDetailLoading(true)
     try {
       const detail = await fetchVerificationDetail(resolveRecordId(row))
       if (detail) setViewRow(detail)
-      await loadList()
+      refreshList()
     } catch (err) {
       toast.error(err?.message || 'Failed to load payment details')
+      setViewRow(null)
+    } finally {
+      setViewDetailLoading(false)
     }
   }
 
@@ -365,29 +396,33 @@ export default function PaymentVerificationCenterPage() {
   const handleVerifyConfirm = async () => {
     if (!verifyRow) return
     const recordId = resolveRecordId(verifyRow)
-    await runAction(
+    const ok = await runAction(
       () => approveVerificationRecord(recordId),
       'Payment verified successfully.',
     )
-    setVerifyRow(null)
-    setViewRow(null)
+    if (ok) {
+      setVerifyRow(null)
+      setViewRow(null)
+    }
   }
 
   const handleHeadApproveConfirm = async () => {
     if (!headApproveRow) return
     const recordId = resolveRecordId(headApproveRow)
-    await runAction(
+    const ok = await runAction(
       () => approveVerificationRecord(recordId),
       `${headApproveRow.student} approved — moved to Student Payment Reports`,
     )
-    setHeadApproveRow(null)
-    setViewRow(null)
+    if (ok) {
+      setHeadApproveRow(null)
+      setViewRow(null)
+    }
   }
 
   const handleReject = async (payload) => {
     if (!rejectRow) return
     const recordId = resolveRecordId(rejectRow)
-    await runAction(
+    const ok = await runAction(
       () =>
         rejectVerificationRecord(recordId, {
           reason: payload.reason,
@@ -395,8 +430,10 @@ export default function PaymentVerificationCenterPage() {
         }),
       'Payment rejected',
     )
-    setRejectRow(null)
-    setViewRow(null)
+    if (ok) {
+      setRejectRow(null)
+      setViewRow(null)
+    }
   }
 
   const handleExportCsv = async () => {
@@ -446,7 +483,7 @@ export default function PaymentVerificationCenterPage() {
         )
       }
       setOfflineOpen(false)
-      await loadList()
+      refreshList()
       bumpRefresh()
     } catch (err) {
       toast.error(err?.message || 'Failed to submit offline payment')
@@ -742,6 +779,7 @@ export default function PaymentVerificationCenterPage() {
       <VerificationPaymentViewModal
         open={!!viewRow}
         row={viewRow}
+        loading={viewDetailLoading}
         onClose={() => setViewRow(null)}
         onViewProof={handleViewProof}
       />

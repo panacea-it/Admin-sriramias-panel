@@ -12,6 +12,7 @@ export default function EmiDurationCards({
   config,
   onChange,
   financials,
+  apiPlanOptions = [],
 }) {
   const [countError, setCountError] = useState('')
 
@@ -66,6 +67,23 @@ export default function EmiDurationCards({
         : config.installmentCount
       : config.installmentCount
 
+  const getPresetPreview = (preset) => {
+    if (preset.id === 'custom') return null
+    const apiPlan = apiPlanOptions.find((plan) => plan.months === preset.months)
+    if (apiPlan) {
+      return {
+        monthlyAmount: apiPlan.monthlyAmount,
+        endDate: apiPlan.endDate,
+      }
+    }
+    return previewDurationOption({
+      months: preset.months,
+      pendingBalance: pending,
+      downPayment: down,
+      startDate,
+    })
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -79,12 +97,7 @@ export default function EmiDurationCards({
           const isActive = config.durationPreset === preset.id
           const preview =
             !isCustom
-              ? previewDurationOption({
-                  months: preset.months,
-                  pendingBalance: pending,
-                  downPayment: down,
-                  startDate,
-                })
+              ? getPresetPreview(preset)
               : null
 
           return (

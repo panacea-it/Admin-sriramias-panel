@@ -4,6 +4,17 @@ import { DEFAULT_BATCH_CAPACITY, normalizeBatchUiStatus } from './batchOperation
 import { resolveMentorDisplayName } from './mentorEmployees'
 import { isMongoObjectId } from './facultySubjectHelpers'
 
+/** Display label for a batch's center from list/detail row data. */
+export function resolveBatchCenterLabel(row = {}) {
+  const fd = row.formData || {}
+  const name = String(
+    row.centerName || fd.centerName || row.center || fd.center || '',
+  ).trim()
+  if (name) return name
+  const id = String(row.centerId || fd.centerId || '').trim()
+  return id || '—'
+}
+
 /** Human-readable batch identifier for tables and search (batchId, then batchCode). */
 export function resolveBatchDisplayId(row = {}) {
   const fd = row.formData || {}
@@ -144,6 +155,8 @@ export function enrichBatchRow(row, index = 0) {
     modifiedAt: row.modifiedAt || fd.modifiedAt,
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
     center: row.center || fd.center || '',
+    centerId: row.centerId || fd.centerId || '',
+    centerName: row.centerName || fd.centerName || row.center || fd.center || '',
     academicCourseId: row.academicCourseId || fd.academicCourseId || '',
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,
     mergedIntoName: row.mergedIntoName ?? fd.mergedIntoName ?? null,
@@ -198,6 +211,8 @@ export function mapBatchRowToTableFormat(row, students = [], totalStudentsOverri
     status: normalizeBatchUiStatus(row.status || fd.status || 'Active'),
     capacity: row.capacity ?? fd.capacity ?? DEFAULT_BATCH_CAPACITY,
     center: row.center || fd.center || '',
+    centerId: row.centerId || fd.centerId || '',
+    centerName: resolveBatchCenterLabel(row),
     academicCourseId: row.academicCourseId || fd.academicCourseId || row.courseId || fd.courseId || '',
     courseId: row.courseId || fd.courseId || '',
     mergedInto: row.mergedInto ?? fd.mergedInto ?? null,

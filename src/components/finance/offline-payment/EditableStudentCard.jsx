@@ -22,15 +22,18 @@ export default function EditableStudentCard({
   onSearchSelect,
   onWalkIn,
   batchError,
+  financialsError,
 }) {
   const normalizedCenterOptions = useMemo(() => {
-    return centerOptions.map((center) => {
-      if (typeof center === 'string') return { id: center, name: center }
-      return {
-        id: center.id || center._id || center.value,
-        name: center.name || center.centerName || center.label,
-      }
-    })
+    return centerOptions
+      .map((center) => {
+        if (typeof center === 'string') return { id: center, name: center }
+        return {
+          id: center.id || center._id || center.value,
+          name: center.name || center.centerName || center.label,
+        }
+      })
+      .filter((center) => center.id && center.name)
   }, [centerOptions])
 
   const filteredBatchOptions = useMemo(() => {
@@ -100,8 +103,11 @@ export default function EditableStudentCard({
           className={fieldClass}
         >
           <option value="">— Or enter details manually below —</option>
-          {studentOptions.map((s) => (
-            <option key={s.studentObjectId || s.studentId} value={s.studentObjectId || s.studentId}>
+          {studentOptions.map((s, index) => (
+            <option
+              key={`${s.studentObjectId || s.studentId || 'student'}-${index}`}
+              value={s.studentObjectId || s.studentId}
+            >
               {s.studentName} · {s.centerName}
             </option>
           ))}
@@ -147,8 +153,8 @@ export default function EditableStudentCard({
             className={fieldClass}
           >
             <option value="">Select center</option>
-            {normalizedCenterOptions.map((c) => (
-              <option key={c.id} value={c.id}>
+            {normalizedCenterOptions.map((c, index) => (
+              <option key={`${c.id}-${index}`} value={c.id}>
                 {c.name}
               </option>
             ))}
@@ -162,8 +168,8 @@ export default function EditableStudentCard({
             className={fieldClass}
           >
             <option value="">Select course</option>
-            {courseOptions.map((c) => (
-              <option key={c.value || c.id} value={c.value || c.id}>
+            {courseOptions.map((c, index) => (
+              <option key={`${c.value || c.id || 'course'}-${index}`} value={c.value || c.id}>
                 {c.label || c.name}
               </option>
             ))}
@@ -192,7 +198,13 @@ export default function EditableStudentCard({
         </label>
       </div>
 
-      {financials && (
+      {financialsError && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {financialsError}
+        </p>
+      )}
+
+      {financials && !financialsError && (
         <div className="mt-3 flex flex-wrap gap-4 rounded-lg bg-gradient-to-r from-[#f0f7fc] to-[#eef6fc] px-3 py-2.5 text-sm">
           <span>
             <span className="text-[#686868]">Payable </span>

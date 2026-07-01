@@ -82,7 +82,7 @@ export function formatFormDateForApi(value) {
 }
 
 function resolveMentorId(form) {
-  return String(form.mentorId || '').trim()
+  return parseMongoIdFromField(form?.mentorId)
 }
 
 async function resolveBrochureFile(form) {
@@ -168,12 +168,7 @@ function mapApiFeesToUi(fees = {}) {
 }
 
 export function resolveBatchCourseId(form) {
-  const candidates = [form?.academicCourseId, form?.courseId]
-  for (const raw of candidates) {
-    const id = String(raw || '').trim()
-    if (isMongoObjectId(id)) return id
-  }
-  return ''
+  return parseMongoIdFromField(form?.academicCourseId)
 }
 
 function resolveCourseId(form) {

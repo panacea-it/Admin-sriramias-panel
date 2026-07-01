@@ -61,6 +61,16 @@ export async function getCoursesDropdown(params = {}, { signal } = {}) {
   }
 }
 
+/** POST /api/courses/dropdown — courses scoped to a center (batch form). */
+export async function postCoursesDropdown(body = {}, { signal } = {}) {
+  try {
+    const response = await api.post('/api/courses/dropdown', body, { signal })
+    return response.data
+  } catch (error) {
+    throwApiError(error)
+  }
+}
+
 export async function getCoursesForEnquiry(params = {}) {
   try {
     const response = await api.get('/api/courses/enquiry', {
@@ -123,6 +133,7 @@ export const courseService = {
   findCourse,
   getCourseBySlug,
   getCoursesDropdown,
+  postCoursesDropdown,
   getCoursesForEnquiry,
   getCoursesGrouped,
   createCourse,

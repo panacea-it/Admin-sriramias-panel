@@ -18,11 +18,7 @@ import {
 import { normalizeLinkedSubjects } from '../../utils/batchHelpers'
 import { resolveBatchCourseId } from '../../utils/batchApiHelpers'
 import { isFrontendOnly } from '../../config/appMode'
-import {
-  isBatchCodeTaken,
-  isBatchIdTaken,
-  isBatchNameTaken,
-} from '../../utils/batchOperations'
+import { isBatchIdTaken, isBatchNameTaken } from '../../utils/batchOperations'
 import { useModalForm } from '../../hooks/useModalForm'
 import { cn } from '../../utils/cn'
 
@@ -98,7 +94,7 @@ export default function AddCourseModal({
   const validateBatch = () => {
     const next = {}
     if (!form.batchName?.trim()) next.batchName = 'Batch name is required'
-    if (!form.batchCode?.trim()) next.batchCode = 'Batch code is required'
+    if (!form.centerId?.trim()) next.centerId = 'Center is required'
     if (!form.mentorId?.trim()) {
       next.mentorId = 'Mentor is required'
     }
@@ -128,9 +124,6 @@ export default function AddCourseModal({
 
     if (form.batchName?.trim() && isBatchNameTaken(form.batchName, existingBatches, excludeId)) {
       next.batchName = 'This Batch Name already exists.'
-    }
-    if (form.batchCode?.trim() && isBatchCodeTaken(form.batchCode, existingBatches, excludeId)) {
-      next.batchCode = 'This Batch Code already exists.'
     }
     if (
       !isEditMode &&
@@ -214,8 +207,8 @@ export default function AddCourseModal({
             <div>
               <p className="text-sm font-semibold text-[#1a3a5c]">Duplicating batch</p>
               <p className="mt-0.5 text-xs leading-relaxed text-[#686868]">
-                Values are pre-filled from the source batch. Update the batch name and assign a
-                unique batch code before saving. A new batch ID will be generated automatically.
+                Values are pre-filled from the source batch. Update the batch name and select a
+                center before saving. A new batch ID will be generated automatically.
               </p>
             </div>
           </div>

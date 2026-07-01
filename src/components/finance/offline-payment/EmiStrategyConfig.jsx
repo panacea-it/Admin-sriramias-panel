@@ -9,6 +9,7 @@ export default function EmiStrategyConfig({
   onChange,
   financials,
   installments = [],
+  apiPlanOptions = [],
 }) {
   const pending = financials?.pendingAmount ?? 0
   const down = Number(config.downPayment) || 0
@@ -62,7 +63,12 @@ export default function EmiStrategyConfig({
     <section className="space-y-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
       <h3 className="text-sm font-bold text-[#246392]">Installment plan</h3>
 
-      <EmiDurationCards config={config} onChange={onChange} financials={financials} />
+      <EmiDurationCards
+        config={config}
+        onChange={onChange}
+        financials={financials}
+        apiPlanOptions={apiPlanOptions}
+      />
 
       {validationMessages.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">

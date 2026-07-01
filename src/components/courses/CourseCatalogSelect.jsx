@@ -20,6 +20,8 @@ export default function CourseCatalogSelect({
   className,
   excludeCourseIds = [],
   fallbackCourseId,
+  centerId = '',
+  requireCenter = false,
 }) {
   const listboxId = useId()
   const rootRef = useRef(null)
@@ -31,13 +33,22 @@ export default function CourseCatalogSelect({
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
+  const resolvedCenterId = String(centerId || '').trim()
+  const needsCenter = requireCenter && !resolvedCenterId
+
   useEffect(() => {
     if (!modalOpen) return undefined
+    if (needsCenter) {
+      setCourses([])
+      setLoading(false)
+      setFetchError(null)
+      return undefined
+    }
 
     const ac = new AbortController()
     setLoading(true)
     setFetchError(null)
-    fetchAcademicCourseOptions({ signal: ac.signal })
+    fetchAcademicCourseOptions({ centerId: resolvedCenterId, signal: ac.signal })
       .then((rows) => {
         setCourses(Array.isArray(rows) ? rows : [])
         setFetchError(null)
@@ -49,7 +60,7 @@ export default function CourseCatalogSelect({
       })
       .finally(() => setLoading(false))
     return () => ac.abort()
-  }, [modalOpen])
+  }, [modalOpen, needsCenter, resolvedCenterId])
 
   useEffect(() => {
     if (fetchError) toast.error(fetchError)
@@ -70,12 +81,15 @@ export default function CourseCatalogSelect({
   }, [])
 
   useEffect(() => {
+    if (!modalOpen || needsCenter) return undefined
     const refresh = () => {
-      fetchAcademicCourseOptions().then(setCourses).catch(() => {})
+      fetchAcademicCourseOptions({ centerId: resolvedCenterId })
+        .then(setCourses)
+        .catch(() => {})
     }
     window.addEventListener('academic-courses-updated', refresh)
     return () => window.removeEventListener('academic-courses-updated', refresh)
-  }, [])
+  }, [modalOpen, needsCenter, resolvedCenterId])
 
   useEffect(() => {
     if (value || !fallbackCourseId || !courses.length) return
@@ -96,6 +110,20 @@ export default function CourseCatalogSelect({
 
   const selected = courses.find((c) => c._id === value)
   const coords = usePortalMenuPosition(triggerRef, open, 8)
+  const pickerDisabled =
+    disabled ||
+    needsCenter ||
+    loading ||
+    Boolean(fetchError) ||
+    (!loading && !needsCenter && courses.length === 0)
+
+  const placeholder = needsCenter
+    ? 'Select center first'
+    : loading
+      ? 'Loading courses…'
+      : selected
+        ? selected.label
+        : 'Choose course'
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -124,26 +152,20 @@ export default function CourseCatalogSelect({
     <div ref={rootRef} className={cn('relative', className)}>
       <button
         type="button"
-        disabled={disabled || loading || Boolean(fetchError) || (!loading && courses.length === 0)}
+        disabled={pickerDisabled}
         onClick={() => setOpen((o) => !o)}
         ref={triggerRef}
         className={cn(
           'flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-transparent bg-[#e8f4fc] px-4 text-left text-sm shadow-sm transition focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/25',
           selected ? 'font-medium text-gray-900' : 'text-[#9ca0a8]',
           error && 'ring-2 ring-red-400',
-          (disabled || loading) && 'opacity-70',
+          (disabled || loading || needsCenter) && 'opacity-70',
         )}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
       >
-        <span className="truncate">
-          {loading
-            ? 'Loading courses…'
-            : selected
-              ? selected.label
-              : 'Choose course'}
-        </span>
+        <span className="truncate">{placeholder}</span>
         {loading ? (
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#55ace7]" />
         ) : (
@@ -186,8 +208,12 @@ export default function CourseCatalogSelect({
             {fetchError && (
               <li className="px-4 py-3 text-sm text-[#c96565]">{fetchError}</li>
             )}
-            {!fetchError && !loading && filtered.length === 0 && (
-              <li className="px-4 py-3 text-sm text-[#9ca0a8]">No courses available</li>
+            {!fetchError && !loading && !needsCenter && filtered.length === 0 && (
+              <li className="px-4 py-3 text-sm text-[#9ca0a8]">
+                {resolvedCenterId
+                  ? 'No courses available for this center'
+                  : 'No courses available'}
+              </li>
             )}
             {filtered.map((c) => (
               <li key={c._id}>
@@ -224,8 +250,13 @@ export default function CourseCatalogSelect({
       )}
 
       {error && <p className="mt-1 text-xs font-medium text-red-600">{error}</p>}
-      {required && !value && !error && (
-        <p className="mt-1 text-xs text-[#9ca0a8]">Select a course from Categories → Courses</p>
+      {required && !value && !error && !needsCenter && (
+        <p className="mt-1 text-xs text-[#9ca0a8]">
+          Select a course offered at the chosen center
+        </p>
+      )}
+      {required && !value && !error && needsCenter && (
+        <p className="mt-1 text-xs text-[#9ca0a8]">Select a center first</p>
       )}
     </div>
   )

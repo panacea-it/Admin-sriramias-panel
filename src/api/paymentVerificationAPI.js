@@ -10,6 +10,9 @@ import {
   buildVerificationListBody,
   normalizeVerificationListResponse,
   mapVerificationDetailToUi,
+  isMongoObjectId,
+  buildEligibleStudentsBody,
+  buildBatchAmountsBody,
 } from '../utils/paymentVerificationHelpers'
 
 const BASE = '/finance/payment-verification'
@@ -170,7 +173,7 @@ export async function escalateVerificationRecord(recordId, body, config = {}) {
 
 export async function searchEligibleStudents(body = {}, config = {}) {
   try {
-    const data = await post('/eligible-students', body, config)
+    const data = await post('/eligible-students', buildEligibleStudentsBody(body), config)
     return data?.items || []
   } catch (error) {
     throw toApiError(error, 'Failed to search students')
@@ -178,8 +181,11 @@ export async function searchEligibleStudents(body = {}, config = {}) {
 }
 
 export async function fetchCoursesByCenter(centerId, config = {}) {
+  if (!isMongoObjectId(centerId)) {
+    throw new Error('Select a valid center')
+  }
   try {
-    const data = await post('/courses-by-center', { centerId }, config)
+    const data = await post('/courses-by-center', { centerId: String(centerId).trim() }, config)
     return data?.items || []
   } catch (error) {
     throw toApiError(error, 'Failed to load courses')
@@ -187,8 +193,11 @@ export async function fetchCoursesByCenter(centerId, config = {}) {
 }
 
 export async function fetchBatchesByCourse(courseId, config = {}) {
+  if (!isMongoObjectId(courseId)) {
+    throw new Error('Select a valid course')
+  }
   try {
-    const data = await post('/batches-by-course', { courseId }, config)
+    const data = await post('/batches-by-course', { courseId: String(courseId).trim() }, config)
     return data?.items || []
   } catch (error) {
     throw toApiError(error, 'Failed to load batches')
@@ -196,8 +205,11 @@ export async function fetchBatchesByCourse(courseId, config = {}) {
 }
 
 export async function fetchBatchAmounts(body = {}, config = {}) {
+  if (!isMongoObjectId(body.batchId)) {
+    throw new Error('Select a valid batch')
+  }
   try {
-    return await post('/batch-amounts', body, config)
+    return await post('/batch-amounts', buildBatchAmountsBody(body), config)
   } catch (error) {
     throw toApiError(error, 'Failed to load batch amounts')
   }

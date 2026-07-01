@@ -8,6 +8,47 @@ import { inferProofType } from './financeVerificationWorkflow'
 
 const TERMINAL_VERIFICATION_STATUSES = new Set(['VERIFIED', 'REJECTED', 'AUTO_VERIFIED'])
 
+const MONGO_OBJECT_ID_RE = /^[a-f0-9]{24}$/i
+
+export function isMongoObjectId(value) {
+  return MONGO_OBJECT_ID_RE.test(String(value || '').trim())
+}
+
+export function mapCenterDropdownToOption(center) {
+  if (!center) return null
+  const id = String(center.value || center._id || center.id || '').trim()
+  const name = String(
+    center.centerName || center.name || center.label || getCentreDropdownDisplayName(center),
+  ).trim()
+  if (!id || !name) return null
+  return { id, name, centerCode: center.centerCode || '' }
+}
+
+function getCentreDropdownDisplayName(opt) {
+  const centerName = String(opt?.centerName || opt?.name || '').trim()
+  const label = String(opt?.label || '').trim()
+  const raw = centerName || label
+  if (!raw) return ''
+  let name = raw.split(/[(•]/)[0].trim()
+  const dashIdx = name.indexOf(' - ')
+  if (dashIdx > 0) name = name.slice(0, dashIdx).trim()
+  const commaIdx = name.indexOf(',')
+  if (commaIdx > 0) name = name.slice(0, commaIdx).trim()
+  return name
+}
+
+export function mapCentersDropdownToOptions(centers = []) {
+  const seen = new Set()
+  return centers
+    .map(mapCenterDropdownToOption)
+    .filter((opt) => {
+      if (!opt || !isMongoObjectId(opt.id)) return false
+      if (seen.has(opt.id)) return false
+      seen.add(opt.id)
+      return true
+    })
+}
+
 export function extractProofFilename(url = '') {
   if (!url) return 'payment-proof'
   try {
@@ -238,36 +279,41 @@ export function mapPaymentModesToOptions(items = []) {
 }
 
 export function mapCoursesToOptions(items = []) {
-  return items.map((item) => ({
-    id: item._id,
-    courseId: item.courseId,
-    name: item.courseName,
-    label: item.courseName,
-    value: item._id,
-    centerId: item.centerId,
-  }))
+  return items
+    .filter((item) => isMongoObjectId(item._id))
+    .map((item) => ({
+      id: item._id,
+      courseId: item.courseId,
+      name: item.courseName,
+      label: item.courseName,
+      value: item._id,
+      centerId: item.centerId,
+    }))
 }
 
 export function mapBatchesToOptions(items = []) {
-  return items.map((item) => ({
-    value: item._id,
-    batchId: item.batchId,
-    batchName: item.batchName,
-    label: item.batchName,
-    courseId: item.courseId,
-    status: item.status,
-  }))
+  return items
+    .filter((item) => isMongoObjectId(item._id))
+    .map((item) => ({
+      value: item._id,
+      batchId: item.batchId,
+      batchName: item.batchName,
+      label: item.batchName,
+      courseId: item.courseId,
+      status: item.status,
+    }))
 }
 
 export function mapEligibleStudentToProfile(item) {
   if (!item) return null
+  const centerId = String(item.center?._id || item.centerId || '').trim()
   return {
     studentObjectId: item._id,
     studentId: item.studentId,
     studentName: item.fullName,
     mobile: item.mobileNumber || '',
     email: item.email || '',
-    centerId: item.center?._id || '',
+    centerId: isMongoObjectId(centerId) ? centerId : '',
     centerName: item.center?.centerName || '',
     isWalkIn: false,
   }
@@ -306,6 +352,75 @@ export function mapEmiInstallmentsToUi(installments = []) {
   }))
 }
 
+export function buildEligibleStudentsBody({ search = '', centerId, limit = 25 } = {}) {
+  const body = {
+    search: String(search || '').trim(),
+    limit: Math.min(Math.max(Number(limit) || 25, 1), 100),
+  }
+  if (isMongoObjectId(centerId)) body.centerId = String(centerId).trim()
+  return body
+}
+
+export function buildBatchAmountsBody({
+  batchId,
+  studentId,
+  centerId,
+  deliveryMode = 'OFFLINE',
+} = {}) {
+  const body = {
+    batchId: String(batchId).trim(),
+    deliveryMode,
+  }
+  if (isMongoObjectId(studentId)) body.studentId = String(studentId).trim()
+  if (isMongoObjectId(centerId)) body.centerId = String(centerId).trim()
+  return body
+}
+
+export function buildCalculateEmiBody({
+  batchId,
+  studentId,
+  deliveryMode = 'OFFLINE',
+  downPayment = 0,
+  emiStartDate,
+  months,
+  isCustom = false,
+  includeAllPlans = false,
+} = {}) {
+  const body = {
+    batchId: String(batchId).trim(),
+    deliveryMode,
+    downPayment: Math.round(Number(downPayment) || 0),
+    emiStartDate: emiStartDate || '',
+  }
+  if (isMongoObjectId(studentId)) body.studentId = String(studentId).trim()
+  if (includeAllPlans) {
+    body.includeAllPlans = true
+    return body
+  }
+  if (months) body.months = Number(months)
+  body.isCustom = Boolean(isCustom)
+  return body
+}
+
+export function buildValidateScheduleBody({
+  batchId,
+  studentId,
+  deliveryMode = 'OFFLINE',
+  downPayment = 0,
+  installments = [],
+} = {}) {
+  const body = {
+    batchId: String(batchId).trim(),
+    deliveryMode,
+    downPayment: Math.round(Number(downPayment) || 0),
+    installments: installments.map((row) => ({
+      amount: Math.round(Number(row.amount ?? row.emiAmount) || 0),
+    })),
+  }
+  if (isMongoObjectId(studentId)) body.studentId = String(studentId).trim()
+  return body
+}
+
 export function mapEmiPlanOptionsToPreviews(planOptions = []) {
   return planOptions.map((plan) => ({
     months: plan.months,
@@ -318,6 +433,7 @@ export function resolvePaymentModeId(paymentModeName, modes = []) {
   if (!paymentModeName) return ''
   const match = modes.find(
     (m) =>
+      m.paymentModeId === paymentModeName ||
       m.paymentModeName === paymentModeName ||
       m.name === paymentModeName ||
       m.label === paymentModeName,
@@ -325,21 +441,59 @@ export function resolvePaymentModeId(paymentModeName, modes = []) {
   return match?.paymentModeId || match?.value || ''
 }
 
+export function resolveOfflineStudentType(form = {}) {
+  if (form.isWalkIn) return 'WALK_IN'
+  return isMongoObjectId(form.studentObjectId) ? 'REGISTERED' : 'WALK_IN'
+}
+
+export function isBatchFeesConfigured(data) {
+  if (!data) return false
+  const payable = Number(
+    data.payableAmount ?? data.totalFee ?? data.finalPayable ?? data.pendingAmount,
+  )
+  if (!Number.isFinite(payable) || payable <= 0) return false
+  const mode = String(data.deliveryMode || 'OFFLINE').toUpperCase()
+  return mode === 'OFFLINE' || mode === 'ONLINE'
+}
+
+export function extractOfflineProofFile(form = {}) {
+  if (form.proofFile instanceof File) return form.proofFile
+  const first = form.proofFiles?.[0]
+  if (first instanceof File) return first
+  if (first?.file instanceof File) return first.file
+  return null
+}
+
+function appendMongoFormField(formData, key, value) {
+  if (isMongoObjectId(value)) {
+    formData.append(key, String(value).trim())
+  }
+}
+
 export function buildFullPaymentFormData(form, modes = []) {
   const fd = new FormData()
-  const isWalkIn = form.isWalkIn
+  const studentType = resolveOfflineStudentType(form)
+  const isWalkIn = studentType === 'WALK_IN'
   const paymentModeId =
     form.paymentModeId || resolvePaymentModeId(form.paymentMode, modes)
 
-  fd.append('studentType', isWalkIn ? 'WALK_IN' : 'REGISTERED')
-  if (!isWalkIn && form.studentObjectId) fd.append('studentId', form.studentObjectId)
-  if (!isWalkIn) fd.append('studentName', form.studentName || '')
-  if (isWalkIn) fd.append('fullName', form.studentName || '')
+  if (!paymentModeId) {
+    throw new Error('Select a valid payment mode.')
+  }
+
+  fd.append('studentType', studentType)
+  if (!isWalkIn && isMongoObjectId(form.studentObjectId)) {
+    fd.append('studentId', String(form.studentObjectId).trim())
+    fd.append('studentName', form.studentName || '')
+  }
+  if (isWalkIn) {
+    fd.append('fullName', form.studentName || '')
+  }
   fd.append('mobileNumber', form.mobile || '')
   if (form.email) fd.append('email', form.email)
-  fd.append('centerId', form.centerId || '')
-  fd.append('courseId', form.courseId || '')
-  fd.append('batchId', form.batchId || '')
+  appendMongoFormField(fd, 'centerId', form.centerId)
+  appendMongoFormField(fd, 'courseId', form.courseId)
+  appendMongoFormField(fd, 'batchId', form.batchId)
   fd.append('deliveryMode', 'OFFLINE')
   fd.append('paymentModeId', paymentModeId)
   fd.append('amountPaid', String(Math.round(Number(form.amount) || 0)))
@@ -347,7 +501,7 @@ export function buildFullPaymentFormData(form, modes = []) {
   if (form.utrNumber) fd.append('utrNumber', form.utrNumber)
   if (form.remarks) fd.append('remarks', form.remarks)
 
-  const proofFile = form.proofFile || form.proofFiles?.[0]
+  const proofFile = extractOfflineProofFile(form)
   if (proofFile instanceof File) {
     fd.append('fullPaymentProof', proofFile)
   }
@@ -357,22 +511,25 @@ export function buildFullPaymentFormData(form, modes = []) {
 
 export function buildEmiPlanFormData(form, modes = []) {
   const fd = new FormData()
-  const isWalkIn = form.isWalkIn
+  const studentType = resolveOfflineStudentType(form)
+  const isWalkIn = studentType === 'WALK_IN'
   const downPayment = Number(form.emiPlan?.downPayment) || 0
   const isCustom = form.emiPlan?.durationPreset === 'custom'
   const selectedMonths = Number(form.emiPlan?.installmentCount) || 0
   const paymentModeId =
     form.paymentModeId || resolvePaymentModeId(form.paymentMode, modes)
 
-  fd.append('studentType', isWalkIn ? 'WALK_IN' : 'REGISTERED')
-  if (!isWalkIn && form.studentObjectId) fd.append('studentId', form.studentObjectId)
-  if (!isWalkIn) fd.append('studentName', form.studentName || '')
+  fd.append('studentType', studentType)
+  if (!isWalkIn && isMongoObjectId(form.studentObjectId)) {
+    fd.append('studentId', String(form.studentObjectId).trim())
+    fd.append('studentName', form.studentName || '')
+  }
   if (isWalkIn) fd.append('fullName', form.studentName || '')
   fd.append('mobileNumber', form.mobile || '')
   if (form.email) fd.append('email', form.email)
-  fd.append('centerId', form.centerId || '')
-  fd.append('courseId', form.courseId || '')
-  fd.append('batchId', form.batchId || '')
+  appendMongoFormField(fd, 'centerId', form.centerId)
+  appendMongoFormField(fd, 'courseId', form.courseId)
+  appendMongoFormField(fd, 'batchId', form.batchId)
   fd.append('deliveryMode', 'OFFLINE')
   fd.append('downPayment', String(Math.round(downPayment)))
   fd.append('emiStartDate', form.emiPlan?.startDate || form.paymentDate || '')

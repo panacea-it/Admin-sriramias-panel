@@ -41,6 +41,7 @@ export default function EmiEditModal({
   emiPlanId,
   paymentModes = [],
   onComplete,
+  onMutation,
   saving: externalSaving = false,
 }) {
   const [plan, setPlan] = useState(null)
@@ -102,7 +103,8 @@ export default function EmiEditModal({
     return recalcPlanFromInstallments(plan, installments)
   }, [plan, installments])
 
-  const pendingBalance = displayPlan?.pendingAmount ?? plan?.pendingAmount ?? 0
+  // Close-emi must use server pendingAmount (includes down payment / lump sums not on installment rows)
+  const pendingBalance = Number(plan?.pendingAmount) || 0
   const saving = externalSaving || actionSaving
 
   const refreshFromDetails = useCallback(
@@ -141,13 +143,14 @@ export default function EmiEditModal({
         await refreshFromDetails(details)
         toast.success(`Installment #${updated.installmentNo} updated`)
         setCustomizeIndex(null)
+        onMutation?.()
       } catch (err) {
         toast.error(err.message || 'Failed to customize installment')
       } finally {
         setActionSaving(false)
       }
     },
-    [emiPlanId, customizeIndex, installments, refreshFromDetails],
+    [emiPlanId, customizeIndex, installments, refreshFromDetails, onMutation],
   )
 
   const handlePaySave = useCallback(
@@ -164,7 +167,9 @@ export default function EmiEditModal({
         const formData = buildPayInstallmentFormData({
           emiPlanId,
           installmentId: row._id,
-          paymentModeId: updated.paymentModeId || updated.paymentMode,
+          paymentModeId: updated.paymentModeId,
+          paymentMode: updated.paymentMode,
+          paymentModes,
           paymentDate: updated.paidDate,
           receiptNumber: updated.receiptNumber,
           referenceNumber: updated.referenceNumber || updated.utrNumber,
@@ -175,6 +180,7 @@ export default function EmiEditModal({
         await refreshFromDetails()
         toast.success(`Payment saved for installment #${updated.installmentNo}`)
         setPayIndex(null)
+        onMutation?.()
       } catch (err) {
         toast.error(err.message || 'Failed to record payment')
         throw err
@@ -182,7 +188,7 @@ export default function EmiEditModal({
         setActionSaving(false)
       }
     },
-    [emiPlanId, payIndex, installments, refreshFromDetails],
+    [emiPlanId, payIndex, installments, paymentModes, refreshFromDetails, onMutation],
   )
 
   const handleCloseEmi = useCallback(
@@ -234,6 +240,7 @@ export default function EmiEditModal({
       const details = await addEmiInstallment(emiPlanId)
       await refreshFromDetails(details)
       toast.success('Installment added')
+      onMutation?.()
     } catch (err) {
       toast.error(err.message || 'Failed to add installment')
     } finally {

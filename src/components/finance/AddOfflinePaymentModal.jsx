@@ -65,6 +65,8 @@ export default function AddOfflinePaymentModal({
     batchesLoading,
     batchesFetchError,
     paymentModeOptions,
+    emiPlanOptions,
+    financialsError,
     OFFLINE_SUBMIT_ACTIONS: ACTIONS,
   } = form
 
@@ -142,6 +144,7 @@ export default function AddOfflinePaymentModal({
               onSearchSelect={handleSearchSelect}
               onWalkIn={handleWalkIn}
               batchError={batchError}
+              financialsError={financialsError}
             />
 
             {emiEnabled ? (
@@ -160,6 +163,7 @@ export default function AddOfflinePaymentModal({
                   onChange={setEmiConfig}
                   financials={financials}
                   installments={installments}
+                  apiPlanOptions={emiPlanOptions}
                 />
 
                 <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">

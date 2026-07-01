@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarClock, Pencil, Eye, UserPlus, Wallet, Users, AlertTriangle, TrendingUp, Bell, Banknote } from 'lucide-react'
 import { useFinanceCenterFilter } from '../../contexts/FinanceCenterFilterContext'
 import FinanceBreadcrumbs from '../../components/finance/FinanceBreadcrumbs'
@@ -49,6 +49,7 @@ function formatPriorityForForm(priority) {
 }
 const REMINDER_WINDOW_DAYS = 30
 const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_REMINDER_PAGE_SIZE = 10
 
 const selectClass =
   'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[#222] outline-none focus:border-[#55ace7] focus:ring-2 focus:ring-[#55ace7]/20 min-w-[140px]'
@@ -128,7 +129,14 @@ function OverviewSection({ metrics, loading }) {
   )
 }
 
-function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabel }) {
+function AutomationReminderSection({
+  rows,
+  onSendReminder,
+  sendingId,
+  centerLabel,
+  loading,
+  paginationControl,
+}) {
   const columns = [
     { key: 'studentName', label: 'Student Name', render: (r) => <span className="font-medium text-[#222]">{r.studentName}</span> },
     { key: 'centerName', label: 'City', render: (r) => <span className="text-[#444]">{r.centerName || '—'}</span> },
@@ -171,14 +179,16 @@ function AutomationReminderSection({ rows, onSendReminder, sendingId, centerLabe
         subtitle={`Upcoming EMI reminders for the next ${REMINDER_WINDOW_DAYS} days · ${centerLabel}`}
       />
       <div className="mt-4">
-        {rows.length === 0 ? (
+        {loading ? (
+          <FinanceTableSkeleton rows={4} columns={6} />
+        ) : rows.length === 0 ? (
           <FinanceEmptyState title="No upcoming reminders" description="Students with due dates in the next 30 days will appear here." />
         ) : (
           <PaginatedFigmaTable
             columns={columns}
             data={rows}
             itemLabel="reminders"
-            initialPageSize={5}
+            controlledPagination={paginationControl}
             zebraStriping
             tableClassName="overflow-x-auto"
           />
@@ -428,6 +438,12 @@ export default function EmiManagementPage() {
   const [filterOptions, setFilterOptions] = useState(null)
   const [metrics, setMetrics] = useState(null)
   const [reminderRows, setReminderRows] = useState([])
+  const [reminderPagination, setReminderPagination] = useState({
+    page: 1,
+    limit: DEFAULT_REMINDER_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  })
   const [students, setStudents] = useState([])
   const [studentPagination, setStudentPagination] = useState({
     page: 1,
@@ -446,6 +462,11 @@ export default function EmiManagementPage() {
   const [monthFilter, setMonthFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [reminderPage, setReminderPage] = useState(1)
+  const [reminderPageSize, setReminderPageSize] = useState(DEFAULT_REMINDER_PAGE_SIZE)
+
+  const filterOptionsLoadedRef = useRef(false)
+  const dashboardRequestRef = useRef(0)
 
   const [viewPlanId, setViewPlanId] = useState(null)
   const [viewPlan, setViewPlan] = useState(null)
@@ -465,46 +486,26 @@ export default function EmiManagementPage() {
     [financeCenterFilter],
   )
 
-  const loadFilterOptions = useCallback(async () => {
-    try {
-      const data = await fetchEmiFilterOptions()
-      setFilterOptions(data)
-    } catch (err) {
-      toast.error(err.message || 'Failed to load filter options')
-    }
+  const applyDashboardResult = useCallback((result) => {
+    setMetrics(result.metrics)
+    setReminderRows(result.reminders)
+    setReminderPagination(result.reminderPagination)
+    setStudents(result.students)
+    setStudentPagination(result.studentPagination)
   }, [])
 
-  const loadDashboard = useCallback(
-    async (silent = false) => {
-      if (silent) setRefreshing(true)
-      else setLoading(true)
-
-      try {
-        const result = await fetchEmiDashboard({
-          centerId: resolveDashboardCenterId(financeCenterFilter),
-          courseId: courseFilter,
-          emiStatus: statusFilter,
-          counselorId: counselorFilter,
-          month: monthFilter,
-          search: debouncedSearch,
-          page,
-          limit: pageSize,
-          nextDays: REMINDER_WINDOW_DAYS,
-          reminderPage: 1,
-          reminderLimit: 50,
-        })
-
-        setMetrics(result.metrics)
-        setReminderRows(result.reminders)
-        setStudents(result.students)
-        setStudentPagination(result.studentPagination)
-      } catch (err) {
-        toast.error(err.message || 'Failed to load EMI dashboard')
-      } finally {
-        setLoading(false)
-        setRefreshing(false)
-      }
-    },
+  const queryKey = useMemo(
+    () =>
+      JSON.stringify({
+        centerId: resolveDashboardCenterId(financeCenterFilter),
+        courseId: courseFilter,
+        emiStatus: statusFilter,
+        counselorId: counselorFilter,
+        month: monthFilter,
+        search: debouncedSearch,
+        pageSize,
+        reminderPageSize,
+      }),
     [
       financeCenterFilter,
       courseFilter,
@@ -512,31 +513,100 @@ export default function EmiManagementPage() {
       counselorFilter,
       monthFilter,
       debouncedSearch,
-      page,
       pageSize,
+      reminderPageSize,
     ],
   )
 
+  const queryKeyRef = useRef(queryKey)
+  const pagesForQuery = useMemo(() => {
+    const filtersChanged = queryKeyRef.current !== queryKey
+    if (filtersChanged) {
+      queryKeyRef.current = queryKey
+      return { student: 1, reminder: 1 }
+    }
+    return { student: page, reminder: reminderPage }
+  }, [queryKey, page, reminderPage])
+
+  const studentPageForQuery = pagesForQuery.student
+  const reminderPageForQuery = pagesForQuery.reminder
+
   useEffect(() => {
-    loadFilterOptions()
-  }, [loadFilterOptions])
+    if (studentPageForQuery !== page) setPage(studentPageForQuery)
+    if (reminderPageForQuery !== reminderPage) setReminderPage(reminderPageForQuery)
+  }, [studentPageForQuery, reminderPageForQuery, page, reminderPage])
+
+  const buildDashboardParams = useCallback(
+    () => ({
+      centerId: resolveDashboardCenterId(financeCenterFilter),
+      courseId: courseFilter,
+      emiStatus: statusFilter,
+      counselorId: counselorFilter,
+      month: monthFilter,
+      search: debouncedSearch,
+      page: studentPageForQuery,
+      limit: pageSize,
+      nextDays: REMINDER_WINDOW_DAYS,
+      reminderPage: reminderPageForQuery,
+      reminderLimit: reminderPageSize,
+    }),
+    [
+      financeCenterFilter,
+      courseFilter,
+      statusFilter,
+      counselorFilter,
+      monthFilter,
+      debouncedSearch,
+      studentPageForQuery,
+      pageSize,
+      reminderPageForQuery,
+      reminderPageSize,
+    ],
+  )
+
+  const loadDashboard = useCallback(
+    async (silent = false) => {
+      const requestId = dashboardRequestRef.current + 1
+      dashboardRequestRef.current = requestId
+
+      if (silent) setRefreshing(true)
+      else setLoading(true)
+
+      try {
+        const dashboardPromise = fetchEmiDashboard(buildDashboardParams())
+        const optionsPromise = filterOptionsLoadedRef.current
+          ? null
+          : fetchEmiFilterOptions()
+
+        const [dashboard, options] = await Promise.all([
+          dashboardPromise,
+          optionsPromise ?? Promise.resolve(null),
+        ])
+
+        if (dashboardRequestRef.current !== requestId) return
+
+        if (options) {
+          setFilterOptions(options)
+          filterOptionsLoadedRef.current = true
+        }
+
+        applyDashboardResult(dashboard)
+      } catch (err) {
+        if (dashboardRequestRef.current !== requestId) return
+        toast.error(err.message || 'Failed to load EMI management data')
+      } finally {
+        if (dashboardRequestRef.current === requestId) {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }
+    },
+    [applyDashboardResult, buildDashboardParams],
+  )
 
   useEffect(() => {
     loadDashboard(refreshToken > 0)
   }, [loadDashboard, refreshToken])
-
-  useEffect(() => {
-    setPage(1)
-  }, [
-    debouncedSearch,
-    courseFilter,
-    statusFilter,
-    counselorFilter,
-    monthFilter,
-    financeCenterFilter.selectedIds,
-    financeCenterFilter.isOverallView,
-    pageSize,
-  ])
 
   useEffect(() => {
     if (!viewPlanId) {
@@ -608,6 +678,10 @@ export default function EmiManagementPage() {
     loadDashboard(true)
   }, [loadDashboard])
 
+  const handleEditMutation = useCallback(() => {
+    loadDashboard(true)
+  }, [loadDashboard])
+
   const rowActions = (row) => (
     <FinanceActionMenu
       inlineFrom="lg"
@@ -666,6 +740,23 @@ export default function EmiManagementPage() {
     }
   }, [studentPagination])
 
+  const reminderPaginationControl = useMemo(() => {
+    const base = buildStudentPaginationControl({
+      page: reminderPagination.page,
+      pageSize: reminderPagination.limit,
+      total: reminderPagination.total,
+      totalPages: reminderPagination.totalPages,
+    })
+    return {
+      ...base,
+      onPageChange: setReminderPage,
+      onPageSizeChange: (size) => {
+        setReminderPageSize(Number(size))
+        setReminderPage(1)
+      },
+    }
+  }, [reminderPagination])
+
   return (
     <div className="flex flex-col gap-5 p-4 sm:gap-6 sm:p-6">
       <FinanceBreadcrumbs items={[{ label: 'EMI Management' }]} />
@@ -693,6 +784,8 @@ export default function EmiManagementPage() {
         onSendReminder={handleSendReminder}
         sendingId={sendingReminderId}
         centerLabel={centerLabel}
+        loading={loading && reminderRows.length === 0}
+        paginationControl={reminderPaginationControl}
       />
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -774,6 +867,7 @@ export default function EmiManagementPage() {
         paymentModes={uiFilterOptions.paymentModes}
         onClose={() => setEditPlanId(null)}
         onComplete={handleEditComplete}
+        onMutation={handleEditMutation}
       />
 
       <EmiAssignCounselorDialog
