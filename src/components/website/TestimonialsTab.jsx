@@ -12,13 +12,17 @@ import { WebsiteStatusBadge } from './websiteUi'
 import {
   TESTIMONIAL_STATUS,
   TESTIMONIAL_STATUS_OPTIONS,
-  TESTIMONIAL_YEAR_OPTIONS,
   emptyTestimonialForm,
 } from '../../constants/testimonialsConstants'
 import {
   buildTestimonialFormData,
+  buildYearFilterOptions,
   formFromApiTestimonial,
+  hasTestimonialFormChanges,
+  mapApiErrorsToForm,
   mapApiTestimonialsToRows,
+  suggestNextDisplayOrder,
+  validateTestimonialImageFile,
 } from '../../utils/testimonialApiHelpers'
 import {
   useChangeTestimonialStatus,
@@ -49,20 +53,37 @@ function validateTestimonialForm(form, { isEdit = false } = {}) {
   if (!String(form.rank || '').trim()) errors.rank = 'Rank is required'
   if (!String(form.year || '').trim()) errors.year = 'Year is required'
   if (!String(form.displayOrder || '').trim()) errors.displayOrder = 'Display order is required'
-  if (!isEdit && !(form.imageFile instanceof File)) {
-    errors.testimonialImage = 'Testimonial image is required'
+
+  const year = Number(form.year)
+  if (form.year && (!Number.isInteger(year) || year < 2000 || year > 2100)) {
+    errors.year = 'Year must be between 2000 and 2100'
   }
+
+  const displayOrder = Number(form.displayOrder)
+  if (form.displayOrder && (!Number.isInteger(displayOrder) || displayOrder < 1)) {
+    errors.displayOrder = 'Display order must be a positive integer'
+  }
+
+  if (!isEdit) {
+    const imageError = validateTestimonialImageFile(form.imageFile)
+    if (imageError) errors.testimonialImage = imageError
+  } else if (form.imageFile instanceof File) {
+    const imageError = validateTestimonialImageFile(form.imageFile)
+    if (imageError) errors.testimonialImage = imageError
+  }
+
   return errors
 }
 
 export default function TestimonialsTab() {
-  const { data: apiRows = [], isLoading } = useTestimonials()
+  const { data: apiRows = [], isLoading, isError, error, refetch, isFetching } = useTestimonials()
   const createMutation = useCreateTestimonial()
   const updateMutation = useUpdateTestimonial()
   const statusMutation = useChangeTestimonialStatus()
   const deleteMutation = useDeleteTestimonial()
 
   const rows = useMemo(() => mapApiTestimonialsToRows(apiRows), [apiRows])
+  const yearFilterOptions = useMemo(() => buildYearFilterOptions(rows), [rows])
   const saving = createMutation.isPending || updateMutation.isPending
   const [search, setSearch] = useState('')
   const [yearFilter, setYearFilter] = useState('all')
@@ -89,10 +110,10 @@ export default function TestimonialsTab() {
       .filter((row) => {
         const matchSearch =
           !q ||
-          row.testimonialId.toLowerCase().includes(q) ||
-          row.studentName.toLowerCase().includes(q) ||
-          row.title.toLowerCase().includes(q) ||
-          String(row.rank).includes(q)
+          String(row.testimonialId || '').toLowerCase().includes(q) ||
+          String(row.studentName || '').toLowerCase().includes(q) ||
+          String(row.title || '').toLowerCase().includes(q) ||
+          String(row.rank || '').includes(q)
         const matchYear = yearFilter === 'all' || String(row.year) === yearFilter
         const matchStatus = statusFilter === 'all' || row.status === statusFilter
         return matchSearch && matchYear && matchStatus
@@ -102,7 +123,10 @@ export default function TestimonialsTab() {
 
   const openAdd = () => {
     setEditTarget(null)
-    setForm(emptyTestimonialForm())
+    setForm({
+      ...emptyTestimonialForm(),
+      displayOrder: suggestNextDisplayOrder(rows),
+    })
     setFormErrors({})
     setFormOpen(true)
   }
@@ -127,6 +151,11 @@ export default function TestimonialsTab() {
       return
     }
 
+    if (editTarget && !hasTestimonialFormChanges(form, editTarget)) {
+      toast.error('No changes to save')
+      return
+    }
+
     try {
       const includeImage = form.imageFile instanceof File
       const formData = buildTestimonialFormData(form, { includeImage })
@@ -142,8 +171,12 @@ export default function TestimonialsTab() {
         toast.success('Testimonial created')
       }
       closeForm()
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to save testimonial'))
+    } catch (saveError) {
+      const apiFieldErrors = mapApiErrorsToForm(saveError)
+      if (Object.keys(apiFieldErrors).length) {
+        setFormErrors((current) => ({ ...current, ...apiFieldErrors }))
+      }
+      toast.error(getApiErrorMessage(saveError, 'Failed to save testimonial'))
     }
   }
 
@@ -283,6 +316,20 @@ export default function TestimonialsTab() {
           </span>
         </div>
 
+        {isError ? (
+          <div className="mb-4 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#b91c1c]">
+            <p className="font-semibold">Could not load testimonials</p>
+            <p className="mt-1">{getApiErrorMessage(error, 'Failed to fetch testimonials')}</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[#b91c1c] px-4 text-xs font-semibold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
         <div className="mb-4 flex min-h-[56px] flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fafcff] px-4 py-3 ring-1 ring-[#eef2fc]">
           <div className="relative w-full min-w-0 flex-1 lg:max-w-md">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#687180]" />
@@ -299,7 +346,7 @@ export default function TestimonialsTab() {
               label="Year filter"
               value={yearFilter}
               onChange={(e) => setYearFilter(e.target.value)}
-              options={TESTIMONIAL_YEAR_OPTIONS}
+              options={yearFilterOptions}
             />
             <FilterSelect
               label="Status filter"
@@ -314,7 +361,13 @@ export default function TestimonialsTab() {
           columns={columns}
           data={filteredRows}
           itemLabel="testimonials"
-          emptyMessage={isLoading ? 'Loading testimonials…' : 'No testimonials match your filters.'}
+          emptyMessage={
+            isLoading
+              ? 'Loading testimonials…'
+              : isFetching
+                ? 'Refreshing testimonials…'
+                : 'No testimonials match your filters.'
+          }
           initialPageSize={10}
         />
       </div>
@@ -340,6 +393,7 @@ export default function TestimonialsTab() {
             setForm={setForm}
             formErrors={formErrors}
             clearFieldError={clearFieldError}
+            setFormErrors={setFormErrors}
           />
         </WebsiteFormShell>
       </WebsiteFormModal>
@@ -366,6 +420,13 @@ export default function TestimonialsTab() {
                 <DetailItem label="Status" value={viewTarget.status} className="sm:col-span-2" />
                 <DetailItem label="Quote" value={viewTarget.excerpt} className="sm:col-span-2" />
               </dl>
+              {viewTarget.testimonialImage?.url ? (
+                <img
+                  src={viewTarget.testimonialImage.url}
+                  alt={viewTarget.studentName}
+                  className="max-h-48 rounded-lg object-contain shadow-sm"
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={() => {

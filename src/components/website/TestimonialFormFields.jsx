@@ -4,8 +4,19 @@ import { WebsiteField, websiteInputClass } from './websiteUi'
 import {
   DEFAULT_EXAM_NAME,
   TESTIMONIAL_STATUS,
-  TESTIMONIAL_YEAR_OPTIONS,
 } from '../../constants/testimonialsConstants'
+import { validateTestimonialImageFile } from '../../utils/testimonialApiHelpers'
+
+const TESTIMONIAL_YEAR_MIN = 2000
+const TESTIMONIAL_YEAR_MAX = 2100
+
+const yearOptions = Array.from(
+  { length: TESTIMONIAL_YEAR_MAX - TESTIMONIAL_YEAR_MIN + 1 },
+  (_, index) => {
+    const year = String(TESTIMONIAL_YEAR_MAX - index)
+    return { value: year, label: year }
+  },
+)
 
 const inputErrorClass = 'ring-2 ring-[#dc2626]/50'
 
@@ -19,12 +30,19 @@ export default function TestimonialFormFields({
   setForm,
   formErrors = {},
   clearFieldError,
+  setFormErrors,
 }) {
-  const yearOptions = TESTIMONIAL_YEAR_OPTIONS.filter((opt) => opt.value !== 'all')
-
   const handleImagePick = (event) => {
     const file = event.target.files?.[0]
     if (!file) return
+
+    const imageError = validateTestimonialImageFile(file)
+    if (imageError) {
+      setFormErrors?.((current) => ({ ...current, testimonialImage: imageError }))
+      event.target.value = ''
+      return
+    }
+
     const previewUrl = URL.createObjectURL(file)
     setForm((current) => ({
       ...current,

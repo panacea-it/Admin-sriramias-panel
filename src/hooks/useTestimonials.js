@@ -3,7 +3,7 @@ import {
   changeTestimonialStatus,
   createTestimonial,
   deleteTestimonial,
-  fetchTestimonials,
+  fetchAllTestimonials,
   updateTestimonial,
 } from '../api/testimonialsAPI'
 
@@ -15,12 +15,13 @@ export const testimonialKeys = {
 export function useTestimonials(options = {}) {
   return useQuery({
     queryKey: testimonialKeys.list(),
-    queryFn: async () => {
-      const result = await fetchTestimonials()
-      return result.testimonials ?? []
-    },
+    queryFn: fetchAllTestimonials,
     staleTime: 30 * 1000,
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (error?.cause?.response?.status === 401) return false
+      if (error?.cause?.response?.status === 403) return false
+      return failureCount < 2
+    },
     ...options,
   })
 }

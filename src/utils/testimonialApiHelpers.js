@@ -1,5 +1,8 @@
 import { buildTestimonialTitle } from '../constants/testimonialsConstants'
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
 export function buildTestimonialExcerpt({ studentName, rank, examName, year }) {
   const name = String(studentName || '').trim()
   const exam = String(examName || 'UPSC CSE').trim()
@@ -11,7 +14,7 @@ export function buildTestimonialExcerpt({ studentName, rank, examName, year }) {
 export function mapApiTestimonialToRow(item) {
   if (!item) return null
 
-  const row = {
+  return {
     id: item._id,
     testimonialId: item.testimonialId,
     studentName: item.studentName,
@@ -26,12 +29,58 @@ export function mapApiTestimonialToRow(item) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   }
-
-  return row
 }
 
 export function mapApiTestimonialsToRows(items = []) {
   return items.map(mapApiTestimonialToRow).filter(Boolean)
+}
+
+export function buildYearFilterOptions(rows = []) {
+  const years = [...new Set(rows.map((row) => row.year).filter(Boolean))].sort(
+    (a, b) => b - a,
+  )
+
+  return [
+    { value: 'all', label: 'All years' },
+    ...years.map((year) => ({ value: String(year), label: String(year) })),
+  ]
+}
+
+export function suggestNextDisplayOrder(rows = []) {
+  if (!rows.length) return '1'
+  const maxOrder = Math.max(...rows.map((row) => Number(row.displayOrder) || 0))
+  return String(maxOrder + 1)
+}
+
+export function validateTestimonialImageFile(file) {
+  if (!(file instanceof File)) {
+    return 'Testimonial image is required'
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    return 'Image must be JPG, PNG, or WEBP'
+  }
+
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    return 'Image must not exceed 5 MB'
+  }
+
+  return ''
+}
+
+export function mapApiErrorsToForm(error) {
+  const formErrors = {}
+  const body = error?.cause?.response?.data ?? error?.response?.data ?? error
+
+  const list = body?.errors
+  if (!Array.isArray(list)) return formErrors
+
+  for (const item of list) {
+    if (!item?.field || !item?.message) continue
+    formErrors[item.field] = item.message
+  }
+
+  return formErrors
 }
 
 export function buildTestimonialFormData(form, { includeImage = false } = {}) {
@@ -64,4 +113,18 @@ export function formFromApiTestimonial(row) {
     imageFileName: row.testimonialImage?.url ? 'Existing image' : '',
     imageFile: null,
   }
+}
+
+export function hasTestimonialFormChanges(form, editTarget) {
+  if (!editTarget) return true
+
+  return (
+    String(form.studentName || '').trim() !== String(editTarget.studentName || '').trim() ||
+    String(form.rank || '').trim() !== String(editTarget.rank || '').trim() ||
+    String(form.examName || 'UPSC CSE').trim() !== String(editTarget.examName || 'UPSC CSE').trim() ||
+    String(form.year) !== String(editTarget.year) ||
+    String(form.displayOrder) !== String(editTarget.displayOrder) ||
+    form.status !== editTarget.status ||
+    form.imageFile instanceof File
+  )
 }
