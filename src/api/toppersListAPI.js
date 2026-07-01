@@ -1,17 +1,23 @@
 import api, { UPLOAD_REQUEST_TIMEOUT_MS } from './axiosInstance'
 import { getApiErrorMessage } from '../utils/apiError'
 
+const LIST_PAGE_SIZE = 100
+
 function toError(error, fallback) {
   const err = new Error(getApiErrorMessage(error, fallback))
   err.cause = error
   return err
 }
 
+function unwrapListPayload(response) {
+  return response?.data?.data ?? { toppersLists: [], pagination: {} }
+}
+
 export async function fetchToppersLists(params = {}) {
   try {
     const response = await api.post('/admin/toppers-list/list', {
       page: 1,
-      limit: 500,
+      limit: LIST_PAGE_SIZE,
       search: '',
       status: '',
       year: '',
@@ -19,10 +25,33 @@ export async function fetchToppersLists(params = {}) {
       sortOrder: 'asc',
       ...params,
     })
-    return response?.data?.data ?? { toppersLists: [], pagination: {} }
+    return unwrapListPayload(response)
   } catch (error) {
     throw toError(error, 'Failed to fetch toppers lists')
   }
+}
+
+/** Fetches every toppers list page (API max limit is 100 per request). */
+export async function fetchAllToppersLists(params = {}) {
+  const firstPage = await fetchToppersLists({ ...params, page: 1, limit: LIST_PAGE_SIZE })
+  const allItems = [...(firstPage.toppersLists ?? [])]
+  const totalPages = firstPage.pagination?.totalPages ?? 1
+
+  if (totalPages <= 1) {
+    return allItems
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      fetchToppersLists({ ...params, page: index + 2, limit: LIST_PAGE_SIZE }),
+    ),
+  )
+
+  for (const page of remainingPages) {
+    allItems.push(...(page.toppersLists ?? []))
+  }
+
+  return allItems
 }
 
 export async function createToppersList(formData) {

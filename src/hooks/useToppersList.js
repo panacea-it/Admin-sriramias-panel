@@ -3,7 +3,7 @@ import {
   changeToppersListStatus,
   createToppersList,
   deleteToppersList,
-  fetchToppersLists,
+  fetchAllToppersLists,
   updateToppersList,
 } from '../api/toppersListAPI'
 
@@ -15,12 +15,13 @@ export const toppersListKeys = {
 export function useToppersLists(options = {}) {
   return useQuery({
     queryKey: toppersListKeys.list(),
-    queryFn: async () => {
-      const result = await fetchToppersLists()
-      return result.toppersLists ?? []
-    },
+    queryFn: fetchAllToppersLists,
     staleTime: 30 * 1000,
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (error?.cause?.response?.status === 401) return false
+      if (error?.cause?.response?.status === 403) return false
+      return failureCount < 2
+    },
     ...options,
   })
 }

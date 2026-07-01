@@ -72,7 +72,7 @@ function validateToppersListForm(form, rows, editTarget) {
 }
 
 export default function ToppersListTab() {
-  const { data: apiRows = [], isLoading } = useToppersLists()
+  const { data: apiRows = [], isLoading, isError, error, refetch } = useToppersLists()
   const createMutation = useCreateToppersList()
   const updateMutation = useUpdateToppersList()
   const statusMutation = useChangeToppersListStatus()
@@ -296,6 +296,20 @@ export default function ToppersListTab() {
             {filteredRows.length} record{filteredRows.length === 1 ? '' : 's'}
           </span>
         </div>
+
+        {isError ? (
+          <div className="mb-4 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#b91c1c]">
+            <p className="font-semibold">Could not load toppers lists</p>
+            <p className="mt-1">{getApiErrorMessage(error, 'Failed to fetch toppers lists')}</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[#b91c1c] px-4 text-xs font-semibold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         <div className="mb-4 flex min-h-[56px] flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fafcff] px-4 py-3 ring-1 ring-[#eef2fc]">
           <div className="relative w-full min-w-0 flex-1 lg:max-w-md">
